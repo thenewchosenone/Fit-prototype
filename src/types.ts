@@ -128,18 +128,30 @@ export interface UserProfile {
   city: string;
   state: string;
   bio: string;
+  discipline: string;
+  trainingGoal: string;
+  yearsTraining: number;
+  federation: string;
+  preferredEquipment: EquipmentType;
+  role: "Member" | "Moderator" | "Admin";
+  professionalCredential?: string;
+  credentialVerified: boolean;
   hideGym: boolean;
   hideLocation: boolean;
+  hideAge: boolean;
 }
 
 export interface Gym {
   id: string;
+  brand: string;
   name: string;
+  address: string;
   city: string;
   state: string;
-  address?: string;
-  memberCount: number;
-  verifiedLiftCount: number;
+  postalCode: string;
+  countryCode: "US";
+  memberCount?: number;
+  verifiedLiftCount?: number;
   officialUrl: string;
 }
 
@@ -179,12 +191,37 @@ export interface WorkoutFeedback {
   createdAt: string;
 }
 
-export type CommunityPostKind = "Discussion" | "Lift" | "Workout" | "PR" | "Gym";
+export type CommunityPostKind = "Discussion" | "Lift" | "Workout" | "PR" | "Gym" | "Question" | "Form Check" | "Program Review" | "Progress" | "Nutrition" | "Equipment" | "Personal Record";
+export type CommunityVote = -1 | 1;
+export type CommunityReportReason = "Dangerous advice" | "Eating-disorder content" | "Harassment" | "Misinformation" | "Spam" | "Unsafe supplements" | "Other";
+
+export interface TrainingGroup {
+  id: string;
+  name: string;
+  description: string;
+  rules: string[];
+  memberIds: string[];
+  moderatorIds: string[];
+}
+
+export interface PostTrainingDetails {
+  exercise?: string;
+  sets?: number;
+  reps?: number;
+  weight?: number;
+  unit?: UnitSystem;
+  rpe?: number;
+  feedbackRequest?: string;
+  programName?: string;
+  durationWeeks?: number;
+  rating?: number;
+}
 
 export interface CommunityPost {
   id: string;
   authorId: string;
   kind: CommunityPostKind;
+  groupId: string;
   title: string;
   body: string;
   createdAt: string;
@@ -192,14 +229,49 @@ export interface CommunityPost {
   linkedWorkoutId?: string;
   gymId?: string;
   likedBy: string[];
+  votes: Record<string, CommunityVote>;
   savedBy: string[];
+  exerciseTags: string[];
+  goalTags: string[];
+  mediaUrl?: string;
+  mediaType?: "Image" | "Video";
+  trainingDetails?: PostTrainingDetails;
+  isLocked: boolean;
+  removedAt?: string;
+  removalReason?: string;
+  warning?: string;
 }
 
 export interface Comment {
   id: string;
   postId: string;
   authorId: string;
+  parentCommentId?: string;
   body: string;
+  createdAt: string;
+  editedAt?: string;
+  deletedAt?: string;
+  removedAt?: string;
+  votes: Record<string, CommunityVote>;
+}
+
+export interface CommunityReport {
+  id: string;
+  targetType: "Post" | "Comment";
+  targetId: string;
+  reporterId: string;
+  reason: CommunityReportReason;
+  note: string;
+  status: "Open" | "Resolved";
+  createdAt: string;
+}
+
+export interface GroupBan {
+  id: string;
+  groupId: string;
+  userId: string;
+  moderatorId: string;
+  reason: string;
   createdAt: string;
 }
 
@@ -291,7 +363,7 @@ export interface LeaderboardEntry {
 }
 
 export interface TrackerState {
-  version: 3;
+  version: 4;
   plans: WorkoutPlan[];
   phases: WorkoutPhase[];
   weeks: WorkoutWeek[];
@@ -311,6 +383,10 @@ export interface TrackerState {
   workoutFeedback: WorkoutFeedback[];
   communityPosts: CommunityPost[];
   comments: Comment[];
+  trainingGroups: TrainingGroup[];
+  joinedGroupIds: string[];
+  communityReports: CommunityReport[];
+  groupBans: GroupBan[];
   friendRequests: FriendRequest[];
   messageThreads: MessageThread[];
   messages: Message[];

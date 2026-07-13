@@ -9,7 +9,8 @@ import {
   messageSeed,
   messageThreadSeed,
   notificationSeed,
-  profileSeed
+  profileSeed,
+  trainingGroupSeed
 } from "./platformData";
 
 const exercises: Exercise[] = [
@@ -60,7 +61,7 @@ const pullSession = "session-pull";
 const legsSession = "session-legs";
 
 export const seedState: TrackerState = {
-  version: 3,
+  version: 4,
   plans: [
     {
       id: planId,
@@ -137,6 +138,10 @@ export const seedState: TrackerState = {
   workoutFeedback: [],
   communityPosts: communitySeed,
   comments: commentSeed,
+  trainingGroups: trainingGroupSeed,
+  joinedGroupIds: ["group-general-strength", "group-powerlifting", "group-nutrition"],
+  communityReports: [],
+  groupBans: [],
   friendRequests: friendRequestSeed,
   messageThreads: messageThreadSeed,
   messages: messageSeed,

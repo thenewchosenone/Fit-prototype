@@ -6,13 +6,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/clean-dist.mjs && tsc -b && vite build",
+    "build:demo": "VITE_PUBLIC_DEMO=true VITE_AUTH_DEMO_MODE=true pnpm build",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run tests && node --test scripts/gym-sources/*.test.mjs",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:demo": "pnpm build:demo && playwright test --config=playwright.demo.config.ts",
+    "perf": "VITE_PUBLIC_DEMO=true VITE_AUTH_DEMO_MODE=true pnpm build && playwright test --config=playwright.performance.config.ts",
+    "gyms:update": "node scripts/update-gym-catalog.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

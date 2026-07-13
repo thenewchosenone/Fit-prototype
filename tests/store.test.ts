@@ -1,13 +1,37 @@
 import { describe, expect, it } from "vitest";
 import { seedState } from "../src/data";
+import gymCatalog from "../src/gymCatalog.json";
+import { loadGymCatalog } from "../src/gymCatalog";
 import { estimatedOneRepMax, personalRecords, recommendedNextWeight } from "../src/lib";
 import { computedLeaderboardEntries, plateLoadTotal, weightClassFor } from "../src/platform";
-import { loadTrackerState, STORAGE_KEY, trackerReducer } from "../src/store";
+import { loadTrackerState, serializeTrackerState, STORAGE_KEY, trackerReducer } from "../src/store";
 import type { TrackerState } from "../src/types";
 
 const fresh = () => structuredClone(seedState);
 
 describe("tracker reducer", () => {
+  it("joins groups and toggles or switches one vote per user", () => {
+    let state = fresh();
+    state = trackerReducer(state, { type: "JOIN_GROUP", groupId: "group-calisthenics" });
+    expect(state.joinedGroupIds).toContain("group-calisthenics");
+    state = trackerReducer(state, { type: "VOTE_POST", postId: "post-2", vote: -1 });
+    expect(state.communityPosts.find((post) => post.id === "post-2")?.votes["user-robert"]).toBe(-1);
+    state = trackerReducer(state, { type: "VOTE_POST", postId: "post-2", vote: 1 });
+    expect(state.communityPosts.find((post) => post.id === "post-2")?.votes["user-robert"]).toBe(1);
+    state = trackerReducer(state, { type: "VOTE_POST", postId: "post-2", vote: 1 });
+    expect(state.communityPosts.find((post) => post.id === "post-2")?.votes["user-robert"]).toBeUndefined();
+  });
+
+  it("supports nested replies and enforces locks and group bans", () => {
+    let state = trackerReducer(fresh(), { type: "ADD_COMMENT", comment: { postId: "post-2", parentCommentId: "comment-2", body: "A nested reply" } });
+    expect(state.comments.at(-1)?.parentCommentId).toBe("comment-2");
+    state = trackerReducer(state, { type: "MODERATE_POST", postId: "post-2", operation: "lock" });
+    const count = state.comments.length;
+    state = trackerReducer(state, { type: "ADD_COMMENT", comment: { postId: "post-2", body: "Blocked" } });
+    expect(state.comments).toHaveLength(count);
+    state = trackerReducer(state, { type: "BAN_GROUP_USER", groupId: "group-powerlifting", userId: "user-mia", reason: "Test" });
+    expect(state.groupBans).toHaveLength(1);
+  });
   it("creates and deletes a complete plan graph", () => {
     const created = trackerReducer(fresh(), { type: "CREATE_PLAN", name: "Hypertrophy", goal: "Grow" });
     expect(created.plans).toHaveLength(2);
@@ -138,7 +162,7 @@ describe("progress calculations", () => {
 describe("persistence", () => {
   it("recovers from invalid or old browser data", () => {
     const invalidStorage = { getItem: () => "{bad" } as Pick<Storage, "getItem">;
-    expect(loadTrackerState(invalidStorage).version).toBe(3);
+    expect(loadTrackerState(invalidStorage).version).toBe(4);
     const oldStorage = {
       getItem: (key: string) => key === STORAGE_KEY ? JSON.stringify({ version: 1 }) : null
     } as Pick<Storage, "getItem">;
@@ -149,13 +173,89 @@ describe("persistence", () => {
     const version2 = { ...fresh(), version: 2, completedWorkouts: [{ ...fresh().completedWorkouts[0] }].filter(Boolean) };
     const storage = { getItem: () => JSON.stringify(version2) } as Pick<Storage, "getItem">;
     const migrated = loadTrackerState(storage);
-    expect(migrated.version).toBe(3);
+    expect(migrated.version).toBe(4);
     expect(migrated.profiles.length).toBeGreaterThan(1);
     expect(migrated.plans[0].name).toBe("Strength Foundation");
+  });
+
+  it("migrates likes, legacy categories, comments, and profile defaults to version 4", () => {
+    const legacy = fresh() as unknown as Record<string, unknown>;
+    legacy.version = 3;
+    legacy.communityPosts = [{ id: "legacy", authorId: "user-robert", kind: "PR", title: "Old PR", body: "Legacy", createdAt: new Date().toISOString(), likedBy: ["user-mia"], savedBy: [] }];
+    legacy.comments = [{ id: "old-comment", postId: "legacy", authorId: "user-mia", body: "Nice", createdAt: new Date().toISOString() }];
+    const migrated = loadTrackerState({ getItem: () => JSON.stringify(legacy) } as Pick<Storage, "getItem">);
+    expect(migrated.communityPosts[0]).toMatchObject({ kind: "Personal Record", groupId: "group-general-strength", votes: { "user-mia": 1 } });
+    expect(migrated.comments[0].votes).toEqual({});
+    expect(migrated.profiles[0].role).toBe("Admin");
+  });
+
+  it("preserves memberships before the lazy gym catalog is hydrated", async () => {
+    const stale = fresh();
+    stale.gyms = stale.gyms
+      .filter((gym) => gym.state === "Florida" && gym.brand === "Crunch Fitness")
+      .map(({ brand: _brand, address: _address, ...gym }) => gym as never);
+    stale.joinedGymIds = ["gym-south-beach", "gym-doral", "gym-no-longer-open"];
+    const storage = { getItem: () => JSON.stringify(stale) } as Pick<Storage, "getItem">;
+
+    const migrated = loadTrackerState(storage);
+
+    expect(migrated.joinedGymIds).toEqual(["gym-south-beach", "gym-doral", "gym-no-longer-open"]);
+    expect(migrated.gyms).toHaveLength(9);
+    expect(migrated.gyms.every((gym) => gym.brand && gym.address)).toBe(true);
+    const hydrated = trackerReducer(migrated, { type: "HYDRATE_GYM_CATALOG", gyms: await loadGymCatalog() });
+    expect(hydrated.gyms.some((gym) => gym.brand === "Anytime Fitness")).toBe(true);
+    expect(hydrated.gyms.some((gym) => gym.state === "California")).toBe(true);
+    expect(hydrated.joinedGymIds).toEqual(["gym-south-beach", "gym-doral"]);
+  });
+
+  it("keeps an already loaded catalog when demo state is reset", async () => {
+    const fullCatalog = await loadGymCatalog();
+    const reset = trackerReducer({ ...fresh(), gyms: fullCatalog }, { type: "RESET_DEMO" });
+    expect(reset.gyms).toHaveLength(fullCatalog.length);
+    expect(reset.gyms.some((gym) => gym.brand === "Anytime Fitness")).toBe(true);
+  });
+
+  it("refreshes an old exercise catalog while preserving custom exercises", () => {
+    const stale = fresh();
+    stale.exercises = [
+      ...stale.exercises.slice(0, 28),
+      { id: "custom-camber-curl", name: "Camber Curl", bodyPart: "Arms", bodyRegions: ["Arms"], secondaryMuscles: [], equipment: "Cable", movementType: "Isolation", trackingType: "Weight + Reps", searchAliases: [], isCustom: true }
+    ];
+    const loaded = loadTrackerState({ getItem: () => JSON.stringify(stale) } as Pick<Storage, "getItem">);
+    expect(loaded.exercises.length).toBe(seedState.exercises.length + 1);
+    expect(loaded.exercises.some((exercise) => exercise.id === "custom-camber-curl")).toBe(true);
+  });
+
+  it("does not persist the bundled gym catalog", () => {
+    const persisted = JSON.parse(serializeTrackerState(fresh()));
+    expect(persisted.gyms).toBeUndefined();
+    expect(persisted.joinedGymIds).toEqual(["gym-south-beach"]);
   });
 });
 
 describe("platform features", () => {
+  it("ships a validated open U.S. catalog snapshot with source metadata", () => {
+    const brands = ["Crunch Fitness", "LA Fitness", "EOS Fitness", "YouFit", "Anytime Fitness", "Gold's Gym"];
+    expect(Object.keys(gymCatalog.counts).sort()).toEqual([...brands].sort());
+    expect(gymCatalog.sources.map((source) => source.brand).sort()).toEqual([...brands].sort());
+    expect(gymCatalog.gyms.every((gym) => gym.status === "Open" && gym.countryCode === "US")).toBe(true);
+    const addressKeys = gymCatalog.gyms.map((gym) => `${gym.brand}|${gym.address}|${gym.city}|${gym.state}|${gym.postalCode}`.toLowerCase().replace(/[^a-z0-9|]/g, ""));
+    expect(new Set(addressKeys).size).toBe(addressKeys.length);
+    expect(gymCatalog.gyms.every((gym) => !("memberCount" in gym) && !("verifiedLiftCount" in gym))).toBe(true);
+  });
+
+  it("lazy-loads unique, complete official gym records and keeps legacy metrics scoped", async () => {
+    const gyms = await loadGymCatalog();
+    expect(gyms.length).toBeGreaterThan(1400);
+    expect(new Set(gyms.map((gym) => gym.id)).size).toBe(gyms.length);
+    expect(new Set(gyms.map((gym) => gym.brand))).toEqual(new Set(["Crunch Fitness", "LA Fitness", "EOS Fitness", "YouFit", "Anytime Fitness", "Gold's Gym"]));
+    expect(gyms.every((gym) => gym.brand && gym.address && gym.city && gym.state && gym.postalCode && gym.countryCode === "US" && gym.officialUrl.startsWith("https://"))).toBe(true);
+    expect(gyms.find((gym) => gym.id === "gym-south-beach")?.brand).toBe("Crunch Fitness");
+    expect(gyms.some((gym) => gym.name === "YouFit Gyms - Weston")).toBe(true);
+    expect(gyms.find((gym) => gym.name === "YouFit Gyms - Weston")?.memberCount).toBeUndefined();
+    expect(gyms.find((gym) => gym.name === "YouFit Gyms - Weston")?.verifiedLiftCount).toBeUndefined();
+  });
+
   it("submits lifts only for joined gyms and delays leaderboard eligibility", () => {
     const state = fresh();
     const baseLift = {

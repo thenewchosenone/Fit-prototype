@@ -1,8 +1,6 @@
 import {
   Activity,
   ArrowLeft,
-  ArrowDownRight,
-  ArrowUpRight,
   ChevronDown,
   ChevronUp,
   BarChart3,
@@ -23,6 +21,7 @@ import {
   House,
   Columns3,
   LibraryBig,
+  LogOut,
   Menu,
   MessageCircle,
   MoreHorizontal,
@@ -48,28 +47,24 @@ import {
 import {
   type FormEvent,
   type PropsWithChildren,
+  lazy,
+  Suspense,
   useEffect,
   useMemo,
+  useRef,
   useState
 } from "react";
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { leaderboardSeed } from "./data";
-import {
-  BodyRegionGlyph,
-  CommunityPage,
-  CommunityPostPage,
-  ExerciseDetailPage,
-  FriendsPage,
-  GymDetailPage,
-  GymsPage,
-  MessageThreadPage,
-  MessagesPage,
-  NotificationButton,
-  PlatformProfilePage,
-  SettingsPage,
-  SubmitLiftPage
-} from "./PlatformPages";
-import { computedLeaderboardEntries, currentProfile, nextLocalMidnight, weightClassFor } from "./platform";
+import { BodyRegionGlyph } from "./ExerciseVisual";
+import { NotificationButton } from "./NotificationButton";
+import { RouteErrorBoundary } from "./RouteErrorBoundary";
+import { DemoExperience } from "./DemoExperience";
+import { ContactPage, DemoInfoPage, PrivacyPage, TermsPage } from "./DemoPages";
+import { publicDemoMode } from "./demo";
+import { AuthPage, ProtectedRoute } from "./AuthPages";
+import { useAuth } from "./auth";
+import { computedLeaderboardEntries, currentProfile, primaryMuscleForExercise, secondaryMusclesForExercise, weightClassFor } from "./platform";
 import {
   exerciseHistory,
   formatDuration,
@@ -88,6 +83,7 @@ import type {
   LeaderboardEntry,
   LeaderboardScope,
   RankingType,
+  TrackerState,
   TrackingType,
   WorkoutPlan,
   WorkoutSession,
@@ -95,19 +91,16 @@ import type {
 } from "./types";
 
 const navItems = [
-  { to: "/today", label: "Today", icon: House },
-  { to: "/plans", label: "Plans", icon: Folder },
-  { to: "/library", label: "Library", icon: LibraryBig },
-  { to: "/submit", label: "Submit", icon: Plus },
   { to: "/leaderboards", label: "Leaderboards", icon: Trophy },
-  { to: "/progress", label: "Progress", icon: BarChart3 },
+  { to: "/submit", label: "Submit", icon: Plus },
+  { to: "/library", label: "Library", icon: LibraryBig },
   { to: "/gyms", label: "Gyms", icon: Building2 },
   { to: "/community", label: "Community", icon: Users },
   { to: "/messages", label: "Messages", icon: MessageCircle },
   { to: "/profile", label: "Profile", icon: UserRound }
 ];
 
-const mobileNavItems = navItems.filter((item) => ["/today", "/plans", "/submit", "/leaderboards", "/community", "/profile"].includes(item.to));
+const mobileNavItems = navItems.filter((item) => ["/leaderboards", "/submit", "/library", "/gyms", "/community", "/profile"].includes(item.to));
 
 type LeaderboardColumnKey = "rank" | "athlete" | "exercise" | "gym" | "score" | "verification" | "trend";
 
@@ -162,65 +155,84 @@ const defaultLeaderboardColumnOrder: LeaderboardColumnKey[] = [
   "trend"
 ];
 
+const SubmitLiftPage = lazy(() => import("./PlatformPages").then((module) => ({ default: module.SubmitLiftPage })));
+const ExerciseDetailPage = lazy(() => import("./PlatformPages").then((module) => ({ default: module.ExerciseDetailPage })));
+const GymsPage = lazy(() => import("./PlatformPages").then((module) => ({ default: module.GymsPage })));
+const GymDetailPage = lazy(() => import("./PlatformPages").then((module) => ({ default: module.GymDetailPage })));
+const CommunityPage = lazy(() => import("./PlatformPages").then((module) => ({ default: module.CommunityPage })));
+const CommunityModerationPage = lazy(() => import("./PlatformPages").then((module) => ({ default: module.CommunityModerationPage })));
+const CommunityPostPage = lazy(() => import("./PlatformPages").then((module) => ({ default: module.CommunityPostPage })));
+const FriendsPage = lazy(() => import("./PlatformPages").then((module) => ({ default: module.FriendsPage })));
+const MessagesPage = lazy(() => import("./PlatformPages").then((module) => ({ default: module.MessagesPage })));
+const MessageThreadPage = lazy(() => import("./PlatformPages").then((module) => ({ default: module.MessageThreadPage })));
+const PlatformProfilePage = lazy(() => import("./PlatformPages").then((module) => ({ default: module.PlatformProfilePage })));
+const SettingsPage = lazy(() => import("./PlatformPages").then((module) => ({ default: module.SettingsPage })));
+
+function RouteLoading() {
+  return <div className="page route-loading" role="status" aria-live="polite"><span className="loading-spinner" aria-hidden /><span>Loading page…</span></div>;
+}
+
 function App() {
+  const authPage = (mode: "login" | "signup" | "forgot" | "reset") => publicDemoMode ? <Navigate to="/leaderboards" replace /> : <AuthPage mode={mode} />;
   return (
-    <Routes>
+    <RouteErrorBoundary><Suspense fallback={<RouteLoading />}><Routes>
+      <Route path="/login" element={authPage("login")} />
+      <Route path="/signup" element={authPage("signup")} />
+      <Route path="/forgot-password" element={authPage("forgot")} />
+      <Route path="/reset-password" element={authPage("reset")} />
       <Route element={<AppShell />}>
-      <Route path="/today" element={<TodayPage />} />
-      <Route path="/plans" element={<PlansPage />} />
       <Route path="/library" element={<LibraryPage />} />
       <Route path="/library/:exerciseId" element={<ExerciseDetailPage />} />
-      <Route path="/submit" element={<SubmitLiftPage />} />
+      <Route path="/submit" element={<ProtectedRoute><SubmitLiftPage /></ProtectedRoute>} />
       <Route path="/leaderboards" element={<LeaderboardsPage />} />
-      <Route path="/progress" element={<ProgressPage />} />
       <Route path="/gyms" element={<GymsPage />} />
       <Route path="/gyms/:gymId" element={<GymDetailPage />} />
       <Route path="/community" element={<CommunityPage />} />
+      <Route path="/community/groups/:groupId" element={<CommunityPage />} />
+      <Route path="/community/moderation" element={<ProtectedRoute><CommunityModerationPage /></ProtectedRoute>} />
       <Route path="/community/:postId" element={<CommunityPostPage />} />
       <Route path="/friends" element={<FriendsPage />} />
-      <Route path="/messages" element={<MessagesPage />} />
-      <Route path="/messages/:threadId" element={<MessageThreadPage />} />
+      <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
+      <Route path="/messages/:threadId" element={<ProtectedRoute><MessageThreadPage /></ProtectedRoute>} />
       <Route path="/profile" element={<PlatformProfilePage />} />
       <Route path="/profile/:userId" element={<PlatformProfilePage />} />
-      <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+      <Route path="/demo" element={<DemoInfoPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/contact" element={<ContactPage />} />
       </Route>
-      <Route path="/workout/:sessionId" element={<WorkoutPage />} />
-      <Route path="*" element={<Navigate to="/today" replace />} />
-    </Routes>
+      <Route path="/today" element={<Navigate to="/leaderboards" replace />} />
+      <Route path="/plans" element={<Navigate to="/leaderboards" replace />} />
+      <Route path="/progress" element={<Navigate to="/leaderboards" replace />} />
+      <Route path="/workout/:sessionId" element={<Navigate to="/leaderboards" replace />} />
+      <Route path="*" element={<Navigate to="/leaderboards" replace />} />
+    </Routes></Suspense></RouteErrorBoundary>
   );
 }
 
 function AppShell() {
-  const { state, dispatch } = useTracker();
-  const activePlan = state.plans.find((plan) => plan.id === state.activePlanId);
   return (
     <div className="app-layout">
       <aside className="sidebar">
         <Logo />
-        <nav aria-label="Tracker navigation">
+        <nav aria-label="Primary navigation">
           {navItems.map(({ to, label, icon: Icon }) => (
-            <NavLink key={to} to={to} className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+            <NavLink aria-label={label} title={label} key={to} to={to} className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
               <Icon size={20} aria-hidden />
               <span>{label}</span>
             </NavLink>
           ))}
         </nav>
-        <div className="sidebar-plan">
-          <p className="eyebrow">Active plan</p>
-          <strong>{activePlan?.name}</strong>
-          <span>{activePlan?.goal}</span>
-        </div>
-        <button className="quiet-button" onClick={() => dispatch({ type: "RESET_DEMO" })}>
-          <RotateCcw size={17} /> Reset demo
-        </button>
       </aside>
       <main className="main-content">
         <TopBar />
+        <DemoExperience />
         <div id="page-content"><Outlet /></div>
       </main>
-      <nav className="mobile-nav" aria-label="Tracker navigation">
+      <nav className="mobile-nav" aria-label="Primary navigation">
         {mobileNavItems.map(({ to, label, icon: Icon }) => (
-          <NavLink key={to} to={to} className={({ isActive }) => (isActive ? "active" : "")}>
+          <NavLink aria-label={label} key={to} to={to} className={({ isActive }) => (isActive ? "active" : "")}>
             <Icon size={21} aria-hidden />
             <span>{label}</span>
           </NavLink>
@@ -241,20 +253,27 @@ function Logo() {
 
 function TopBar() {
   const { state } = useTracker();
+  const auth = useAuth();
   const profile = currentProfile(state);
+  const navigate = useNavigate();
+  const [query, setQuery] = useState("");
+  const searchIndex = useMemo(() => [
+    ...state.trainingGroups.map((item) => ({ label: item.name, detail: "Training Group", to: `/community/groups/${item.id}`, text: `${item.name} ${item.description}` })),
+    ...state.communityPosts.filter((item) => item.kind !== "Workout").map((item) => ({ label: item.title, detail: item.kind, to: `/community/${item.id}`, text: `${item.title} ${item.body} ${item.trainingDetails?.programName ?? ""}` })),
+    ...state.exercises.map((item) => ({ label: item.name, detail: "Exercise", to: `/library/${item.id}`, text: `${item.name} ${(item.searchAliases ?? []).join(" ")}` })),
+    ...state.profiles.map((item) => ({ label: item.displayName, detail: item.discipline, to: `/profile/${item.id}`, text: `${item.displayName} ${item.handle} ${item.discipline}` }))
+  ], [state.communityPosts, state.exercises, state.profiles, state.trainingGroups]);
+  const results = query.trim().length < 2 ? [] : searchIndex.filter((item) => item.text.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8);
   return (
     <header className="topbar">
       <div className="mobile-logo"><Logo /></div>
-      <div className="topbar-copy">
-        <p className="eyebrow">Training workspace</p>
-        <strong>{state.plans.find((plan) => plan.id === state.activePlanId)?.name}</strong>
-      </div>
+      <div className="global-search"><Search size={18} /><input aria-label="Global search" placeholder="Search groups, posts, exercises, and members" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setQuery(""); if (event.key === "Enter" && results[0]) { navigate(results[0].to); setQuery(""); } }} />{results.length > 0 && <div className="global-search-results" role="listbox">{results.map((result) => <button key={`${result.to}-${result.label}`} onMouseDown={() => { navigate(result.to); setQuery(""); }}><strong>{result.label}</strong><small>{result.detail}</small></button>)}</div>}</div>
       <div className="topbar-actions">
-        <NotificationButton />
+        {auth.user ? <><NotificationButton />
         <NavLink to="/profile" className="profile-pill" aria-label="Open profile">
           <span>{profile.displayName.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>
           <div><strong>{profile.displayName}</strong><small>{profile.experienceLevel}</small></div>
-        </NavLink>
+        </NavLink>{!publicDemoMode && <button className="icon-button logout-button" aria-label="Log out" title="Log out" onClick={() => void auth.signOut()}><LogOut size={18} /></button>}</> : <div className="guest-actions"><NavLink className="quiet-button compact" to="/login">Log in</NavLink><NavLink className="primary-button compact" to="/signup">Create account</NavLink></div>}
       </div>
     </header>
   );
@@ -382,6 +401,9 @@ function LeaderboardsPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<LeaderboardEntry | null>(null);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [jumpRequested, setJumpRequested] = useState(false);
+  const currentRowRef = useRef<HTMLDivElement | null>(null);
   const [columnOrder, setColumnOrder] = useState<LeaderboardColumnKey[]>(defaultLeaderboardColumnOrder);
   const [columnVisibility, setColumnVisibility] = useState<Record<LeaderboardColumnKey, boolean>>(
     () =>
@@ -391,22 +413,22 @@ function LeaderboardsPage() {
       }, {} as Record<LeaderboardColumnKey, boolean>)
   );
 
+  const rankedEntries = useMemo(
+    () => computedLeaderboardEntries(state, filters).sort((left, right) => left.rank - right.rank),
+    [state, filters]
+  );
   const filteredEntries = useMemo(() => {
     const search = query.trim().toLowerCase();
-    return computedLeaderboardEntries(state, filters)
-      .filter((entry) => {
-        if (!search) return true;
-        return [entry.athlete, entry.handle, entry.exercise, entry.gym, entry.city, entry.state]
-          .join(" ")
-          .toLowerCase()
-          .includes(search);
-      })
-      .sort((left, right) => left.rank - right.rank);
-  }, [state, filters, query]);
+    if (!search) return rankedEntries;
+    return rankedEntries.filter((entry) =>
+      [entry.athlete, entry.handle, entry.exercise, entry.gym, entry.city, entry.state]
+        .join(" ")
+        .toLowerCase()
+        .includes(search)
+    );
+  }, [query, rankedEntries]);
 
-  const filteredCurrent = filteredEntries.find((entry) => entry.isCurrentUser);
-  const fallbackCurrent = computedLeaderboardEntries(state, defaultLeaderboardFilters).find((entry) => entry.isCurrentUser);
-  const currentUser = filteredCurrent ?? fallbackCurrent ?? filteredEntries[0];
+  const rankedCurrent = rankedEntries.find((entry) => entry.isCurrentUser);
 
   const activeFilterCount = [
     filters.rankingType !== defaultLeaderboardFilters.rankingType,
@@ -418,33 +440,58 @@ function LeaderboardsPage() {
     filters.ageGroup !== defaultLeaderboardFilters.ageGroup,
     filters.experienceLevel !== defaultLeaderboardFilters.experienceLevel,
     filters.weightClass !== defaultLeaderboardFilters.weightClass,
-    filters.repCount !== defaultLeaderboardFilters.repCount,
-    query.trim().length > 0
+    filters.repCount !== defaultLeaderboardFilters.repCount
   ].filter(Boolean).length;
+
+  const pageSize = 25;
+  const pageCount = Math.max(1, Math.ceil(filteredEntries.length / pageSize));
+  const currentPage = Math.min(pageNumber, pageCount);
+  const pageStart = (currentPage - 1) * pageSize;
+  const visibleEntries = filteredEntries.slice(pageStart, pageStart + pageSize);
+
+  useEffect(() => {
+    if (!jumpRequested) setPageNumber(1);
+  }, [filters, query]);
+  useEffect(() => {
+    if (!jumpRequested || !currentRowRef.current) return;
+    currentRowRef.current.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    currentRowRef.current.focus({ preventScroll: true });
+    setJumpRequested(false);
+  }, [currentPage, jumpRequested, visibleEntries]);
 
   const visibleColumns = columnOrder.filter((key) => columnVisibility[key]);
   const tableTemplateColumns = visibleColumns.map((key) => leaderboardColumnWidth(key)).join(" ");
-  const topEntry = filteredEntries[0] ?? null;
-  const verifiedCount = filteredEntries.filter((entry) => entry.verification !== "Self Reported").length;
-  const topRankingLabel = leaderboardRankingLabel(filters.rankingType);
+  const topEntry = rankedEntries[0] ?? null;
+  const verifiedCount = filteredEntries.filter((entry) => ["Competition Verified", "Moderator Verified", "Community Verified"].includes(entry.verification)).length;
   const topScoreValue = topEntry ? formatLeaderboardScore(topEntry) : "No result";
   const topScoreDetail = topEntry
-    ? `${topEntry.exercise} · ${topEntry.athlete} · ${leaderboardRankingDescription(filters.rankingType)}`
+    ? `${topEntry.athlete} · ${topEntry.exercise}`
     : "No matching rankings for this view";
+  const currentIndex = rankedEntries.findIndex((entry) => entry.isCurrentUser);
+  const nextHigher = currentIndex > 0 ? rankedEntries[currentIndex - 1] : null;
+  const gapValue = rankedCurrent && nextHigher ? formatLeaderboardGap(nextHigher.score - rankedCurrent.score, filters.rankingType) : rankedCurrent?.rank === 1 ? "Leading" : "—";
+  const activeChips = leaderboardActiveChips(filters);
+  const jumpToMyRank = () => {
+    if (currentIndex < 0) return;
+    setJumpRequested(true);
+    setQuery("");
+    setPageNumber(Math.floor(currentIndex / pageSize) + 1);
+  };
+  const removeChip = (key: keyof LeaderboardFiltersState) => setFilters((current) => normalizeLeaderboardFilters({ ...current, [key]: defaultLeaderboardFilters[key] } as LeaderboardFiltersState));
 
   return (
     <div className="page">
       <PageHeader
         eyebrow="Competition"
         title="Leaderboards"
-        description="Dense, table-first ranking view with reusable filters and column controls."
-        action={currentUser && <button className="primary-button" onClick={() => setSelectedEntry(currentUser)}><Trophy size={18} /> Your rank</button>}
+        description="Compare verified strength results across athletes, gyms, and weight classes."
       />
+      <div className="leaderboard-context" aria-label="Ranking context">{leaderboardContextLabels(filters, state).map((label) => <span key={label}>{label}</span>)}</div>
       <div className="leaderboard-summary-grid">
-        <MetricCard icon={<Trophy />} label="Current rank" value={filteredCurrent ? `#${filteredCurrent.rank}` : "Unranked"} detail={filteredCurrent ? `${filteredCurrent.exercise} in ${filteredCurrent.gym}` : "Not included in this view"} />
-        <MetricCard icon={<Activity />} label="Visible rows" value={`${filteredEntries.length}`} detail={`${activeFilterCount} active filters`} />
-        <MetricCard icon={<ShieldCheck />} label="Verified rows" value={`${verifiedCount}`} detail={`updates ${new Date(nextLocalMidnight()).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`} />
-        <MetricCard icon={<TrendingUp />} label={topRankingLabel} value={topScoreValue} detail={topScoreDetail} />
+        <MetricCard icon={<Trophy />} label="Current rank and total" value={rankedCurrent ? `#${rankedCurrent.rank}` : "Unranked"} detail={rankedCurrent ? `${formatWeight(rankedCurrent.total)} lb total` : "Not included in this view"} />
+        <MetricCard icon={<TrendingUp />} label="Gap to next rank" value={gapValue} detail={nextHigher ? `Behind ${nextHigher.athlete}` : rankedCurrent ? "Top of this ranking" : "Apply a broader scope"} />
+        <MetricCard icon={<Activity />} label="Ranked athletes" value={`${rankedEntries.length}`} detail="In the current view" />
+        <MetricCard icon={<ShieldCheck />} label="Leading result" value={topScoreValue} detail={topScoreDetail} />
       </div>
 
       <div className="leaderboard-toolbar">
@@ -457,53 +504,67 @@ function LeaderboardsPage() {
             placeholder="Search athletes, gyms, or lifts..."
           />
         </label>
+        <div className="leaderboard-result-summary"><strong>{filteredEntries.length}</strong><span>athletes · {verifiedCount} verified</span></div>
         <div className="leaderboard-toolbar-actions">
-          <button className="text-button" onClick={() => setFiltersOpen(true)}>
+          {rankedCurrent && <button className="quiet-button compact" onClick={jumpToMyRank}><Trophy size={16} /> Jump to my rank</button>}
+          <button className="primary-button compact" onClick={() => setFiltersOpen(true)}>
             <SlidersHorizontal size={17} />
             Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
           </button>
-          <button className="text-button" onClick={() => setColumnsOpen(true)}>
+          <button className="icon-button" aria-label="Table settings" title="Table settings" onClick={() => setColumnsOpen(true)}>
             <Columns3 size={17} />
-            Columns
           </button>
         </div>
       </div>
+      {activeChips.length > 0 && <div className="leaderboard-filter-chips">{activeChips.map((chip) => <button key={chip.key} onClick={() => removeChip(chip.key)} aria-label={`Remove ${chip.label} filter`}>{chip.label}<X size={13} /></button>)}<button className="clear-all" onClick={() => setFilters(defaultLeaderboardFilters)}>Clear all</button></div>}
 
       <section className="leaderboard-table-card" aria-label="Rankings">
         <div className="leaderboard-table" role="table" aria-label="Leaderboard rankings">
-          <div className="leaderboard-table-header" style={{ gridTemplateColumns: tableTemplateColumns }}>
+          <div className="leaderboard-table-header" role="row" style={{ gridTemplateColumns: tableTemplateColumns }}>
             {visibleColumns.map((key) => (
-              <div key={key} className={`leaderboard-cell header ${key}`}>
+              <div key={key} role="columnheader" className={`leaderboard-cell header ${key}`}>
                 {leaderboardColumnLabel(key, filters.rankingType)}
               </div>
             ))}
           </div>
-          <div className="leaderboard-table-body">
-            {filteredEntries.map((entry) => (
-              <button
+          <div className="leaderboard-table-body" role="rowgroup">
+            {visibleEntries.map((entry) => (
+              <div
                 key={entry.id}
+                role="row"
+                tabIndex={0}
                 className={entry.isCurrentUser ? "leaderboard-table-row current" : "leaderboard-table-row"}
+                ref={entry.isCurrentUser ? currentRowRef : undefined}
                 style={{ gridTemplateColumns: tableTemplateColumns }}
                 onClick={() => setSelectedEntry(entry)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+                  event.preventDefault();
+                  setSelectedEntry(entry);
+                }}
+                aria-label={`Open ranking details for ${entry.athlete}`}
               >
                 {visibleColumns.map((key) => (
-                  <div key={`${entry.id}-${key}`} className={`leaderboard-cell ${key}`}>
+                  <div key={`${entry.id}-${key}`} role="cell" className={`leaderboard-cell ${key}`}>
                     {renderLeaderboardCell(entry, key)}
                   </div>
                 ))}
-              </button>
+                <ChevronRight className="row-disclosure" size={16} />
+              </div>
             ))}
             {!filteredEntries.length && <EmptyState title="No matching rankings" body="Try a different scope, ranking type, or search term." />}
           </div>
         </div>
       </section>
+      {filteredEntries.length > 0 && <nav className="leaderboard-pagination" aria-label="Leaderboard pages"><span>Showing {pageStart + 1}–{Math.min(pageStart + pageSize, filteredEntries.length)} of {filteredEntries.length}</span><div><button className="quiet-button compact" disabled={currentPage === 1} onClick={() => setPageNumber((page) => Math.max(1, page - 1))}>Previous</button><span>Page {currentPage} of {pageCount}</span><button className="quiet-button compact" disabled={currentPage === pageCount} onClick={() => setPageNumber((page) => Math.min(pageCount, page + 1))}>Next</button></div></nav>}
 
       {filtersOpen && (
         <LeaderboardFiltersDialog
           currentFilters={filters}
+          query={query}
           onClose={() => setFiltersOpen(false)}
           onApply={(nextFilters) => {
-            setFilters(nextFilters);
+            setFilters(normalizeLeaderboardFilters(nextFilters));
             setFiltersOpen(false);
           }}
         />
@@ -696,17 +757,27 @@ function LibraryPage() {
   const [query, setQuery] = useState("");
   const [bodyPart, setBodyPart] = useState("All");
   const [equipment, setEquipment] = useState("All");
+  const [movementType, setMovementType] = useState("All");
   const [customOpen, setCustomOpen] = useState(false);
-  const bodyParts = ["All", ...new Set(state.exercises.map((item) => item.bodyPart))];
-  const equipmentOptions = ["All", ...new Set(state.exercises.map((item) => item.equipment))];
-  const filtered = state.exercises.filter((item) => {
+  const bodyParts = useMemo(() => withAllOption(state.exercises.map((item) => item.bodyPart)), [state.exercises]);
+  const equipmentOptions = useMemo(() => withAllOption(state.exercises.map((item) => item.equipment)), [state.exercises]);
+  const movementOptions = useMemo(() => withAllOption(state.exercises.map((item) => item.movementType)), [state.exercises]);
+  const filtered = useMemo(() => state.exercises.filter((item) => {
     const q = query.trim().toLowerCase();
     return (
       (!q || [item.name, item.bodyPart, item.equipment, item.movementType, ...(item.searchAliases ?? [])].join(" ").toLowerCase().includes(q)) &&
       (bodyPart === "All" || item.bodyPart === bodyPart) &&
-      (equipment === "All" || item.equipment === equipment)
+      (equipment === "All" || item.equipment === equipment) &&
+      (movementType === "All" || item.movementType === movementType)
     );
-  });
+  }), [bodyPart, equipment, movementType, query, state.exercises]);
+  const hasActiveFilters = Boolean(query.trim()) || bodyPart !== "All" || equipment !== "All" || movementType !== "All";
+  const clearFilters = () => {
+    setQuery("");
+    setBodyPart("All");
+    setEquipment("All");
+    setMovementType("All");
+  };
   return (
     <div className="page">
       <PageHeader
@@ -715,12 +786,13 @@ function LibraryPage() {
         description="Search common movements or create the exercise your gym uses."
         action={<button className="primary-button" onClick={() => setCustomOpen(true)}><Plus size={18} /> Custom exercise</button>}
       />
-      <div className="filter-panel">
+      <div className="filter-panel library-filter-panel">
         <label className="search-field"><Search size={19} /><input aria-label="Search exercises" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search exercises..." /></label>
         <Select label="Body part" value={bodyPart} options={bodyParts} onChange={setBodyPart} />
         <Select label="Equipment" value={equipment} options={equipmentOptions} onChange={setEquipment} />
+        <Select label="Movement" value={movementType} options={movementOptions} onChange={setMovementType} />
       </div>
-      <div className="library-count">{filtered.length} exercises</div>
+      <div className="library-filter-summary"><div className="library-count" aria-live="polite">{filtered.length} exercises</div><button className="text-button" type="button" disabled={!hasActiveFilters} onClick={clearFilters}>Clear filters</button></div>
       <div className="exercise-grid">
         {filtered.map((exercise) => <ExerciseCard key={exercise.id} exercise={exercise} />)}
       </div>
@@ -731,8 +803,8 @@ function LibraryPage() {
 }
 
 function ExerciseCard({ exercise }: { exercise: Exercise }) {
-  const { state } = useTracker();
-  const records = personalRecords(state, exercise.id);
+  const primaryMuscle = primaryMuscleForExercise(exercise);
+  const secondaryMuscles = secondaryMusclesForExercise(exercise);
   return (
     <Card className="exercise-card">
       <div className="card-topline">
@@ -741,15 +813,15 @@ function ExerciseCard({ exercise }: { exercise: Exercise }) {
       </div>
       <div>
         <h3><Link to={`/library/${exercise.id}`}>{exercise.name}</Link></h3>
-        <p className="muted">{exercise.bodyPart} · {exercise.equipment}</p>
+        <p className="muted">{primaryMuscle} · {exercise.equipment}</p>
       </div>
       <div className="exercise-meta">
         <span>{exercise.movementType}</span>
         <span>{exercise.trackingType}</span>
       </div>
       <div className="best-line">
-        <Trophy size={16} />
-        <span>{records.heaviest ? `Best ${formatWeight(records.heaviest.weight ?? 0)} lb × ${records.heaviest.reps}` : "No history yet"}</span>
+        <Dumbbell size={16} />
+        <span>{secondaryMuscles.length ? `Also works ${secondaryMuscles.join(", ")}` : `${primaryMuscle} focus`}</span>
       </div>
     </Card>
   );
@@ -1337,12 +1409,12 @@ function CustomExerciseDialog({ onClose, onCreated }: { onClose: () => void; onC
     if (!onCreated) onClose();
   };
   return (
-    <Modal title="Create Custom Exercise" subtitle="Create the movement first. Programming is added separately." onClose={onClose}>
+    <Modal title="Create Custom Exercise" subtitle="Add a movement that is not already in the catalog." onClose={onClose}>
       <form className="stack-form" onSubmit={submit}>
         <label><span>Exercise name</span><input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Exercise name" /></label>
-        <Select label="Muscle group" value={bodyPart} options={["Chest", "Back", "Shoulders", "Arms", "Quads", "Hamstrings", "Glutes", "Core", "Full Body"]} onChange={setBodyPart} />
+        <Select label="Muscle group" value={bodyPart} options={["Chest", "Back", "Shoulders", "Arms", "Quads", "Hamstrings", "Glutes", "Calves", "Core", "Full Body"]} onChange={setBodyPart} />
         <Select label="Equipment" value={equipment} options={["Barbell", "Dumbbells", "Cable", "Machine", "Bodyweight", "Kettlebell", "Bands", "Other"]} onChange={setEquipment} />
-        <ChipField label="Tracking type" values={["Weight + Reps", "Reps Only", "Time"] as TrackingType[]} value={trackingType} onChange={setTrackingType} />
+        <ChipField label="Measurement" values={["Weight + Reps", "Reps Only", "Time"] as TrackingType[]} value={trackingType} onChange={setTrackingType} />
         <button className="primary-button large" disabled={!name.trim()}>Save exercise</button>
       </form>
     </Modal>
@@ -1413,7 +1485,7 @@ function FinishDialog({ session, elapsed, onClose, onFinish }: { session: Workou
       <ChipField label="Workout difficulty" values={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} value={effort} onChange={setEffort} />
       <label className="form-field"><span>Workout notes</span><textarea rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional notes about the session" /></label>
       <label className="toggle-row"><input type="checkbox" checked={shared} onChange={(event) => setShared(event.target.checked)} /><span><strong>Share to Community</strong><small>Create a workout activity after saving.</small></span></label>
-      <button className="primary-button large modal-primary" onClick={() => { dispatch({ type: "SAVE_WORKOUT_FEEDBACK", sessionId: session.id, effort, notes, shared }); if (shared) dispatch({ type: "CREATE_POST", post: { authorId: state.currentUserId, kind: "Workout", title: `${session.name} complete`, body: notes || `${logs.length} sets and ${formatWeight(volume)} lb of volume.`, linkedWorkoutId: session.id } }); onFinish(); }}><Check size={19} /> Save workout</button>
+      <button className="primary-button large modal-primary" onClick={() => { dispatch({ type: "SAVE_WORKOUT_FEEDBACK", sessionId: session.id, effort, notes, shared }); onFinish(); }}><Check size={19} /> Save workout</button>
     </Modal>
   );
 }
@@ -1451,10 +1523,6 @@ function renderLeaderboardCell(entry: LeaderboardEntry, key: LeaderboardColumnKe
       return (
         <div className="leaderboard-rank-cell">
           <strong>#{entry.rank}</strong>
-          <small className={entry.rankChange >= 0 ? "positive" : "negative"}>
-            {entry.rankChange >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-            {Math.abs(entry.rankChange)}
-          </small>
         </div>
       );
     case "athlete":
@@ -1488,25 +1556,29 @@ function renderLeaderboardCell(entry: LeaderboardEntry, key: LeaderboardColumnKe
           <small>{leaderboardScoreSubtitle(entry)}</small>
         </div>
       );
-    case "verification":
-      return <span className="status-chip">{entry.verification}</span>;
-    case "trend":
+    case "verification": {
+      const description = verificationDescription(entry.verification);
+      return <span className={`status-chip verification-${entry.verification.toLowerCase().replace(/\s+/g, "-")}`} title={description} aria-label={`${entry.verification}: ${description}`} tabIndex={0}>{entry.verification}</span>;
+    }
+    case "trend": {
+      const trendLabel = entry.rankChange > 0 ? `Up ${entry.rankChange} ${entry.rankChange === 1 ? "place" : "places"}` : entry.rankChange < 0 ? `Down ${Math.abs(entry.rankChange)} ${entry.rankChange === -1 ? "place" : "places"}` : "No change";
       return (
-        <span className={entry.rankChange >= 0 ? "trend-pill positive" : "trend-pill negative"}>
-          {entry.rankChange >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-          {entry.rankChange >= 0 ? "+" : ""}
-          {entry.rankChange}
+        <span className={entry.rankChange > 0 ? "trend-pill positive" : entry.rankChange < 0 ? "trend-pill negative" : "trend-pill"} aria-label={trendLabel} title={trendLabel}>
+          {entry.rankChange > 0 ? `↑ ${entry.rankChange}` : entry.rankChange < 0 ? `↓ ${Math.abs(entry.rankChange)}` : "—"}
         </span>
       );
+    }
   }
 }
 
 function LeaderboardFiltersDialog({
   currentFilters,
+  query,
   onClose,
   onApply
 }: {
   currentFilters: LeaderboardFiltersState;
+  query: string;
   onClose: () => void;
   onApply: (filters: LeaderboardFiltersState) => void;
 }) {
@@ -1514,7 +1586,6 @@ function LeaderboardFiltersDialog({
   const [draft, setDraft] = useState(currentFilters);
   const exerciseOptions = useMemo(() => withAllOption(state.liftSubmissions.map((lift) => lift.exerciseName)), [state.liftSubmissions]);
   const gymOptions = useMemo(() => withAllOption(state.gyms.map((gym) => gym.name)), [state.gyms]);
-  const cityOptions = useMemo(() => withAllOption(state.gyms.map((gym) => `${gym.city}, ${gym.state}`)), [state.gyms]);
   const ageGroupOptions = useMemo(() => withAllOption(state.profiles.map((profile) => profile.ageGroup)), [state.profiles]);
   const experienceOptions = useMemo(() => withAllOption(state.profiles.map((profile) => profile.experienceLevel)), [state.profiles]);
   const weightClassOptions = useMemo(() => withAllOption(state.profiles.map((profile) => weightClassFor(profile.bodyweight, profile.sex))), [state.profiles]);
@@ -1524,90 +1595,90 @@ function LeaderboardFiltersDialog({
       ...current,
       exercise: exerciseOptions.includes(current.exercise) ? current.exercise : "All",
       gym: gymOptions.includes(current.gym) ? current.gym : "All",
-      city: cityOptions.includes(current.city) ? current.city : "All",
+      city: "All",
       ageGroup: ageGroupOptions.includes(current.ageGroup) ? current.ageGroup : "All",
       experienceLevel: experienceOptions.includes(current.experienceLevel) ? current.experienceLevel : "All",
       weightClass: weightClassOptions.includes(current.weightClass) ? current.weightClass : "All"
     }));
-  }, [ageGroupOptions, cityOptions, exerciseOptions, experienceOptions, gymOptions, weightClassOptions]);
+  }, [ageGroupOptions, exerciseOptions, experienceOptions, gymOptions, weightClassOptions]);
+
+  const normalizedDraft = normalizeLeaderboardFilters(draft);
+  const pendingChanges = (Object.keys(currentFilters) as Array<keyof LeaderboardFiltersState>).filter((key) => currentFilters[key] !== normalizedDraft[key]).length;
+  const previewCount = useMemo(() => {
+    const search = query.trim().toLowerCase();
+    return computedLeaderboardEntries(state, normalizedDraft).filter((entry) => !search || [entry.athlete, entry.handle, entry.exercise, entry.gym, entry.city, entry.state].join(" ").toLowerCase().includes(search)).length;
+  }, [normalizedDraft, query, state]);
+  const showExercise = !["Total", "Relative total"].includes(draft.rankingType);
+  const needsGymSelection = draft.scope === "Selected gym" && draft.gym === "All";
 
   return (
     <Modal title="Filters" subtitle="Refine the leaderboard scope and ranking mode." onClose={onClose} size="large">
       <form
-        className="leaderboard-dialog-form"
+        className="leaderboard-dialog-form leaderboard-filter-form"
         onSubmit={(event) => {
           event.preventDefault();
-          onApply(draft);
+          if (pendingChanges === 0 || needsGymSelection) return;
+          onApply(normalizedDraft);
         }}
       >
-        <div className="leaderboard-dialog-grid">
+        <section className="filter-section"><div className="filter-section-heading"><span>1</span><div><h3>Rank by</h3><p>Choose how athlete results are compared.</p></div></div>
           <ChipField
-            label="Ranking type"
-            values={["Absolute", "Pound-for-pound", "Total", "Relative total", "Most improved"] as RankingType[]}
+            label="Rank by"
+            values={["Total", "Absolute", "Pound-for-pound", "Relative total", "Most improved"] as RankingType[]}
             value={draft.rankingType}
             onChange={(rankingType) =>
               setDraft((current) => ({
                 ...current,
-                rankingType,
-                exercise: "All",
-                gym: "All",
-                city: "All",
-                ageGroup: "All",
-                experienceLevel: "All",
-                weightClass: "All",
-                repCount: null
+                rankingType, ...(["Total", "Relative total"].includes(rankingType) ? { exercise: "All", repCount: null } : {})
               }))
             }
           />
+          <p className="ranking-explanation">{leaderboardRankingExplanation(draft.rankingType)}</p>
+        </section>
+        <section className="filter-section"><div className="filter-section-heading"><span>2</span><div><h3>Scope</h3><p>Choose the community used for this ranking.</p></div></div>
           <ChipField
             label="Scope"
             values={["Global", "My gym", "My city", "My weight class", "Selected gym"] as LeaderboardScope[]}
             value={draft.scope}
+            format={(scope) => scope === "Selected gym" ? "Choose a gym" : scope}
             onChange={(scope) =>
               setDraft((current) => ({
                 ...current,
                 scope,
-                exercise: "All",
                 gym: "All",
                 city: "All",
-                ageGroup: "All",
-                experienceLevel: "All",
-                weightClass: "All",
-                repCount: null
+                ...(scope === "My weight class" ? { weightClass: "All" } : {})
               }))
             }
           />
-          <Select
-            label="Verification"
-            value={draft.verification}
-            options={["All", "Self Reported", "Video Submitted", "Community Verified", "Moderator Verified", "Competition Verified"]}
-            onChange={(verification) =>
-              setDraft((current) => ({ ...current, verification: verification as LeaderboardFiltersState["verification"] }))
-            }
-          />
-          <Select label="Exercise" value={draft.exercise} options={exerciseOptions} onChange={(exercise) => setDraft((current) => ({ ...current, exercise, rankingType: exercise === "All" ? (current.exercise === "All" ? current.rankingType : "Total") : (["Total", "Relative total"].includes(current.rankingType) ? "Absolute" : current.rankingType) }))} />
-          <Select label="Gym" value={draft.gym} options={gymOptions} onChange={(gym) => setDraft((current) => ({ ...current, gym }))} />
-          <Select label="City" value={draft.city} options={cityOptions} onChange={(city) => setDraft((current) => ({ ...current, city }))} />
+          {draft.scope === "Selected gym" && <Select label="Gym" value={draft.gym} options={gymOptions} onChange={(gym) => setDraft((current) => ({ ...current, gym }))} />}
+        </section>
+        <section className="filter-section"><div className="filter-section-heading"><span>3</span><div><h3>Performance</h3><p>Narrow the qualifying submissions.</p></div></div><div className="filter-fields-grid">
+          {showExercise && <Select label="Exercise" value={draft.exercise} options={exerciseOptions} onChange={(exercise) => setDraft((current) => ({ ...current, exercise, repCount: exercise === "All" ? null : current.repCount }))} />}
+          <Select label="Verification level" value={draft.verification} options={["All", "Self Reported", "Video Submitted", "Community Verified", "Moderator Verified", "Competition Verified"]} onChange={(verification) => setDraft((current) => ({ ...current, verification: verification as LeaderboardFiltersState["verification"] }))} />
+          {showExercise && draft.exercise !== "All" && <Select label="Repetitions" value={draft.repCount?.toString() ?? "All"} options={["All", "1", "3", "5", "8", "10"]} onChange={(repetitions) => setDraft((current) => ({ ...current, repCount: repetitions === "All" ? null : Number(repetitions) }))} />}
+        </div></section>
+        <section className="filter-section"><div className="filter-section-heading"><span>4</span><div><h3>Athlete</h3><p>Filter by athlete category.</p></div></div><div className="filter-fields-grid athlete-fields">
+          {draft.scope !== "My weight class" && <Select label="Weight class" value={draft.weightClass} options={weightClassOptions} onChange={(weightClass) => setDraft((current) => ({ ...current, weightClass }))} />}
           <Select label="Age group" value={draft.ageGroup} options={ageGroupOptions} onChange={(ageGroup) => setDraft((current) => ({ ...current, ageGroup }))} />
           <Select
-            label="Experience"
+            label="Training experience"
             value={draft.experienceLevel}
             options={experienceOptions}
             onChange={(experienceLevel) => setDraft((current) => ({ ...current, experienceLevel }))}
           />
-          <Select label="Weight class" value={draft.weightClass} options={weightClassOptions} onChange={(weightClass) => setDraft((current) => ({ ...current, weightClass }))} />
-          {draft.exercise !== "All" && <Select label="Repetitions" value={draft.repCount?.toString() ?? "All"} options={["All", "1", "3", "5", "8", "10"]} onChange={(repetitions) => setDraft((current) => ({ ...current, repCount: repetitions === "All" ? null : Number(repetitions) }))} />}
-        </div>
-        <div className="dialog-actions dialog-actions-spread">
+        </div></section>
+        <div className="filter-dialog-footer">
+          <div><strong>{pendingChanges} pending {pendingChanges === 1 ? "change" : "changes"}</strong><small>{needsGymSelection ? "Choose a gym to apply this scope" : `${previewCount} matching athletes`}</small></div>
           <button
             type="button"
             className="quiet-button"
             onClick={() => setDraft(defaultLeaderboardFilters)}
           >
-            Reset
+            Clear all
           </button>
-          <button className="primary-button" type="submit">
-            Apply filters
+          <button className="primary-button" type="submit" disabled={pendingChanges === 0 || needsGymSelection}>
+            Show {previewCount} athletes
           </button>
         </div>
       </form>
@@ -1788,19 +1859,50 @@ function Select({ label, value, options, onChange }: { label: string; value: str
 }
 
 function ChipField<T extends string | number>({ label, values, value, onChange, format = String }: { label: string; values: readonly T[]; value: T; onChange: (value: T) => void; format?: (value: T) => string }) {
-  return <fieldset className="chip-field"><legend>{label}</legend><div>{values.map((item) => <button type="button" className={item === value ? "active" : ""} key={item} onClick={() => onChange(item)}>{format(item)}</button>)}</div></fieldset>;
+  return <fieldset className="chip-field"><legend>{label}</legend><div>{values.map((item) => <button type="button" className={item === value ? "active" : ""} aria-pressed={item === value} key={item} onClick={() => onChange(item)}>{format(item)}</button>)}</div></fieldset>;
 }
 
 function Modal({ title, subtitle, children, onClose, size = "normal" }: PropsWithChildren<{ title: string; subtitle?: string; onClose: () => void; size?: "normal" | "large" }>) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
-    const handler = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    dialog?.focus();
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+      if (!focusable.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
     document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
+    return () => {
+      document.removeEventListener("keydown", handler);
+      previousFocus?.focus();
+    };
+  }, []);
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className={`modal ${size}`} role="dialog" aria-modal="true" aria-labelledby="modal-title">
-        <header><div><h2 id="modal-title">{title}</h2>{subtitle && <p>{subtitle}</p>}</div><IconButton label="Close" onClick={onClose}><X size={20} /></IconButton></header>
+      <section ref={dialogRef} tabIndex={-1} className={`modal ${size}`} role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby={subtitle ? "modal-subtitle" : undefined}>
+        <header><div><h2 id="modal-title">{title}</h2>{subtitle && <p id="modal-subtitle">{subtitle}</p>}</div><IconButton label="Close" onClick={onClose}><X size={20} /></IconButton></header>
         <div className="modal-content">{children}</div>
       </section>
     </div>
@@ -1819,21 +1921,6 @@ function formatLeaderboardScore(entry: LeaderboardEntry): string {
       return `+${entry.score.toFixed(0)}%`;
   }
   return `${formatWeight(entry.score)} lb`;
-}
-
-function leaderboardRankingLabel(rankingType: RankingType): string {
-  switch (rankingType) {
-    case "Absolute":
-      return "Top lift";
-    case "Pound-for-pound":
-      return "Top relative lift";
-    case "Total":
-      return "Top total";
-    case "Relative total":
-      return "Top relative total";
-    case "Most improved":
-      return "Biggest improvement";
-  }
 }
 
 function leaderboardColumnLabel(key: LeaderboardColumnKey, rankingType: RankingType): string | undefined {
@@ -1867,18 +1954,23 @@ function leaderboardScoreSubtitle(entry: LeaderboardEntry): string {
   }
 }
 
-function leaderboardRankingDescription(rankingType: RankingType): string {
+function leaderboardRankingExplanation(rankingType: RankingType): string {
   switch (rankingType) {
-    case "Absolute":
-      return "absolute ranking";
-    case "Pound-for-pound":
-      return "pound-for-pound ranking";
-    case "Total":
-      return "total ranking";
-    case "Relative total":
-      return "relative total ranking";
-    case "Most improved":
-      return "most improved ranking";
+    case "Total": return "Best squat + bench + deadlift.";
+    case "Absolute": return "Highest submitted weight for one exercise.";
+    case "Pound-for-pound": return "Exercise result divided by bodyweight.";
+    case "Relative total": return "Three-lift total divided by bodyweight.";
+    case "Most improved": return "Percentage gain across eligible submissions.";
+  }
+}
+
+function verificationDescription(level: LeaderboardEntry["verification"]): string {
+  switch (level) {
+    case "Competition Verified": return "Recorded in an approved competition result.";
+    case "Moderator Verified": return "Reviewed and approved by a LiftRank moderator.";
+    case "Community Verified": return "Reviewed by eligible community members.";
+    case "Video Submitted": return "Video evidence submitted and awaiting stronger verification.";
+    case "Self Reported": return "Entered by the athlete without independent verification.";
   }
 }
 
@@ -1886,22 +1978,70 @@ function withAllOption(values: string[]): string[] {
   return ["All", ...[...new Set(values)].sort((left, right) => left.localeCompare(right))];
 }
 
+function normalizeLeaderboardFilters(filters: LeaderboardFiltersState): LeaderboardFiltersState {
+  const next = { ...filters, city: "All" };
+  if (["Total", "Relative total"].includes(next.rankingType)) {
+    next.exercise = "All";
+    next.repCount = null;
+  }
+  if (next.exercise === "All") next.repCount = null;
+  if (next.scope !== "Selected gym") next.gym = "All";
+  if (next.scope === "My weight class") next.weightClass = "All";
+  return next;
+}
+
+function leaderboardContextLabels(filters: LeaderboardFiltersState, state: TrackerState): string[] {
+  const profile = currentProfile(state);
+  const scope = filters.scope === "My gym" ? `Scope: My gym · ${state.gyms.find((gym) => gym.id === profile.primaryGymId)?.name ?? "Primary gym"}`
+    : filters.scope === "My city" ? `Scope: My city · ${profile.city}, ${profile.state}`
+    : filters.scope === "My weight class" ? `Scope: My weight class · ${weightClassFor(profile.bodyweight, profile.sex)}`
+    : filters.scope === "Selected gym" ? `Scope: ${filters.gym === "All" ? "Choose a gym" : filters.gym}` : "Scope: Global";
+  return [
+    `Rank by: ${filters.rankingType}`,
+    scope,
+    `Exercise: ${["Total", "Relative total"].includes(filters.rankingType) ? "Three-lift total" : filters.exercise}`,
+    `Verification: ${filters.verification}`,
+    ...(filters.weightClass !== "All" ? [`Class: ${filters.weightClass}`] : []),
+    ...(filters.ageGroup !== "All" ? [`Age: ${filters.ageGroup}`] : []),
+    ...(filters.experienceLevel !== "All" ? [`Experience: ${filters.experienceLevel}`] : [])
+  ];
+}
+
+function leaderboardActiveChips(filters: LeaderboardFiltersState): Array<{ key: keyof LeaderboardFiltersState; label: string }> {
+  const chips: Array<{ key: keyof LeaderboardFiltersState; label: string }> = [];
+  if (filters.rankingType !== "Total") chips.push({ key: "rankingType", label: filters.rankingType });
+  if (filters.scope !== "Global") chips.push({ key: "scope", label: filters.scope === "Selected gym" && filters.gym !== "All" ? filters.gym : filters.scope });
+  if (filters.verification !== "All") chips.push({ key: "verification", label: filters.verification });
+  if (filters.exercise !== "All") chips.push({ key: "exercise", label: filters.exercise });
+  if (filters.weightClass !== "All") chips.push({ key: "weightClass", label: filters.weightClass });
+  if (filters.ageGroup !== "All") chips.push({ key: "ageGroup", label: filters.ageGroup });
+  if (filters.experienceLevel !== "All") chips.push({ key: "experienceLevel", label: filters.experienceLevel });
+  if (filters.repCount !== null) chips.push({ key: "repCount", label: `${filters.repCount} reps` });
+  return chips;
+}
+
+function formatLeaderboardGap(gap: number, rankingType: RankingType): string {
+  if (rankingType === "Absolute" || rankingType === "Total") return `${formatWeight(Math.max(0, gap))} lb`;
+  if (rankingType === "Most improved") return `${Math.max(0, gap).toFixed(0)}%`;
+  return `${Math.max(0, gap).toFixed(2)}x`;
+}
+
 function leaderboardColumnWidth(key: LeaderboardColumnKey): string {
   switch (key) {
     case "rank":
-      return "88px";
+      return "72px";
     case "athlete":
-      return "minmax(210px, 1.5fr)";
+      return "minmax(165px, 1.35fr)";
     case "exercise":
-      return "minmax(180px, 1.2fr)";
+      return "minmax(145px, 1.1fr)";
     case "gym":
-      return "minmax(190px, 1.35fr)";
+      return "minmax(170px, 1.25fr)";
     case "score":
-      return "128px";
+      return "118px";
     case "verification":
-      return "160px";
+      return "140px";
     case "trend":
-      return "96px";
+      return "76px";
   }
 }
 

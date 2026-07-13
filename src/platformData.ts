@@ -7,6 +7,7 @@ import type {
   Message,
   MessageThread,
   NotificationItem,
+  TrainingGroup,
   UserProfile
 } from "./types";
 
@@ -94,18 +95,45 @@ Winter Springs|Winter Springs`;
 
 const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
-export const gymSeed: Gym[] = gymRows.split("\n").map((row, index) => {
-  const [location, city] = row.split("|");
-  return {
-    id: `gym-${slug(location)}`,
-    name: `Crunch Fitness - ${location}`,
-    city,
-    state: "Florida",
-    memberCount: 180 + ((index * 17) % 140),
-    verifiedLiftCount: 260 + ((index * 31) % 520),
-    officialUrl: "https://www.crunch.com/locations"
-  };
+const demoMetrics = (index: number) => ({
+  memberCount: 180 + ((index * 17) % 140),
+  verifiedLiftCount: 260 + ((index * 31) % 520)
 });
+
+const legacyDemoMetrics = new Map<string, ReturnType<typeof demoMetrics>>(
+  gymRows.split("\n").map((row, index) => {
+    const [location] = row.split("|");
+    return [`gym-${slug(location)}`, demoMetrics(index)] as const;
+  })
+);
+
+const coreGymRows = [
+  ["gym-brandon", "Crunch Fitness - Brandon", "1570 W Brandon Blvd", "Brandon", "33511", "brandon"],
+  ["gym-coral-springs", "Crunch Fitness - Coral Springs", "910 N University Dr", "Coral Springs", "33071", "coral-springs"],
+  ["gym-doral", "Crunch Fitness - Doral", "1970 NW 117 PL", "Miami", "33182", "doral"],
+  ["gym-south-beach", "Crunch Fitness - South Beach", "1259 Washington Ave", "Miami Beach", "33139", "south-beach"],
+  ["gym-oakland-park", "Crunch Fitness - Oakland Park", "3500 N Andrews Ave", "Oakland Park", "33309", "oakland-park"],
+  ["gym-tampa-palms", "Crunch Fitness - Tampa Palms", "15313 Amberly Dr", "Tampa", "33647", "tampa-palms"],
+  ["gym-wesley-chapel", "Crunch Fitness - Wesley Chapel", "5351 Village Market Drive", "Wesley Chapel", "33544", "wesley-chapel"],
+  ["gym-winter-garden", "Crunch Fitness - Winter Garden", "14150 West Colonial Drive", "Winter Garden", "34787", "winter-garden"],
+  ["gym-winter-park", "Crunch Fitness - Winter Park", "4270 Aloma Ave", "Winter Park", "32792", "winter-park"]
+] as const;
+
+export function withLegacyDemoMetrics(gym: Gym): Gym {
+  return { ...gym, ...(legacyDemoMetrics.get(gym.id) ?? {}) };
+}
+
+export const gymSeed: Gym[] = coreGymRows.map(([id, name, address, city, postalCode, slug]) => withLegacyDemoMetrics({
+  id,
+  brand: "Crunch Fitness",
+  name,
+  address,
+  city,
+  state: "Florida",
+  postalCode,
+  countryCode: "US",
+  officialUrl: `https://www.crunch.com/locations/${slug}`
+}));
 
 type ProfileSeed = [string, string, string, string, string, string, "Male" | "Female", number, string, string, string];
 
@@ -127,7 +155,35 @@ const profileRows: ProfileSeed[] = [
 export const profileSeed: UserProfile[] = profileRows.map((row) => ({
   id: row[0], displayName: row[1], handle: row[2], ageGroup: row[3], experienceLevel: row[4],
   primaryGymId: row[5], sex: row[6], bodyweight: row[7], city: row[8], state: row[9], bio: row[10],
-  unitSystem: "lb", hideGym: false, hideLocation: false
+  unitSystem: "lb", hideGym: false, hideLocation: false, hideAge: false,
+  discipline: row[4] === "Veteran" ? "Powerlifting" : row[4] === "Intermediate" ? "General Strength" : "Powerlifting",
+  trainingGoal: row[4] === "Intermediate" ? "Build a strong foundation" : "Increase competition total",
+  yearsTraining: row[4] === "Veteran" ? 12 : row[4] === "Advanced" ? 6 : 2,
+  federation: row[4] === "Intermediate" ? "Unaffiliated" : "USAPL",
+  preferredEquipment: "Raw",
+  role: row[0] === "user-robert" ? "Admin" : row[0] === "user-aisha" ? "Moderator" : "Member",
+  professionalCredential: row[0] === "user-aisha" ? "Certified Strength Coach" : undefined,
+  credentialVerified: row[0] === "user-aisha"
+}));
+
+export const trainingGroupSeed: TrainingGroup[] = [
+  ["general-strength", "General Strength", "Practical training, programming, and progress for every strength athlete."],
+  ["powerlifting", "Powerlifting", "Squat, bench press, deadlift, meet preparation, and competition strategy."],
+  ["bodybuilding", "Bodybuilding", "Hypertrophy programming, posing, recovery, and physique development."],
+  ["olympic-weightlifting", "Olympic Weightlifting", "Snatch, clean and jerk, technique, and weightlifting programming."],
+  ["calisthenics", "Calisthenics", "Bodyweight strength, skills, progressions, and weighted calisthenics."],
+  ["conditioning", "Conditioning", "Running, work capacity, circuits, and conditioning around lifting."],
+  ["mobility-recovery", "Mobility & Recovery", "Mobility, fatigue management, sleep, and returning to training safely."],
+  ["nutrition", "Nutrition", "Evidence-aware nutrition for performance, recovery, and body composition."],
+  ["beginner-fitness", "Beginner Fitness", "Constructive answers and simple guidance for people starting out."],
+  ["home-gym-equipment", "Home Gym & Equipment", "Equipment reviews, home-gym layouts, maintenance, and buying advice."]
+].map(([id, name, description]) => ({
+  id: `group-${id}`,
+  name,
+  description,
+  rules: ["Be constructive and include useful training context.", "Do not diagnose injuries or present comments as medical advice.", "No harassment, steroid sourcing, spam, or dangerous recommendations."],
+  memberIds: ["user-robert", ...(id === "powerlifting" ? ["user-aisha", "user-evan", "user-mia"] : [])],
+  moderatorIds: id === "powerlifting" ? ["user-aisha"] : []
 }));
 
 const totals: Record<string, [number, number, number]> = {
@@ -176,14 +232,14 @@ export const liftSeed: LiftSubmission[] = profileSeed.flatMap((profile, profileI
 );
 
 export const communitySeed: CommunityPost[] = [
-  { id: "post-1", authorId: "user-evan", kind: "PR", title: "585 moved clean", body: "Deadlift peaked exactly where it needed to. Keeping the next block conservative.", createdAt: new Date(now.getTime() - 3_600_000).toISOString(), linkedLiftId: "lift-user-evan-deadlift", gymId: "gym-south-beach", likedBy: ["user-robert", "user-mia"], savedBy: [] },
-  { id: "post-2", authorId: "user-mia", kind: "Discussion", title: "Squat depth checks", body: "What camera angle gives the clearest depth review without blocking the rack?", createdAt: new Date(now.getTime() - 7_200_000).toISOString(), likedBy: ["user-talia"], savedBy: ["user-robert"] },
-  { id: "post-3", authorId: "user-nico", kind: "Gym", title: "South Beach Saturday session", body: "Three of us are training the main lifts at 10 AM. Spots are welcome.", createdAt: new Date(now.getTime() - 18_000_000).toISOString(), gymId: "gym-south-beach", likedBy: [], savedBy: [] }
+  { id: "post-1", authorId: "user-evan", groupId: "group-powerlifting", kind: "Personal Record", title: "585 moved clean", body: "Deadlift peaked exactly where it needed to. Keeping the next block conservative.", createdAt: new Date(now.getTime() - 3_600_000).toISOString(), linkedLiftId: "lift-user-evan-deadlift", gymId: "gym-south-beach", likedBy: ["user-robert", "user-mia"], votes: { "user-robert": 1, "user-mia": 1 }, savedBy: [], exerciseTags: ["Deadlift"], goalTags: ["Strength"], isLocked: false },
+  { id: "post-2", authorId: "user-mia", groupId: "group-powerlifting", kind: "Form Check", title: "Squat depth checks", body: "What camera angle gives the clearest depth review without blocking the rack?", createdAt: new Date(now.getTime() - 7_200_000).toISOString(), likedBy: ["user-talia"], votes: { "user-talia": 1 }, savedBy: ["user-robert"], exerciseTags: ["Squat"], goalTags: ["Technique"], isLocked: false, trainingDetails: { exercise: "Back Squat", feedbackRequest: "Depth and camera angle" } },
+  { id: "post-3", authorId: "user-nico", groupId: "group-general-strength", kind: "Discussion", title: "South Beach Saturday session", body: "Three of us are training the main lifts at 10 AM. Spots are welcome.", createdAt: new Date(now.getTime() - 18_000_000).toISOString(), gymId: "gym-south-beach", likedBy: [], votes: {}, savedBy: [], exerciseTags: [], goalTags: ["Community"], isLocked: false }
 ];
 
 export const commentSeed: Comment[] = [
-  { id: "comment-1", postId: "post-1", authorId: "user-robert", body: "Strong pull. The lockout looked decisive.", createdAt: new Date(now.getTime() - 2_700_000).toISOString() },
-  { id: "comment-2", postId: "post-2", authorId: "user-aisha", body: "Hip height from a rear three-quarter angle usually works best.", createdAt: new Date(now.getTime() - 5_400_000).toISOString() }
+  { id: "comment-1", postId: "post-1", authorId: "user-robert", body: "Strong pull. The lockout looked decisive.", createdAt: new Date(now.getTime() - 2_700_000).toISOString(), votes: {} },
+  { id: "comment-2", postId: "post-2", authorId: "user-aisha", body: "Hip height from a rear three-quarter angle usually works best.", createdAt: new Date(now.getTime() - 5_400_000).toISOString(), votes: { "user-robert": 1 } }
 ];
 
 export const friendRequestSeed: FriendRequest[] = [
@@ -203,7 +259,5 @@ export const messageSeed: Message[] = [
 
 export const notificationSeed: NotificationItem[] = [
   { id: "notification-1", title: "Ranking increased", body: "You moved up on the South Beach total board.", kind: "Ranking", target: "/leaderboards", createdAt: new Date(now.getTime() - 3_600_000).toISOString(), isRead: false },
-  { id: "notification-2", title: "Friend request", body: "Mia Santos sent you a friend request.", kind: "Friend", target: "/friends", createdAt: new Date(now.getTime() - 7_200_000).toISOString(), isRead: false },
-  { id: "notification-3", title: "Workout logged", body: "Your completed workout is available in Progress.", kind: "Workout", target: "/progress", createdAt: new Date(now.getTime() - 86_400_000).toISOString(), isRead: true }
+  { id: "notification-2", title: "Friend request", body: "Mia Santos sent you a friend request.", kind: "Friend", target: "/friends", createdAt: new Date(now.getTime() - 7_200_000).toISOString(), isRead: false }
 ];
-

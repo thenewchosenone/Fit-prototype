@@ -6,5 +6,8 @@ test-results/
 .pnpm-store/
 *.tsbuildinfo
 .DS_Store
+tmp/
+.env*
+!.env.example
 xcuserdata/
 *.xcuserstate

@@ -3,15 +3,20 @@ import {
   type Dispatch,
   type PropsWithChildren,
   useContext,
+  useCallback,
   useEffect,
   useMemo,
-  useReducer
+  useReducer,
+  useRef,
+  useState
 } from "react";
 import { seedState } from "./data";
 import { calculateSummary, makeId, workoutDuration } from "./lib";
 import { nextLocalMidnight } from "./platform";
 import type {
   Comment,
+  CommunityReportReason,
+  CommunityVote,
   CommunityPost,
   Exercise,
   ExercisePrescription,
@@ -63,10 +68,20 @@ export type TrackerAction =
   | { type: "JOIN_GYM"; gymId: string }
   | { type: "LEAVE_GYM"; gymId: string }
   | { type: "SUBMIT_LIFT"; lift: Omit<LiftSubmission, "id" | "submittedAt" | "leaderboardEligibleAt"> }
-  | { type: "CREATE_POST"; post: Omit<CommunityPost, "id" | "createdAt" | "likedBy" | "savedBy"> }
+  | { type: "CREATE_POST"; post: Omit<CommunityPost, "id" | "createdAt" | "likedBy" | "votes" | "savedBy" | "isLocked"> }
+  | { type: "JOIN_GROUP"; groupId: string }
+  | { type: "LEAVE_GROUP"; groupId: string }
+  | { type: "VOTE_POST"; postId: string; vote: CommunityVote }
+  | { type: "VOTE_COMMENT"; commentId: string; vote: CommunityVote }
   | { type: "TOGGLE_POST_LIKE"; postId: string }
   | { type: "TOGGLE_POST_SAVE"; postId: string }
-  | { type: "ADD_COMMENT"; comment: Omit<Comment, "id" | "createdAt" | "authorId"> }
+  | { type: "ADD_COMMENT"; comment: Omit<Comment, "id" | "createdAt" | "authorId" | "votes"> }
+  | { type: "EDIT_COMMENT"; commentId: string; body: string }
+  | { type: "DELETE_COMMENT"; commentId: string }
+  | { type: "REPORT_COMMUNITY"; targetType: "Post" | "Comment"; targetId: string; reason: CommunityReportReason; note?: string }
+  | { type: "MODERATE_POST"; postId: string; operation: "remove" | "restore" | "lock" | "unlock" | "warn"; reason?: string }
+  | { type: "RESOLVE_COMMUNITY_REPORT"; reportId: string }
+  | { type: "BAN_GROUP_USER"; groupId: string; userId: string; reason: string }
   | { type: "SEND_FRIEND_REQUEST"; recipientId: string }
   | { type: "RESPOND_FRIEND_REQUEST"; requestId: string; status: "Accepted" | "Declined" }
   | { type: "CANCEL_FRIEND_REQUEST"; requestId: string }
@@ -76,6 +91,7 @@ export type TrackerAction =
   | { type: "REPORT_MESSAGE"; messageId: string; reason: MessageReportReason; note: string }
   | { type: "MARK_NOTIFICATION_READ"; notificationId: string }
   | { type: "MARK_ALL_NOTIFICATIONS_READ" }
+  | { type: "HYDRATE_GYM_CATALOG"; gyms: TrackerState["gyms"] }
   | { type: "RESET_DEMO" };
 
 function cloneSeed(): TrackerState {
@@ -84,16 +100,69 @@ function cloneSeed(): TrackerState {
 
 export function loadTrackerState(storage: Pick<Storage, "getItem"> = localStorage): TrackerState {
   try {
+    const seed = cloneSeed();
     const raw = storage.getItem(STORAGE_KEY);
-    if (!raw) return cloneSeed();
+    if (!raw) return seed;
     const parsed = JSON.parse(raw) as Partial<TrackerState> & { version?: number };
-    if (![2, 3].includes(parsed.version ?? 0) || !Array.isArray(parsed.plans) || !Array.isArray(parsed.exercises)) {
-      return cloneSeed();
+    if (![2, 3, 4].includes(parsed.version ?? 0) || !Array.isArray(parsed.plans) || !Array.isArray(parsed.exercises)) {
+      return seed;
     }
-    return { ...cloneSeed(), ...parsed, version: 3 };
+    const joinedGymIds = Array.isArray(parsed.joinedGymIds)
+      ? parsed.joinedGymIds.slice(0, 3)
+      : seed.joinedGymIds;
+    const profiles = (parsed.profiles ?? seed.profiles).map((profile) => {
+      const fallback = seed.profiles.find((item) => item.id === profile.id) ?? seed.profiles[0];
+      return { ...fallback, ...profile };
+    });
+    const communityPosts = (parsed.communityPosts ?? seed.communityPosts).filter((post) => post.kind !== "Workout").map((post) => {
+      const legacySearch = `${post.id} ${post.title} ${post.body} ${(post.exerciseTags ?? []).join(" ")}`.toLowerCase();
+      const inferredGroupId = post.groupId && post.groupId !== "group-general-strength" ? post.groupId
+        : /post-1|post-2|powerlift|squat|bench|deadlift/.test(legacySearch) ? "group-powerlifting" : post.groupId ?? "group-general-strength";
+      return ({
+      ...post,
+      kind: post.kind === "PR" ? "Personal Record" as const : post.kind === "Lift" ? "Progress" as const : post.kind === "Gym" ? "Discussion" as const : post.kind,
+      groupId: inferredGroupId,
+      likedBy: post.likedBy ?? [],
+      votes: post.votes ?? Object.fromEntries((post.likedBy ?? []).map((id) => [id, 1])),
+      savedBy: post.savedBy ?? [], exerciseTags: post.exerciseTags ?? [], goalTags: post.goalTags ?? [], isLocked: post.isLocked ?? false
+    }); });
+    const comments = (parsed.comments ?? seed.comments).map((comment) => ({ ...comment, votes: comment.votes ?? {} }));
+    const validGroupIds = new Set(seed.trainingGroups.map((group) => group.id));
+    const bundledExerciseIds = new Set(seed.exercises.map((exercise) => exercise.id));
+    const bundledExerciseNames = new Set(seed.exercises.map((exercise) => exercise.name.toLowerCase()));
+    const customExercises = (parsed.exercises ?? []).filter((exercise) =>
+      exercise.isCustom &&
+      !bundledExerciseIds.has(exercise.id) &&
+      !bundledExerciseNames.has(exercise.name.toLowerCase())
+    );
+    return {
+      ...seed,
+      ...parsed,
+      version: 4,
+      // Directory records ship with the app and must not be replaced by an older
+      // localStorage snapshot. Membership IDs remain user-owned and are migrated above.
+      gyms: seed.gyms,
+      // The bundled catalog is application data. Persist only compatible
+      // user-created additions instead of allowing an old catalog snapshot
+      // to replace newly shipped exercises.
+      exercises: [...seed.exercises, ...customExercises],
+      joinedGymIds,
+      profiles,
+      communityPosts,
+      comments,
+      trainingGroups: seed.trainingGroups,
+      joinedGroupIds: (parsed.joinedGroupIds ?? seed.joinedGroupIds).filter((id) => validGroupIds.has(id)),
+      communityReports: parsed.communityReports ?? [],
+      groupBans: parsed.groupBans ?? []
+    };
   } catch {
     return cloneSeed();
   }
+}
+
+export function serializeTrackerState(state: TrackerState): string {
+  const { gyms: _catalog, ...persistedState } = state;
+  return JSON.stringify(persistedState);
 }
 
 function planGraph(state: TrackerState, planId: string) {
@@ -552,14 +621,20 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
       const post: CommunityPost | null = lift.visibility === "Public" ? {
         id: makeId("post"),
         authorId: state.currentUserId,
-        kind: "Lift",
+        kind: "Progress",
+        groupId: "group-general-strength",
         title: `${lift.exerciseName} submitted`,
         body: lift.caption || `${lift.weight} ${lift.unit} for ${lift.reps} rep${lift.reps === 1 ? "" : "s"}.`,
         createdAt: now,
         linkedLiftId: lift.id,
         gymId: lift.gymId,
         likedBy: [],
-        savedBy: []
+        votes: {},
+        savedBy: [],
+        exerciseTags: [lift.exerciseName],
+        goalTags: ["Strength"],
+        trainingDetails: { exercise: lift.exerciseName, reps: lift.reps, weight: lift.weight, unit: lift.unit },
+        isLocked: false
       } : null;
       return {
         ...state,
@@ -578,6 +653,7 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
     }
 
     case "CREATE_POST":
+      if (state.groupBans.some((ban) => ban.groupId === action.post.groupId && ban.userId === state.currentUserId)) return state;
       return {
         ...state,
         communityPosts: [{
@@ -585,17 +661,35 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
           id: makeId("post"),
           createdAt: new Date().toISOString(),
           likedBy: [],
-          savedBy: []
+          votes: {},
+          savedBy: [],
+          isLocked: false
         }, ...state.communityPosts]
       };
+
+    case "JOIN_GROUP":
+      if (!state.trainingGroups.some((group) => group.id === action.groupId) || state.joinedGroupIds.includes(action.groupId)) return state;
+      return { ...state, joinedGroupIds: [...state.joinedGroupIds, action.groupId], trainingGroups: state.trainingGroups.map((group) => group.id === action.groupId ? { ...group, memberIds: [...new Set([...group.memberIds, state.currentUserId])] } : group) };
+
+    case "LEAVE_GROUP":
+      return { ...state, joinedGroupIds: state.joinedGroupIds.filter((id) => id !== action.groupId), trainingGroups: state.trainingGroups.map((group) => group.id === action.groupId ? { ...group, memberIds: group.memberIds.filter((id) => id !== state.currentUserId) } : group) };
+
+    case "VOTE_POST":
+      return { ...state, communityPosts: state.communityPosts.map((post) => {
+        if (post.id !== action.postId) return post;
+        const votes = { ...post.votes };
+        if (votes[state.currentUserId] === action.vote) delete votes[state.currentUserId]; else votes[state.currentUserId] = action.vote;
+        return { ...post, votes, likedBy: Object.entries(votes).filter(([, vote]) => vote === 1).map(([id]) => id) };
+      }) };
 
     case "TOGGLE_POST_LIKE":
       return {
         ...state,
         communityPosts: state.communityPosts.map((post) => {
           if (post.id !== action.postId) return post;
-          const liked = post.likedBy.includes(state.currentUserId);
-          return { ...post, likedBy: liked ? post.likedBy.filter((id) => id !== state.currentUserId) : [...post.likedBy, state.currentUserId] };
+          const votes = { ...post.votes };
+          if (votes[state.currentUserId] === 1) delete votes[state.currentUserId]; else votes[state.currentUserId] = 1;
+          return { ...post, votes, likedBy: Object.entries(votes).filter(([, vote]) => vote === 1).map(([id]) => id) };
         })
       };
 
@@ -609,16 +703,39 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
         })
       };
 
-    case "ADD_COMMENT":
+    case "ADD_COMMENT": {
+      const post = state.communityPosts.find((item) => item.id === action.comment.postId);
+      if (!post || post.isLocked || post.removedAt || state.groupBans.some((ban) => ban.groupId === post.groupId && ban.userId === state.currentUserId)) return state;
       return {
         ...state,
         comments: [...state.comments, {
           ...action.comment,
           id: makeId("comment"),
           authorId: state.currentUserId,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          votes: {}
         }]
       };
+    }
+
+    case "VOTE_COMMENT":
+      return { ...state, comments: state.comments.map((comment) => { if (comment.id !== action.commentId) return comment; const votes = { ...comment.votes }; if (votes[state.currentUserId] === action.vote) delete votes[state.currentUserId]; else votes[state.currentUserId] = action.vote; return { ...comment, votes }; }) };
+
+    case "EDIT_COMMENT":
+      return { ...state, comments: state.comments.map((comment) => comment.id === action.commentId && comment.authorId === state.currentUserId && !comment.deletedAt ? { ...comment, body: action.body.trim(), editedAt: new Date().toISOString() } : comment) };
+
+    case "DELETE_COMMENT":
+      return { ...state, comments: state.comments.map((comment) => comment.id === action.commentId && comment.authorId === state.currentUserId ? { ...comment, body: "", deletedAt: new Date().toISOString() } : comment) };
+
+    case "REPORT_COMMUNITY":
+      if (state.communityReports.some((report) => report.reporterId === state.currentUserId && report.targetType === action.targetType && report.targetId === action.targetId && report.status === "Open")) return state;
+      return { ...state, communityReports: [...state.communityReports, { id: makeId("community-report"), targetType: action.targetType, targetId: action.targetId, reporterId: state.currentUserId, reason: action.reason, note: action.note?.trim() ?? "", status: "Open", createdAt: new Date().toISOString() }] };
+
+    case "MODERATE_POST": { const profile = state.profiles.find((item) => item.id === state.currentUserId); const post = state.communityPosts.find((item) => item.id === action.postId); const group = state.trainingGroups.find((item) => item.id === post?.groupId); if (!post || !profile || (profile.role !== "Admin" && !(profile.role === "Moderator" && group?.moderatorIds.includes(profile.id)))) return state; return { ...state, communityPosts: state.communityPosts.map((item) => item.id !== post.id ? item : action.operation === "remove" ? { ...item, removedAt: new Date().toISOString(), removalReason: action.reason ?? "Removed by a moderator" } : action.operation === "restore" ? { ...item, removedAt: undefined, removalReason: undefined } : action.operation === "lock" ? { ...item, isLocked: true } : action.operation === "unlock" ? { ...item, isLocked: false } : { ...item, warning: action.reason ?? "Moderator warning" }) }; }
+
+    case "RESOLVE_COMMUNITY_REPORT": { const profile = state.profiles.find((item) => item.id === state.currentUserId); if (!profile || profile.role === "Member") return state; return { ...state, communityReports: state.communityReports.map((report) => report.id === action.reportId ? { ...report, status: "Resolved" } : report) }; }
+
+    case "BAN_GROUP_USER": { const profile = state.profiles.find((item) => item.id === state.currentUserId); const group = state.trainingGroups.find((item) => item.id === action.groupId); if (!profile || profile.role === "Member" || (profile.role === "Moderator" && !group?.moderatorIds.includes(profile.id))) return state; if (state.groupBans.some((ban) => ban.groupId === action.groupId && ban.userId === action.userId)) return state; return { ...state, groupBans: [...state.groupBans, { id: makeId("ban"), groupId: action.groupId, userId: action.userId, moderatorId: state.currentUserId, reason: action.reason, createdAt: new Date().toISOString() }] }; }
 
     case "SEND_FRIEND_REQUEST":
       if (action.recipientId === state.currentUserId || state.friendRequests.some((request) =>
@@ -694,26 +811,60 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
     case "MARK_ALL_NOTIFICATIONS_READ":
       return { ...state, notifications: state.notifications.map((notification) => ({ ...notification, isRead: true })) };
 
+    case "HYDRATE_GYM_CATALOG": {
+      const validGymIds = new Set(action.gyms.map((gym) => gym.id));
+      return {
+        ...state,
+        gyms: action.gyms,
+        joinedGymIds: state.joinedGymIds.filter((gymId) => validGymIds.has(gymId))
+      };
+    }
+
     case "RESET_DEMO":
-      return cloneSeed();
+      return state.gyms.length > 20 ? { ...cloneSeed(), gyms: state.gyms } : cloneSeed();
   }
 }
 
 interface StoreValue {
   state: TrackerState;
   dispatch: Dispatch<TrackerAction>;
+  gymCatalogStatus: "idle" | "loading" | "ready" | "error";
+  gymCatalogError: string | null;
+  ensureGymCatalog(): Promise<void>;
 }
 
 const TrackerContext = createContext<StoreValue | null>(null);
 
 export function TrackerProvider({ children, initialState }: PropsWithChildren<{ initialState?: TrackerState }>) {
   const [state, dispatch] = useReducer(trackerReducer, initialState ?? loadTrackerState());
+  const [gymCatalogStatus, setGymCatalogStatus] = useState<StoreValue["gymCatalogStatus"]>(state.gyms.length > 20 ? "ready" : "idle");
+  const [gymCatalogError, setGymCatalogError] = useState<string | null>(null);
+  const gymCatalogRequest = useRef<Promise<void> | null>(null);
+
+  const ensureGymCatalog = useCallback(() => {
+    if (gymCatalogStatus === "ready") return Promise.resolve();
+    if (gymCatalogRequest.current) return gymCatalogRequest.current;
+    setGymCatalogStatus("loading");
+    setGymCatalogError(null);
+    gymCatalogRequest.current = import("./gymCatalog")
+      .then(({ loadGymCatalog }) => loadGymCatalog())
+      .then((gyms) => {
+        dispatch({ type: "HYDRATE_GYM_CATALOG", gyms });
+        setGymCatalogStatus("ready");
+      })
+      .catch((error: unknown) => {
+        gymCatalogRequest.current = null;
+        setGymCatalogStatus("error");
+        setGymCatalogError(error instanceof Error ? error.message : "Unable to load the gym directory.");
+      });
+    return gymCatalogRequest.current;
+  }, [gymCatalogStatus]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY, serializeTrackerState(state));
   }, [state]);
 
-  const value = useMemo(() => ({ state, dispatch }), [state]);
+  const value = useMemo(() => ({ state, dispatch, gymCatalogStatus, gymCatalogError, ensureGymCatalog }), [ensureGymCatalog, gymCatalogError, gymCatalogStatus, state]);
   return <TrackerContext.Provider value={value}>{children}</TrackerContext.Provider>;
 }
 
