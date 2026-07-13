@@ -327,7 +327,7 @@ small {
   padding: 0 18px;
   border: 0;
   border-radius: 8px;
-  background: var(--blue);
+  background: #006bd6;
   color: #fff;
   font-size: 14px;
   font-weight: 800;
@@ -335,7 +335,7 @@ small {
 }
 
 .primary-button:hover {
-  background: #2992ff;
+  background: #0874df;
 }
 
 .primary-button.large,
@@ -2725,8 +2725,8 @@ small {
 .demo-banner strong { color: #fff; }
 .demo-banner small { color: #aebdd2; }
 .demo-banner nav { gap: 14px; }
-.demo-banner a, .demo-banner button { color: #aecdff; font: inherit; }
-.demo-banner button { border: 0; background: transparent; cursor: pointer; padding: 0; }
+.demo-banner a, .demo-banner button { min-height: 28px; padding: 5px 2px; display: inline-flex; align-items: center; color: #aecdff; font: inherit; }
+.demo-banner button { border: 0; background: transparent; cursor: pointer; }
 .demo-banner a:hover, .demo-banner button:hover { color: #fff; }
 .demo-modal-backdrop { z-index: 90; }
 .demo-modal { max-width: 620px; }
