@@ -17,13 +17,14 @@ struct MainTabView: View {
             .tabItem { Label("Leaderboards", systemImage: "list.number") }
             .tag(1)
 
-            NavigationStack {
-                SubmitLiftLauncherView()
-            }
-            .tabItem { Label("Submit", systemImage: "plus.circle.fill") }
+            TrainingTrackerView(
+                startOnProgress: appState.trainingTrackerStartOnProgress,
+                isEmbeddedInTab: true
+            )
+            .tabItem { Label("Track", systemImage: "dumbbell.fill") }
             .tag(2)
 
-            NavigationStack {
+            NavigationStack(path: $appState.communityPath) {
                 CommunityView()
             }
             .tabItem { Label("Community", systemImage: "person.3.fill") }
@@ -36,6 +37,8 @@ struct MainTabView: View {
             .tag(4)
         }
         .tint(Color.liftBlue)
+        .toolbarBackground(Color.liftCard, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
         .sheet(isPresented: $appState.showingSubmitSheet) {
             SubmitLiftView()
                 .environmentObject(appState)
@@ -57,12 +60,6 @@ struct MainTabView: View {
         }
         .sheet(isPresented: $appState.showingSettings) {
             SettingsView()
-                .environmentObject(appState)
-        }
-        .fullScreenCover(isPresented: $appState.showingTrainingTracker, onDismiss: {
-            appState.trainingTrackerStartOnProgress = false
-        }) {
-            TrainingTrackerView(startOnProgress: appState.trainingTrackerStartOnProgress)
                 .environmentObject(appState)
         }
         .sheet(isPresented: $appState.showingCreateThread) {
@@ -110,31 +107,134 @@ struct MainTabView: View {
             AuthenticationView()
                 .environmentObject(appState)
         }
+        .fullScreenCover(isPresented: $appState.showingForumComposer, onDismiss: {
+            appState.clearForumComposerPreset()
+        }) {
+            ForumRichComposerView()
+                .environmentObject(appState)
+        }
     }
 }
 
 struct AuthenticationView: View {
     @EnvironmentObject private var appState: AppState
+    @State private var mode = "Sign In"
+    @State private var email = ""
+    @State private var password = ""
+    @State private var showingReset = false
 
     var body: some View {
         AppBackground {
-            VStack(spacing: 22) {
-                Spacer()
-                Image(systemName: "lock.shield.fill")
-                    .font(.system(size: 64, weight: .bold))
-                    .foregroundStyle(Color.liftBlue)
-                Text("LiftRank")
-                    .font(.largeTitle.bold())
-                Text("Demo mode runs locally without Supabase credentials.")
-                    .foregroundStyle(Color.liftMuted)
-                    .multilineTextAlignment(.center)
-                PrimaryButton(title: "Continue in Demo Mode", symbolName: "person.crop.circle.badge.checkmark") {
-                    appState.showingAuthentication = false
-                    Haptics.success()
+            ScrollView {
+                VStack(spacing: 20) {
+                    Spacer(minLength: 46)
+                    Image(systemName: "lock.shield.fill")
+                        .font(.system(size: 54, weight: .bold))
+                        .foregroundStyle(Color.liftBlue)
+                    Text("LiftRank").font(.largeTitle.bold())
+                    Text("Your training can stay local. Your profile, gyms, and friendships use your secured account.")
+                        .foregroundStyle(Color.liftMuted)
+                        .multilineTextAlignment(.center)
+
+                    if appState.accountStatus == .configurationRequired {
+                        Label("Account services are not configured in this development build.", systemImage: "wrench.and.screwdriver.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.liftGold)
+                            .padding(14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.liftGold.opacity(0.09))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    } else {
+                        Picker("Account action", selection: $mode) {
+                            Text("Sign In").tag("Sign In")
+                            Text("Create Account").tag("Create Account")
+                        }
+                        .pickerStyle(.segmented)
+
+                        VStack(spacing: 12) {
+                            TextField("Email", text: $email)
+                                .textContentType(.emailAddress)
+                                .keyboardType(.emailAddress)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .padding(14)
+                                .background(Color.liftCardRaised)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                            SecureField("Password", text: $password)
+                                .textContentType(mode == "Sign In" ? .password : .newPassword)
+                                .padding(14)
+                                .background(Color.liftCardRaised)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+
+                        if let message = appState.accountMessage {
+                            Text(message)
+                                .font(.subheadline)
+                                .foregroundStyle(Color.liftMuted)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+
+                        PrimaryButton(
+                            title: appState.accountOperationInProgress ? "Please wait…" : mode,
+                            symbolName: mode == "Sign In" ? "arrow.right.circle.fill" : "person.badge.plus"
+                        ) {
+                            Task {
+                                if mode == "Sign In" {
+                                    await appState.signIn(email: email, password: password)
+                                } else {
+                                    await appState.signUp(email: email, password: password)
+                                }
+                            }
+                        }
+                        .disabled(appState.accountOperationInProgress || email.isEmpty || password.count < 10)
+
+                        Button("Forgot password?") { showingReset = true }
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.liftBlue)
+                    }
+
+                    Divider().overlay(Color.white.opacity(0.08))
+                    Button {
+                        Task { await appState.enterDemoMode() }
+                    } label: {
+                        Label("Enter Explicit Demo Mode", systemImage: "person.crop.circle.badge.checkmark")
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: 48)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(Color.liftBlue)
+                    Text("Demo mode uses seeded local identities and never writes to your Supabase account.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                        .multilineTextAlignment(.center)
+                    Spacer(minLength: 28)
                 }
-                Spacer()
+                .padding(.horizontal, 24)
             }
-            .padding()
+        }
+        .sheet(isPresented: $showingReset) {
+            NavigationStack {
+                Form {
+                    TextField("Account email", text: $email)
+                        .textContentType(.emailAddress)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                    Text("For privacy, LiftRank gives the same response whether or not an account exists.")
+                        .font(.caption)
+                    Button("Send reset instructions") {
+                        Task {
+                            await appState.requestPasswordReset(email: email)
+                            showingReset = false
+                        }
+                    }
+                    .disabled(email.isEmpty || appState.accountOperationInProgress)
+                }
+                .navigationTitle("Reset Password")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showingReset = false } }
+                }
+            }
+            .presentationDetents([.medium])
         }
     }
 }
@@ -168,36 +268,6 @@ struct ReportLiftView: View {
                     Button("Cancel") { dismiss() }
                 }
             }
-        }
-    }
-}
-
-struct SubmitLiftLauncherView: View {
-    @EnvironmentObject private var appState: AppState
-
-    var body: some View {
-        AppBackground {
-            VStack(spacing: 20) {
-                Spacer()
-                Button {
-                    Haptics.light()
-                    appState.showingSubmitSheet = true
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 92, weight: .semibold))
-                        .foregroundStyle(Color.liftBlue)
-                        .accessibilityLabel("Submit a lift")
-                }
-                Text("Submit a Lift")
-                    .font(.largeTitle.bold())
-                Text("Log a major lift, estimate your max, and see where it lands.")
-                    .font(.body)
-                    .foregroundStyle(Color.liftMuted)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-                Spacer()
-            }
-            .navigationTitle("Submit")
         }
     }
 }

@@ -1,4 +1,3 @@
-import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -7,11 +6,14 @@ struct OnboardingView: View {
     @State private var step = 0
     @State private var goals: Set<String> = ["Get stronger", "Compare with my weight class"]
     @State private var profile = MockData.demoProfile
+    @State private var birthDate = Calendar.current.date(byAdding: .year, value: -25, to: .now) ?? .now
+    @State private var isSavingProfile = false
+    @State private var saveError: String?
     @State private var bench = ""
     @State private var squat = ""
     @State private var deadlift = ""
     @State private var press = ""
-    @State private var photoItem: PhotosPickerItem?
+    @State private var showingPhotoManager = false
     let complete: () -> Void
 
     private let ageGroups = MockData.standardAgeGroups
@@ -43,6 +45,15 @@ struct OnboardingView: View {
             }
         }
         .interactiveDismissDisabled()
+        .onAppear {
+            profile = appState.currentProfile
+        }
+        .sheet(isPresented: $showingPhotoManager, onDismiss: {
+            profile.avatarPath = appState.currentProfile.avatarPath
+        }) {
+            ProfilePhotoManagerView()
+                .environmentObject(appState)
+        }
     }
 
     private var topBar: some View {
@@ -72,10 +83,14 @@ struct OnboardingView: View {
 
                 Spacer()
 
-                Button("Skip") { complete() }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.liftMuted)
-                    .frame(width: 42)
+                if appState.isDemoMode {
+                    Button("Skip") { complete() }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.liftMuted)
+                        .frame(width: 42)
+                } else {
+                    Color.clear.frame(width: 42)
+                }
             }
 
             HStack(spacing: 7) {
@@ -226,7 +241,9 @@ struct OnboardingView: View {
                     subtitle: "Your bodyweight and category make rankings fair and useful."
                 )
 
-                PhotosPicker(selection: $photoItem, matching: .images) {
+                Button {
+                    showingPhotoManager = true
+                } label: {
                     HStack(spacing: 14) {
                         ProfileAvatar(profile: profile, size: 64)
                             .overlay(alignment: .bottomTrailing) {
@@ -257,10 +274,14 @@ struct OnboardingView: View {
                 profileSection("Identity") {
                     field("Username", text: $profile.username, symbol: "at")
                     field("Display name", text: $profile.displayName, symbol: "person.fill")
-                    labeledPicker("Age group", symbol: "calendar") {
-                        Picker("Age group", selection: $profile.ageGroup) {
-                            ForEach(ageGroups, id: \.self) { Text($0).tag($0) }
-                        }
+                    labeledPicker("Birth date", symbol: "calendar") {
+                        DatePicker(
+                            "Birth date",
+                            selection: $birthDate,
+                            in: ...Calendar.current.date(byAdding: .year, value: -13, to: .now)!,
+                            displayedComponents: .date
+                        )
+                        .labelsHidden()
                     }
                     labeledPicker("Sex category", symbol: "person.2.fill") {
                         Picker("Sex category", selection: $profile.sexCategory) {
@@ -477,14 +498,18 @@ struct OnboardingView: View {
 
     private var controls: some View {
         VStack(spacing: 9) {
+            if let saveError {
+                Text(saveError)
+                    .font(.caption)
+                    .foregroundStyle(Color.liftRed)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             PrimaryButton(
-                title: step == 4 ? "Enter LiftRank" : nextButtonTitle,
+                title: step == 4 ? (isSavingProfile ? "Saving…" : "Enter LiftRank") : nextButtonTitle,
                 symbolName: step == 4 ? "arrow.right" : "chevron.right"
             ) {
                 if step == 4 {
-                    appState.updateProfile(profile)
-                    Haptics.success()
-                    complete()
+                    saveOnboardingProfile()
                 } else {
                     withAnimation(.snappy) { step += 1 }
                 }
@@ -503,6 +528,45 @@ struct OnboardingView: View {
         .padding(.top, 12)
         .padding(.bottom, 10)
         .background(.ultraThinMaterial)
+    }
+
+    private func saveOnboardingProfile() {
+        guard !isSavingProfile else { return }
+        isSavingProfile = true
+        saveError = nil
+        let privacy = ProfilePrivacySettings(
+            ageBandAudience: profile.hideExactAge ? .privateProfile : .publicProfile,
+            bodyweightAudience: profile.hideBodyweight ? .privateProfile : .publicProfile,
+            locationAudience: profile.hideCity ? .privateProfile : .publicProfile,
+            gymAudience: profile.hideGym ? .privateProfile : .publicProfile
+        )
+        let draft = ProfileDraft(
+            username: profile.username,
+            displayName: profile.displayName,
+            bio: "",
+            preferredUnit: profile.preferredUnit,
+            birthDate: birthDate,
+            sexCategory: profile.sexCategory,
+            heightCentimeters: profile.heightInches * 2.54,
+            city: profile.city,
+            region: profile.state,
+            countryCode: "US",
+            yearsExperience: profile.yearsExperience,
+            experienceLevel: profile.experienceLevel,
+            privacy: privacy,
+            completesOnboarding: true
+        )
+        Task {
+            do {
+                try await appState.saveAuthenticatedProfile(draft)
+                Haptics.success()
+                complete()
+            } catch {
+                saveError = (error as? LocalizedError)?.errorDescription ?? "Your profile could not be saved."
+                Haptics.warning()
+            }
+            isSavingProfile = false
+        }
     }
 
     private var nextButtonTitle: String {

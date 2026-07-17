@@ -20,6 +20,40 @@ export interface WorkoutPlan {
   notes: string;
   createdAt: string;
   isActive: boolean;
+  sourceTemplateId?: string;
+  sourceTemplateVersion?: number;
+}
+
+export type ProgramCategory = "General" | "Bodybuilding" | "Powerlifting";
+export type ProgramLevel = "Beginner" | "Intermediate";
+export type ProgramProgressionMethod = "RIR + Rep Range" | "Percentage" | "Fixed Sets + Reps";
+
+export interface ProgramExerciseTemplate {
+  exerciseId: string;
+  sets: number;
+  reps: string;
+  restSeconds: number;
+  notes?: string;
+  substitutionExerciseIds: string[];
+}
+
+export interface ProgramSessionTemplate {
+  day: string;
+  name: string;
+  exercises: ProgramExerciseTemplate[];
+}
+
+export interface WorkoutProgramTemplate {
+  id: string;
+  version: number;
+  name: string;
+  summary: string;
+  category: ProgramCategory;
+  level: ProgramLevel;
+  durationWeeks: 12;
+  daysPerWeek: number;
+  progressionMethod: ProgramProgressionMethod;
+  sessions: ProgramSessionTemplate[];
 }
 
 export interface WorkoutPhase {
@@ -81,6 +115,19 @@ export interface ActiveWorkout {
   startedAt: string;
   pausedAt: string | null;
   pausedSeconds: number;
+  exerciseOrder: string[];
+  exerciseOverrides: Record<string, ActiveWorkoutExerciseOverride>;
+  restOverrides: Record<string, number>;
+}
+
+export interface ActiveWorkoutExerciseOverride {
+  originalExerciseId: string;
+  originalExerciseName: string;
+  exerciseId: string;
+  exerciseName: string;
+  bodyPart: string;
+  equipment: string;
+  substitutedAt: string;
 }
 
 export interface WorkoutSummary {
@@ -317,7 +364,7 @@ export interface NotificationItem {
   id: string;
   title: string;
   body: string;
-  kind: "Ranking" | "Lift" | "Friend" | "Message" | "Gym" | "Workout";
+  kind: "Ranking" | "Lift" | "Verification" | "Friend" | "Message" | "Gym" | "Forum" | "Achievement" | "Workout" | "WorkoutReminder";
   target: string;
   createdAt: string;
   isRead: boolean;
@@ -333,8 +380,8 @@ export type RankingType =
 export type VerificationLevel =
   | "Self Reported"
   | "Video Submitted"
+  | "Video Verified"
   | "Community Verified"
-  | "Moderator Verified"
   | "Competition Verified";
 
 export type LeaderboardScope = "Global" | "My gym" | "My city" | "My weight class" | "Selected gym";

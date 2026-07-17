@@ -103,7 +103,7 @@ struct LeaderboardsView: View {
                                             if entry.id != visibleEntries.last?.id {
                                                 Divider()
                                                     .overlay(Color.white.opacity(0.07))
-                                                    .padding(.leading, 66)
+                                                    .padding(.leading, 72)
                                             }
                                         }
                                     }
@@ -126,6 +126,14 @@ struct LeaderboardsView: View {
             }
             .navigationTitle("Leaderboards")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        appState.showingSubmitSheet = true
+                    } label: {
+                        Label("Submit lift", systemImage: "plus.circle.fill")
+                    }
+                    .accessibilityLabel("Submit a lift")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         Haptics.light()
@@ -233,8 +241,7 @@ struct LeaderboardsView: View {
                     .foregroundStyle(Color.liftBlue)
                     .frame(minWidth: 44, minHeight: 44)
                     .padding(.horizontal, 4)
-                    .background(Color.liftCardRaised)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .liftSurface(radius: 10, raised: true)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("More filters, \(activeFilterCount) active")
@@ -262,8 +269,7 @@ struct LeaderboardsView: View {
             }
         }
         .padding(12)
-        .background(Color.liftCard)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .liftSurface(radius: LiftDesign.controlRadius)
     }
 
     private var emptyState: some View {
@@ -499,7 +505,7 @@ struct LeaderboardRow: View {
                                     .clipShape(Capsule())
                             }
                         }
-                        Text(entry.profile.primaryGymName)
+                        Text(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                             .lineLimit(1)
@@ -516,8 +522,8 @@ struct LeaderboardRow: View {
 
                 HStack(spacing: 8) {
                     Label(entry.lift.exerciseName, systemImage: "dumbbell.fill")
-                    Label("\(Int(entry.lift.bodyweightAtLift)) lb BW", systemImage: "scalemass.fill")
-                    Label("\(entry.profile.city), \(entry.profile.state)", systemImage: "mappin.and.ellipse")
+                    Label(entry.profile.hideBodyweight ? "Hidden BW" : "\(Int(entry.lift.bodyweightAtLift)) lb BW", systemImage: "scalemass.fill")
+                    Label(entry.profile.hideCity ? "Location hidden" : "\(entry.profile.city), \(entry.profile.state)", systemImage: "mappin.and.ellipse")
                 }
                 .font(.caption)
                 .foregroundStyle(Color.liftMuted)

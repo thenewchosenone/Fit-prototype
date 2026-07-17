@@ -58,12 +58,7 @@ struct LeaderboardMetricStrip: View {
                 metric("Updates", nextUpdate.formatted(.relative(presentation: .named, unitsStyle: .narrow)), tint: .liftGreen)
             }
             .padding(.vertical, 12)
-            .background(Color.liftCardRaised.opacity(0.9))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
-            }
+            .liftSurface(radius: 12, raised: true)
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Your rank \(rank), \(lifters) lifters, \(ranking), next update \(nextUpdate.formatted(.relative(presentation: .named)))")
         }
@@ -149,8 +144,7 @@ struct LeaderboardFilterControl: View {
             }
             .padding(.horizontal, 10)
             .frame(minHeight: 44)
-            .background(Color.liftCardRaised)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .liftSurface(radius: 10, raised: true)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(title), \(value)")
@@ -202,7 +196,7 @@ struct CompactLeaderboardRow: View {
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(rankColor)
                 .frame(width: 26, alignment: .leading)
-            ProfileAvatar(profile: entry.profile, size: 34)
+            ProfileAvatar(profile: entry.profile, size: 40)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 5) {
                     Text(entry.profile.username)
@@ -219,7 +213,7 @@ struct CompactLeaderboardRow: View {
                             .foregroundStyle(Color.liftBlue)
                     }
                 }
-                Text(entry.profile.primaryGymName)
+                Text(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)
                     .font(.caption2)
                     .foregroundStyle(Color.liftMuted)
                     .lineLimit(1)
@@ -238,7 +232,7 @@ struct CompactLeaderboardRow: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .frame(minHeight: 64)
+        .frame(minHeight: 68)
         .background(isCurrentUser ? Color.liftBlue.opacity(0.09) : Color.clear)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
@@ -273,10 +267,14 @@ struct CompactLeaderboardRow: View {
         if let breakdown = entry.powerliftingBreakdown, !isExerciseLeaderboard {
             return "S \(formatted(breakdown.squatKilograms)) • B \(formatted(breakdown.benchKilograms)) • D \(formatted(breakdown.deadliftKilograms))"
         }
-        return "\(entry.lift.repetitions) rep\(entry.lift.repetitions == 1 ? "" : "s") • \(formattedBodyweight) BW • \(entry.profile.city), \(entry.profile.state)"
+        let location = entry.profile.hideCity ? "Location hidden" : "\(entry.profile.city), \(entry.profile.state)"
+        return "\(entry.lift.repetitions) rep\(entry.lift.repetitions == 1 ? "" : "s") • \(formattedBodyweight) BW • \(location)"
     }
 
     private var formattedBodyweight: String {
+        if entry.profile.hideBodyweight {
+            return "Hidden"
+        }
         if preferredUnit == .kilograms {
             return "\(RankingCalculator.format(RankingCalculator.poundsToKilograms(entry.lift.bodyweightAtLift))) kg"
         }

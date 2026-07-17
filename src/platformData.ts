@@ -194,10 +194,10 @@ const totals: Record<string, [number, number, number]> = {
 };
 
 const verificationByUser: Record<string, LiftSubmission["verification"]> = {
-  "user-evan": "Competition Verified", "user-mia": "Moderator Verified", "user-robert": "Moderator Verified",
+  "user-evan": "Competition Verified", "user-mia": "Video Verified", "user-robert": "Video Verified",
   "user-darius": "Video Submitted", "user-marcus": "Community Verified", "user-nico": "Community Verified",
-  "user-talia": "Moderator Verified", "user-sofia": "Competition Verified", "user-chris": "Self Reported",
-  "user-aisha": "Moderator Verified", "user-leo": "Competition Verified", "user-jordan": "Community Verified"
+  "user-talia": "Video Verified", "user-sofia": "Competition Verified", "user-chris": "Self Reported",
+  "user-aisha": "Video Verified", "user-leo": "Competition Verified", "user-jordan": "Community Verified"
 };
 
 const exerciseNames = ["Back Squat", "Barbell Bench Press", "Conventional Deadlift"];
@@ -259,5 +259,10 @@ export const messageSeed: Message[] = [
 
 export const notificationSeed: NotificationItem[] = [
   { id: "notification-1", title: "Ranking increased", body: "You moved up on the South Beach total board.", kind: "Ranking", target: "/leaderboards", createdAt: new Date(now.getTime() - 3_600_000).toISOString(), isRead: false },
-  { id: "notification-2", title: "Friend request", body: "Mia Santos sent you a friend request.", kind: "Friend", target: "/friends", createdAt: new Date(now.getTime() - 7_200_000).toISOString(), isRead: false }
+  { id: "notification-2", title: "Friend request", body: "Mia Santos sent you a friend request.", kind: "Friend", target: "/friends", createdAt: new Date(now.getTime() - 7_200_000).toISOString(), isRead: false },
+  { id: "notification-3", title: "Verification result", body: "Your bench press is now Video Verified in this demo.", kind: "Verification", target: "/profile", createdAt: new Date(now.getTime() - 86_400_000).toISOString(), isRead: true },
+  { id: "notification-4", title: "New message", body: "Evan replied to your training conversation.", kind: "Message", target: "/messages/thread-1", createdAt: new Date(now.getTime() - 90_000_000).toISOString(), isRead: true },
+  { id: "notification-5", title: "Forum reply", body: "Aisha replied to a Powerlifting discussion.", kind: "Forum", target: "/community/post-2", createdAt: new Date(now.getTime() - 93_600_000).toISOString(), isRead: true },
+  { id: "notification-6", title: "Achievement unlocked", body: "Your activity unlocked a strength milestone.", kind: "Achievement", target: "/profile", createdAt: new Date(now.getTime() - 97_200_000).toISOString(), isRead: true },
+  { id: "notification-7", title: "Workout reminder", body: "Your next scheduled workout is ready in Track.", kind: "WorkoutReminder", target: "/today", createdAt: new Date(now.getTime() - 100_800_000).toISOString(), isRead: true }
 ];

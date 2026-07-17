@@ -3,6 +3,21 @@ import PhotosUI
 import SwiftData
 import SwiftUI
 
+private enum SubmitLiftSelector: String, Identifiable {
+    case exercise, gym, equipment, visibility
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .exercise: return "Choose Exercise"
+        case .gym: return "Choose Gym"
+        case .equipment: return "Choose Equipment"
+        case .visibility: return "Choose Visibility"
+        }
+    }
+}
+
 struct SubmitLiftView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
@@ -27,6 +42,7 @@ struct SubmitLiftView: View {
     @State private var barbellWeight = 45.0
     @State private var plateLoadingWasEdited = false
     @State private var isSyncingPlateLoading = false
+    @State private var activeSelector: SubmitLiftSelector?
 
     private var estimate: Double {
         isActualOneRepMax ? weight : RankingCalculator.epleyOneRepMax(weight: weight, repetitions: repetitions)
@@ -56,7 +72,9 @@ struct SubmitLiftView: View {
                             }
                         }
                     }
-                    .padding()
+                    .padding(.horizontal, LiftDesign.screenHorizontalPadding)
+                    .padding(.top, 12)
+                    .padding(.bottom, 36)
                 }
             }
             .navigationTitle("Submit Lift")
@@ -73,6 +91,18 @@ struct SubmitLiftView: View {
                     }
                     .environmentObject(appState)
                 }
+            }
+            .sheet(item: $activeSelector) { selector in
+                LeaderboardOptionSheet(
+                    title: selector.title,
+                    options: options(for: selector),
+                    selectedID: selectedID(for: selector),
+                    isSearchable: selector == .exercise || selector == .gym
+                ) { id in
+                    select(id, for: selector)
+                    activeSelector = nil
+                }
+                .presentationDetents([.medium, .large])
             }
             .fullScreenCover(isPresented: $showingVideoReview) {
                 VideoReviewView(videoURL: selectedVideoURL) {
@@ -98,72 +128,80 @@ struct SubmitLiftView: View {
     }
 
     private var formSection: some View {
-        LiftCard {
-            VStack(alignment: .leading, spacing: 16) {
-                bubbleSection(title: "Exercise") {
-                    ForEach(MockData.exercises) { option in
-                        bubbleButton(option.name, isActive: exercise == option) {
-                            exercise = option
+        VStack(alignment: .leading, spacing: 14) {
+            LiftCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    CompactSectionHeader(title: "Lift details", eyebrow: "Performance")
+                    LiftActionRow(
+                        title: "Exercise",
+                        subtitle: exercise.name,
+                        symbolName: exerciseSymbol
+                    ) {
+                        activeSelector = .exercise
+                    }
+                    Divider().overlay(Color.liftSeparator)
+                    Picker("Weight unit", selection: $unit) {
+                        ForEach(UnitSystem.allCases) { option in
+                            Text(option.rawValue.capitalized).tag(option)
                         }
                     }
-                }
-
-                bubbleSection(title: "Weight unit") {
-                    ForEach(UnitSystem.allCases) { option in
-                        bubbleButton(option.rawValue.capitalized, isActive: unit == option) {
-                            unit = option
+                    .pickerStyle(.segmented)
+                    .accessibilityLabel("Weight unit")
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .top, spacing: 12) {
+                            NumericInputField(title: "Weight", value: $weight, unit: unit.shortLabel, precision: 0...2, presentation: .inset)
+                            IntegerInputField(title: "Reps", value: $repetitions, presentation: .inset)
+                        }
+                        VStack(alignment: .leading, spacing: 12) {
+                            NumericInputField(title: "Weight", value: $weight, unit: unit.shortLabel, precision: 0...2, presentation: .inset)
+                            IntegerInputField(title: "Reps", value: $repetitions, presentation: .inset)
                         }
                     }
+                    Picker("Maximum type", selection: $isActualOneRepMax) {
+                        Text("Actual 1RM").tag(true)
+                        Text("Estimated").tag(false)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityLabel("Maximum type")
                 }
+            }
 
-                NumericInputField(title: "Weight", value: $weight, unit: unit.shortLabel, precision: 0...2, presentation: .inset)
-                IntegerInputField(title: "Repetitions", value: $repetitions, presentation: .inset)
-
-                bubbleSection(title: "Max type") {
-                    bubbleButton("Actual 1RM", isActive: isActualOneRepMax) {
-                        isActualOneRepMax = true
+            LiftCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    CompactSectionHeader(title: "Training context")
+                    NumericInputField(title: "Bodyweight", value: $bodyweight, unit: "lb", precision: 0...2, presentation: .inset)
+                    DatePicker("Date performed", selection: $performedAt, displayedComponents: .date)
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
+                    Divider().overlay(Color.liftSeparator)
+                    LiftActionRow(title: "Gym", subtitle: selectedGym?.name ?? "Choose a joined gym", symbolName: "building.2") {
+                        activeSelector = .gym
                     }
-                    bubbleButton("Estimated", isActive: !isActualOneRepMax) {
-                        isActualOneRepMax = false
-                    }
-                }
-
-                NumericInputField(title: "Bodyweight", value: $bodyweight, unit: "lb", precision: 0...2, presentation: .inset)
-                DatePicker("Date performed", selection: $performedAt, displayedComponents: .date)
-
-                bubbleSection(title: "Gym") {
-                    if let selectedGym {
-                        bubbleButton(selectedGym.name, isActive: true) {}
-                    }
-                    ForEach(appState.joinedGyms.filter { $0.id != gymID }) { gym in
-                        bubbleButton(gym.name, isActive: false) {
-                            gymID = gym.id
-                        }
+                    Divider().overlay(Color.liftSeparator)
+                    LiftActionRow(title: "Equipment", subtitle: equipment.rawValue, symbolName: "dumbbell") {
+                        activeSelector = .equipment
                     }
                 }
+            }
 
-                bubbleSection(title: "Equipment type") {
-                    ForEach(EquipmentType.allCases) { option in
-                        bubbleButton(option.rawValue, isActive: equipment == option) {
-                            equipment = option
-                        }
+            LiftCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    CompactSectionHeader(title: "Sharing and verification")
+                    LiftActionRow(title: "Visibility", subtitle: visibility.rawValue, symbolName: visibilitySymbol) {
+                        activeSelector = .visibility
                     }
+                    TextField("Add a caption (optional)", text: $caption, axis: .vertical)
+                        .lineLimit(2...4)
+                        .padding(12)
+                        .background(Color.liftField)
+                        .clipShape(RoundedRectangle(cornerRadius: LiftDesign.controlRadius, style: .continuous))
+                    Toggle("Request verification", isOn: $requestVerification)
+                        .tint(Color.liftBlue)
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
+                    Label(submissionConsequence, systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-
-                bubbleSection(title: "Visibility") {
-                    ForEach(LiftVisibility.allCases) { option in
-                        bubbleButton(option.rawValue, isActive: visibility == option) {
-                            visibility = option
-                        }
-                    }
-                }
-
-                TextField("Caption", text: $caption, axis: .vertical)
-                    .lineLimit(2...4)
-                    .padding(12)
-                    .background(Color.black.opacity(0.18))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                Toggle("Request verification", isOn: $requestVerification)
             }
         }
     }
@@ -215,8 +253,8 @@ struct SubmitLiftView: View {
                                 .frame(width: 58)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 8)
-                                .background(Color.black.opacity(0.18))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .background(Color.liftField)
+                            .clipShape(RoundedRectangle(cornerRadius: LiftDesign.controlRadius, style: .continuous))
                                 .onChange(of: plate.count) { _, newValue in
                                     guard !isSyncingPlateLoading else { return }
                                     if newValue < 0 { plate.count = 0 }
@@ -234,33 +272,74 @@ struct SubmitLiftView: View {
         }
     }
 
-    private func bubbleSection<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.liftMuted)
-            FlowLayout(spacing: 8, rowSpacing: 8) {
-                content()
+    private var exerciseSymbol: String {
+        switch exercise.id {
+        case "bench": return "figure.strengthtraining.traditional"
+        case "squat": return "figure.strengthtraining.functional"
+        case "deadlift": return "dumbbell.fill"
+        default: return "figure.strengthtraining.traditional"
+        }
+    }
+
+    private var visibilitySymbol: String {
+        switch visibility {
+        case .publicLift: return "globe"
+        case .followers: return "person.2"
+        case .privateLift: return "lock"
+        }
+    }
+
+    private var submissionConsequence: String {
+        switch visibility {
+        case .publicLift:
+            return "Public lifts appear on your profile and can be shared to a community explicitly. Eligible verified results enter the next daily leaderboard update."
+        case .followers:
+            return "Only followers can see this lift. Ranking eligibility still follows verification rules."
+        case .privateLift:
+            return "Private lifts stay on your profile and are excluded from Community and public leaderboards."
+        }
+    }
+
+    private func options(for selector: SubmitLiftSelector) -> [LeaderboardOption] {
+        switch selector {
+        case .exercise:
+            return MockData.exercises.map { LeaderboardOption(id: $0.id, title: $0.name, subtitle: $0.isPowerlift ? "Powerlift" : "Exercise", symbol: $0.symbolName) }
+        case .gym:
+            return appState.joinedGyms.map { LeaderboardOption(id: $0.id.uuidString, title: $0.name, subtitle: "\($0.city), \($0.state)", symbol: "building.2") }
+        case .equipment:
+            return EquipmentType.allCases.map { LeaderboardOption(id: $0.rawValue, title: $0.rawValue, symbol: "dumbbell") }
+        case .visibility:
+            return LiftVisibility.allCases.map { option in
+                LeaderboardOption(
+                    id: option.rawValue,
+                    title: option.rawValue,
+                    subtitle: option == .publicLift ? "Community and eligible daily rankings" : (option == .followers ? "Followers only" : "Visible only to you"),
+                    symbol: option == .publicLift ? "globe" : (option == .followers ? "person.2" : "lock")
+                )
             }
         }
     }
 
-    private func bubbleButton(_ title: String, isActive: Bool, action: @escaping () -> Void) -> some View {
-        Button {
-            Haptics.light()
-            action()
-        } label: {
-            Text(title)
-                .font(.caption.weight(.bold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .background(isActive ? Color.liftBlue : Color.liftBlue.opacity(0.12))
-                .foregroundStyle(isActive ? Color.white : Color.liftBlue)
-                .clipShape(Capsule())
+    private func selectedID(for selector: SubmitLiftSelector) -> String {
+        switch selector {
+        case .exercise: return exercise.id
+        case .gym: return gymID.uuidString
+        case .equipment: return equipment.rawValue
+        case .visibility: return visibility.rawValue
         }
-        .buttonStyle(.plain)
+    }
+
+    private func select(_ id: String, for selector: SubmitLiftSelector) {
+        switch selector {
+        case .exercise:
+            if let option = MockData.exercises.first(where: { $0.id == id }) { exercise = option }
+        case .gym:
+            if let option = appState.joinedGyms.first(where: { $0.id.uuidString == id }) { gymID = option.id }
+        case .equipment:
+            if let option = EquipmentType.allCases.first(where: { $0.rawValue == id }) { equipment = option }
+        case .visibility:
+            if let option = LiftVisibility.allCases.first(where: { $0.rawValue == id }) { visibility = option }
+        }
     }
 
     private func resetPlateLoadingFromWeight() {
@@ -350,75 +429,6 @@ private struct EditablePlateLoad: Identifiable, Hashable {
     var count: Int
 }
 
-private struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
-    var rowSpacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let rows = rows(for: subviews, in: proposal.width ?? .infinity)
-        return CGSize(
-            width: proposal.width ?? rows.map(\.width).max() ?? 0,
-            height: rows.reduce(0) { $0 + $1.height } + rowSpacing * CGFloat(max(0, rows.count - 1))
-        )
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let rows = rows(for: subviews, in: bounds.width)
-        var y = bounds.minY
-
-        for row in rows {
-            var x = bounds.minX
-            for item in row.items {
-                subviews[item.index].place(
-                    at: CGPoint(x: x, y: y),
-                    anchor: .topLeading,
-                    proposal: ProposedViewSize(item.size)
-                )
-                x += item.size.width + spacing
-            }
-            y += row.height + rowSpacing
-        }
-    }
-
-    private func rows(for subviews: Subviews, in maxWidth: CGFloat) -> [FlowRow] {
-        var rows: [FlowRow] = []
-        var currentItems: [FlowItem] = []
-        var currentWidth: CGFloat = 0
-        var currentHeight: CGFloat = 0
-
-        for index in subviews.indices {
-            let size = subviews[index].sizeThatFits(.unspecified)
-            let itemWidth = currentItems.isEmpty ? size.width : size.width + spacing
-            if currentWidth + itemWidth > maxWidth, !currentItems.isEmpty {
-                rows.append(FlowRow(items: currentItems, width: currentWidth, height: currentHeight))
-                currentItems = [FlowItem(index: index, size: size)]
-                currentWidth = size.width
-                currentHeight = size.height
-            } else {
-                currentItems.append(FlowItem(index: index, size: size))
-                currentWidth += itemWidth
-                currentHeight = max(currentHeight, size.height)
-            }
-        }
-
-        if !currentItems.isEmpty {
-            rows.append(FlowRow(items: currentItems, width: currentWidth, height: currentHeight))
-        }
-        return rows
-    }
-
-    private struct FlowItem {
-        let index: Int
-        let size: CGSize
-    }
-
-    private struct FlowRow {
-        let items: [FlowItem]
-        let width: CGFloat
-        let height: CGFloat
-    }
-}
-
 struct VideoReviewView: View {
     let videoURL: URL?
     let close: () -> Void
@@ -459,8 +469,11 @@ struct LiftSubmissionResultView: View {
                 MetricCard(title: "Improvement", value: "+20 lb", subtitle: "Previous best: \(RankingCalculator.format(max(0, lift.estimatedOneRepMax - 20))) lb", symbolName: "arrow.up.right", tint: .liftGold)
                 MetricCard(title: "Ranking update", value: "Tomorrow", subtitle: "Leaderboards refresh once daily at midnight.", symbolName: "clock.arrow.circlepath", tint: .liftBlue)
                 MetricCard(title: "Achievement", value: "First Lift Logged", subtitle: "Share your result with the community.", symbolName: "medal.fill", tint: .liftGold)
-                PrimaryButton(title: "Share result", symbolName: "square.and.arrow.up") {
-                    Haptics.light()
+                PrimaryButton(title: "Share to Community", symbolName: "person.3.fill") {
+                    done()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        appState.beginForumComposer(liftID: lift.id)
+                    }
                 }
                 Button("Done", action: done)
                     .buttonStyle(.bordered)

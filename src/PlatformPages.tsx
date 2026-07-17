@@ -35,6 +35,7 @@ import {
   formatRelativeTime,
   gymFor,
   kilogramsToPounds,
+  poundsToKilograms,
   nextLocalMidnight,
   plateLoadTotal,
   primaryMuscleForExercise,
@@ -44,6 +45,10 @@ import {
 import { useTracker } from "./store";
 import { BodyRegionGlyph } from "./ExerciseVisual";
 import { DemoDataNotice } from "./DemoExperience";
+import { ProfileAvatar, useProfilePhoto } from "./ProfileAvatar";
+import { announceProfilePhotoUpdate, profileMediaStore } from "./profileMedia";
+import { deriveAchievements } from "./achievements";
+import { ExerciseDemo } from "./ExerciseDemo";
 export { BodyRegionGlyph, muscleVisualKey } from "./ExerciseVisual";
 import type {
   CommunityPost,
@@ -66,7 +71,60 @@ function Card({ children, className = "" }: PropsWithChildren<{ className?: stri
 }
 
 function Avatar({ profile, size = "normal" }: { profile: UserProfile; size?: "normal" | "large" }) {
-  return <span className={`social-avatar ${size}`}>{profile.displayName.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>;
+  return <ProfileAvatar profile={profile} size={size} className="social-avatar" />;
+}
+
+function ProfilePhotoEditor({ profile }: { profile: UserProfile }) {
+  const storedPhoto = useProfilePhoto(profile.id);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [offsetX, setOffsetX] = useState(0);
+  const [offsetY, setOffsetY] = useState(0);
+  const [status, setStatus] = useState("");
+  const source = preview ?? storedPhoto;
+
+  const selectFile = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/") || file.size > 8 * 1024 * 1024) {
+      setStatus("Choose a JPG, PNG, or WebP image under 8 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => { setPreview(String(reader.result)); setZoom(1); setOffsetX(0); setOffsetY(0); setStatus(""); };
+    reader.readAsDataURL(file);
+  };
+
+  const save = async () => {
+    if (!source) return;
+    const image = new Image();
+    image.src = source;
+    await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error("Image could not be loaded")); });
+    const size = 512;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext("2d");
+    if (!context) return setStatus("This browser could not prepare the image.");
+    const scale = Math.max(size / image.naturalWidth, size / image.naturalHeight) * zoom;
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    context.drawImage(image, (size - width) / 2 + offsetX / 100 * size, (size - height) / 2 + offsetY / 100 * size, width, height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", 0.86));
+    if (!blob) return setStatus("This browser could not save the cropped image.");
+    await profileMediaStore.save(profile.id, blob);
+    announceProfilePhotoUpdate(profile.id);
+    setPreview(null);
+    setStatus("Profile photo saved in this browser.");
+  };
+
+  const remove = async () => {
+    await profileMediaStore.remove(profile.id);
+    announceProfilePhotoUpdate(profile.id);
+    setPreview(null);
+    setStatus("Profile photo removed.");
+  };
+
+  return <Card className="profile-photo-editor"><div><h2>Profile photo</h2><p className="muted">Stored separately in this browser, not in your tracker data.</p></div><div className="photo-editor-layout"><div className="photo-crop-preview">{source ? <img src={source} alt="Profile crop preview" style={{ transform: `translate(calc(-50% + ${offsetX}%), calc(-50% + ${offsetY}%)) scale(${zoom})` }} /> : <span>{profile.displayName.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>}</div><div className="photo-editor-controls"><label className="quiet-button photo-file-button">{source ? "Replace photo" : "Choose photo"}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => selectFile(event.target.files?.[0])} /></label>{source && <><label><span>Zoom</span><input aria-label="Photo zoom" type="range" min="1" max="2.5" step="0.05" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} /></label><label><span>Horizontal position</span><input aria-label="Photo horizontal position" type="range" min="-30" max="30" value={offsetX} onChange={(event) => setOffsetX(Number(event.target.value))} /></label><label><span>Vertical position</span><input aria-label="Photo vertical position" type="range" min="-30" max="30" value={offsetY} onChange={(event) => setOffsetY(Number(event.target.value))} /></label><div className="button-row"><button type="button" className="primary-button compact" onClick={() => void save()}>Save crop</button><button type="button" className="quiet-button compact" onClick={() => void remove()}><Trash2 size={15} /> Remove</button></div></>}</div></div>{status && <p className="saved-message" role="status">{status}</p>}</Card>;
 }
 
 function BubbleGroup<T extends string | number>({ label, values, value, onChange, format = String }: { label: string; values: readonly T[]; value: T; onChange: (value: T) => void; format?: (value: T) => string }) {
@@ -405,11 +463,8 @@ export function PlatformProfilePage() {
   const best = [...new Map(lifts.map((lift) => [lift.exerciseId, lift])).values()].slice(0, 6);
   const total = ["back-squat", "barbell-bench", "deadlift"].reduce((sum, id) => sum + (lifts.filter((lift) => lift.exerciseId === id && lift.reps === 1).sort((a, b) => b.normalizedWeight - a.normalizedWeight)[0]?.normalizedWeight ?? 0), 0);
   const dots = dotsScore(total, profile.bodyweight, profile.sex);
-  const achievements = [
-    { title: "Total on file", detail: `${total.toLocaleString()} lb across the big three`, unlocked: total > 0 },
-    { title: "Verified lifter", detail: "At least one reviewed submission", unlocked: best.some((lift) => !["Self Reported", "Video Submitted"].includes(lift.verification)) },
-    { title: "Community member", detail: "Shared with the LiftRank community", unlocked: state.communityPosts.some((post) => post.authorId === profile.id && post.kind !== "Workout") }
-  ];
+  const achievements = deriveAchievements(state, profile.id);
+  const visibleAchievements = tab === "Achievements" ? achievements : achievements.filter((item) => item.unlocked).slice(0, 4);
   return (
     <div className="page">
       <section className="profile-hero">
@@ -422,13 +477,13 @@ export function PlatformProfilePage() {
         <div className="profile-hero-actions">{own ? <Link className="primary-button" to="/settings"><Settings size={18} /> Edit profile</Link> : <FriendAction profile={profile} />}</div>
       </section>
       <nav className="profile-tabs" aria-label="Profile sections">{["Overview", "Lifts", "Progress", "Posts", "Achievements"].map((item) => <button className={tab === item ? "active" : ""} key={item} onClick={() => setTab(item)}>{item}</button>)}</nav>
-      <div className="stat-grid"><Card><strong>{total.toLocaleString()} lb</strong><span>Verified three-lift total</span></Card><Card><strong>{profile.bodyweight} lb</strong><span>Bodyweight</span></Card><Card><strong>{dots || "—"}</strong><span>DOTS score</span></Card><Card><strong>{best.filter((lift) => !["Self Reported", "Video Submitted"].includes(lift.verification)).length}</strong><span>Verified lifts</span></Card></div>
+      <div className="stat-grid"><Card><strong>{total.toLocaleString()} lb</strong><span>Verified three-lift total</span></Card><Card><strong>{profile.unitSystem === "kg" ? `${poundsToKilograms(profile.bodyweight).toFixed(1)} kg` : `${profile.bodyweight} lb`}</strong><span>Bodyweight</span></Card><Card><strong>{dots || "—"}</strong><span>DOTS score</span></Card><Card><strong>{best.filter((lift) => !["Self Reported", "Video Submitted"].includes(lift.verification)).length}</strong><span>Verified lifts</span></Card></div>
       <div className="profile-layout">
         <section className="profile-main">
           {(tab === "Overview" || tab === "Lifts") && <Card><div className="section-title"><h2>{tab === "Lifts" ? "Lift submissions" : "Strength snapshot"}</h2>{own && <Link to="/submit">Submit lift</Link>}</div><div className="profile-list">{(tab === "Lifts" ? lifts : best).map((lift) => <div className="profile-list-row" key={lift.id}><span className="icon-tile"><Trophy /></span><div><strong>{lift.exerciseName}</strong><small>{lift.equipment} · {lift.verification} · {new Date(lift.performedAt).toLocaleDateString()}</small></div><b>{lift.weight} {lift.unit} × {lift.reps}</b></div>)}</div></Card>}
           {tab === "Progress" && <Card><h2>Submission trends</h2><p className="muted">Built only from lift submissions and bodyweight records.</p><div className="trend-chart">{[...lifts].sort((a, b) => a.performedAt.localeCompare(b.performedAt)).slice(-12).map((lift) => <div key={lift.id}><span style={{ height: `${Math.max(12, lift.normalizedWeight / Math.max(...lifts.map((item) => item.normalizedWeight)) * 100)}%` }} /><small>{lift.exerciseName.split(" ")[0]}</small></div>)}</div><table><thead><tr><th>Date</th><th>Lift</th><th>Result</th></tr></thead><tbody>{lifts.slice(0, 8).map((lift) => <tr key={lift.id}><td>{new Date(lift.performedAt).toLocaleDateString()}</td><td>{lift.exerciseName}</td><td>{lift.weight} {lift.unit}</td></tr>)}</tbody></table></Card>}
           {tab === "Posts" && <Card><h2>Discussions</h2><div className="profile-list">{state.communityPosts.filter((post) => post.authorId === profile.id && post.kind !== "Workout").map((post) => <Link key={post.id} to={`/community/${post.id}`}><strong>{post.title}</strong><small>{post.kind}</small></Link>)}</div></Card>}
-          {(tab === "Overview" || tab === "Achievements") && <Card><h2>Achievements</h2><div className="achievement-list">{achievements.map((item) => <div key={item.title} className={item.unlocked ? "unlocked" : ""}><span className="icon-tile"><Trophy /></span><span><strong>{item.title}</strong><small>{item.detail}</small></span></div>)}</div><p className="muted">Next total milestone: {Math.ceil((total + 1) / 100) * 100} lb</p></Card>}
+          {(tab === "Overview" || tab === "Achievements") && <Card><div className="section-title"><h2>Achievements</h2><span>{achievements.filter((item) => item.unlocked).length}/{achievements.length} unlocked</span></div><div className="achievement-list">{visibleAchievements.map((item) => { const displayCurrent = item.unit === "rank" ? (item.current >= 999 ? "Not ranked" : `Rank #${item.current}`) : `${Number(item.current.toFixed(2))} / ${item.target} ${item.unit}`; const progress = item.unit === "rank" ? (item.unlocked ? 1 : 0) : Math.min(1, item.current / item.target); return <div key={item.id} className={item.unlocked ? "unlocked" : ""}><span className="icon-tile"><Trophy /></span><span><strong>{item.title}</strong><small>{item.description}</small><span className="achievement-progress"><i style={{ width: `${progress * 100}%` }} /></span><small>{item.unlocked ? `Unlocked${item.unlockedAt ? ` ${new Date(item.unlockedAt).toLocaleDateString()}` : " from current activity"}` : displayCurrent}</small></span></div>; })}{!visibleAchievements.length && <p className="muted">Complete a workout or submit a lift to unlock your first achievement.</p>}</div></Card>}
         </section>
         <aside className="profile-side">
           <Card><h2>About</h2><p>{profile.bio || "No bio added yet."}</p><div className="profile-detail-list"><span><strong>Goal</strong><small>{profile.trainingGoal}</small></span><span><strong>Discipline</strong><small>{profile.discipline}</small></span>{!profile.hideAge && <span><strong>Age group</strong><small>{profile.ageGroup}</small></span>}<span><strong>Federation</strong><small>{profile.federation}</small></span><span><strong>Equipment</strong><small>{profile.preferredEquipment}</small></span>{profile.professionalCredential && <span><strong>Credential</strong><small>{profile.professionalCredential}{profile.credentialVerified ? " · Verified" : ""}</small></span>}</div></Card>
@@ -438,14 +493,83 @@ export function PlatformProfilePage() {
   );
 }
 
+export function OnboardingPage() {
+  const { state, dispatch, gymCatalogStatus, gymCatalogError, ensureGymCatalog } = useTracker();
+  const navigate = useNavigate();
+  const original = currentProfile(state);
+  const [step, setStep] = useState(0);
+  const [draft, setDraft] = useState(original);
+  const [bodyweightInput, setBodyweightInput] = useState(original.unitSystem === "kg" ? Number(poundsToKilograms(original.bodyweight).toFixed(1)) : original.bodyweight);
+  const [initialLifts, setInitialLifts] = useState({ squat: "", bench: "", deadlift: "" });
+  const [shareLifts, setShareLifts] = useState(false);
+  useEffect(() => { void ensureGymCatalog(); }, [ensureGymCatalog]);
+  const steps = ["Goals", "Preferences", "Gym", "Starting lifts", "Privacy"];
+  const selectedGym = gymFor(state, draft.primaryGymId);
+  const canContinue = step !== 2 || Boolean(selectedGym);
+
+  const finish = () => {
+    const normalizedBodyweight = Math.max(1, bodyweightInput);
+    const profile = { ...draft, bodyweight: draft.unitSystem === "kg" ? kilogramsToPounds(normalizedBodyweight) : normalizedBodyweight };
+    dispatch({ type: "UPDATE_PROFILE", profile });
+    const liftDefinitions = [
+      ["back-squat", "Back Squat", initialLifts.squat],
+      ["barbell-bench", "Barbell Bench Press", initialLifts.bench],
+      ["deadlift", "Conventional Deadlift", initialLifts.deadlift]
+    ] as const;
+    liftDefinitions.forEach(([exerciseId, exerciseName, value]) => {
+      const weight = Number(value);
+      if (!Number.isFinite(weight) || weight <= 0) return;
+      dispatch({
+        type: "SUBMIT_LIFT",
+        lift: {
+          userId: draft.id,
+          exerciseId,
+          exerciseName,
+          weight,
+          unit: draft.unitSystem,
+          normalizedWeight: draft.unitSystem === "kg" ? kilogramsToPounds(weight) : weight,
+          reps: 1,
+          bodyweight: profile.bodyweight,
+          performedAt: new Date().toISOString(),
+          gymId: draft.primaryGymId,
+          equipment: draft.preferredEquipment,
+          visibility: shareLifts ? "Public" : "Private",
+          verification: "Self Reported",
+          caption: "Starting lift added during demo profile setup"
+        }
+      });
+    });
+    navigate("/home");
+  };
+
+  return (
+    <div className="page narrow-page onboarding-page">
+      <PageHeader eyebrow="Optional setup" title="Build your LiftRank profile" description="Set up the browser-local demo around your training. You can change everything later." />
+      <DemoDataNotice>Profile answers and starting lifts remain only in this browser.</DemoDataNotice>
+      <ol className="onboarding-steps" aria-label="Profile setup progress">{steps.map((label, index) => <li key={label} className={index === step ? "active" : index < step ? "complete" : ""}><span>{index < step ? <Check size={14} /> : index + 1}</span><small>{label}</small></li>)}</ol>
+      <Card className="onboarding-card">
+        {step === 0 && <><h2>What are you training for?</h2><div className="form-grid"><label className="form-field"><span>Training goal</span><select value={draft.trainingGoal} onChange={(event) => setDraft({ ...draft, trainingGoal: event.target.value })}>{["Build strength", "Build muscle", "Improve conditioning", "General fitness", "Prepare for competition"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="form-field"><span>Experience</span><select value={draft.experienceLevel} onChange={(event) => setDraft({ ...draft, experienceLevel: event.target.value })}>{["Novice", "Intermediate", "Advanced", "Veteran"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="form-field"><span>Discipline</span><select value={draft.discipline} onChange={(event) => setDraft({ ...draft, discipline: event.target.value })}>{["General Strength", "Powerlifting", "Bodybuilding", "Olympic Weightlifting", "Calisthenics", "Conditioning"].map((value) => <option key={value}>{value}</option>)}</select></label></div></>}
+        {step === 1 && <><h2>Choose your training preferences</h2><div className="form-grid"><label className="form-field"><span>Preferred units</span><select value={draft.unitSystem} onChange={(event) => { const next = event.target.value as UserProfile["unitSystem"]; if (next !== draft.unitSystem) setBodyweightInput(next === "kg" ? Number(poundsToKilograms(bodyweightInput).toFixed(1)) : Number(kilogramsToPounds(bodyweightInput).toFixed(1))); setDraft({ ...draft, unitSystem: next }); }}><option value="lb">Pounds (lb)</option><option value="kg">Kilograms (kg)</option></select></label><label className="form-field"><span>Bodyweight ({draft.unitSystem})</span><input type="number" min="1" step="0.1" value={bodyweightInput || ""} onChange={(event) => setBodyweightInput(Number(event.target.value))} /></label><label className="form-field"><span>Competition equipment</span><select value={draft.preferredEquipment} onChange={(event) => setDraft({ ...draft, preferredEquipment: event.target.value as EquipmentType })}>{["Raw", "Wraps", "Equipped"].map((value) => <option key={value}>{value}</option>)}</select></label></div></>}
+        {step === 2 && <><h2>Select your primary gym</h2>{gymCatalogStatus === "error" ? <div className="catalog-inline-error"><p>{gymCatalogError ?? "Gym directory unavailable."}</p><button className="quiet-button" onClick={() => void ensureGymCatalog()}>Try again</button></div> : gymCatalogStatus !== "ready" ? <div className="catalog-inline-loading" role="status"><span className="loading-spinner" /> Loading gym options…</div> : <label className="form-field"><span>Primary gym</span><select value={draft.primaryGymId} onChange={(event) => { const gym = gymFor(state, event.target.value); setDraft({ ...draft, primaryGymId: event.target.value, city: gym?.city ?? draft.city, state: gym?.state ?? draft.state }); }}>{state.gyms.map((gym) => <option key={gym.id} value={gym.id}>{gym.name} · {gym.city}, {gym.state}</option>)}</select></label>}</>}
+        {step === 3 && <><h2>Add optional starting lifts</h2><p className="muted">Enter current one-repetition bests. Leave any field blank to skip it.</p><div className="form-grid">{[["squat", "Back squat"], ["bench", "Bench press"], ["deadlift", "Deadlift"]].map(([key, label]) => <label className="form-field" key={key}><span>{label} ({draft.unitSystem})</span><input type="number" min="0" step="0.5" value={initialLifts[key as keyof typeof initialLifts]} onChange={(event) => setInitialLifts({ ...initialLifts, [key]: event.target.value })} /></label>)}</div><label className="toggle-row"><input type="checkbox" checked={shareLifts} onChange={(event) => setShareLifts(event.target.checked)} /><span><strong>Share starting lifts in the demo community</strong><small>Off by default. Private lifts still appear on your own profile.</small></span></label></>}
+        {step === 4 && <><h2>Choose what your demo profile shows</h2>{[["hideGym", "Hide gym"], ["hideLocation", "Hide location"], ["hideAge", "Hide age group"]].map(([key, label]) => <label className="toggle-row" key={key}><input type="checkbox" checked={Boolean(draft[key as "hideGym" | "hideLocation" | "hideAge"])} onChange={(event) => setDraft({ ...draft, [key]: event.target.checked })} /><span><strong>{label}</strong><small>Keep this field off public profile views.</small></span></label>)}</>}
+      </Card>
+      <div className="onboarding-actions"><button className="quiet-button" disabled={step === 0} onClick={() => setStep((value) => Math.max(0, value - 1))}>Back</button>{step < steps.length - 1 ? <button className="primary-button" disabled={!canContinue} onClick={() => setStep((value) => value + 1)}>Continue <ChevronRight size={17} /></button> : <button className="primary-button" onClick={finish}>Finish setup</button>}</div>
+      <button className="text-button onboarding-skip" onClick={() => navigate("/home")}>Skip setup</button>
+    </div>
+  );
+}
+
 export function SettingsPage() {
   const { state, dispatch, gymCatalogStatus, gymCatalogError, ensureGymCatalog } = useTracker();
   const original = currentProfile(state);
   const [draft, setDraft] = useState(original);
   const [saved, setSaved] = useState(false);
+  const [bodyweightInput, setBodyweightInput] = useState(original.unitSystem === "kg" ? Number(poundsToKilograms(original.bodyweight).toFixed(1)) : original.bodyweight);
   useEffect(() => { void ensureGymCatalog(); }, [ensureGymCatalog]);
-  if (gymCatalogStatus !== "ready") return <div className="page narrow-page"><PageHeader eyebrow="Account" title="Profile and settings" description="These preferences are stored only in this browser." /><Card className="catalog-loading" aria-live="polite">{gymCatalogStatus === "error" ? <><h2>Gym options unavailable</h2><p>{gymCatalogError ?? "Unable to load gym options."}</p><button className="primary-button compact" onClick={() => void ensureGymCatalog()}>Try again</button></> : <><span className="loading-spinner" aria-hidden /><h2>Loading settings</h2></>}</Card></div>;
-  return <div className="page narrow-page"><PageHeader eyebrow="Account" title="Profile and settings" description="These preferences are stored only in this browser." /><form className="settings-form" onSubmit={(event) => { event.preventDefault(); dispatch({ type: "UPDATE_PROFILE", profile: draft }); setSaved(true); }}><Card><label className="form-field"><span>Display name</span><input value={draft.displayName} onChange={(event) => setDraft({ ...draft, displayName: event.target.value })} /></label><label className="form-field"><span>Handle</span><input value={draft.handle} onChange={(event) => setDraft({ ...draft, handle: event.target.value.startsWith("@") ? event.target.value : `@${event.target.value}` })} /></label><label className="form-field"><span>Bio</span><textarea rows={4} value={draft.bio} onChange={(event) => setDraft({ ...draft, bio: event.target.value })} /></label><div className="form-grid"><label className="form-field"><span>Discipline</span><input value={draft.discipline} onChange={(event) => setDraft({ ...draft, discipline: event.target.value })} /></label><label className="form-field"><span>Training goal</span><input value={draft.trainingGoal} onChange={(event) => setDraft({ ...draft, trainingGoal: event.target.value })} /></label><label className="form-field"><span>Years training</span><input type="number" min="0" value={draft.yearsTraining} onChange={(event) => setDraft({ ...draft, yearsTraining: Number(event.target.value) })} /></label><label className="form-field"><span>Federation</span><input value={draft.federation} onChange={(event) => setDraft({ ...draft, federation: event.target.value })} /></label><label className="form-field"><span>Age group</span><select value={draft.ageGroup} onChange={(event) => setDraft({ ...draft, ageGroup: event.target.value })}>{["Under 18", "18-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70+"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="form-field"><span>Experience</span><select value={draft.experienceLevel} onChange={(event) => setDraft({ ...draft, experienceLevel: event.target.value })}>{["Novice", "Intermediate", "Advanced", "Veteran"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="form-field"><span>Preferred equipment</span><select value={draft.preferredEquipment} onChange={(event) => setDraft({ ...draft, preferredEquipment: event.target.value as EquipmentType })}>{["Raw", "Wraps", "Equipped"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="form-field"><span>Bodyweight (lb)</span><input type="number" value={draft.bodyweight} onChange={(event) => setDraft({ ...draft, bodyweight: Number(event.target.value) })} /></label></div><label className="form-field"><span>Primary gym</span><select value={draft.primaryGymId} onChange={(event) => setDraft({ ...draft, primaryGymId: event.target.value, city: gymFor(state, event.target.value)?.city ?? draft.city, state: gymFor(state, event.target.value)?.state ?? draft.state })}>{state.gyms.map((gym) => <option key={gym.id} value={gym.id}>{gym.name}</option>)}</select></label>{[["hideGym", "Hide gym"], ["hideLocation", "Hide location"], ["hideAge", "Hide age group"]].map(([key, label]) => <label className="toggle-row" key={key}><input type="checkbox" checked={Boolean(draft[key as "hideGym" | "hideLocation" | "hideAge"])} onChange={(event) => setDraft({ ...draft, [key]: event.target.checked })} /><span><strong>{label}</strong><small>Keep this detail private on public profiles.</small></span></label>)}</Card><button className="primary-button large full-width">Save settings</button>{saved && <p className="saved-message"><Check size={17} /> Settings saved locally.</p>}</form></div>;
+  const header = <><PageHeader eyebrow="Account" title="Profile and settings" description="These preferences are stored only in this browser." action={<Link className="quiet-button" to="/onboarding">Guided setup</Link>} /><ProfilePhotoEditor profile={original} /></>;
+  if (gymCatalogStatus !== "ready") return <div className="page narrow-page">{header}<Card className="catalog-loading" aria-live="polite">{gymCatalogStatus === "error" ? <><h2>Gym options unavailable</h2><p>{gymCatalogError ?? "Unable to load gym options."}</p><button className="primary-button compact" onClick={() => void ensureGymCatalog()}>Try again</button></> : <><span className="loading-spinner" aria-hidden /><h2>Loading settings</h2></>}</Card></div>;
+  return <div className="page narrow-page">{header}<form className="settings-form" onSubmit={(event) => { event.preventDefault(); const normalizedBodyweight = Math.max(1, bodyweightInput); dispatch({ type: "UPDATE_PROFILE", profile: { ...draft, bodyweight: draft.unitSystem === "kg" ? kilogramsToPounds(normalizedBodyweight) : normalizedBodyweight } }); setSaved(true); }}><Card><label className="form-field"><span>Display name</span><input value={draft.displayName} onChange={(event) => setDraft({ ...draft, displayName: event.target.value })} /></label><label className="form-field"><span>Handle</span><input value={draft.handle} onChange={(event) => setDraft({ ...draft, handle: event.target.value.startsWith("@") ? event.target.value : `@${event.target.value}` })} /></label><label className="form-field"><span>Bio</span><textarea rows={4} value={draft.bio} onChange={(event) => setDraft({ ...draft, bio: event.target.value })} /></label><div className="form-grid"><label className="form-field"><span>Discipline</span><input value={draft.discipline} onChange={(event) => setDraft({ ...draft, discipline: event.target.value })} /></label><label className="form-field"><span>Training goal</span><input value={draft.trainingGoal} onChange={(event) => setDraft({ ...draft, trainingGoal: event.target.value })} /></label><label className="form-field"><span>Years training</span><input type="number" min="0" value={draft.yearsTraining} onChange={(event) => setDraft({ ...draft, yearsTraining: Number(event.target.value) })} /></label><label className="form-field"><span>Federation</span><input value={draft.federation} onChange={(event) => setDraft({ ...draft, federation: event.target.value })} /></label><label className="form-field"><span>Age group</span><select value={draft.ageGroup} onChange={(event) => setDraft({ ...draft, ageGroup: event.target.value })}>{["Under 18", "18-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70+"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="form-field"><span>Experience</span><select value={draft.experienceLevel} onChange={(event) => setDraft({ ...draft, experienceLevel: event.target.value })}>{["Novice", "Intermediate", "Advanced", "Veteran"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="form-field"><span>Preferred equipment</span><select value={draft.preferredEquipment} onChange={(event) => setDraft({ ...draft, preferredEquipment: event.target.value as EquipmentType })}>{["Raw", "Wraps", "Equipped"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="form-field"><span>Preferred units</span><select value={draft.unitSystem} onChange={(event) => { const next = event.target.value as UserProfile["unitSystem"]; if (next !== draft.unitSystem) setBodyweightInput(next === "kg" ? Number(poundsToKilograms(bodyweightInput).toFixed(1)) : Number(kilogramsToPounds(bodyweightInput).toFixed(1))); setDraft({ ...draft, unitSystem: next }); }}><option value="lb">Pounds (lb)</option><option value="kg">Kilograms (kg)</option></select></label><label className="form-field"><span>Bodyweight ({draft.unitSystem})</span><input type="number" min="1" step="0.1" value={bodyweightInput || ""} onChange={(event) => setBodyweightInput(Number(event.target.value))} /></label></div><label className="form-field"><span>Primary gym</span><select value={draft.primaryGymId} onChange={(event) => setDraft({ ...draft, primaryGymId: event.target.value, city: gymFor(state, event.target.value)?.city ?? draft.city, state: gymFor(state, event.target.value)?.state ?? draft.state })}>{state.gyms.map((gym) => <option key={gym.id} value={gym.id}>{gym.name}</option>)}</select></label>{[["hideGym", "Hide gym"], ["hideLocation", "Hide location"], ["hideAge", "Hide age group"]].map(([key, label]) => <label className="toggle-row" key={key}><input type="checkbox" checked={Boolean(draft[key as "hideGym" | "hideLocation" | "hideAge"])} onChange={(event) => setDraft({ ...draft, [key]: event.target.checked })} /><span><strong>{label}</strong><small>Keep this detail private on public profiles.</small></span></label>)}</Card><button className="primary-button large full-width">Save settings</button>{saved && <p className="saved-message"><Check size={17} /> Settings saved locally.</p>}</form></div>;
 }
 
 export function ExerciseDetailPage() {
@@ -455,5 +579,5 @@ export function ExerciseDetailPage() {
   if (!exercise) return <Navigate to="/library" replace />;
   const primaryMuscle = primaryMuscleForExercise(exercise);
   const secondaryMuscles = secondaryMusclesForExercise(exercise);
-  return <div className="page"><PageHeader eyebrow={exercise.bodyPart} title={exercise.name} description={`${exercise.equipment} · ${exercise.movementType}`} action={<BodyRegionGlyph exercise={exercise} />} /><div className="stat-grid compact-stats"><Card><strong>{primaryMuscle}</strong><span>Primary muscle</span></Card><Card><strong>{exercise.equipment}</strong><span>Equipment</span></Card><Card><strong>{exercise.trackingType}</strong><span>Measurement</span></Card></div><Card><h2>Exercise details</h2><div className="profile-detail-list"><span><strong>Movement type</strong><small>{exercise.movementType}</small></span><span><strong>Body region</strong><small>{exercise.bodyPart}</small></span><span><strong>Secondary muscles</strong><small>{secondaryMuscles.length ? secondaryMuscles.join(", ") : "None listed"}</small></span></div></Card></div>;
+  return <div className="page"><PageHeader eyebrow={exercise.bodyPart} title={exercise.name} description={`${exercise.equipment} · ${exercise.movementType}`} action={<BodyRegionGlyph exercise={exercise} />} /><div className="stat-grid compact-stats"><Card><strong>{primaryMuscle}</strong><span>Primary muscle</span></Card><Card><strong>{exercise.equipment}</strong><span>Equipment</span></Card><Card><strong>{exercise.trackingType}</strong><span>Measurement</span></Card></div><Card><h2>Movement reference</h2><ExerciseDemo exercise={exercise} /></Card><Card><h2>Exercise details</h2><div className="profile-detail-list"><span><strong>Movement type</strong><small>{exercise.movementType}</small></span><span><strong>Body region</strong><small>{exercise.bodyPart}</small></span><span><strong>Secondary muscles</strong><small>{secondaryMuscles.length ? secondaryMuscles.join(", ") : "None listed"}</small></span></div></Card></div>;
 }

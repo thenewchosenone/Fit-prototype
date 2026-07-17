@@ -4,6 +4,14 @@ enum MockData {
     static let demoGymID = UUID(uuidString: "C0000000-0000-0000-0000-000000000063")!
     static let demoUserID = UUID(uuidString: "20D85C0B-32F0-4144-8A0D-15D8820B3592")!
     static let defaultWorkoutPlanID = UUID(uuidString: "A1000000-0000-0000-0000-000000000001")!
+    static let generalStrengthCommunityID = UUID(uuidString: "B1000000-0000-0000-0000-000000000001")!
+    static let powerliftingCommunityID = UUID(uuidString: "B1000000-0000-0000-0000-000000000002")!
+    static let bodybuildingCommunityID = UUID(uuidString: "B1000000-0000-0000-0000-000000000003")!
+    static let beginnerQuestionsCommunityID = UUID(uuidString: "B1000000-0000-0000-0000-000000000004")!
+    static let formChecksCommunityID = UUID(uuidString: "B1000000-0000-0000-0000-000000000005")!
+    static let programmingCommunityID = UUID(uuidString: "B1000000-0000-0000-0000-000000000006")!
+    static let equipmentCommunityID = UUID(uuidString: "B1000000-0000-0000-0000-000000000007")!
+    static let milestonesCommunityID = UUID(uuidString: "B1000000-0000-0000-0000-000000000008")!
 
     static let exercises: [Exercise] = [
         Exercise(id: "bench", name: "Barbell bench press", symbolName: "figure.strengthtraining.traditional", isPowerlift: true),
@@ -14,11 +22,119 @@ enum MockData {
     ]
 
     static var trainingExerciseLibrary: [TrainingExerciseCatalogItem] {
-        coreTrainingExerciseLibrary + PopularExerciseCatalog.exercises
+        (coreTrainingExerciseLibrary + PopularExerciseCatalog.exercises).map { item in
+            var enriched = item
+            enriched.muscleProfile = item.muscleProfile ?? ExerciseMuscleProfileResolver.profile(name: item.name, bodyPart: item.bodyPart)
+            enriched.searchAliases = Array(Set(item.searchAliases + exerciseAliases(for: item)))
+            enriched.movementPattern = item.movementPattern == .other ? movementPattern(for: item) : item.movementPattern
+            enriched.difficulty = difficulty(for: item)
+            enriched.demonstrationMediaID = item.demonstrationMediaID ?? demonstrationMediaID(for: enriched.movementPattern)
+            return enriched
+        }
+    }
+
+    private static func exerciseAliases(for exercise: TrainingExerciseCatalogItem) -> [String] {
+        switch exercise.id {
+        case "machine_chest_press":
+            [
+                "Seated Chest Press",
+                "Chest Press Machine",
+                "Hammer Strength Chest Press",
+                "Plate Loaded Chest Press",
+                "Selectorized Chest Press",
+                "Machine Press"
+            ]
+        case "leg_press":
+            ["45 Degree Leg Press", "Linear Leg Press", "Plate Loaded Leg Press"]
+        case "hack_squat":
+            ["Hack Press", "Machine Hack Squat"]
+        case "chest_supported_row":
+            ["Supported Row", "Chest Supported Machine Row", "Hammer Strength Row"]
+        default:
+            []
+        }
+    }
+
+    private static func movementPattern(for exercise: TrainingExerciseCatalogItem) -> ExerciseMovementPattern {
+        let name = exercise.name.lowercased()
+        if name.contains("bench") || name.contains("chest press") || name.contains("pec deck") || name.contains("dip") || name.contains("fly") {
+            return .horizontalPress
+        }
+        if name.contains("overhead") || name.contains("shoulder press") {
+            return .verticalPress
+        }
+        if name.contains("row") {
+            return .horizontalPull
+        }
+        if name.contains("pulldown") || name.contains("pull-up") || name.contains("pullover") {
+            return .verticalPull
+        }
+        if name.contains("squat") || name.contains("leg press") || name.contains("leg extension") {
+            return .squat
+        }
+        if name.contains("deadlift") || name.contains("hinge") || name.contains("hip thrust") {
+            return .hinge
+        }
+        if name.contains("split squat") || name.contains("lunge") || name.contains("step-up") {
+            return .lunge
+        }
+        if name.contains("curl") && !name.contains("leg curl") {
+            return .curl
+        }
+        if name.contains("pressdown") || name.contains("triceps") || name.contains("extension") {
+            return .elbowExtension
+        }
+        if name.contains("lateral raise") || name.contains("rear delt") {
+            return .shoulderIsolation
+        }
+        if name.contains("calf") || name.contains("tibialis") {
+            return .calf
+        }
+        if name.contains("crunch") || name.contains("plank") || name.contains("leg raise") {
+            return .core
+        }
+        if name.contains("carry") {
+            return .carry
+        }
+        return .other
+    }
+
+    private static func difficulty(for exercise: TrainingExerciseCatalogItem) -> ExerciseDifficulty {
+        switch movementPattern(for: exercise) {
+        case .horizontalPress, .horizontalPull, .verticalPull, .squat, .hinge, .lunge:
+            return exercise.equipment == "Machine" || exercise.equipment == "Cable" ? .moderate : .advanced
+        case .verticalPress:
+            return exercise.equipment == "Machine" ? .moderate : .advanced
+        case .curl, .elbowExtension, .shoulderIsolation, .calf, .core:
+            return .beginner
+        case .carry:
+            return .moderate
+        case .other:
+            return .moderate
+        }
+    }
+
+    private static func demonstrationMediaID(for pattern: ExerciseMovementPattern) -> String {
+        switch pattern {
+        case .horizontalPress: "demo-horizontal-press"
+        case .verticalPress: "demo-vertical-press"
+        case .horizontalPull: "demo-horizontal-pull"
+        case .verticalPull: "demo-vertical-pull"
+        case .squat: "demo-squat"
+        case .hinge: "demo-hinge"
+        case .lunge: "demo-lunge"
+        case .curl: "demo-curl"
+        case .elbowExtension: "demo-extension"
+        case .shoulderIsolation: "demo-shoulder"
+        case .calf: "demo-calf"
+        case .core: "demo-core"
+        case .carry: "demo-carry"
+        case .other: "demo-general"
+        }
     }
 
     private static let coreTrainingExerciseLibrary: [TrainingExerciseCatalogItem] = [
-        TrainingExerciseCatalogItem(id: "barbell_bench_press", name: "Barbell Bench Press", bodyPart: "Chest", workoutCategory: "Push", defaultSets: 3, defaultReps: "5-8", symbolName: "figure.strengthtraining.traditional", equipment: "Barbell"),
+        TrainingExerciseCatalogItem(id: "barbell_bench_press", name: "Barbell Bench Press", bodyPart: "Chest", workoutCategory: "Push", defaultSets: 3, defaultReps: "5-8", symbolName: "figure.strengthtraining.traditional", equipment: "Barbell", rankingExerciseID: "bench"),
         TrainingExerciseCatalogItem(id: "incline_db_press", name: "Incline DB Press", bodyPart: "Upper Chest", workoutCategory: "Push", defaultSets: 3, defaultReps: "8-10", symbolName: "figure.strengthtraining.traditional", equipment: "Dumbbell"),
         TrainingExerciseCatalogItem(id: "machine_chest_press", name: "Machine Chest Press", bodyPart: "Chest", workoutCategory: "Push", defaultSets: 3, defaultReps: "10-12", symbolName: "figure.strengthtraining.traditional", equipment: "Machine"),
         TrainingExerciseCatalogItem(id: "cable_fly", name: "Cable Fly", bodyPart: "Chest", workoutCategory: "Push", defaultSets: 2, defaultReps: "12-15", symbolName: "arrow.left.and.right", equipment: "Cable"),
@@ -29,7 +145,10 @@ enum MockData {
         TrainingExerciseCatalogItem(id: "chest_supported_row", name: "Chest-Supported Row", bodyPart: "Upper Back", workoutCategory: "Pull", defaultSets: 3, defaultReps: "8-12", symbolName: "arrow.left.arrow.right", equipment: "Machine"),
         TrainingExerciseCatalogItem(id: "seated_cable_row", name: "Seated Cable Row", bodyPart: "Back", workoutCategory: "Pull", defaultSets: 3, defaultReps: "10-12", symbolName: "arrow.left.arrow.right", equipment: "Cable"),
         TrainingExerciseCatalogItem(id: "single_arm_db_row", name: "Single-Arm DB Row", bodyPart: "Back", workoutCategory: "Pull", defaultSets: 3, defaultReps: "8-12", symbolName: "dumbbell.fill", equipment: "Dumbbell"),
-        TrainingExerciseCatalogItem(id: "back_squat", name: "Back Squat", bodyPart: "Quads", workoutCategory: "Legs", defaultSets: 3, defaultReps: "5-8", symbolName: "figure.strengthtraining.functional", equipment: "Barbell"),
+        TrainingExerciseCatalogItem(id: "back_squat", name: "Back Squat", bodyPart: "Quads", workoutCategory: "Legs", defaultSets: 3, defaultReps: "5-8", symbolName: "figure.strengthtraining.functional", equipment: "Barbell", rankingExerciseID: "squat"),
+        TrainingExerciseCatalogItem(id: "conventional_deadlift", name: "Conventional Deadlift", bodyPart: "Hamstrings/Back", workoutCategory: "Pull/Legs", defaultSets: 3, defaultReps: "3-5", symbolName: "dumbbell.fill", equipment: "Barbell", rankingExerciseID: "deadlift"),
+        TrainingExerciseCatalogItem(id: "sumo_deadlift", name: "Sumo Deadlift", bodyPart: "Glutes/Adductors", workoutCategory: "Pull/Legs", defaultSets: 3, defaultReps: "3-5", symbolName: "dumbbell.fill", equipment: "Barbell", rankingExerciseID: "deadlift"),
+        TrainingExerciseCatalogItem(id: "barbell_overhead_press", name: "Barbell Overhead Press", bodyPart: "Shoulders", workoutCategory: "Push", defaultSets: 3, defaultReps: "5-8", symbolName: "arrow.up.circle.fill", equipment: "Barbell", rankingExerciseID: "press"),
         TrainingExerciseCatalogItem(id: "hack_squat", name: "Hack Squat", bodyPart: "Quads", workoutCategory: "Legs", defaultSets: 3, defaultReps: "8-10", symbolName: "figure.strengthtraining.functional", equipment: "Machine"),
         TrainingExerciseCatalogItem(id: "leg_press", name: "Leg Press", bodyPart: "Quads", workoutCategory: "Legs", defaultSets: 3, defaultReps: "10-12", symbolName: "figure.strengthtraining.functional", equipment: "Machine"),
         TrainingExerciseCatalogItem(id: "leg_extension", name: "Leg Extension", bodyPart: "Quads", workoutCategory: "Legs", defaultSets: 2, defaultReps: "12-15", symbolName: "figure.strengthtraining.functional", equipment: "Machine"),
@@ -216,7 +335,7 @@ enum MockData {
         Challenge(id: UUID(), title: "Bench your bodyweight", description: "Log a bodyweight bench press.", startDate: .now, endDate: .now.addingTimeInterval(60 * 60 * 24 * 45), goal: "1.0x bench", eligibility: "Public profile", participantCount: 302, progress: 0.74, isJoined: false),
         Challenge(id: UUID(), title: "Deadlift twice bodyweight", description: "Pull 2.0x bodyweight or better.", startDate: .now, endDate: .now.addingTimeInterval(60 * 60 * 24 * 120), goal: "2.0x deadlift", eligibility: "Video required", participantCount: 211, progress: 1.0, isJoined: true),
         Challenge(id: UUID(), title: "Eight training weeks", description: "Submit activity across eight weeks.", startDate: .now, endDate: .now.addingTimeInterval(60 * 60 * 24 * 56), goal: "8 active weeks", eligibility: "All lifters", participantCount: 96, progress: 0.25, isJoined: false),
-        Challenge(id: UUID(), title: "Three verified PRs", description: "Set three moderator-verified PRs this month.", startDate: .now, endDate: .now.addingTimeInterval(60 * 60 * 24 * 30), goal: "3 verified PRs", eligibility: "Video required", participantCount: 87, progress: 0.33, isJoined: false)
+        Challenge(id: UUID(), title: "Three verified PRs", description: "Set three video-verified PRs this month.", startDate: .now, endDate: .now.addingTimeInterval(60 * 60 * 24 * 30), goal: "3 verified PRs", eligibility: "Video required", participantCount: 87, progress: 0.33, isJoined: false)
     ]
 
     static func communityThreads(for _: [Challenge]) -> [CommunityThread] {
@@ -224,6 +343,214 @@ enum MockData {
             CommunityThread(id: UUID(), title: "Best angle for deadlift verification?", body: "What camera angle has worked best for getting pulls approved quickly?", authorID: demoUserID, authorName: "Robert", kind: .general, challengeID: nil, gymID: nil, replyCount: 12, likeCount: 34, createdAt: .now.addingTimeInterval(-3_600)),
             CommunityThread(id: UUID(), title: "Miami lifters checking in", body: "Post your next gym day and main lift.", authorID: demoUserID, authorName: "Robert", kind: .gym, challengeID: nil, gymID: demoGymID, replyCount: 8, likeCount: 21, createdAt: .now.addingTimeInterval(-8_600))
         ]
+    }
+
+    static func forumSeed(
+        profiles: [UserProfile],
+        lifts: [LiftSubmission],
+        legacyThreads: [CommunityThread]
+    ) -> ForumPersistenceSnapshot {
+        let communitySpecs: [(UUID, String, String, String, String, String, String, [String], [String], Int)] = [
+            (generalStrengthCommunityID, "general-strength", "General Strength", "Training, technique, and strength culture.", "The main room for strength athletes across every discipline.", "General", "bolt.fill", ["Keep advice constructive and evidence-aware.", "No harassment or spam."], ["Discussion", "Question", "News"], 8_420),
+            (powerliftingCommunityID, "powerlifting", "Powerlifting", "Squat, bench, deadlift, and meet preparation.", "Programming, technique, federation rules, and platform-day discussion.", "Strength Sports", "figure.strengthtraining.traditional", ["State whether advice is tested or personal experience.", "Use Form Checks for detailed video review."], ["Meet Prep", "Technique", "Programming"], 6_180),
+            (bodybuildingCommunityID, "bodybuilding", "Bodybuilding", "Hypertrophy, physique development, and posing.", "Discuss training volume, exercise selection, weak points, and contest preparation.", "Strength Sports", "figure.strengthtraining.functional", ["Critique physiques respectfully.", "Do not promote dangerous drug protocols."], ["Hypertrophy", "Exercise Selection", "Prep"], 5_760),
+            (beginnerQuestionsCommunityID, "beginner-questions", "Beginner Questions", "A welcoming place to learn the fundamentals.", "No question is too basic. Experienced members should explain the why, not just the answer.", "Help", "questionmark.bubble.fill", ["Be patient and specific.", "Medical emergencies require a professional."], ["Getting Started", "Technique", "Routine Help"], 4_230),
+            (formChecksCommunityID, "form-checks", "Form Checks", "Get constructive feedback on lifting technique.", "Post a clear angle, the load and reps, and what you want reviewers to inspect.", "Help", "video.fill", ["Critique the lift, never the lifter.", "Do not diagnose injuries."], ["Squat", "Bench", "Deadlift", "Other"], 3_980),
+            (programmingCommunityID, "programming", "Programming", "Periodization, progression, fatigue, and exercise order.", "Compare templates and build training blocks that match goals and recovery.", "Training", "calendar.badge.clock", ["Include training age and schedule when requesting help.", "Credit coaches and original program authors."], ["Program Review", "Progression", "Deload"], 4_610),
+            (equipmentCommunityID, "equipment", "Equipment", "Machines, bars, racks, shoes, and home gyms.", "Identify equipment, compare setups, and discuss how machines differ between brands.", "Equipment", "wrench.and.screwdriver.fill", ["Disclose affiliate relationships.", "Keep marketplace spam out of discussions."], ["Machine", "Home Gym", "Gear"], 2_940),
+            (milestonesCommunityID, "prs-milestones", "PRs & Milestones", "Celebrate progress without turning the feed into noise.", "Share meaningful personal records, comeback lifts, consistency wins, and competition results.", "Achievements", "trophy.fill", ["All levels and loads are welcome.", "Verification claims must match the linked lift status."], ["PR", "Comeback", "Competition"], 7_110)
+        ]
+
+        var communities = communitySpecs.map { spec in
+            ForumCommunity(
+                id: spec.0,
+                slug: spec.1,
+                name: spec.2,
+                summary: spec.3,
+                details: spec.4,
+                category: spec.5,
+                symbolName: spec.6,
+                accentHex: "3568FF",
+                visibility: .publicOpen,
+                rules: spec.7,
+                availableTags: spec.8,
+                staffOwnerID: demoUserID,
+                memberCount: spec.9,
+                postCount: 0,
+                createdAt: .now.addingTimeInterval(-86_400 * 180),
+                archivedAt: nil
+            )
+        }
+
+        var memberships: [ForumMembership] = []
+        let joinedIDs = [generalStrengthCommunityID, powerliftingCommunityID, milestonesCommunityID]
+        for communityID in joinedIDs {
+            memberships.append(ForumMembership(
+                id: UUID(),
+                communityID: communityID,
+                userID: demoUserID,
+                role: .member,
+                status: .joined,
+                notificationLevel: .mentions,
+                joinedAt: .now.addingTimeInterval(-86_400 * 60),
+                mutedUntil: nil,
+                bannedAt: nil,
+                restrictionReason: nil,
+                invitedBy: nil
+            ))
+        }
+
+        for (index, community) in communities.enumerated() {
+            guard profiles.count > index + 1 else { continue }
+            let moderator = profiles[index + 1]
+            memberships.append(ForumMembership(
+                id: UUID(),
+                communityID: community.id,
+                userID: moderator.id,
+                role: .moderator,
+                status: .joined,
+                notificationLevel: .all,
+                joinedAt: .now.addingTimeInterval(-86_400 * 120),
+                mutedUntil: nil,
+                bannedAt: nil,
+                restrictionReason: nil,
+                invitedBy: demoUserID
+            ))
+        }
+
+        let postSeeds: [(UUID, Int, String, String, String, ForumPostKind)] = [
+            (generalStrengthCommunityID, 1, "What finally made your training consistent?", "For me it was cutting the plan down to four repeatable days instead of chasing a perfect six-day split.", "Discussion", .discussion),
+            (powerliftingCommunityID, 2, "Peaking: when do you take your final heavy deadlift?", "I respond better with ten days between my final heavy pull and meet day. Curious how other lifters structure it.", "Meet Prep", .discussion),
+            (bodybuildingCommunityID, 3, "Choosing a stable row for upper-back volume", "Chest-supported machines have made progression easier, but the resistance curves vary wildly. Which setup do you prefer?", "Exercise Selection", .discussion),
+            (beginnerQuestionsCommunityID, 4, "How should I choose my starting weights?", "I can complete every prescribed rep, but I am unsure how many reps I should have left in reserve during week one.", "Getting Started", .discussion),
+            (formChecksCommunityID, 5, "Squat depth and bar path check", "Working on staying balanced over mid-foot. What would you change first?", "Squat", .discussion),
+            (programmingCommunityID, 6, "When does a deload actually help you?", "Do you schedule deloads in advance or wait for performance and recovery markers to decline?", "Deload", .poll),
+            (equipmentCommunityID, 7, "Generic name for this iso-lateral row?", "Different gyms use Hammer Strength, Arsenal, and other brands for nearly identical plate-loaded rows. How should we label them in the library?", "Machine", .discussion),
+            (milestonesCommunityID, 8, "First 500 lb deadlift after rebuilding my setup", "The biggest change was treating every warmup rep like the top set. Happy to finally cross this milestone.", "PR", .liftShare)
+        ]
+
+        var posts: [ForumPost] = postSeeds.compactMap { seed in
+            guard profiles.count > seed.1 else { return nil }
+            let author = profiles[seed.1]
+            let poll: ForumPoll? = seed.5 == .poll ? ForumPoll(
+                id: UUID(),
+                options: ["Scheduled every 4–6 weeks", "Based on performance", "Only before a meet", "I do not deload"].map {
+                    ForumPollOption(id: UUID(), text: $0, voterIDs: [])
+                },
+                closesAt: .now.addingTimeInterval(86_400 * 7)
+            ) : nil
+            return ForumPost(
+                id: UUID(),
+                destination: .community(seed.0),
+                authorID: author.id,
+                authorName: author.displayName,
+                kind: seed.5,
+                title: seed.2,
+                body: seed.3,
+                tag: seed.4,
+                attachments: [],
+                poll: poll,
+                liftID: seed.5 == .liftShare ? lifts.first(where: { $0.userID == demoUserID })?.id : nil,
+                workoutID: nil,
+                linkURL: nil,
+                challengeID: nil,
+                createdAt: .now.addingTimeInterval(TimeInterval(-seed.1 * 5_400)),
+                editedAt: nil,
+                commentCount: 0,
+                votes: [:],
+                savedByUserIDs: [],
+                watchedByUserIDs: [],
+                isPinned: seed.1 == 1,
+                isLocked: false,
+                removedAt: nil,
+                removalReason: nil
+            )
+        }
+
+        for thread in legacyThreads {
+            let destination: ForumDestination = thread.kind == .gym && thread.gymID != nil
+                ? .gym(thread.gymID!)
+                : .community(generalStrengthCommunityID)
+            posts.append(ForumPost(
+                id: thread.id,
+                destination: destination,
+                authorID: thread.authorID,
+                authorName: thread.authorName,
+                kind: .discussion,
+                title: thread.title,
+                body: thread.body,
+                tag: thread.kind == .challenge ? "Challenge" : "Discussion",
+                attachments: [],
+                poll: nil,
+                liftID: nil,
+                workoutID: nil,
+                linkURL: nil,
+                challengeID: thread.challengeID,
+                createdAt: thread.createdAt,
+                editedAt: nil,
+                commentCount: 0,
+                votes: thread.votes,
+                savedByUserIDs: [],
+                watchedByUserIDs: [],
+                isPinned: false,
+                isLocked: thread.isLocked,
+                removedAt: thread.removedAt,
+                removalReason: thread.removalReason
+            ))
+        }
+
+        var comments: [ForumComment] = []
+        for (index, post) in posts.enumerated() where post.destination.communityID != nil && profiles.count > index + 10 {
+            let author = profiles[index + 10]
+            comments.append(ForumComment(
+                id: UUID(),
+                postID: post.id,
+                parentCommentID: nil,
+                authorID: author.id,
+                authorName: author.displayName,
+                body: index.isMultiple(of: 2) ? "This matches what I have seen in my own training." : "Good question. The training context matters more than a universal rule here.",
+                createdAt: post.createdAt.addingTimeInterval(1_800),
+                editedAt: nil,
+                votes: [:],
+                removedAt: nil,
+                removalReason: nil
+            ))
+        }
+
+        for index in posts.indices {
+            posts[index].commentCount = comments.filter { $0.postID == posts[index].id }.count
+            if let communityID = posts[index].destination.communityID,
+               let communityIndex = communities.firstIndex(where: { $0.id == communityID }) {
+                communities[communityIndex].postCount += 1
+            }
+        }
+
+        return ForumPersistenceSnapshot(
+            schemaVersion: ForumPersistenceSnapshot.currentVersion,
+            communities: communities,
+            memberships: memberships,
+            posts: posts,
+            comments: comments,
+            joinRequests: [],
+            reports: [],
+            moderationActions: [],
+            notifications: [
+                ForumNotification(
+                    id: UUID(),
+                    userID: demoUserID,
+                    actorID: profiles.dropFirst().first?.id,
+                    kind: .mention,
+                    title: "You were mentioned in Powerlifting",
+                    message: "A lifter asked about your meet-day setup.",
+                    communityID: powerliftingCommunityID,
+                    postID: posts.first(where: { $0.destination.communityID == powerliftingCommunityID })?.id,
+                    commentID: nil,
+                    createdAt: .now.addingTimeInterval(-3_600),
+                    isRead: false
+                )
+            ],
+            globalStaffUserIDs: [demoUserID]
+        )
     }
 
     static func social(profiles: [UserProfile]) -> (friendRequests: [FriendRequest], messageThreads: [DirectMessageThread], messages: [DirectMessage]) {
@@ -279,11 +606,17 @@ enum MockData {
     }
 
     static let achievements: [Achievement] = [
-        "First Lift Logged", "First Verified Lift", "135 Bench", "225 Bench", "315 Bench",
-        "225 Squat", "315 Squat", "405 Squat", "315 Deadlift", "405 Deadlift",
-        "500 Deadlift", "Bodyweight Bench", "1.5x Bodyweight Squat", "2x Bodyweight Deadlift",
-        "Gym Record Holder", "Top 10 at Your Gym", "90-Day Improvement Leader", "Ten Verified Lifts",
-        "Workout Streak", "Profile Complete"
+        "First Workout", "10 Workouts", "50 Workouts", "100 Workouts",
+        "First Lift Logged", "First Verified Lift", "Ten Verified Lifts",
+        "First PR", "10 PRs", "25 PRs",
+        "135 Bench", "225 Bench", "315 Bench",
+        "225 Squat", "315 Squat", "405 Squat",
+        "315 Deadlift", "405 Deadlift", "500 Deadlift",
+        "Bodyweight Bench", "1.5x Bodyweight Squat", "2x Bodyweight Deadlift",
+        "7-Day Workout Streak", "30-Day Workout Streak", "90-Day Workout Streak",
+        "50,000 kg Volume", "250,000 kg Volume", "1,000,000 kg Volume",
+        "Global Top 100", "Gym Top 10", "Gym Record Holder", "Global Number One",
+        "90-Day Improvement Leader", "Profile Complete"
     ].map { Achievement(id: UUID(), title: $0, description: "Unlocked by strength progress in LiftRank.", symbolName: "medal.fill") }
 
     static let workoutPlans: [WorkoutPlan] = [
@@ -349,7 +682,7 @@ enum MockData {
         var lifts: [LiftSubmission] = []
         let names = ["Maya", "Andre", "Sofia", "Jalen", "Chris", "Nina", "Mateo", "Priya", "Dante", "Elena"]
         let ageGroups = standardAgeGroups
-        let statuses: [VerificationStatus] = [.selfReported, .videoSubmitted, .communityVerified, .moderatorVerified, .competitionVerified]
+        let statuses: [VerificationStatus] = [.selfReported, .videoSubmitted, .videoVerified, .communityVerified, .competitionVerified]
 
         for index in 1...50 {
             let gym = gyms[index % gyms.count]
@@ -381,7 +714,7 @@ enum MockData {
             ))
         }
 
-        func addLift(user: UserProfile, exercise: Exercise, weight: Double, reps: Int, status: VerificationStatus, daysAgo: Int) {
+        func addLift(user: UserProfile, exercise: Exercise, weight: Double, reps: Int, status: VerificationStatus, daysAgo: Int, demoMediaID: String? = nil) {
             let oneRep = RankingCalculator.epleyOneRepMax(weight: weight, repetitions: reps)
             lifts.append(LiftSubmission(
                 id: UUID(),
@@ -402,6 +735,7 @@ enum MockData {
                 performedAt: .now.addingTimeInterval(TimeInterval(-daysAgo * 86_400)),
                 localVideoURL: nil,
                 remoteVideoURL: nil,
+                demoMediaID: demoMediaID,
                 caption: "Logged \(RankingCalculator.format(weight)) \(exercise.name)",
                 verificationStatus: status,
                 visibility: .publicLift,
@@ -410,9 +744,9 @@ enum MockData {
             ))
         }
 
-        addLift(user: demoProfile, exercise: exercises[0], weight: 245, reps: 1, status: .moderatorVerified, daysAgo: 12)
-        addLift(user: demoProfile, exercise: exercises[1], weight: 275, reps: 1, status: .communityVerified, daysAgo: 17)
-        addLift(user: demoProfile, exercise: exercises[2], weight: 495, reps: 1, status: .competitionVerified, daysAgo: 7)
+        addLift(user: demoProfile, exercise: exercises[0], weight: 245, reps: 1, status: .videoVerified, daysAgo: 12, demoMediaID: "demo-leaderboard-bench")
+        addLift(user: demoProfile, exercise: exercises[1], weight: 275, reps: 1, status: .communityVerified, daysAgo: 17, demoMediaID: "demo-leaderboard-squat")
+        addLift(user: demoProfile, exercise: exercises[2], weight: 495, reps: 1, status: .competitionVerified, daysAgo: 7, demoMediaID: "demo-leaderboard-deadlift")
 
         for (userIndex, user) in profiles.dropFirst().enumerated() {
             for liftIndex in 0..<5 {
@@ -421,11 +755,17 @@ enum MockData {
                 let bump = Double((userIndex * 17 + liftIndex * 23) % 210)
                 let topEnd = (userIndex == 3 && exercise.id == "deadlift") ? 565.0 : base + bump
                 let reps = exercise.isPowerlift ? 1 : 2 + ((userIndex + liftIndex) % 4)
-                let verifiedStatuses: [VerificationStatus] = [.communityVerified, .moderatorVerified, .competitionVerified]
+                let verifiedStatuses: [VerificationStatus] = [.videoVerified, .communityVerified, .competitionVerified]
                 let status = exercise.isPowerlift
                     ? verifiedStatuses[(userIndex + liftIndex) % verifiedStatuses.count]
                     : statuses[(userIndex + liftIndex) % statuses.count]
-                addLift(user: user, exercise: exercise, weight: topEnd, reps: reps, status: status, daysAgo: (userIndex * 3 + liftIndex) % 120)
+                let seededDemoMediaID: String? = switch (userIndex, liftIndex) {
+                case (0, 0): "demo-leaderboard-bench"
+                case (1, 1): "demo-leaderboard-squat"
+                case (2, 2): "demo-leaderboard-deadlift"
+                default: nil
+                }
+                addLift(user: user, exercise: exercise, weight: topEnd, reps: reps, status: status, daysAgo: (userIndex * 3 + liftIndex) % 120, demoMediaID: seededDemoMediaID)
             }
         }
 

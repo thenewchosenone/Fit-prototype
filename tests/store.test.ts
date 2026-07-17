@@ -4,6 +4,7 @@ import gymCatalog from "../src/gymCatalog.json";
 import { loadGymCatalog } from "../src/gymCatalog";
 import { estimatedOneRepMax, personalRecords, recommendedNextWeight } from "../src/lib";
 import { computedLeaderboardEntries, plateLoadTotal, weightClassFor } from "../src/platform";
+import { workoutProgramTemplates } from "../src/programTemplates";
 import { loadTrackerState, serializeTrackerState, STORAGE_KEY, trackerReducer } from "../src/store";
 import type { TrackerState } from "../src/types";
 
@@ -41,6 +42,34 @@ describe("tracker reducer", () => {
     expect(deleted.weeks.some((week) => week.planId === created.activePlanId)).toBe(false);
   });
 
+  it("installs immutable 12-week program templates as editable plan copies", () => {
+    const source = fresh();
+    const templateSnapshot = structuredClone(workoutProgramTemplates[0]);
+    const missingExerciseIds = workoutProgramTemplates.flatMap((template) =>
+      template.sessions.flatMap((session) =>
+        session.exercises
+          .flatMap((exercise) => [exercise.exerciseId, ...exercise.substitutionExerciseIds])
+          .filter((exerciseId) => !source.exercises.some((exercise) => exercise.id === exerciseId))
+      )
+    );
+    expect(missingExerciseIds).toEqual([]);
+
+    const installed = trackerReducer(source, {
+      type: "INSTALL_PROGRAM_TEMPLATE",
+      template: workoutProgramTemplates[0]
+    });
+    const plan = installed.plans.find((item) => item.id === installed.activePlanId)!;
+    const weeks = installed.weeks.filter((week) => week.planId === plan.id);
+    const sessions = installed.sessions.filter((session) => weeks.some((week) => week.id === session.weekId));
+
+    expect(plan.sourceTemplateId).toBe("full-body-foundation-12");
+    expect(weeks).toHaveLength(12);
+    expect(sessions).toHaveLength(36);
+    expect(installed.phases.filter((phase) => phase.planId === plan.id)).toHaveLength(3);
+    expect(weeks.find((week) => week.weekNumber === 4)?.title).toContain("Deload");
+    expect(workoutProgramTemplates[0]).toEqual(templateSnapshot);
+  });
+
   it("clones week sessions and prescriptions without set logs", () => {
     const source = fresh();
     const cloned = trackerReducer(source, { type: "CLONE_WEEK", weekId: "week-1" });
@@ -70,6 +99,7 @@ describe("tracker reducer", () => {
   it("finishes a workout using completed sets only", () => {
     let state = fresh();
     state = trackerReducer(state, { type: "START_WORKOUT", sessionId: "session-push" });
+    expect(state.setLogs.filter((log) => ["p-bench", "p-ohp"].includes(log.prescriptionId))).toHaveLength(6);
     state = trackerReducer(state, { type: "ENSURE_SET_LOGS", prescriptionId: "p-bench", count: 3 });
     const [first, second] = state.setLogs;
     state = trackerReducer(state, { type: "UPDATE_SET", logId: first.id, field: "weight", value: 225 });
@@ -81,6 +111,64 @@ describe("tracker reducer", () => {
     expect(finished.completedWorkouts[0].totalSets).toBe(1);
     expect(finished.completedWorkouts[0].totalVolume).toBe(1125);
     expect(finished.completedWorkouts[0].bestSet?.weight).toBe(225);
+    expect(finished.notifications[0]).toMatchObject({ kind: "Achievement", target: "/profile", title: "Achievement unlocked" });
+  });
+
+  it("keeps active-workout order, substitutions, rest, and previous-set completion local to the session", () => {
+    let state = fresh();
+    const bench = state.prescriptions.find((item) => item.id === "p-bench")!;
+    const historicalSet = {
+      id: "history-bench-1",
+      prescriptionId: bench.id,
+      setNumber: 1,
+      weight: 205,
+      reps: 8,
+      rpe: 8,
+      isWarmup: false,
+      isComplete: true,
+      performedAt: "2026-07-01T12:00:00.000Z"
+    };
+    state.completedWorkouts = [{
+      id: "history-workout",
+      sessionId: "session-push",
+      planId: "plan-strength",
+      weekId: "week-1",
+      name: "Push",
+      completedAt: "2026-07-01T12:00:00.000Z",
+      durationSeconds: 2400,
+      completedExercises: 1,
+      totalExercises: 1,
+      totalSets: 1,
+      totalVolume: 1640,
+      bestSet: historicalSet,
+      setLogs: [historicalSet],
+      prescriptions: [bench]
+    }];
+
+    state = trackerReducer(state, { type: "START_WORKOUT", sessionId: "session-push" });
+    state = trackerReducer(state, { type: "MOVE_WORKOUT_EXERCISE", prescriptionId: "p-ohp", direction: "up" });
+    state = trackerReducer(state, { type: "SET_WORKOUT_REST", prescriptionId: "p-bench", seconds: 90 });
+    const dumbbellBench = state.exercises.find((item) => item.id === "db-bench")!;
+    state = trackerReducer(state, { type: "SUBSTITUTE_WORKOUT_EXERCISE", prescriptionId: "p-bench", exercise: dumbbellBench });
+    expect(state.activeWorkout?.exerciseOrder).toEqual(["p-ohp", "p-bench"]);
+    expect(state.activeWorkout?.restOverrides["p-bench"]).toBe(90);
+    expect(state.activeWorkout?.exerciseOverrides["p-bench"].originalExerciseName).toBe("Barbell Bench Press");
+
+    state = trackerReducer(state, { type: "SUBSTITUTE_WORKOUT_EXERCISE", prescriptionId: "p-bench", exercise: state.exercises.find((item) => item.id === "barbell-bench")! });
+    const firstSet = state.setLogs.find((item) => item.prescriptionId === "p-bench" && item.setNumber === 1)!;
+    state = trackerReducer(state, { type: "AUTO_COMPLETE_SET", logId: firstSet.id });
+    expect(state.setLogs.find((item) => item.id === firstSet.id)).toMatchObject({ weight: 205, reps: 8, rpe: 8, isComplete: true });
+
+    state = trackerReducer(state, { type: "SUBSTITUTE_WORKOUT_EXERCISE", prescriptionId: "p-bench", exercise: dumbbellBench });
+    const finished = trackerReducer(state, { type: "FINISH_WORKOUT", sessionId: "session-push" });
+    expect(finished.prescriptions.find((item) => item.id === "p-bench")?.exerciseId).toBe("barbell-bench");
+    expect(finished.completedWorkouts[0].prescriptions.map((item) => item.id)).toEqual(["p-ohp", "p-bench"]);
+    expect(finished.completedWorkouts[0].prescriptions.find((item) => item.id === "p-bench")).toMatchObject({
+      exerciseId: "db-bench",
+      restSeconds: 90,
+      order: 1
+    });
+    expect(finished.completedWorkouts[0].prescriptions.find((item) => item.id === "p-bench")?.notes).toContain("Substituted for Barbell Bench Press");
   });
 });
 
@@ -189,6 +277,17 @@ describe("persistence", () => {
     expect(migrated.profiles[0].role).toBe("Admin");
   });
 
+  it("migrates legacy moderator verification to evidence-based video verification", () => {
+    const legacy = fresh() as unknown as Record<string, unknown>;
+    const lift = structuredClone(fresh().liftSubmissions[0]) as unknown as Record<string, unknown>;
+    lift.verification = "Moderator Verified";
+    legacy.liftSubmissions = [lift];
+
+    const migrated = loadTrackerState({ getItem: () => JSON.stringify(legacy) } as Pick<Storage, "getItem">);
+
+    expect(migrated.liftSubmissions[0].verification).toBe("Video Verified");
+  });
+
   it("preserves memberships before the lazy gym catalog is hydrated", async () => {
     const stale = fresh();
     stale.gyms = stale.gyms
@@ -210,9 +309,15 @@ describe("persistence", () => {
 
   it("keeps an already loaded catalog when demo state is reset", async () => {
     const fullCatalog = await loadGymCatalog();
-    const reset = trackerReducer({ ...fresh(), gyms: fullCatalog }, { type: "RESET_DEMO" });
+    const customized = trackerReducer({ ...fresh(), gyms: fullCatalog }, {
+      type: "INSTALL_PROGRAM_TEMPLATE",
+      template: workoutProgramTemplates[0]
+    });
+    const reset = trackerReducer(customized, { type: "RESET_DEMO" });
     expect(reset.gyms).toHaveLength(fullCatalog.length);
     expect(reset.gyms.some((gym) => gym.brand === "Anytime Fitness")).toBe(true);
+    expect(reset.plans).toEqual(seedState.plans);
+    expect(reset.weeks).toEqual(seedState.weeks);
   });
 
   it("refreshes an old exercise catalog while preserving custom exercises", () => {
@@ -234,6 +339,12 @@ describe("persistence", () => {
 });
 
 describe("platform features", () => {
+  it("keeps structured notification destinations for every local product flow", () => {
+    const kinds = new Set(fresh().notifications.map((notification) => notification.kind));
+    expect([...kinds]).toEqual(expect.arrayContaining(["Ranking", "Verification", "Friend", "Message", "Forum", "Achievement", "WorkoutReminder"]));
+    expect(fresh().notifications.every((notification) => notification.target.startsWith("/") && notification.title && notification.body)).toBe(true);
+  });
+
   it("ships a validated open U.S. catalog snapshot with source metadata", () => {
     const brands = ["Crunch Fitness", "LA Fitness", "EOS Fitness", "YouFit", "Anytime Fitness", "Gold's Gym"];
     expect(Object.keys(gymCatalog.counts).sort()).toEqual([...brands].sort());

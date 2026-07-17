@@ -1,5 +1,7 @@
 # LiftRank security setup
 
+The iOS/backend ownership model, local migration tests, and configuration instructions are documented in [`docs/backend-foundation.md`](docs/backend-foundation.md). Never place a service-role credential in either client.
+
 LiftRank supports Supabase email/password authentication with PKCE. The local development app falls back to an explicitly labeled seeded demo identity when Supabase variables are absent. Production builds do not enable that fallback unless `VITE_AUTH_DEMO_MODE=true` is deliberately supplied.
 
 The shareable public demo is a separate static sandbox selected by `VITE_PUBLIC_DEMO=true`. It uses the seeded identity and browser-local data, hides real account flows, and fails its build if any Supabase credential is present. This exception is limited to the clearly labeled `pages.dev` demo and must not be reused for the closed beta or production application.

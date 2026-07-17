@@ -3,12 +3,7 @@ import SwiftUI
 
 private extension View {
     func homePanelStyle() -> some View {
-        background(Color.liftCard)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
-            }
+        liftSurface()
     }
 }
 
@@ -28,7 +23,7 @@ struct HomeView: View {
     var body: some View {
         AppBackground {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 18) {
                     header
                     balancedOverview
                     quickStats
@@ -36,7 +31,7 @@ struct HomeView: View {
                     weeklyActivity
                     communityHighlights
                 }
-                .padding(.horizontal, 18)
+                .padding(.horizontal, LiftDesign.screenHorizontalPadding)
                 .padding(.top, 8)
                 .padding(.bottom, 116)
             }
@@ -78,7 +73,7 @@ struct HomeView: View {
             Button {
                 appState.selectedTab = 4
             } label: {
-                ProfileAvatar(profile: appState.currentProfile, size: 46)
+                ProfileAvatar(profile: appState.currentProfile, size: 44)
                     .overlay {
                         Circle()
                             .stroke(Color.liftBlue.opacity(0.75), lineWidth: 2)
@@ -111,50 +106,17 @@ struct HomeView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Open \(appState.workoutStreak()) day streak details")
 
-            Button {
-                Haptics.light()
+            NativeIconButton(
+                symbolName: "bell.fill",
+                accessibilityLabel: "Notifications, \(appState.unreadNotificationCount) unread",
+                badge: appState.unreadNotificationCount
+            ) {
                 showingNotifications = true
-            } label: {
-                ZStack(alignment: .topTrailing) {
-                    Image(systemName: "bell.fill")
-                        .font(.subheadline.weight(.bold))
-                        .frame(width: 44, height: 44)
-                        .background(Color.liftCard)
-                        .clipShape(Circle())
-                        .overlay {
-                            Circle()
-                                .stroke(Color.white.opacity(0.07), lineWidth: 1)
-                        }
-
-                    if appState.unreadNotificationCount > 0 {
-                        Text("\(appState.unreadNotificationCount)")
-                            .font(.system(size: 9, weight: .black))
-                            .foregroundStyle(.white)
-                            .frame(minWidth: 17, minHeight: 17)
-                            .background(Color.liftRed)
-                            .clipShape(Circle())
-                            .offset(x: 2, y: -2)
-                    }
-                }
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Notifications, \(appState.unreadNotificationCount) unread")
 
-            Button {
+            NativeIconButton(symbolName: "gearshape.fill", accessibilityLabel: "Open settings") {
                 appState.showingSettings = true
-            } label: {
-                Image(systemName: "gearshape.fill")
-                    .font(.subheadline.weight(.bold))
-                    .frame(width: 44, height: 44)
-                    .background(Color.liftCard)
-                    .clipShape(Circle())
-                    .overlay {
-                        Circle()
-                            .stroke(Color.white.opacity(0.07), lineWidth: 1)
-                    }
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open settings")
         }
     }
 
@@ -209,8 +171,9 @@ struct HomeView: View {
         let weekEntries = appState.selectedPlanWorkoutEntries.filter { $0.week == 1 }
 
         return Button {
+            appState.requestedTrackerSegment = "Today"
             appState.trainingTrackerStartOnProgress = false
-            appState.showingTrainingTracker = true
+            appState.selectedTab = 2
         } label: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
@@ -247,12 +210,7 @@ struct HomeView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 128, alignment: .leading)
             .padding(16)
-            .background(Color.liftCard)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
-            }
+            .liftSurface()
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Open today's training, \(appState.selectedWorkoutPlan?.name ?? "workout plan")")
@@ -302,12 +260,7 @@ struct HomeView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 128, alignment: .leading)
             .padding(16)
-            .background(Color.liftCard)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
-            }
+            .liftSurface()
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Open leaderboards, strength score \(Int(appState.overallScore)), Advanced, gym rank 4")
@@ -340,12 +293,7 @@ struct HomeView: View {
             )
         }
         .padding(14)
-        .background(Color.liftCard)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        }
+        .liftSurface()
     }
 
     private var statDivider: some View {
@@ -382,7 +330,7 @@ struct HomeView: View {
     private var recentPRs: some View {
         VStack(alignment: .leading, spacing: 12) {
             dashboardSectionHeader("Recent PRs", actionTitle: "Submit lift") {
-                appState.selectedTab = 2
+                appState.showingSubmitSheet = true
             }
 
             VStack(spacing: 0) {
@@ -398,7 +346,7 @@ struct HomeView: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(lift.exerciseName)
                                     .font(.subheadline.weight(.bold))
-                                Text("\(RankingCalculator.format(lift.estimatedOneRepMax)) lb estimated max")
+                                Text("\(RankingCalculator.format(lift.weight)) \(lift.unit.shortLabel) × \(lift.repetitions) \(lift.repetitions == 1 ? "rep" : "reps")")
                                     .font(.caption)
                                     .foregroundStyle(Color.liftMuted)
                             }
@@ -442,14 +390,14 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("9")
+                            Text("\(thisWeekCompletedSetCount)")
                                 .font(.system(size: 34, weight: .black, design: .rounded))
-                            Text("completed lifts")
+                            Text("completed working sets")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
                         }
                         Spacer()
-                        Text("+18%")
+                        Text(weeklyChangeText)
                             .font(.caption.weight(.black))
                             .foregroundStyle(Color.liftGreen)
                             .padding(.horizontal, 10)
@@ -463,7 +411,7 @@ struct HomeView: View {
                             x: .value("Day", point.day),
                             y: .value("Lifts", point.count)
                         )
-                        .foregroundStyle(Color.liftBlue.gradient)
+                        .foregroundStyle(Color.liftBlue)
                         .cornerRadius(5)
                     }
                     .frame(height: 145)
@@ -481,13 +429,14 @@ struct HomeView: View {
                 .homePanelStyle()
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Open weekly training progress, 9 completed lifts, up 18 percent")
+            .accessibilityLabel("Open weekly training progress, \(thisWeekCompletedSetCount) completed working sets, \(weeklyChangeText)")
         }
     }
 
     private func openWeeklyProgress() {
         appState.trainingTrackerStartOnProgress = true
-        appState.showingTrainingTracker = true
+        appState.requestedTrackerSegment = "Progress"
+        appState.selectedTab = 2
     }
 
     private var communityHighlights: some View {
@@ -518,12 +467,7 @@ struct HomeView: View {
                         }
                         .frame(width: 210, height: 126, alignment: .leading)
                         .padding(16)
-                        .background(Color.liftCard)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                        }
+                        .liftSurface()
                     }
                 }
             }
@@ -536,17 +480,7 @@ struct HomeView: View {
         actionTitle: String? = nil,
         action: (() -> Void)? = nil
     ) -> some View {
-        HStack {
-            Text(title)
-                .font(.title3.weight(.black))
-            Spacer()
-            if let actionTitle, let action {
-                Button(actionTitle, action: action)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.liftBlue)
-            }
-        }
-        .accessibilityAddTraits(.isHeader)
+        CompactSectionHeader(title: title, actionTitle: actionTitle, action: action)
     }
 
     private var greeting: String {
@@ -557,15 +491,40 @@ struct HomeView: View {
     }
 
     private var weeklyPoints: [WeeklyPoint] {
-        [
-            WeeklyPoint(day: "M", count: 2),
-            WeeklyPoint(day: "T", count: 1),
-            WeeklyPoint(day: "W", count: 0),
-            WeeklyPoint(day: "T", count: 3),
-            WeeklyPoint(day: "F", count: 2),
-            WeeklyPoint(day: "S", count: 1),
-            WeeklyPoint(day: "S", count: 0)
-        ]
+        let calendar = Calendar.current
+        guard let interval = calendar.dateInterval(of: .weekOfYear, for: .now) else { return [] }
+        let symbols = ["M", "T", "W", "T", "F", "S", "S"]
+        return (0..<7).map { offset in
+            let date = calendar.date(byAdding: .day, value: offset, to: interval.start) ?? interval.start
+            let count = appState.completedWorkouts
+                .filter { calendar.isDate($0.completedAt, inSameDayAs: date) }
+                .flatMap(\.completedWorkingSets)
+                .count
+            return WeeklyPoint(day: symbols[offset], count: count)
+        }
+    }
+
+    private var thisWeekCompletedSetCount: Int {
+        weeklyPoints.reduce(0) { $0 + $1.count }
+    }
+
+    private var previousWeekCompletedSetCount: Int {
+        let calendar = Calendar.current
+        guard let current = calendar.dateInterval(of: .weekOfYear, for: .now),
+              let previousStart = calendar.date(byAdding: .day, value: -7, to: current.start) else { return 0 }
+        let previousEnd = current.start
+        return appState.completedWorkouts
+            .filter { $0.completedAt >= previousStart && $0.completedAt < previousEnd }
+            .flatMap(\.completedWorkingSets)
+            .count
+    }
+
+    private var weeklyChangeText: String {
+        guard previousWeekCompletedSetCount > 0 else {
+            return thisWeekCompletedSetCount > 0 ? "New" : "0%"
+        }
+        let change = (Double(thisWeekCompletedSetCount - previousWeekCompletedSetCount) / Double(previousWeekCompletedSetCount)) * 100
+        return String(format: "%@%.0f%%", change >= 0 ? "+" : "", change)
     }
 }
 
@@ -649,29 +608,21 @@ private struct HomeNotificationCenterView: View {
                 .foregroundStyle(Color.liftBlue)
                 .frame(maxHeight: .infinity)
         }
-        .padding(15)
+        .padding(14)
         .background(notification.isRead ? Color.liftCard : Color.liftBlue.opacity(0.09))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(notification.isRead ? Color.white.opacity(0.06) : Color.liftBlue.opacity(0.32), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(notification.isRead ? Color.liftSeparator : Color.liftBlue.opacity(0.32), lineWidth: 1)
         }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "bell.slash.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.liftBlue)
-            Text("You’re all caught up")
-                .font(.title3.weight(.black))
-            Text("Ranking changes, lift reviews, and achievements will appear here.")
-                .font(.subheadline)
-                .foregroundStyle(Color.liftMuted)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 48)
+        LiftEmptyState(
+            title: "You’re all caught up",
+            message: "Ranking changes, lift reviews, and achievements will appear here.",
+            symbolName: "bell.slash.fill"
+        )
     }
 
     private func symbol(for kind: String) -> String {

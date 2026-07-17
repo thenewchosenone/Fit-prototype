@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Info, RotateCcw, ShieldCheck, X } from "lucide-react";
 import { demoWelcomeStorageKey, publicDemoMode } from "./demo";
 import { STORAGE_KEY } from "./store";
+import { clearProfileMedia } from "./profileMedia";
 
 export function DemoDataNotice({ children = "This activity is stored only in this browser and is not shared with other reviewers." }: PropsWithChildren) {
   if (!publicDemoMode) return null;
@@ -32,7 +33,7 @@ export function DemoExperience() {
   const resetDemo = () => {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(demoWelcomeStorageKey);
-    window.location.reload();
+    void clearProfileMedia().finally(() => window.location.reload());
   };
 
   return <>

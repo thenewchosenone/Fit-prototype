@@ -1,6 +1,21 @@
 import { expect, test } from "@playwright/test";
 
-const routes = ["leaderboards", "submit", "library", "gyms", "community", "messages", "profile"] as const;
+const routes = [
+  "home",
+  "today",
+  "plans",
+  "progress",
+  "workout/session-push",
+  "leaderboards",
+  "submit",
+  "library",
+  "gyms",
+  "community",
+  "messages",
+  "profile",
+  "settings",
+  "onboarding"
+] as const;
 
 test("primary-route production budgets", async ({ browser }, testInfo) => {
   const report: Record<string, unknown>[] = [];

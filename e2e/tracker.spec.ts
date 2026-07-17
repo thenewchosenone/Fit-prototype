@@ -15,13 +15,20 @@ test("loads every primary route without console errors or horizontal overflow", 
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   const routes = [
+    ["home", "Welcome back, Robert"],
+    ["today", "Ready to train?"],
+    ["plans", "Training plans"],
+    ["progress", "Progress"],
     ["leaderboards", "Leaderboards"],
     ["submit", "Submit a lift"],
     ["library", "Library"],
     ["gyms", "Gyms"],
     ["community", "Strength community"],
     ["messages", "Messages"],
-    ["profile", "Robert J."]
+    ["profile", "Robert J."],
+    ["settings", "Profile and settings"],
+    ["onboarding", "Build your LiftRank profile"],
+    ["library/back-squat", "Back Squat"]
   ] as const;
 
   for (const [route, heading] of routes) {
@@ -35,11 +42,14 @@ test("loads every primary route without console errors or horizontal overflow", 
   expect(pageErrors).toEqual([]);
 });
 
-test("redirects retired tracking routes and keeps the library available", async ({ page }) => {
+test("opens the restored workout tracker and keeps the library available", async ({ page }) => {
   await page.goto("/#/today");
-  await expect(page.getByRole("heading", { name: "Leaderboards" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Today" })).toHaveCount(0);
-  await page.getByRole("link", { name: "Library" }).first().click();
+  await expect(page.getByRole("heading", { name: "Ready to train?" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Workout tracking" })).toBeVisible();
+  await page.getByRole("button", { name: /Start workout/i }).click();
+  await expect(page.getByRole("heading", { name: "Push" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Finish workout" })).toBeVisible();
+  await page.goto("/#/library");
   await expect(page.getByRole("heading", { name: "Library" })).toBeVisible();
   await page.getByLabel("Search exercises").fill("bench");
   await expect(page.getByText("Barbell Bench Press")).toBeVisible();
@@ -67,7 +77,7 @@ test("opens the leaderboard page and athlete detail", async ({ page }) => {
 });
 
 test("submits a lift and opens the local profile", async ({ page }) => {
-  await page.getByRole("link", { name: "Submit" }).first().click();
+  await page.goto("/#/submit");
   await page.getByLabel("Weight lifted").fill("505");
   await page.getByRole("button", { name: "Submit lift" }).click();
   await expect(page.getByRole("heading", { name: "Lift submitted" })).toBeVisible();

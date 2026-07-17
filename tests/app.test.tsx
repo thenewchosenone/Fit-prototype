@@ -87,10 +87,13 @@ describe("LiftRank platform UI", () => {
     expect(screen.getByText("Barbell Bench Press")).toBeVisible();
     expect(screen.queryByText("Back Squat")).not.toBeInTheDocument();
     await user.clear(screen.getByLabelText("Search exercises"));
-    await user.selectOptions(screen.getByLabelText("Body part"), "Back");
-    await user.selectOptions(screen.getByLabelText("Equipment"), "Cable");
+    await user.click(screen.getByText("Body region", { selector: ".multi-filter summary span" }));
+    await user.click(within(screen.getByRole("group", { name: "Body region" })).getByLabelText("Back"));
+    await user.click(screen.getByText("Equipment", { selector: ".multi-filter summary span" }));
+    await user.click(within(screen.getByRole("group", { name: "Equipment" })).getByLabelText("Cable"));
     expect(screen.getByText("Seated Cable Row")).toBeVisible();
-    await user.selectOptions(screen.getByLabelText("Movement"), "Pull");
+    await user.click(screen.getByText("Movement", { selector: ".multi-filter summary span" }));
+    await user.click(within(screen.getByRole("group", { name: "Movement" })).getByLabelText("Pull"));
     expect(screen.getByText("Wide-Grip Lat Pulldown")).toBeVisible();
     expect(screen.queryByText("Seated Cable Row")).not.toBeInTheDocument();
   });
@@ -105,12 +108,26 @@ describe("LiftRank platform UI", () => {
     await user.selectOptions(within(dialog).getByLabelText("Equipment"), "Machine");
     await user.click(within(dialog).getByRole("button", { name: "Save exercise" }));
 
-    await user.selectOptions(screen.getByLabelText("Movement"), "Strength");
+    await user.click(screen.getByText("Movement", { selector: ".multi-filter summary span" }));
+    await user.click(within(screen.getByRole("group", { name: "Movement" })).getByLabelText("Strength"));
     expect(screen.getByText("Belt Squat")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(screen.getByLabelText("Search exercises")).toHaveValue("");
-    expect(screen.getByLabelText("Movement")).toHaveValue("All");
+    expect(within(screen.getByRole("group", { name: "Movement" })).getByLabelText("Strength")).not.toBeChecked();
     expect(screen.getByText("Back Squat")).toBeVisible();
+  });
+
+  it("ranks canonical and brand-alias exercise matches with reasons", async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.type(screen.getByLabelText("Search exercises"), "Back Squat");
+    const exactCard = screen.getByRole("heading", { name: "Back Squat" }).closest(".exercise-card") as HTMLElement;
+    expect(within(exactCard).getByText("Exact exercise name")).toBeVisible();
+    await user.clear(screen.getByLabelText("Search exercises"));
+    await user.type(screen.getByLabelText("Search exercises"), "Hammer Strength D.Y. Row");
+    const aliasCard = screen.getByRole("heading", { name: "Iso-Lateral Underhand Row" }).closest(".exercise-card") as HTMLElement;
+    expect(within(aliasCard).getByText(/Known as Hammer Strength D.Y. Row/)).toBeVisible();
   });
 
   it("adds a custom exercise to the library", async () => {
@@ -181,18 +198,132 @@ describe("LiftRank platform UI", () => {
     expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
   });
 
-  it.each(["/today", "/plans", "/progress", "/workout/session-push"])(
-    "redirects the retired tracking route %s to leaderboards",
-    (path) => {
-      renderApp(path);
+  it.each([
+    ["/home", "Welcome back, Robert"],
+    ["/today", "Ready to train?"],
+    ["/plans", "Training plans"],
+    ["/progress", "Progress"],
+    ["/workout/session-push", "Push"]
+  ])("renders the restored tracking route %s", (path, heading) => {
+    renderApp(path);
 
-      expect(screen.getByRole("heading", { name: "Leaderboards" })).toBeVisible();
-      expect(screen.queryByRole("link", { name: "Today" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("link", { name: "Plans" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("link", { name: "Progress" })).not.toBeInTheDocument();
-      expect(screen.getAllByRole("link", { name: "Library" })[0]).toBeVisible();
-    }
-  );
+    expect(screen.getByRole("heading", { name: heading })).toBeVisible();
+    expect(screen.getAllByRole("link", { name: "Home" })[0]).toBeVisible();
+    expect(screen.getAllByRole("link", { name: "Track" })[0]).toBeVisible();
+  });
+
+  it("builds Home ranking, notification, and community summaries from local records", () => {
+    renderApp("/home");
+    expect(screen.getByRole("heading", { name: "Ranking summary" })).toBeVisible();
+    expect(screen.getByText(/#7 · Total/)).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Notifications" })).toBeVisible();
+    expect(screen.getByText("2 unread")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Community highlight" })).toBeVisible();
+  });
+
+  it("opens immutable completed-workout details with sets, muscles, volume, and feedback", async () => {
+    const user = userEvent.setup();
+    const state = structuredClone(seedState);
+    const prescription = { ...state.prescriptions.find((item) => item.id === "p-bench")!, notes: "Substituted for Machine Chest Press" };
+    const log = { id: "detail-set", prescriptionId: prescription.id, setNumber: 1, weight: 225, reps: 6, rpe: 8, isWarmup: false, isComplete: true, performedAt: "2026-07-15T12:00:00.000Z" };
+    state.completedWorkouts = [{ id: "detail-workout", sessionId: "session-push", planId: state.activePlanId, weekId: "week-1", name: "Push", completedAt: "2026-07-15T12:00:00.000Z", durationSeconds: 3600, completedExercises: 1, totalExercises: 1, totalSets: 1, totalVolume: 1350, bestSet: log, setLogs: [log], prescriptions: [prescription] }];
+    state.workoutFeedback = [{ id: "detail-feedback", sessionId: "session-push", effort: 8, notes: "Strong and controlled.", shared: false, createdAt: "2026-07-15T12:00:00.000Z" }];
+    renderApp("/progress", state);
+
+    await user.click(screen.getByRole("link", { name: "Open Push workout details" }));
+    expect(await screen.findByRole("heading", { name: "Push" })).toBeVisible();
+    expect(screen.getByText("225 lb × 6", { selector: ".completed-set-list span" })).toBeVisible();
+    expect(screen.getByText("Chest")).toBeVisible();
+    expect(screen.getByText("1,350 lb")).toBeVisible();
+    expect(screen.getByText("Strong and controlled.")).toBeVisible();
+    expect(screen.getByText("Substituted for Machine Chest Press")).toBeVisible();
+    expect(screen.getByText("Not shared")).toBeVisible();
+  });
+
+  it("starts the scheduled workout from Track in one action", async () => {
+    const user = userEvent.setup();
+    renderApp("/today");
+
+    await user.click(screen.getByRole("button", { name: /Start workout/i }));
+
+    expect(screen.getByRole("heading", { name: "Push" })).toBeVisible();
+    expect(screen.getByText(/Week 1 · Monday/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Finish workout" })).toBeVisible();
+  });
+
+  it("reorders and substitutes exercises with workout-only rest settings", async () => {
+    const user = userEvent.setup();
+    renderApp("/workout/session-push");
+
+    await user.click(screen.getByRole("button", { name: "Move Overhead Press up" }));
+    const exerciseHeadings = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
+    expect(exerciseHeadings.indexOf("Overhead Press")).toBeLessThan(exerciseHeadings.indexOf("Barbell Bench Press"));
+
+    const benchCard = screen.getByRole("heading", { name: "Barbell Bench Press" }).closest("article")!;
+    await user.click(within(benchCard).getByRole("button", { name: "Substitute" }));
+    await user.type(screen.getByLabelText("Search compatible substitutions"), "Dumbbell Bench Press");
+    await user.click(screen.getByText("Dumbbell Bench Press", { selector: ".substitution-list strong" }).closest("button")!);
+
+    expect(screen.getByRole("heading", { name: "Dumbbell Bench Press" })).toBeVisible();
+    expect(screen.getByText("Substituted for Barbell Bench Press")).toBeVisible();
+    await user.selectOptions(screen.getByLabelText("Dumbbell Bench Press rest time"), "90");
+    expect(screen.getByLabelText("Dumbbell Bench Press rest time")).toHaveValue("90");
+  });
+
+  it("offers five immutable 12-week programs and clones one into an editable plan", async () => {
+    const user = userEvent.setup();
+    renderApp("/plans");
+
+    expect(screen.getAllByRole("button", { name: "Use template" })).toHaveLength(5);
+    expect(screen.getByRole("heading", { name: "Full Body Foundation" })).toBeVisible();
+    await user.click(screen.getAllByRole("button", { name: "Use template" })[0]);
+
+    expect(screen.getByRole("button", { name: /Full Body Foundation.*12 weeks/i })).toBeVisible();
+    expect(screen.getByRole("tab", { name: "Week 4 · Deload" })).toBeVisible();
+    expect(screen.getByRole("tab", { name: "Week 12 · Recovery & Performance Check" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Rename plan" })).toBeEnabled();
+  });
+
+  it("completes optional browser-local onboarding with profile choices and starting lifts", async () => {
+    const user = userEvent.setup();
+    renderApp("/onboarding");
+
+    expect(await screen.findByRole("heading", { name: "Build your LiftRank profile" })).toBeVisible();
+    await user.selectOptions(screen.getByLabelText("Training goal"), "Prepare for competition");
+    await user.selectOptions(screen.getByLabelText("Discipline"), "Olympic Weightlifting");
+    await user.click(screen.getByRole("button", { name: /Continue/ }));
+    await user.selectOptions(screen.getByLabelText("Preferred units"), "kg");
+    await user.clear(screen.getByLabelText("Bodyweight (kg)"));
+    await user.type(screen.getByLabelText("Bodyweight (kg)"), "95");
+    await user.click(screen.getByRole("button", { name: /Continue/ }));
+    expect(await screen.findByLabelText("Primary gym")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /Continue/ }));
+    await user.type(screen.getByLabelText("Back squat (kg)"), "180");
+    await user.type(screen.getByLabelText("Bench press (kg)"), "120");
+    await user.type(screen.getByLabelText("Deadlift (kg)"), "220");
+    await user.click(screen.getByRole("button", { name: /Continue/ }));
+    expect(await screen.findByRole("heading", { name: "Choose what your demo profile shows" })).toBeVisible();
+    await user.click(screen.getByRole("checkbox", { name: /Hide location/ }));
+    await user.click(screen.getByRole("button", { name: "Finish setup" }));
+
+    expect(await screen.findByRole("heading", { name: /Welcome back, Robert/ })).toBeVisible();
+    await user.click(screen.getAllByRole("link", { name: "Profile" })[0]);
+    expect(await screen.findByText(/@rjrob23 · Olympic Weightlifting · Advanced/)).toBeVisible();
+    expect(screen.getByText("95.0 kg")).toBeVisible();
+  });
+
+  it("previews profile-photo crop controls without adding the image to tracker state", async () => {
+    const user = userEvent.setup();
+    renderApp("/settings");
+
+    expect(await screen.findByRole("heading", { name: "Profile photo" })).toBeVisible();
+    const input = screen.getByLabelText("Choose photo");
+    await user.upload(input, new File(["image"], "avatar.png", { type: "image/png" }));
+    expect(await screen.findByAltText("Profile crop preview")).toBeVisible();
+    expect(screen.getByLabelText("Photo zoom")).toHaveValue("1");
+    expect(screen.getByRole("button", { name: "Save crop" })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Remove/ })).toBeVisible();
+  });
 
   it("keeps exercise details while hiding workout history", async () => {
     renderApp("/library/back-squat");
@@ -209,6 +340,19 @@ describe("LiftRank platform UI", () => {
     expect(screen.getByRole("heading", { name: "Exercise details" })).toBeVisible();
     expect(screen.queryByText("Set history")).not.toBeInTheDocument();
     expect(screen.queryByText("Completed sets")).not.toBeInTheDocument();
+  });
+
+  it("labels demonstration media separately and supports pause controls", async () => {
+    const user = userEvent.setup();
+    renderApp("/library/back-squat");
+
+    expect(await screen.findByText("Demo Media")).toBeVisible();
+    expect(screen.getByAltText("Back Squat movement demonstration")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Pause" }));
+    expect(screen.queryByAltText("Back Squat movement demonstration")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "View demonstration full screen" })).toBeVisible();
+    expect(screen.getByText(/not verification evidence/i)).toBeVisible();
   });
 
   it("maps catalog body regions to highlighted-muscle artwork", () => {
@@ -504,15 +648,15 @@ describe("LiftRank platform UI", () => {
     const dialog = screen.getByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "Absolute" }));
     await user.selectOptions(within(dialog).getByLabelText("Exercise"), "Back Squat");
-    await user.selectOptions(within(dialog).getByLabelText("Verification level"), "Moderator Verified");
+    await user.selectOptions(within(dialog).getByLabelText("Verification level"), "Video Verified");
     await applyLeaderboardFilters(user, dialog);
 
     let context = screen.getByLabelText("Ranking context");
     expect(within(context).getByText("Rank by: Absolute")).toBeVisible();
     expect(within(context).getByText("Exercise: Back Squat")).toBeVisible();
-    expect(within(context).getByText("Verification: Moderator Verified")).toBeVisible();
+    expect(within(context).getByText("Verification: Video Verified")).toBeVisible();
     expect(screen.getByRole("button", { name: /Remove.*Back Squat/i })).toBeVisible();
-    expect(screen.getByRole("button", { name: /Remove.*Moderator/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Remove.*Video Verified/i })).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: /Remove.*Back Squat/i }));
     expect(screen.queryByRole("button", { name: /Remove.*Back Squat/i })).not.toBeInTheDocument();
@@ -547,7 +691,7 @@ describe("LiftRank platform UI", () => {
 
     const badges = [
       screen.getAllByTitle(/approved competition result/i)[0],
-      screen.getAllByTitle(/LiftRank moderator/i)[0],
+      screen.getAllByTitle(/video evidence was reviewed and approved/i)[0],
       screen.getAllByTitle(/eligible community members/i)[0],
       screen.getAllByTitle(/video evidence submitted/i)[0],
       screen.getAllByTitle(/without independent verification/i)[0]
@@ -748,6 +892,9 @@ describe("LiftRank platform UI", () => {
     await user.click(screen.getByRole("button", { name: /Notifications, 2 unread/ }));
     await user.click(screen.getByRole("button", { name: /Ranking increased/ }));
     expect(screen.getByRole("heading", { name: "Leaderboards" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /Notifications, 1 unread/ }));
+    await user.click(screen.getByRole("button", { name: /Workout reminder/ }));
+    expect(await screen.findByRole("heading", { name: "Ready to train?" })).toBeVisible();
   });
 });
 
