@@ -50,19 +50,22 @@ final class AppState: ObservableObject {
     private(set) var serviceContainer: AppServiceContainer!
     var authService: any AuthenticationService { serviceContainer.authentication }
     var profileService: any ProfileService { serviceContainer.profile }
-    lazy var liftService = MockLiftService(repository: repository)
-    lazy var leaderboardService = MockLeaderboardService(repository: repository)
+    var liftService: any LiftService { serviceContainer.lifts }
+    var leaderboardService: any LeaderboardService { serviceContainer.leaderboards }
     var gymService: any GymService { serviceContainer.gyms }
     lazy var challengeService = MockChallengeService(repository: repository)
-    lazy var socialService = MockSocialService(repository: repository)
-    lazy var communityService = MockCommunityService(repository: repository)
-    lazy var messagingService = MockMessagingService(repository: repository)
+    var socialService: any SocialService { serviceContainer.social }
+    var communityService: any CommunityService { serviceContainer.communities }
+    var messagingService: any MessagingService { serviceContainer.messaging }
     var gymMembershipService: any GymMembershipService { serviceContainer.gymMemberships }
     var friendRelationshipService: any FriendRelationshipService { serviceContainer.friendships }
     var exerciseCatalogService: any ExerciseCatalogService { serviceContainer.exercises }
-    lazy var verificationService = MockVerificationService(repository: repository)
-    lazy var mediaUploadService = MockMediaUploadService()
-    lazy var notificationService = MockNotificationService(repository: repository)
+    var verificationService: any VerificationService { serviceContainer.verification }
+    var mediaUploadService: any MediaUploadService { serviceContainer.media }
+    var notificationService: any NotificationService { serviceContainer.notifications }
+    var workoutSyncService: any WorkoutSyncService { serviceContainer.workoutSync }
+    var analyticsService: any AnalyticsService { serviceContainer.analytics }
+    var accountDeletionService: any AccountDeletionService { serviceContainer.accountDeletion }
 
     init(repository: DemoRepository? = nil, serviceContainer: AppServiceContainer? = nil) {
         self.repository = repository ?? DemoRepository()
@@ -90,6 +93,14 @@ final class AppState: ObservableObject {
 #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-uiTestingDemoMode") {
             await enterDemoMode()
+            if ProcessInfo.processInfo.arguments.contains("-uiTestingActiveWorkout"), repository.activeWorkout == nil {
+                _ = repository.startFreestyleWorkout(
+                    name: "Upper Strength",
+                    gymID: nil,
+                    bodyweight: currentProfile.bodyweightPounds,
+                    unit: currentProfile.preferredUnit
+                )
+            }
             return
         }
 #endif
@@ -129,6 +140,13 @@ final class AppState: ObservableObject {
         }
     }
 
+    func signInWithApple(identityToken: String, nonce: String) async {
+        await performAccountOperation {
+            self.accountSession = try await self.authService.signInWithApple(identityToken: identityToken, nonce: nonce)
+            try await self.loadAuthenticatedAccount()
+        }
+    }
+
     func requestPasswordReset(email: String) async {
         await performAccountOperation {
             try await self.authService.requestPasswordReset(email: email)
@@ -143,6 +161,8 @@ final class AppState: ObservableObject {
             accountStatus = authService.isConfigured ? .signedOut : .configurationRequired
             return
         }
+        repository.seedPersonalWorkoutDemoHistory()
+        selectedWorkoutPlanID = PersonalWorkoutPlanCatalog.planID
         serviceContainer = .demo(repository: repository)
         _ = try? await authService.signInDemo()
         accountSession = nil
@@ -157,6 +177,19 @@ final class AppState: ObservableObject {
         remoteFriendRelationships = []
         profilePhotoStore.clearMemoryCache()
         accountStatus = authService.isConfigured ? .signedOut : .configurationRequired
+    }
+
+    func deleteAuthenticatedAccount() async {
+        await performAccountOperation {
+            guard self.isAuthenticated, !self.isDemoMode else { throw LiftRankServiceError.permissionDenied }
+            try await self.accountDeletionService.deleteAccount()
+            self.repository.clearLocalUserData()
+            self.profilePhotoStore.removeNamespace(.authenticated)
+            self.accountSession = nil
+            self.remoteGymMemberships = []
+            self.remoteFriendRelationships = []
+            self.accountStatus = self.authService.isConfigured ? .signedOut : .configurationRequired
+        }
     }
 
     func saveAuthenticatedProfile(_ draft: ProfileDraft) async throws {
@@ -222,6 +255,40 @@ final class AppState: ObservableObject {
         apply(profile)
         accountStatus = profile.onboardingCompleted ? .authenticated : .needsOnboarding
         await refreshRemoteSocialState()
+        await refreshProductionLaunchData()
+    }
+
+    func refreshProductionLaunchData() async {
+        guard isAuthenticated, !isDemoMode else { return }
+
+        // Remove seeded identities/content before any network request. A failed
+        // production feature shows its real empty/error state, never demo data.
+        repository.lifts = []
+        repository.activities = []
+        repository.forumCommunities = []
+        repository.forumMemberships = []
+        repository.forumPosts = []
+        repository.forumComments = []
+        repository.messageThreads = []
+        repository.directMessages = []
+        repository.notifications = []
+
+        if let lifts = try? await liftService.submissions() { repository.lifts = lifts }
+        if let activities = try? await socialService.feed() { repository.activities = activities }
+        if let communities = try? await communityService.communities() { repository.forumCommunities = communities }
+        if let posts = try? await communityService.posts(in: nil) {
+            repository.forumPosts = posts
+            var comments: [ForumComment] = []
+            for post in posts { comments.append(contentsOf: (try? await communityService.comments(for: post)) ?? []) }
+            repository.forumComments = comments
+        }
+        if let threads = try? await messagingService.threads() {
+            repository.messageThreads = threads
+            var messages: [DirectMessage] = []
+            for thread in threads { messages.append(contentsOf: (try? await messagingService.messages(for: thread)) ?? []) }
+            repository.directMessages = messages
+        }
+        if let notifications = try? await notificationService.notifications() { repository.notifications = notifications }
     }
 
     private func apply(_ remote: AuthenticatedProfile) {
@@ -242,6 +309,10 @@ final class AppState: ObservableObject {
             local.avatarPath = avatarPath
         }
         repository.currentProfile = local
+        if !authService.isDemoMode {
+            repository.profiles = [local]
+            return
+        }
         if let index = repository.profiles.firstIndex(where: { $0.id == local.id }) {
             repository.profiles[index] = local
         } else {
@@ -651,15 +722,15 @@ final class AppState: ObservableObject {
             return
         }
         Haptics.success()
-        uploadProgress = videoURL == nil ? 0 : 0.35
-        let remoteURL = try? await mediaUploadService.upload(localURL: videoURL)
-        uploadProgress = videoURL == nil ? 0 : 1.0
+        uploadProgress = 0
         let oneRep = isActual ? weight : RankingCalculator.epleyOneRepMax(weight: weight, repetitions: reps)
         let oneRepPounds = unit == .pounds ? oneRep : RankingCalculator.kilogramsToPounds(oneRep)
-        let submission = LiftSubmission(
-            id: UUID(),
+        let liftID = UUID()
+        let movement = CompetitiveMovement.resolve(exerciseID: exercise.id)
+        var submission = LiftSubmission(
+            id: liftID,
             userID: currentProfile.id,
-            exerciseID: exercise.id == "sumo_deadlift" ? "deadlift" : exercise.id,
+            exerciseID: movement?.canonicalExerciseID ?? exercise.id,
             exerciseName: exercise.name,
             weight: weight,
             unit: unit,
@@ -674,15 +745,33 @@ final class AppState: ObservableObject {
             gymID: gymID,
             performedAt: date,
             localVideoURL: videoURL,
-            remoteVideoURL: remoteURL,
+            remoteVideoURL: nil,
             caption: caption,
             verificationStatus: requestVerification ? .videoSubmitted : .selfReported,
             visibility: visibility,
             leaderboardEligibleAt: nextLeaderboardUpdateDate(),
             createdAt: .now,
-            updatedAt: .now
+            updatedAt: .now,
+            competitiveMovement: movement,
+            evidenceStatus: .selfReported,
+            moderationStatus: .clear,
+            weightPerHand: movement?.recordsWeightPerHand ?? false
         )
-        _ = try? await liftService.submit(submission)
+        guard let saved = try? await liftService.submit(submission) else {
+            lastSubmissionResult = nil
+            Haptics.warning()
+            return
+        }
+        submission = saved
+        if let videoURL,
+           let asset = try? await mediaUploadService.uploadLiftVideo(localURL: videoURL, liftID: liftID, progress: { [weak self] value in
+               Task { @MainActor in self?.uploadProgress = value }
+           }) {
+            submission.videoAssetID = asset.id
+            submission.evidenceStatus = .videoBacked
+            submission.verificationStatus = .videoVerified
+            submission.remoteVideoURL = try? await mediaUploadService.signedPlaybackURL(assetID: asset.id)
+        }
         lastSubmissionResult = submission
     }
 
@@ -1909,7 +1998,18 @@ final class AppState: ObservableObject {
             for exercise in workout.exercises {
                 let volume = workout.sets
                     .filter { $0.prescriptionID == exercise.id && $0.isComplete && !$0.isWarmup }
-                    .reduce(0) { $0 + $1.volume }
+                    .reduce(0) { total, set in
+                        guard let weight = set.weight, let reps = set.reps else { return total }
+                        let displayedWeight: Double
+                        if set.recordedUnit == currentProfile.preferredUnit {
+                            displayedWeight = weight
+                        } else if currentProfile.preferredUnit == .kilograms {
+                            displayedWeight = RankingCalculator.poundsToKilograms(weight)
+                        } else {
+                            displayedWeight = RankingCalculator.kilogramsToPounds(weight)
+                        }
+                        return total + (displayedWeight * Double(reps))
+                    }
                 totals[exercise.bodyPart, default: 0] += volume
             }
         }

@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var notificationPreferences = true
     @State private var appearance = "Dark"
     @State private var settingsInfo: SettingsInfoPage?
+    @State private var confirmingDeletion = false
 
     var body: some View {
         NavigationStack {
@@ -84,6 +85,9 @@ struct SettingsView: View {
                             dismiss()
                             Task { await appState.signOutAccount() }
                         }
+                        if appState.isAuthenticated && !appState.isDemoMode {
+                            Button("Delete Account", role: .destructive) { confirmingDeletion = true }
+                        }
                     }
                 }
                 .scrollContentBackground(.hidden)
@@ -108,6 +112,17 @@ struct SettingsView: View {
             .sheet(item: $settingsInfo) { page in
                 SettingsInfoView(page: page)
                     .presentationDetents([.medium, .large])
+            }
+            .confirmationDialog("Permanently delete your LiftRank account?", isPresented: $confirmingDeletion, titleVisibility: .visible) {
+                Button("Delete Account and Local Data", role: .destructive) {
+                    Task {
+                        await appState.deleteAuthenticatedAccount()
+                        if !appState.isAuthenticated { dismiss() }
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("For security, the server requires a recently authenticated session. Your account data, workout backup, and local training data will be removed. This cannot be undone.")
             }
         }
     }

@@ -296,6 +296,7 @@ struct LeaderboardOptionSheet: View {
     var isSearchable = false
     let onSelect: (String) -> Void
     @State private var searchText = ""
+    @State private var isSearchPresented = true
 
     private var visibleOptions: [LeaderboardOption] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -346,7 +347,19 @@ struct LeaderboardOptionSheet: View {
             }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchText, isPresented: .constant(isSearchable), prompt: "Search gyms")
+            .searchable(
+                text: $searchText,
+                isPresented: Binding(
+                    get: { isSearchable && isSearchPresented },
+                    set: { isSearchPresented = $0 }
+                ),
+                prompt: "Search gyms"
+            )
+            .onChange(of: isSearchPresented) { _, isPresented in
+                if !isPresented {
+                    searchText = ""
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

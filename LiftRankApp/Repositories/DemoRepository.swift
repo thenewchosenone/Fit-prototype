@@ -27,6 +27,7 @@ final class InMemoryWorkoutPersistenceStore: WorkoutPersistenceStore {
         snapshot = nil
         legacyRecords = []
     }
+
 }
 
 @MainActor
@@ -315,6 +316,33 @@ final class DemoRepository: ObservableObject {
         persistForumSnapshot()
     }
 
+    func clearLocalUserData() {
+        activeWorkout = nil
+        completedWorkouts.removeAll()
+        pendingWorkoutPRSubmissions.removeAll()
+        workoutPlans.removeAll()
+        workoutPhases.removeAll()
+        workoutWeeks.removeAll()
+        workoutSessions.removeAll()
+        workoutPrescriptions.removeAll()
+        workoutSetLogs.removeAll()
+        workoutFeedback.removeAll()
+        workoutEntries.removeAll()
+        bodyweightEntries.removeAll()
+        workoutPlanProgressionSettings.removeAll()
+        customTrainingExercises.removeAll()
+        communityThreads.removeAll()
+        communityThreadReplies.removeAll()
+        forumPosts.removeAll()
+        forumComments.removeAll()
+        directMessages.removeAll()
+        messageThreads.removeAll()
+        notifications.removeAll()
+        workoutPersistenceStore.reset()
+        forumPersistenceStore.reset()
+        removeForumMedia()
+    }
+
     private func bindWorkoutPersistence() {
         let publishers: [AnyPublisher<Void, Never>] = [
             $workoutPlans.dropFirst().map { _ in () }.eraseToAnyPublisher(),
@@ -409,6 +437,260 @@ final class DemoRepository: ObservableObject {
         workoutSessions.append(contentsOf: seed.sessions)
         workoutPrescriptions.append(contentsOf: seed.prescriptions)
         persistWorkoutSnapshot()
+    }
+
+    /// Populates the private demo routine with a realistic, deterministic
+    /// twelve-week training history. This is only invoked by explicit DEBUG
+    /// demo mode and is idempotent so seeded workouts can never multiply.
+    func seedPersonalWorkoutDemoHistory(referenceDate: Date = .now) {
+        let marker = "[demo:private-history-v1]"
+        guard currentProfile.id == MockData.demoUserID else { return }
+
+        ensurePersonalWorkoutPlan()
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: referenceDate)
+        let weekday = calendar.component(.weekday, from: today)
+        let daysSinceMonday = (weekday + 5) % 7
+        guard let currentMonday = calendar.date(byAdding: .day, value: -daysSinceMonday, to: today),
+              let firstMonday = calendar.date(byAdding: .weekOfYear, value: -11, to: currentMonday) else { return }
+
+        if !workoutPlanProgressionSettings.contains(where: { $0.planID == PersonalWorkoutPlanCatalog.planID }) {
+            workoutPlanProgressionSettings.append(WorkoutPlanProgressionSettings(
+                planID: PersonalWorkoutPlanCatalog.planID,
+                sourceTemplateID: "private_bts_beginner_12",
+                sourceTemplateVersion: 1,
+                startedAt: firstMonday,
+                scheduledWeekdays: [2, 3, 5, 6, 7],
+                method: .rirRepRange,
+                preferredUnit: .pounds,
+                trainingMaxKilograms: [:]
+            ))
+        }
+
+        if completedWorkouts.contains(where: {
+            $0.sourcePlanID == PersonalWorkoutPlanCatalog.planID && $0.notes.contains(marker)
+        }) {
+            persistWorkoutSnapshot()
+            return
+        }
+
+        let weeks = workoutWeeks
+            .filter { $0.planID == PersonalWorkoutPlanCatalog.planID }
+            .sorted { $0.weekNumber < $1.weekNumber }
+        guard weeks.count == 12 else { return }
+
+        var seededWorkouts: [CompletedWorkout] = []
+        var historicalPlanLogs: [WorkoutSetLog] = []
+        var seededFeedback: [WorkoutFeedback] = []
+
+        for week in weeks {
+            guard let weekStart = calendar.date(byAdding: .weekOfYear, value: week.weekNumber - 1, to: firstMonday) else { continue }
+            let sessions = workoutSessions
+                .filter { $0.weekID == week.id }
+                .sorted { $0.order < $1.order }
+
+            for session in sessions {
+                // Three scattered misses keep streaks and calendar states realistic.
+                let isMissed = (week.weekNumber == 2 && session.order == 4) ||
+                    (week.weekNumber == 7 && session.order == 2) ||
+                    (week.weekNumber == 10 && session.order == 0)
+                if isMissed { continue }
+
+                let dayOffset = personalDemoDayOffset(session.day)
+                guard let workoutDay = calendar.date(byAdding: .day, value: dayOffset, to: weekStart),
+                      let completedAt = calendar.date(byAdding: .hour, value: 8, to: workoutDay),
+                      completedAt <= referenceDate else { continue }
+
+                let prescriptions = workoutPrescriptions
+                    .filter { $0.sessionID == session.id }
+                    .sorted { $0.order < $1.order }
+                guard !prescriptions.isEmpty else { continue }
+
+                let workoutID = UUID()
+                let snapshots = prescriptions.map(exerciseSnapshot)
+                var completedLogs: [WorkoutSetLog] = []
+
+                for (exerciseIndex, pair) in zip(prescriptions, snapshots).enumerated() {
+                    let prescription = pair.0
+                    let snapshot = pair.1
+                    let repRange = personalDemoRepRange(prescription.reps)
+                    let workingWeight = personalDemoWeight(
+                        for: prescription,
+                        week: week.weekNumber,
+                        exerciseIndex: exerciseIndex
+                    )
+
+                    if let workingWeight, workingWeight >= 40 {
+                        completedLogs.append(WorkoutSetLog(
+                            id: UUID(),
+                            prescriptionID: snapshot.id,
+                            performedAt: completedAt.addingTimeInterval(Double(exerciseIndex * 420)),
+                            setNumber: 0,
+                            weight: personalDemoRoundedWeight(workingWeight * 0.55),
+                            reps: min(10, repRange.upperBound),
+                            rpe: 4,
+                            isWarmup: true,
+                            isComplete: true,
+                            workoutID: workoutID,
+                            recordedUnit: .pounds,
+                            completionSource: .manual,
+                            hasTriggeredRestTimer: true
+                        ))
+                    }
+
+                    for setIndex in 0..<max(1, prescription.sets) {
+                        let reps = max(repRange.lowerBound, repRange.upperBound - (setIndex % 2))
+                        let weight = workingWeight.map {
+                            personalDemoRoundedWeight($0 + Double(setIndex) * ($0 < 40 ? 2.5 : 5))
+                        }
+                        let rpe = min(10, max(6, 10 - (prescription.targetRIR ?? 2) + (setIndex == prescription.sets - 1 ? 1 : 0)))
+                        let performedAt = completedAt.addingTimeInterval(Double(exerciseIndex * 420 + setIndex * 90))
+
+                        completedLogs.append(WorkoutSetLog(
+                            id: UUID(),
+                            prescriptionID: snapshot.id,
+                            performedAt: performedAt,
+                            setNumber: setIndex + 1,
+                            weight: weight,
+                            reps: reps,
+                            rpe: rpe,
+                            isWarmup: false,
+                            isComplete: true,
+                            workoutID: workoutID,
+                            recordedUnit: .pounds,
+                            completionSource: .manual,
+                            hasTriggeredRestTimer: true
+                        ))
+
+                        // The plan-completion UI intentionally retains a source-
+                        // prescription log after the immutable workout is created.
+                        historicalPlanLogs.append(WorkoutSetLog(
+                            id: UUID(),
+                            prescriptionID: prescription.id,
+                            performedAt: performedAt,
+                            setNumber: setIndex + 1,
+                            weight: weight,
+                            reps: reps,
+                            rpe: rpe,
+                            isWarmup: false,
+                            isComplete: true,
+                            workoutID: nil,
+                            recordedUnit: .pounds,
+                            completionSource: .manual,
+                            hasTriggeredRestTimer: true
+                        ))
+                    }
+                }
+
+                let bodyweight = currentProfile.bodyweightPounds + 2.4 - (Double(week.weekNumber - 1) * 0.42)
+                let duration = TimeInterval(48 + prescriptions.count * 4 + (session.order % 3) * 3) * 60
+                let sessionNote = week.weekNumber == 6
+                    ? "Ramping week—kept every set controlled."
+                    : (week.weekNumber == 12 ? "Finished the block feeling strong." : "Consistent session with clean reps.")
+
+                seededWorkouts.append(CompletedWorkout(
+                    id: workoutID,
+                    source: .planned,
+                    sourceSessionID: session.id,
+                    sourcePlanID: PersonalWorkoutPlanCatalog.planID,
+                    name: session.name,
+                    dayLabel: session.day,
+                    startedAt: completedAt.addingTimeInterval(-duration),
+                    completedAt: completedAt,
+                    duration: duration,
+                    effort: 3 + ((week.weekNumber + session.order) % 3),
+                    notes: "\(marker) \(sessionNote)",
+                    gymID: MockData.demoGymID,
+                    bodyweight: bodyweight,
+                    unit: .pounds,
+                    exercises: snapshots,
+                    sets: completedLogs,
+                    linkedSubmissionIDs: []
+                ))
+                seededFeedback.append(WorkoutFeedback(
+                    id: UUID(),
+                    sessionID: session.id,
+                    completedAt: completedAt,
+                    effort: 3 + ((week.weekNumber + session.order) % 3),
+                    notes: sessionNote
+                ))
+            }
+        }
+
+        guard !seededWorkouts.isEmpty else { return }
+        completedWorkouts.append(contentsOf: seededWorkouts)
+        completedWorkouts.sort { $0.completedAt > $1.completedAt }
+        workoutSetLogs.append(contentsOf: historicalPlanLogs)
+        workoutFeedback.append(contentsOf: seededFeedback)
+        seedPersonalDemoBodyweight(firstMonday: firstMonday, marker: marker, calendar: calendar)
+        refreshAchievementUnlocks(now: referenceDate)
+        persistWorkoutSnapshot()
+    }
+
+    private func seedPersonalDemoBodyweight(firstMonday: Date, marker: String, calendar: Calendar) {
+        guard !bodyweightEntries.contains(where: { $0.notes.contains(marker) }) else { return }
+        let startingWeight = currentProfile.bodyweightPounds + 2.4
+        let entries = (0..<12).compactMap { index -> BodyweightEntry? in
+            guard let date = calendar.date(byAdding: .weekOfYear, value: index, to: firstMonday) else { return nil }
+            let naturalVariation = Double((index % 3) - 1) * 0.25
+            return BodyweightEntry(
+                id: UUID(),
+                week: bodyweightEntries.count + index + 1,
+                targetDate: date,
+                actual: startingWeight - (Double(index) * 0.42) + naturalVariation,
+                notes: "\(marker) Weekly check-in"
+            )
+        }
+        bodyweightEntries.append(contentsOf: entries)
+    }
+
+    private func personalDemoDayOffset(_ day: String) -> Int {
+        ["Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3, "Friday": 4, "Saturday": 5, "Sunday": 6][day] ?? 0
+    }
+
+    private func personalDemoRepRange(_ value: String) -> ClosedRange<Int> {
+        let numbers = value
+            .components(separatedBy: CharacterSet.decimalDigits.inverted)
+            .compactMap { Int($0) }
+        let lower = max(1, numbers.first ?? 8)
+        let upper = max(lower, numbers.dropFirst().first ?? lower)
+        return lower...upper
+    }
+
+    private func personalDemoWeight(
+        for exercise: WorkoutExercisePrescription,
+        week: Int,
+        exerciseIndex: Int
+    ) -> Double? {
+        let name = exercise.exerciseName.lowercased()
+        let bodyPart = exercise.bodyPart.lowercased()
+        let equipment = exercise.equipment.lowercased()
+        if equipment.contains("bodyweight") { return nil }
+
+        let base: Double
+        if name.contains("leg press") { base = 270 }
+        else if name.contains("squat") || name.contains("lunge") { base = equipment.contains("dumbbell") ? 35 : 155 }
+        else if name.contains("deadlift") || name.contains("rdl") { base = 165 }
+        else if name.contains("bench press") || name.contains("incline barbell") { base = 115 }
+        else if name.contains("row") { base = equipment.contains("barbell") ? 105 : 90 }
+        else if name.contains("pulldown") { base = 95 }
+        else if name.contains("shrug") || name.contains("calf") { base = 105 }
+        else if name.contains("chest press") || name.contains("shoulder press") { base = equipment.contains("dumbbell") ? 40 : 85 }
+        else if bodyPart.contains("hamstring") || bodyPart.contains("quad") || bodyPart.contains("glute") { base = 75 }
+        else if bodyPart.contains("chest") || bodyPart.contains("back") || bodyPart.contains("lat") { base = 55 }
+        else if bodyPart.contains("shoulder") || bodyPart.contains("delt") { base = 15 }
+        else if bodyPart.contains("bicep") || bodyPart.contains("tricep") { base = 30 }
+        else { base = 50 }
+
+        let progression = 1 + Double(week - 1) * 0.022
+        let sessionVariation = Double((exerciseIndex % 3) - 1) * (base < 40 ? 1.25 : 2.5)
+        return max(2.5, (base * progression) + sessionVariation)
+    }
+
+    private func personalDemoRoundedWeight(_ value: Double) -> Double {
+        let increment = value < 40 ? 2.5 : 5.0
+        return (value / increment).rounded() * increment
     }
 
     private func bindForumPersistence() {

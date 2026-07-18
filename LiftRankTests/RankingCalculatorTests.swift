@@ -1882,7 +1882,7 @@ final class RankingCalculatorTests: XCTestCase {
         let templates = WorkoutProgramCatalog.templates
         let catalogIDs = Set(MockData.trainingExerciseLibrary.map(\.id))
 
-        XCTAssertEqual(templates.count, 5)
+        XCTAssertEqual(templates.count, 7)
         for template in templates {
             XCTAssertEqual(template.sessions.count, template.daysPerWeek, template.name)
             XCTAssertFalse(template.sessions.flatMap(\.exercises).isEmpty, template.name)
@@ -2003,6 +2003,44 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(repository.workoutPlanProgressionSettings.first { $0.planID == plan.id }?.sourceTemplateID, template.id)
         XCTAssertEqual(Set(repository.workoutPrescriptions.filter { sessions.map(\.id).contains($0.sessionID) }.map(\.id)).count,
                        repository.workoutPrescriptions.filter { sessions.map(\.id).contains($0.sessionID) }.count)
+    }
+
+    @MainActor
+    func testPrivateRoutineDemoHistoryFillsTwelveWeeksWithoutDuplicating() throws {
+        let repository = DemoRepository()
+        let referenceDate = try XCTUnwrap(
+            Calendar.current.date(from: DateComponents(year: 2026, month: 7, day: 18, hour: 12))
+        )
+
+        repository.seedPersonalWorkoutDemoHistory(referenceDate: referenceDate)
+        let workouts = repository.completedWorkouts.filter {
+            $0.sourcePlanID == PersonalWorkoutPlanCatalog.planID &&
+                $0.notes.contains("[demo:private-history-v1]")
+        }
+        let sourcePrescriptionIDs = Set(repository.workoutPrescriptions
+            .filter { prescription in
+                repository.workoutSessions.contains { session in
+                    session.id == prescription.sessionID &&
+                        repository.workoutWeeks.contains {
+                            $0.id == session.weekID && $0.planID == PersonalWorkoutPlanCatalog.planID
+                        }
+                }
+            }
+            .map(\.id))
+        let loggedPrescriptionIDs = Set(repository.workoutSetLogs.filter(\.isComplete).map(\.prescriptionID))
+
+        XCTAssertEqual(workouts.count, 57)
+        XCTAssertEqual(Set(workouts.map(\.id)).count, workouts.count)
+        XCTAssertTrue(workouts.allSatisfy { !$0.completedWorkingSets.isEmpty })
+        XCTAssertTrue(workouts.allSatisfy { $0.completedAt <= referenceDate })
+        XCTAssertFalse(sourcePrescriptionIDs.isDisjoint(with: loggedPrescriptionIDs))
+        XCTAssertEqual(repository.bodyweightEntries.filter { $0.notes.contains("[demo:private-history-v1]") }.count, 12)
+
+        repository.seedPersonalWorkoutDemoHistory(referenceDate: referenceDate)
+        XCTAssertEqual(repository.completedWorkouts.filter {
+            $0.sourcePlanID == PersonalWorkoutPlanCatalog.planID &&
+                $0.notes.contains("[demo:private-history-v1]")
+        }.count, 57)
     }
 
     @MainActor

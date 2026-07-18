@@ -6,7 +6,9 @@ enum WorkoutProgramCatalog {
         bodybuildingUpperLower,
         bodybuildingPushPullLegs,
         beginnerPowerlifting,
-        intermediatePowerlifting
+        intermediatePowerlifting,
+        cablesOnlyFoundation,
+        freeWeightsOnlyFoundation
     ]
 
     static func template(id: String) -> WorkoutProgramTemplate? {
@@ -152,6 +154,30 @@ enum WorkoutProgramCatalog {
             .init(dayIndex: 7, name: "Bench Intensity + Pull", exercises: [exercise("barbell_bench_press", 4, "3", 210), exercise("conventional_deadlift", 2, "5", 240, "Use a lighter technique load."), exercise("seated_cable_row", 3, "8-12"), exercise("triceps_pressdown", 3, "10-15", 75)])
         ],
         requiredTrainingMaxExerciseIDs: ["back_squat", "barbell_bench_press", "conventional_deadlift", "barbell_overhead_press"]
+    )
+
+    private static let cablesOnlyFoundation = WorkoutProgramTemplate(
+        id: "cables_only_foundation_12", version: 1, name: "Cables Only",
+        summary: "A four-day hypertrophy plan built entirely around cable stations.",
+        category: .cablesOnly, level: .beginner, daysPerWeek: 4, defaultProgression: .rirRepRange,
+        sessions: [
+            .init(dayIndex: 2, name: "Upper A", exercises: [exercise("cable_fly", 3, "8-12"), exercise("seated_cable_row", 3, "8-12"), exercise("cable_lateral_raise", 3, "12-20", 60), exercise("triceps_pressdown", 3, "10-15", 75)]),
+            .init(dayIndex: 3, name: "Lower A", exercises: [exercise("cable_kickback", 4, "10-15", 75), exercise("cable_crunch", 4, "10-15", 60)]),
+            .init(dayIndex: 5, name: "Upper B", exercises: [exercise("cable_fly", 3, "10-15"), exercise("lat_pulldown", 3, "8-12"), exercise("cable_pullover", 3, "10-15", 75), exercise("rear_delt_fly", 3, "12-20", 60), exercise("overhead_triceps_extension", 3, "10-15", 75)]),
+            .init(dayIndex: 6, name: "Lower B", exercises: [exercise("cable_kickback", 4, "12-20", 75), exercise("cable_crunch", 4, "12-20", 60)])
+        ], requiredTrainingMaxExerciseIDs: []
+    )
+
+    private static let freeWeightsOnlyFoundation = WorkoutProgramTemplate(
+        id: "free_weights_only_foundation_12", version: 1, name: "Free Weights Only",
+        summary: "A four-day strength and muscle plan using barbells, dumbbells, and bodyweight.",
+        category: .freeWeightsOnly, level: .beginner, daysPerWeek: 4, defaultProgression: .rirRepRange,
+        sessions: [
+            .init(dayIndex: 2, name: "Upper A", exercises: [exercise("barbell_bench_press", 3, "6-10", 180), exercise("single_arm_db_row", 3, "8-12"), exercise("db_shoulder_press", 3, "8-12"), exercise("incline_db_curl", 2, "10-15", 75)]),
+            .init(dayIndex: 3, name: "Lower A", exercises: [exercise("back_squat", 3, "6-10", 180), exercise("romanian_deadlift", 3, "8-10", 150), exercise("bulgarian_split_squat", 3, "8-12"), exercise("farmers_carry", 3, "30-60 sec", 90)]),
+            .init(dayIndex: 5, name: "Upper B", exercises: [exercise("barbell_overhead_press", 3, "6-10", 150), exercise("pull_up", 3, "6-10", 150), exercise("incline_db_press", 3, "8-12"), exercise("single_arm_db_row", 3, "8-12")]),
+            .init(dayIndex: 6, name: "Lower B", exercises: [exercise("conventional_deadlift", 2, "4-6", 210), exercise("back_squat", 3, "8-10", 180), exercise("hip_thrust", 3, "8-12", 150), exercise("bulgarian_split_squat", 3, "8-10")])
+        ], requiredTrainingMaxExerciseIDs: ["back_squat", "barbell_bench_press", "conventional_deadlift", "barbell_overhead_press"]
     )
 }
 

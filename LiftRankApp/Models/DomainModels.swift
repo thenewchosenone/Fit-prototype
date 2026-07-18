@@ -62,6 +62,89 @@ enum VerificationStatus: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum CompetitiveMovement: String, Codable, CaseIterable, Identifiable {
+    case barbellBenchPress = "barbell_bench_press"
+    case backSquat = "back_squat"
+    case conventionalDeadlift = "conventional_deadlift"
+    case sumoDeadlift = "sumo_deadlift"
+    case standingBarbellOverheadPress = "standing_barbell_overhead_press"
+    case dumbbellBenchPress = "dumbbell_bench_press"
+    case bentOverBarbellRow = "bent_over_barbell_row"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .barbellBenchPress: "Barbell Bench Press"
+        case .backSquat: "Back Squat"
+        case .conventionalDeadlift: "Conventional Deadlift"
+        case .sumoDeadlift: "Sumo Deadlift"
+        case .standingBarbellOverheadPress: "Standing Barbell Overhead Press"
+        case .dumbbellBenchPress: "Dumbbell Bench Press"
+        case .bentOverBarbellRow: "Bent-Over Barbell Row"
+        }
+    }
+
+    var canonicalExerciseID: String {
+        switch self {
+        case .barbellBenchPress: "barbell-bench-press"
+        case .backSquat: "back-squat"
+        case .conventionalDeadlift: "conventional-deadlift"
+        case .sumoDeadlift: "sumo-deadlift"
+        case .standingBarbellOverheadPress: "standing-barbell-overhead-press"
+        case .dumbbellBenchPress: "dumbbell-bench-press"
+        case .bentOverBarbellRow: "barbell-row"
+        }
+    }
+
+    var recordsWeightPerHand: Bool { self == .dumbbellBenchPress }
+
+    static func resolve(exerciseID: String) -> CompetitiveMovement? {
+        switch exerciseID.lowercased().replacingOccurrences(of: "-", with: "_") {
+        case "bench", "barbell_bench_press", "flat_barbell_bench_press": .barbellBenchPress
+        case "squat", "back_squat": .backSquat
+        case "deadlift", "conventional_deadlift": .conventionalDeadlift
+        case "sumo_deadlift": .sumoDeadlift
+        case "press", "ohp", "barbell_overhead_press", "standing_barbell_overhead_press": .standingBarbellOverheadPress
+        case "dumbbell_bench_press", "flat_dumbbell_bench_press": .dumbbellBenchPress
+        case "barbell_row", "bent_over_barbell_row", "bentover_barbell_row": .bentOverBarbellRow
+        default: nil
+        }
+    }
+}
+
+enum LiftEvidenceStatus: String, Codable, CaseIterable, Identifiable {
+    case selfReported = "self_reported"
+    case videoBacked = "video_backed"
+    var id: String { rawValue }
+}
+
+enum LiftModerationStatus: String, Codable, CaseIterable, Identifiable {
+    case clear
+    case underReview = "under_review"
+    case replacementRequested = "replacement_requested"
+    case rejected
+    var id: String { rawValue }
+}
+
+enum LiftReportReason: String, Codable, CaseIterable, Identifiable {
+    case incorrectWeight = "Incorrect weight"
+    case mismatchedExercise = "Mismatched exercise"
+    case unusableVideo = "Unusable or edited video"
+    case depth = "Depth"
+    case rangeOfMotion = "Range of motion"
+    case lockout = "Lockout"
+    case other = "Other"
+    var id: String { rawValue }
+}
+
+enum LiftModeratorDecision: String, Codable, CaseIterable, Identifiable {
+    case uphold
+    case reject
+    case requestReplacement = "request_replacement"
+    var id: String { rawValue }
+}
+
 enum LiftVisibility: String, Codable, CaseIterable, Identifiable {
     case publicLift = "Public"
     case followers = "Followers"
@@ -566,6 +649,109 @@ struct LiftSubmission: Identifiable, Codable, Hashable {
     var leaderboardEligibleAt: Date = .distantPast
     var createdAt: Date
     var updatedAt: Date
+    var competitiveMovement: CompetitiveMovement? = nil
+    var evidenceStatus: LiftEvidenceStatus? = nil
+    var moderationStatus: LiftModerationStatus? = nil
+    var videoAssetID: UUID? = nil
+    var weightPerHand: Bool? = nil
+
+    var resolvedEvidenceStatus: LiftEvidenceStatus {
+        if let evidenceStatus { return evidenceStatus }
+        return verificationStatus == .selfReported ? .selfReported : .videoBacked
+    }
+
+    var resolvedModerationStatus: LiftModerationStatus {
+        moderationStatus ?? (verificationStatus == .rejected ? .rejected : .clear)
+    }
+
+    var isLaunchLeaderboardEligible: Bool {
+        visibility == .publicLift &&
+        repetitions == 1 &&
+        isActualOneRepMax &&
+        competitiveMovement != nil &&
+        resolvedEvidenceStatus == .videoBacked &&
+        resolvedModerationStatus != .rejected
+    }
+}
+
+struct LiftMediaAsset: Identifiable, Codable, Hashable {
+    var id: UUID
+    var ownerID: UUID
+    var storagePath: String
+    var contentType: String
+    var byteCount: Int
+    var createdAt: Date
+}
+
+struct LiftReportRecord: Identifiable, Codable, Hashable {
+    var id: UUID
+    var liftID: UUID
+    var reporterID: UUID
+    var reason: LiftReportReason
+    var note: String
+    var isOpen: Bool
+    var createdAt: Date
+}
+
+struct LiftVoteRecord: Identifiable, Codable, Hashable {
+    var id: String { "\(liftID.uuidString):\(voterID.uuidString)" }
+    var liftID: UUID
+    var voterID: UUID
+    var value: CommunityVote
+    var createdAt: Date
+}
+
+struct LiftModerationActionRecord: Identifiable, Codable, Hashable {
+    var id: UUID
+    var liftID: UUID
+    var actorID: UUID
+    var decision: LiftModeratorDecision
+    var note: String
+    var createdAt: Date
+}
+
+struct UserBlockRecord: Identifiable, Codable, Hashable {
+    var id: String { "\(blockerID.uuidString):\(blockedID.uuidString)" }
+    var blockerID: UUID
+    var blockedID: UUID
+    var createdAt: Date
+}
+
+struct PushDeviceRegistration: Identifiable, Codable, Hashable {
+    var id: UUID
+    var userID: UUID
+    var deviceID: String
+    var token: String
+    var environment: String
+    var updatedAt: Date
+}
+
+struct LegalAcceptanceRecord: Identifiable, Codable, Hashable {
+    var id: UUID
+    var userID: UUID
+    var documentKind: String
+    var documentVersion: String
+    var acceptedAt: Date
+}
+
+enum AnalyticsEventName: String, Codable, CaseIterable, Identifiable {
+    case signupCompleted = "signup_completed"
+    case onboardingCompleted = "onboarding_completed"
+    case firstWorkoutStarted = "first_workout_started"
+    case workoutCompleted = "workout_completed"
+    case prSubmitted = "pr_submitted"
+    case videoBackedPRSubmitted = "video_backed_pr_submitted"
+    case workoutShared = "workout_shared"
+    case weeklyReturn = "weekly_return"
+    var id: String { rawValue }
+}
+
+struct AnalyticsEventRecord: Identifiable, Codable, Hashable {
+    var id: UUID
+    var userID: UUID
+    var name: AnalyticsEventName
+    var occurredAt: Date
+    var properties: [String: String]
 }
 
 struct LeaderboardEntry: Identifiable, Hashable {
@@ -1219,6 +1405,8 @@ enum WorkoutProgressionMethod: String, CaseIterable, Codable, Hashable, Identifi
 enum WorkoutProgramCategory: String, CaseIterable, Codable, Hashable, Identifiable {
     case bodybuilding = "Bodybuilding"
     case powerlifting = "Powerlifting"
+    case cablesOnly = "Cables Only"
+    case freeWeightsOnly = "Free Weights Only"
     case general = "General"
 
     var id: String { rawValue }
@@ -1422,6 +1610,36 @@ struct CompletedWorkout: Identifiable, Codable, Hashable {
     var totalVolume: Double {
         completedWorkingSets.reduce(0) { $0 + $1.volume }
     }
+}
+
+/// A cross-device representation of a plan. Active workout state is deliberately
+/// excluded so an in-progress session never transfers between devices.
+struct WorkoutPlanDocument: Identifiable, Codable, Hashable {
+    var id: UUID
+    var ownerID: UUID
+    var revision: Int
+    var name: String
+    var payload: Data
+    var updatedAt: Date
+    var conflictOfRevision: Int? = nil
+    var isConflictCopy: Bool = false
+    var isSeededDemoData: Bool = false
+}
+
+/// Completed workouts are immutable server snapshots keyed by the client UUID.
+/// Retrying an offline upload therefore cannot create a duplicate workout.
+struct CompletedWorkoutSnapshot: Identifiable, Codable, Hashable {
+    var id: UUID
+    var ownerID: UUID
+    var payload: Data
+    var completedAt: Date
+    var uploadedAt: Date? = nil
+    var isSeededDemoData: Bool = false
+}
+
+enum WorkoutSyncResult: Codable, Hashable {
+    case saved(WorkoutPlanDocument)
+    case conflict(server: WorkoutPlanDocument, localCopy: WorkoutPlanDocument)
 }
 
 struct PlateauPerformance: Identifiable, Hashable {

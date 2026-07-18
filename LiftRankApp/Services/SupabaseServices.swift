@@ -71,6 +71,15 @@ final class SupabaseAuthenticationService: AuthenticationService {
         catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
+    func signInWithApple(identityToken: String, nonce: String) async throws -> AccountSession {
+        do {
+            let session = try await client.auth.signInWithIdToken(
+                credentials: OpenIDConnectCredentials(provider: .apple, idToken: identityToken, nonce: nonce)
+            )
+            return accountSession(session)
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
     func signInDemo() async throws -> UserProfile { MockData.demoProfile }
 
     func signOut() async throws {
@@ -506,4 +515,275 @@ final class SupabaseExerciseCatalogService: ExerciseCatalogService {
             throw SupabaseServiceErrorMapper.map(error)
         }
     }
+}
+
+// MARK: - Public launch services
+
+private struct LiftIDParameters: Encodable {
+    let liftID: UUID
+    enum CodingKeys: String, CodingKey { case liftID = "lift_id" }
+}
+
+private struct LiftVoteParameters: Encodable {
+    let liftID: UUID
+    let voteValue: Int?
+    enum CodingKeys: String, CodingKey { case liftID = "lift_id", voteValue = "vote_value" }
+}
+
+private struct LiftReportParameters: Encodable {
+    let liftID: UUID
+    let reportReason: String
+    let reportNote: String
+    enum CodingKeys: String, CodingKey { case liftID = "lift_id", reportReason = "report_reason", reportNote = "report_note" }
+}
+
+@MainActor
+final class SupabaseLiftService: LiftService {
+    private let client: SupabaseClient
+    init(client: SupabaseClient) { self.client = client }
+    func submissions() async throws -> [LiftSubmission] {
+        do { return try await client.rpc("get_visible_lifts").execute().value }
+        catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+    func submit(_ submission: LiftSubmission) async throws -> LiftSubmission {
+        do { return try await client.rpc("submit_competitive_lift", params: submission).single().execute().value }
+        catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+    func vote(liftID: UUID, vote: CommunityVote?) async throws {
+        do { try await client.rpc("vote_on_lift", params: LiftVoteParameters(liftID: liftID, voteValue: vote?.rawValue)).execute() }
+        catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+    func report(liftID: UUID, reason: LiftReportReason, note: String) async throws {
+        do { try await client.rpc("report_lift", params: LiftReportParameters(liftID: liftID, reportReason: reason.rawValue, reportNote: note)).execute() }
+        catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+}
+
+private struct LeaderboardParameters: Encodable {
+    let exerciseID: String?
+    let rankingType: String
+    let gymID: UUID?
+    let city: String?
+    let region: String?
+    let country: String?
+    let ageBand: String?
+    let verifiedOnly: Bool
+    let timeRange: String
+    enum CodingKeys: String, CodingKey {
+        case exerciseID = "exercise_id", rankingType = "ranking_type", gymID = "gym_id", city, region, country
+        case ageBand = "age_band", verifiedOnly = "verified_only", timeRange = "time_range"
+    }
+}
+
+private struct LeaderboardRowDTO: Codable {
+    let rank: Int
+    let profile: UserProfile
+    let lift: LiftSubmission
+    let rankMovement: Int
+    let score: Double
+    let powerliftingBreakdown: PowerliftingBreakdownDTO?
+    enum CodingKeys: String, CodingKey {
+        case rank, profile, lift, score
+        case rankMovement = "rankMovement", powerliftingBreakdown = "powerliftingBreakdown"
+    }
+}
+private struct PowerliftingBreakdownDTO: Codable {
+    let squatKilograms: Double?
+    let benchKilograms: Double?
+    let deadliftKilograms: Double?
+}
+
+@MainActor
+final class SupabaseLeaderboardService: LeaderboardService {
+    private let client: SupabaseClient
+    init(client: SupabaseClient) { self.client = client }
+    func entries(filters: LeaderboardFilters, verifiedOnly: Bool) async throws -> [LeaderboardEntry] {
+        do {
+            let params = LeaderboardParameters(exerciseID: filters.exerciseID, rankingType: filters.rankingType.rawValue, gymID: filters.gymID, city: filters.city, region: filters.state, country: filters.country, ageBand: filters.ageGroup, verifiedOnly: verifiedOnly, timeRange: filters.timeRange)
+            let rows: [LeaderboardRowDTO] = try await client.rpc("get_leaderboard", params: params).execute().value
+            return rows.map { row in
+                LeaderboardEntry(rank: row.rank, profile: row.profile, lift: row.lift, rankMovement: row.rankMovement, score: row.score, powerliftingBreakdown: row.powerliftingBreakdown.map { .init(squatKilograms: $0.squatKilograms, benchKilograms: $0.benchKilograms, deadliftKilograms: $0.deadliftKilograms) })
+            }
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+}
+
+private struct BlockDTO: Codable {
+    let blockerID: UUID
+    let blockedID: UUID
+    let createdAt: Date
+    enum CodingKeys: String, CodingKey { case blockerID = "blocker_id", blockedID = "blocked_id", createdAt = "created_at" }
+}
+private struct ActivityDTO: Codable {
+    let id: UUID
+    let userID: UUID
+    let username: String
+    let displayName: String
+    let title: String
+    let detail: String
+    let liftID: UUID?
+    let createdAt: Date
+    let isLiked: Bool
+    let isSaved: Bool
+    enum CodingKeys: String, CodingKey {
+        case id, username, title, detail
+        case userID = "user_id", displayName = "display_name", liftID = "lift_id"
+        case createdAt = "created_at", isLiked = "is_liked", isSaved = "is_saved"
+    }
+}
+
+@MainActor
+final class SupabaseSocialService: SocialService {
+    private let client: SupabaseClient
+    init(client: SupabaseClient) { self.client = client }
+    func feed() async throws -> [ActivityItem] {
+        do {
+            let rows: [ActivityDTO] = try await client.rpc("get_followed_activity").execute().value
+            return rows.map { row in
+                let profile = UserProfile(
+                    id: row.userID, username: row.username, displayName: row.displayName,
+                    ageGroup: "Hidden", sexCategory: .open, heightInches: 0, bodyweightPounds: 0,
+                    preferredUnit: .pounds, city: "", state: "", primaryGymID: UUID(), primaryGymName: "Hidden",
+                    yearsExperience: 0, experienceLevel: .beginner, profileImageName: "person.crop.circle", followers: 0, following: 0,
+                    hideExactAge: true, hideBodyweight: true, hideCity: true, hideGym: true, hideLiftVideos: false
+                )
+                return ActivityItem(id: row.id, profile: profile, title: row.title, detail: row.detail, liftID: row.liftID, createdAt: row.createdAt, isLiked: row.isLiked, isSaved: row.isSaved)
+            }
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+    func block(userID: UUID) async throws { try await rpc("block_user", userID) }
+    func unblock(userID: UUID) async throws { try await rpc("unblock_user", userID) }
+    func blocks() async throws -> [UserBlockRecord] {
+        do {
+            let rows: [BlockDTO] = try await client.from("user_blocks").select().order("created_at", ascending: false).execute().value
+            return rows.map { .init(blockerID: $0.blockerID, blockedID: $0.blockedID, createdAt: $0.createdAt) }
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+    private func rpc(_ name: String, _ userID: UUID) async throws {
+        do { try await client.rpc(name, params: ["target_user_id": userID]).execute() }
+        catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+}
+
+@MainActor
+final class SupabaseCommunityService: CommunityService {
+    private let client: SupabaseClient
+    init(client: SupabaseClient) { self.client = client }
+    private var migrationError: LiftRankServiceError { .server("The production community requires the public-launch migration.") }
+    func communities() async throws -> [ForumCommunity] { try await client.rpc("get_visible_communities").execute().value }
+    func posts(in destination: ForumDestination?) async throws -> [ForumPost] { throw migrationError }
+    func comments(for post: ForumPost) async throws -> [ForumComment] { throw migrationError }
+    func join(community: ForumCommunity, note: String) async throws -> ForumMembershipStatus? { throw migrationError }
+    func leave(community: ForumCommunity) async throws { throw migrationError }
+    func createPost(_ post: ForumPost) async throws -> Bool { throw migrationError }
+    func addComment(to post: ForumPost, parentCommentID: UUID?, body: String) async throws -> ForumComment? { throw migrationError }
+    func vote(post: ForumPost, vote: CommunityVote?) async throws { throw migrationError }
+    func vote(comment: ForumComment, vote: CommunityVote?) async throws { throw migrationError }
+    func toggleSaved(post: ForumPost) async throws { throw migrationError }
+    func toggleWatched(post: ForumPost) async throws { throw migrationError }
+    func vote(pollPost: ForumPost, optionID: UUID) async throws { throw migrationError }
+    func report(targetType: ForumReportTargetType, targetID: UUID, communityID: UUID?, reason: CommunityReportReason, note: String) async throws -> Bool { throw migrationError }
+    func moderate(post: ForumPost, action: ForumModerationActionKind, reason: String) async throws { throw migrationError }
+    func threads() async throws -> [CommunityThread] { throw migrationError }
+    func replies(for thread: CommunityThread) async throws -> [CommunityThreadReply] { throw migrationError }
+    func createThread(_ thread: CommunityThread) async throws -> CommunityThread { throw migrationError }
+    func addReply(to thread: CommunityThread, body: String) async throws -> CommunityThreadReply? { throw migrationError }
+    func voteThread(_ thread: CommunityThread, vote: CommunityVote?) async throws { throw migrationError }
+    func voteReply(_ reply: CommunityThreadReply, vote: CommunityVote?) async throws { throw migrationError }
+    func report(targetType: CommunityReportTargetType, targetID: UUID, reason: CommunityReportReason, note: String) async throws { throw migrationError }
+    func moderate(_ thread: CommunityThread, operation: CommunityModerationOperation, reason: String?) async throws { throw migrationError }
+}
+
+@MainActor
+final class SupabaseMessagingService: MessagingService {
+    private struct SendParameters: Encodable {
+        let targetThreadID: UUID
+        let messageBody: String
+        enum CodingKeys: String, CodingKey { case targetThreadID = "target_thread_id", messageBody = "message_body" }
+    }
+    private let client: SupabaseClient
+    init(client: SupabaseClient) { self.client = client }
+    func threads() async throws -> [DirectMessageThread] { do { return try await client.rpc("get_message_threads").execute().value } catch { throw SupabaseServiceErrorMapper.map(error) } }
+    func messages(for thread: DirectMessageThread) async throws -> [DirectMessage] { do { return try await client.rpc("get_thread_messages", params: ["target_thread_id": thread.id]).execute().value } catch { throw SupabaseServiceErrorMapper.map(error) } }
+    func sendMessage(in thread: DirectMessageThread, body: String) async throws -> DirectMessage? { do { return try await client.rpc("send_message", params: SendParameters(targetThreadID: thread.id, messageBody: body)).single().execute().value } catch { throw SupabaseServiceErrorMapper.map(error) } }
+    func deleteMessage(_ message: DirectMessage) async throws { try await rpc("delete_message", id: message.id) }
+    func deleteThread(_ thread: DirectMessageThread) async throws { try await rpc("hide_message_thread", id: thread.id) }
+    func reportMessage(_ message: DirectMessage, reason: MessageReportReason, note: String) async throws { do { try await client.rpc("report_message", params: ["target_message_id": message.id.uuidString, "report_reason": reason.rawValue, "report_note": note]).execute() } catch { throw SupabaseServiceErrorMapper.map(error) } }
+    private func rpc(_ name: String, id: UUID) async throws { do { try await client.rpc(name, params: ["target_id": id]).execute() } catch { throw SupabaseServiceErrorMapper.map(error) } }
+}
+
+private struct ModerateLiftParameters: Encodable {
+    let liftID: UUID; let decision: String; let note: String
+    enum CodingKeys: String, CodingKey { case liftID = "lift_id", decision, note }
+}
+@MainActor
+final class SupabaseVerificationService: VerificationService {
+    private let client: SupabaseClient
+    init(client: SupabaseClient) { self.client = client }
+    func pendingSubmissions() async throws -> [LiftSubmission] { do { return try await client.rpc("get_moderation_queue").execute().value } catch { throw SupabaseServiceErrorMapper.map(error) } }
+    func updateVerification(for lift: LiftSubmission, status: VerificationStatus, note: String?) async throws -> LiftSubmission {
+        let decision: LiftModeratorDecision = status == .rejected ? .reject : .uphold
+        return try await moderate(liftID: lift.id, decision: decision, note: note ?? "")
+    }
+    func moderate(liftID: UUID, decision: LiftModeratorDecision, note: String) async throws -> LiftSubmission { do { return try await client.rpc("moderate_lift", params: ModerateLiftParameters(liftID: liftID, decision: decision.rawValue, note: note)).single().execute().value } catch { throw SupabaseServiceErrorMapper.map(error) } }
+}
+
+private struct MediaDTO: Codable {
+    let id: UUID; let ownerID: UUID; let storagePath: String; let contentType: String; let byteCount: Int; let createdAt: Date
+    enum CodingKeys: String, CodingKey { case id; case ownerID = "owner_id", storagePath = "storage_path", contentType = "content_type", byteCount = "byte_count", createdAt = "created_at" }
+}
+@MainActor
+final class SupabaseMediaUploadService: MediaUploadService {
+    private let client: SupabaseClient
+    init(client: SupabaseClient) { self.client = client }
+    func upload(localURL: URL?) async throws -> URL? { guard let localURL else { return nil }; let asset = try await uploadLiftVideo(localURL: localURL, liftID: UUID(), progress: { _ in }); return try await signedPlaybackURL(assetID: asset.id) }
+    func uploadLiftVideo(localURL: URL, liftID: UUID, progress: @escaping @Sendable (Double) -> Void) async throws -> LiftMediaAsset {
+        do {
+            let userID = try await client.auth.session.user.id
+            let assetID = UUID(); let path = "\(userID.uuidString)/\(liftID.uuidString)/\(assetID.uuidString).mov"
+            _ = try await client.storage.from("lift-videos").upload(path, fileURL: localURL, options: FileOptions(cacheControl: "3600", contentType: "video/quicktime", upsert: false))
+            progress(0.9)
+            let size = (try? localURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            let dto: MediaDTO = try await client.rpc("complete_lift_media_upload", params: ["asset_id": assetID.uuidString, "lift_id": liftID.uuidString, "storage_path": path, "content_type": "video/quicktime", "byte_count": String(size)]).single().execute().value
+            progress(1)
+            return .init(id: dto.id, ownerID: dto.ownerID, storagePath: dto.storagePath, contentType: dto.contentType, byteCount: dto.byteCount, createdAt: dto.createdAt)
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+    func signedPlaybackURL(assetID: UUID) async throws -> URL {
+        do { let dto: MediaDTO = try await client.from("lift_media_assets").select().eq("id", value: assetID).single().execute().value; return try await client.storage.from("lift-videos").createSignedURL(path: dto.storagePath, expiresIn: 300) }
+        catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+}
+
+@MainActor
+final class SupabaseNotificationService: NotificationService {
+    private let client: SupabaseClient
+    init(client: SupabaseClient) { self.client = client }
+    func notifications() async throws -> [NotificationItem] { do { return try await client.rpc("get_notifications").execute().value } catch { throw SupabaseServiceErrorMapper.map(error) } }
+    func markRead(notificationID: UUID) async throws { do { try await client.from("notifications").update(["read_at": Date().ISO8601Format()]).eq("id", value: notificationID).execute() } catch { throw SupabaseServiceErrorMapper.map(error) } }
+    func registerDevice(_ registration: PushDeviceRegistration) async throws { do { try await client.rpc("register_device_token", params: registration).execute() } catch { throw SupabaseServiceErrorMapper.map(error) } }
+    func revokeDevice(deviceID: String) async throws { do { try await client.rpc("revoke_device_token", params: ["device_id": deviceID]).execute() } catch { throw SupabaseServiceErrorMapper.map(error) } }
+}
+
+@MainActor
+final class SupabaseWorkoutSyncService: WorkoutSyncService {
+    private let client: SupabaseClient
+    init(client: SupabaseClient) { self.client = client }
+    func plans() async throws -> [WorkoutPlanDocument] { do { return try await client.rpc("get_workout_plan_documents").execute().value } catch { throw SupabaseServiceErrorMapper.map(error) } }
+    func savePlan(_ document: WorkoutPlanDocument, expectedRevision: Int) async throws -> WorkoutSyncResult {
+        guard !document.isSeededDemoData else { throw LiftRankServiceError.invalidInput("Demo data cannot be synced.") }
+        do { return try await client.rpc("save_workout_plan_document", params: document).single().execute().value } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+    func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot] { do { return try await client.rpc("get_completed_workout_snapshots", params: ["since_date": since?.ISO8601Format() ?? ""]).execute().value } catch { throw SupabaseServiceErrorMapper.map(error) } }
+    func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws { guard !snapshot.isSeededDemoData else { return }; do { try await client.rpc("upload_completed_workout_snapshot", params: snapshot).execute() } catch { throw SupabaseServiceErrorMapper.map(error) } }
+}
+
+struct SupabaseAnalyticsService: AnalyticsService {
+    let client: SupabaseClient
+    func track(_ event: AnalyticsEventRecord) async { _ = try? await client.rpc("record_analytics_event", params: event).execute() }
+}
+
+struct SupabaseAccountDeletionService: AccountDeletionService {
+    let client: SupabaseClient
+    func deleteAccount() async throws { do { try await client.functions.invoke("delete-account") } catch { throw SupabaseServiceErrorMapper.map(error) } }
 }

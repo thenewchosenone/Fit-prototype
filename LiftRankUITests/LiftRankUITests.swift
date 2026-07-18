@@ -1,11 +1,20 @@
 import XCTest
 
 final class LiftRankUITests: XCTestCase {
-    private func launchDemo() -> XCUIApplication {
+    private func launchDemo(arguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments += ["-uiTestingDemoMode"]
+        app.launchArguments += ["-uiTestingDemoMode"] + arguments
         app.launch()
         return app
+    }
+
+    func testHomeActiveWorkoutCardResumesWorkout() {
+        let app = launchDemo(arguments: ["-uiTestingActiveWorkout"])
+        let resume = app.buttons["home.activeWorkout.resume"]
+        XCTAssertTrue(resume.waitForExistence(timeout: 8))
+        resume.tap()
+        XCTAssertTrue(app.staticTexts["Upper Strength"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Finish Workout"].exists || app.buttons["Workout options"].exists)
     }
 
     func testLaunchesIntoAuthenticatedDemoWorkspace() {
@@ -20,12 +29,58 @@ final class LiftRankUITests: XCTestCase {
         let tabBar = app.tabBars.firstMatch
         XCTAssertTrue(tabBar.waitForExistence(timeout: 8))
 
-        for title in ["Leaderboards", "Track", "Community", "Profile", "Home"] {
+        for title in ["Leaderboards", "Track", "Community", "Me", "Home"] {
             let tab = tabBar.buttons[title]
             XCTAssertTrue(tab.exists, "Missing \(title) tab")
             tab.tap()
             XCTAssertTrue(tab.isSelected, "\(title) tab did not become selected")
         }
+    }
+
+    func testMeHubOpensAwardsAndPublicProfileEntryPoints() {
+        let app = launchDemo()
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
+        let meTab = app.tabBars.buttons["Me"]
+        XCTAssertTrue(meTab.waitForExistence(timeout: 5))
+        meTab.tap()
+        XCTAssertTrue(app.navigationBars["Me"].waitForExistence(timeout: 5))
+
+        let awards = app.descendants(matching: .any)["me.awards"]
+        XCTAssertTrue(awards.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Public athlete profile"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 5))
+
+        awards.tap()
+        XCTAssertTrue(app.otherElements["awards.screen"].waitForExistence(timeout: 5) || app.navigationBars["Awards"].exists)
+        XCTAssertTrue(app.staticTexts["Personal records"].exists)
+        XCTAssertTrue(app.staticTexts["Progress awards"].exists)
+    }
+
+    func testFindSubstituteOpensRecommendationsAndExerciseDetails() {
+        let app = launchDemo()
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
+        app.tabBars.buttons["Track"].tap()
+        app.buttons["Library"].tap()
+
+        let bench = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Barbell Bench Press")).firstMatch
+        XCTAssertTrue(bench.waitForExistence(timeout: 5))
+        bench.tap()
+
+        let substitute = app.buttons["exercise.findSubstitute"]
+        var attempts = 0
+        while !substitute.exists && attempts < 6 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(substitute.waitForExistence(timeout: 3))
+        substitute.tap()
+
+        XCTAssertTrue(app.navigationBars["Substitutes"].waitForExistence(timeout: 5))
+        let firstExercise = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "substitute.exercise.")).firstMatch
+        XCTAssertTrue(firstExercise.waitForExistence(timeout: 5))
+        firstExercise.tap()
+        XCTAssertTrue(app.buttons["About"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["History"].exists)
     }
 
     func testExerciseLibrarySupportsSearchCreationAndFocusedDetails() {

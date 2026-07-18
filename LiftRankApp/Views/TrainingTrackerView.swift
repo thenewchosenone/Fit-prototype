@@ -25,7 +25,7 @@ struct TrainingTrackerView: View {
     @State private var selectedLibraryExercise: TrainingExerciseCatalogItem?
     @State private var showingCreateLibraryExercise = false
     @State private var selectedProgramTemplate: WorkoutProgramTemplate?
-    @State private var isProgramLibraryExpanded = false
+    @State private var isProgramLibraryExpanded = true
     @State private var showingProgressionEditor = false
     @State private var selectedBodyweightEntry: BodyweightEntry?
     @State private var selectedCompletedWorkout: CompletedWorkout?
@@ -348,6 +348,43 @@ struct TrainingTrackerView: View {
                 Spacer()
             }
 
+            Button {
+                isProgramLibraryExpanded = true
+                withAnimation(.snappy) { segment = .plans }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "books.vertical.fill")
+                        .font(.headline)
+                        .foregroundStyle(Color.liftBlue)
+                        .frame(width: 44, height: 44)
+                        .background(Color.liftBlue.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Browse Workout Programs")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.white)
+                        Text("Bodybuilding, powerlifting, cables, free weights, and more")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                            .lineLimit(2)
+                    }
+
+                    Spacer(minLength: 4)
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.liftBlue)
+                }
+                .padding(12)
+                .frame(minHeight: 72)
+                .liftSurface(radius: 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Browse \(appState.workoutProgramTemplates.count) workout programs")
+            .accessibilityHint("Opens the workout program catalog")
+
             if let insight = visiblePlateauInsights.first {
                 PlateauAlertCard(insight: insight) {
                     selectedPlateauInsight = insight
@@ -379,8 +416,6 @@ struct TrainingTrackerView: View {
             }
             .buttonStyle(LiftSecondaryButtonStyle())
 
-            TodayWorkoutStats(week: selectedWeek, sessions: scheduledSessions)
-                .environmentObject(appState)
         }
     }
 
@@ -547,10 +582,10 @@ struct TrainingTrackerView: View {
                         .foregroundStyle(Color.liftBlue)
                         .frame(width: 30)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("12-Week Program Library")
+                        Text("Browse Workout Programs")
                             .font(.subheadline.weight(.bold))
                             .foregroundStyle(.white)
-                        Text("5 ready-made strength and bodybuilding plans")
+                        Text("\(appState.workoutProgramTemplates.count) ready-made programs")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                             .lineLimit(1)
@@ -569,47 +604,69 @@ struct TrainingTrackerView: View {
                 .liftSurface(radius: 12)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("12-week program library, 5 programs")
+            .accessibilityLabel("Workout program library, \(appState.workoutProgramTemplates.count) programs")
             .accessibilityValue(isProgramLibraryExpanded ? "Expanded" : "Collapsed")
 
             if isProgramLibraryExpanded {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(appState.workoutProgramTemplates) { template in
-                            Button {
-                                selectedProgramTemplate = template
-                            } label: {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        Image(systemName: template.category == .powerlifting ? "trophy.fill" : "figure.strengthtraining.traditional")
-                                            .foregroundStyle(Color.liftBlue)
-                                        Spacer()
-                                        Text("\(template.daysPerWeek)d")
-                                            .font(.caption2.weight(.black))
-                                            .foregroundStyle(Color.liftMuted)
-                                    }
+                LazyVStack(spacing: 9) {
+                    ForEach(appState.workoutProgramTemplates) { template in
+                        Button {
+                            selectedProgramTemplate = template
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: template.category == .powerlifting ? "trophy.fill" : "figure.strengthtraining.traditional")
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(Color.liftBlue)
+                                    .frame(width: 42, height: 42)
+                                    .background(Color.liftBlue.opacity(0.12))
+                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                                VStack(alignment: .leading, spacing: 4) {
                                     Text(template.name)
                                         .font(.subheadline.weight(.bold))
                                         .foregroundStyle(.white)
-                                        .lineLimit(2)
                                         .multilineTextAlignment(.leading)
-                                    Text("\(template.level.rawValue) • \(template.defaultProgression.rawValue)")
-                                        .font(.caption2)
+                                        .fixedSize(horizontal: false, vertical: true)
+
+                                    Text("\(template.category.rawValue) · \(template.level.rawValue)")
+                                        .font(.caption)
                                         .foregroundStyle(Color.liftMuted)
-                                        .lineLimit(2)
+                                        .lineLimit(1)
+
+                                    Text(template.defaultProgression.rawValue)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(Color.liftBlue)
+                                        .lineLimit(1)
                                 }
-                                .padding(12)
-                                .frame(width: 184, height: 112, alignment: .topLeading)
-                                .background(Color.liftCard)
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+
+                                Spacer(minLength: 8)
+
+                                VStack(alignment: .trailing, spacing: 5) {
+                                    Text("\(template.daysPerWeek) DAYS")
+                                        .font(.system(size: 9, weight: .black, design: .rounded))
+                                        .tracking(0.4)
+                                        .foregroundStyle(Color.liftBlue)
+                                        .padding(.horizontal, 8)
+                                        .frame(height: 24)
+                                        .background(Color.liftBlue.opacity(0.10))
+                                        .clipShape(Capsule())
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2.weight(.bold))
+                                        .foregroundStyle(Color.liftMuted)
                                 }
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Preview \(template.name), \(template.daysPerWeek) days per week")
+                            .padding(12)
+                            .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
+                            .background(Color.liftCard)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                            }
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Preview \(template.name), \(template.category.rawValue), \(template.level.rawValue), \(template.daysPerWeek) days per week")
                     }
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
@@ -763,6 +820,13 @@ struct TrainingTrackerView: View {
     private var progress: some View {
         let totals = appState.volumeByBodyPart()
         let maxVolume = max(1, totals.values.max() ?? 1)
+        let totalVolume = totals.values.reduce(0, +)
+        let rankedTotals = totals
+            .map { (bodyPart: $0.key, value: $0.value) }
+            .sorted {
+                if $0.value == $1.value { return $0.bodyPart < $1.bodyPart }
+                return $0.value > $1.value
+            }
 
         return VStack(alignment: .leading, spacing: 14) {
             Text("Progress")
@@ -801,9 +865,25 @@ struct TrainingTrackerView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Weekly volume by body part")
-                    .font(.subheadline.weight(.bold))
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Weekly volume by body part")
+                            .font(.headline.weight(.bold))
+                        Text("Training load from completed working sets")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                    }
+                    Spacer(minLength: 8)
+                    Text("THIS WEEK")
+                        .font(.system(size: 10, weight: .black, design: .rounded))
+                        .tracking(0.8)
+                        .foregroundStyle(Color.liftBlue)
+                        .padding(.horizontal, 9)
+                        .frame(height: 26)
+                        .background(Color.liftBlue.opacity(0.12))
+                        .clipShape(Capsule())
+                }
 
                 if totals.values.allSatisfy({ $0 == 0 }) {
                     Text("Complete workout sets to build volume insights.")
@@ -811,24 +891,38 @@ struct TrainingTrackerView: View {
                         .foregroundStyle(Color.liftMuted)
                         .padding(.vertical, 8)
                 } else {
-                    ForEach(totals.keys.sorted(), id: \.self) { bodyPart in
-                        let value = totals[bodyPart] ?? 0
-                        HStack(spacing: 10) {
-                            Text(bodyPart)
-                                .font(.caption.weight(.semibold))
-                                .frame(width: 82, alignment: .leading)
-                                .lineLimit(1)
-                            ProgressView(value: value, total: maxVolume)
-                                .tint(Color.liftBlue)
-                            Text("\(Int(value))")
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(Color.liftMuted)
-                                .frame(width: 48, alignment: .trailing)
+                    HStack(spacing: 10) {
+                        volumeSummary(
+                            title: "TOTAL VOLUME",
+                            value: Int(totalVolume).formatted(),
+                            detail: appState.currentProfile.preferredUnit.shortLabel,
+                            symbol: "sum"
+                        )
+                        volumeSummary(
+                            title: "TOP FOCUS",
+                            value: rankedTotals.first?.bodyPart ?? "—",
+                            detail: rankedTotals.first.map {
+                                "\(Int(($0.value / max(totalVolume, 1)) * 100))% of volume"
+                            } ?? "No volume",
+                            symbol: "scope"
+                        )
+                    }
+
+                    VStack(spacing: 13) {
+                        ForEach(Array(rankedTotals.enumerated()), id: \.element.bodyPart) { index, item in
+                            volumeBodyPartRow(
+                                bodyPart: item.bodyPart,
+                                value: item.value,
+                                maxVolume: maxVolume,
+                                totalVolume: totalVolume,
+                                index: index
+                            )
                         }
                     }
+                    .padding(.top, 2)
                 }
             }
-            .padding(14)
+            .padding(16)
             .background(Color.liftCard)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay {
@@ -881,6 +975,119 @@ struct TrainingTrackerView: View {
         .onChange(of: appState.completedWorkouts.count) {
             syncWorkoutHistorySelection()
         }
+    }
+
+    private func volumeSummary(
+        title: String,
+        value: String,
+        detail: String,
+        symbol: String
+    ) -> some View {
+        HStack(spacing: 9) {
+            Image(systemName: symbol)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.liftBlue)
+                .frame(width: 30, height: 30)
+                .background(Color.liftBlue.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 9, weight: .black, design: .rounded))
+                    .tracking(0.5)
+                    .foregroundStyle(Color.liftMuted)
+                Text(value)
+                    .font(.subheadline.weight(.black).monospacedDigit())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                Text(detail)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color.liftMuted)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
+        .background(Color.liftCardRaised.opacity(0.62))
+        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+        }
+    }
+
+    private func volumeBodyPartRow(
+        bodyPart: String,
+        value: Double,
+        maxVolume: Double,
+        totalVolume: Double,
+        index: Int
+    ) -> some View {
+        let tint = volumeTint(for: bodyPart)
+        let share = value / max(totalVolume, 1)
+        let relativeWidth = value / max(maxVolume, 1)
+
+        return HStack(spacing: 11) {
+            Text("\(index + 1)")
+                .font(.caption2.weight(.black).monospacedDigit())
+                .foregroundStyle(tint)
+                .frame(width: 28, height: 28)
+                .background(tint.opacity(0.13))
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 6) {
+                    Text(bodyPart)
+                        .font(.caption.weight(.bold))
+                        .lineLimit(1)
+                    Text("\(Int(share * 100))%")
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.liftMuted)
+                    Spacer(minLength: 0)
+                }
+
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.white.opacity(0.08))
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    colors: [tint.opacity(0.62), tint],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(width: max(7, geometry.size.width * relativeWidth))
+                    }
+                }
+                .frame(height: 7)
+            }
+
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(Int(value).formatted())
+                    .font(.caption.weight(.bold).monospacedDigit())
+                    .foregroundStyle(.white)
+                Text(appState.currentProfile.preferredUnit.shortLabel)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(Color.liftMuted)
+            }
+            .frame(width: 58, alignment: .trailing)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Rank \(index + 1), \(bodyPart), \(Int(value).formatted()) \(appState.currentProfile.preferredUnit.shortLabel), \(Int(share * 100)) percent of weekly volume")
+    }
+
+    private func volumeTint(for bodyPart: String) -> Color {
+        let name = bodyPart.lowercased()
+        if name.contains("quad") || name.contains("calf") { return .liftGreen }
+        if name.contains("hamstring") || name.contains("glute") { return .liftPurple }
+        if name.contains("lat") || name.contains("back") { return .cyan }
+        if name.contains("shoulder") { return .indigo }
+        if name.contains("arm") || name.contains("bicep") || name.contains("tricep") { return .mint }
+        return .liftBlue
     }
 
     private var workoutHistorySection: some View {
@@ -1752,69 +1959,6 @@ struct ActiveWorkoutResumeCard: View {
     }
 }
 
-struct TodayWorkoutStats: View {
-    @EnvironmentObject private var appState: AppState
-    let week: WorkoutWeek?
-    let sessions: [WorkoutSession]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("This week")
-                .font(.headline.weight(.black))
-
-            HStack(spacing: 10) {
-                metric("Week", week.map { "\($0.weekNumber)" } ?? "--", symbol: "calendar")
-                divider
-                metric("Planned", "\(sessions.count)", symbol: "figure.strengthtraining.traditional")
-                divider
-                metric("Finished", "\(finishedThisWeek)", symbol: "checkmark")
-            }
-            .padding(12)
-            .background(Color.liftCard)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
-            }
-
-            if let date = appState.lastCompletedWorkoutDate() {
-                Label("Last workout \(date.formatted(date: .abbreviated, time: .omitted))", systemImage: "checkmark.circle.fill")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.liftGreen)
-            } else {
-                Label("Complete your first workout to start a streak", systemImage: "flame")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.liftMuted)
-            }
-        }
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-    }
-
-    private var divider: some View {
-        Rectangle()
-            .fill(Color.white.opacity(0.07))
-            .frame(width: 1, height: 42)
-    }
-
-    private var finishedThisWeek: Int {
-        guard let interval = Calendar.current.dateInterval(of: .weekOfYear, for: .now) else { return 0 }
-        return appState.completedWorkouts.filter { interval.contains($0.completedAt) && !$0.completedWorkingSets.isEmpty }.count
-    }
-
-    private func metric(_ title: String, _ value: String, symbol: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label(title, systemImage: symbol)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(Color.liftMuted)
-                .lineLimit(1)
-            Text(value)
-                .font(.headline.weight(.black).monospacedDigit())
-                .foregroundStyle(.white)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
 struct ProgramPlanDetailView: View {
     @EnvironmentObject private var appState: AppState
     @Binding var selectedWeekID: UUID?
@@ -2178,11 +2322,13 @@ enum ExerciseLibraryBodyArea: String, CaseIterable, Hashable, Identifiable {
 struct WorkoutProgramTemplateDetailView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let template: WorkoutProgramTemplate
     @State private var method: WorkoutProgressionMethod
     @State private var startDate = Date.now
     @State private var scheduledWeekdays: [Int]
     @State private var trainingMaxInputs: [String: String] = [:]
+    @State private var expandedSessionIndices: Set<Int> = [0]
 
     init(template: WorkoutProgramTemplate) {
         self.template = template
@@ -2336,32 +2482,194 @@ struct WorkoutProgramTemplateDetailView: View {
     }
 
     private var sessionPreview: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Weekly workouts").font(.headline)
+        let exerciseCount = template.sessions.reduce(0) { $0 + $1.exercises.count }
+        let workingSetCount = template.sessions.reduce(0) { total, session in
+            total + session.exercises.reduce(0) { $0 + $1.sets }
+        }
+        let allExpanded = expandedSessionIndices.count == template.sessions.count
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Weekly workouts")
+                        .font(.title3.weight(.black))
+                    Text("Tap a training day to view its exercises")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                }
+                Spacer()
+                Button(allExpanded ? "Collapse" : "Expand all") {
+                    toggleAllSessions(expand: !allExpanded)
+                }
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.liftBlue)
+                .frame(minHeight: 44)
+                .buttonStyle(.plain)
+            }
+
+            HStack(spacing: 8) {
+                weeklyMetric(value: "\(template.daysPerWeek)", label: "DAYS")
+                weeklyMetric(value: "\(exerciseCount)", label: "EXERCISES")
+                weeklyMetric(value: "\(workingSetCount)", label: "SETS")
+            }
+
             ForEach(Array(template.sessions.enumerated()), id: \.offset) { index, session in
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("\(weekdayName(scheduledWeekdays[index])) · \(session.name)")
-                        .font(.subheadline.weight(.bold))
-                    ForEach(session.exercises, id: \.exerciseID) { prescription in
-                        if let exercise = appState.trainingExerciseLibrary.first(where: { $0.id == prescription.exerciseID }) {
-                            HStack(spacing: 10) {
-                                ExerciseCatalogIcon(exercise: exercise)
-                                    .frame(width: 42, height: 42)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(exercise.name).font(.caption.weight(.semibold))
-                                    Text("\(prescription.sets) × \(prescription.reps) · \(exercise.resolvedMuscleProfile.primaryDescription)")
-                                        .font(.caption2)
-                                        .foregroundStyle(Color.liftMuted)
-                                }
+                weeklySessionCard(session, index: index)
+            }
+        }
+    }
+
+    private func weeklyMetric(value: String, label: String) -> some View {
+        VStack(spacing: 3) {
+            Text(value)
+                .font(.headline.weight(.black).monospacedDigit())
+                .foregroundStyle(.white)
+            Text(label)
+                .font(.system(size: 9, weight: .black, design: .rounded))
+                .tracking(0.7)
+                .foregroundStyle(Color.liftMuted)
+        }
+        .frame(maxWidth: .infinity, minHeight: 58)
+        .background(Color.liftCardRaised.opacity(0.62))
+        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+        }
+    }
+
+    private func weeklySessionCard(_ session: WorkoutProgramSessionTemplate, index: Int) -> some View {
+        let isExpanded = expandedSessionIndices.contains(index)
+        let setCount = session.exercises.reduce(0) { $0 + $1.sets }
+        let weekday = weekdayName(scheduledWeekdays[index])
+
+        return VStack(alignment: .leading, spacing: 0) {
+            Button {
+                toggleSession(index)
+            } label: {
+                HStack(spacing: 12) {
+                    VStack(spacing: 1) {
+                        Text(String(weekday.prefix(3)).uppercased())
+                            .font(.system(size: 9, weight: .black, design: .rounded))
+                            .tracking(0.4)
+                    }
+                    .foregroundStyle(Color.liftBlue)
+                    .frame(width: 46, height: 42)
+                    .background(Color.liftBlue.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(session.name)
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.white)
+                        Text("\(session.exercises.count) exercises · \(setCount) working sets")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                    }
+
+                    Spacer(minLength: 6)
+
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(isExpanded ? Color.liftBlue : Color.liftMuted)
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(weekday), \(session.name), \(session.exercises.count) exercises, \(setCount) working sets")
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+
+            if isExpanded {
+                Divider()
+                    .overlay(Color.liftSeparator)
+                    .padding(.horizontal, 12)
+
+                VStack(spacing: 0) {
+                    ForEach(Array(session.exercises.enumerated()), id: \.offset) { exerciseIndex, prescription in
+                        let exercise = templateExercise(for: prescription)
+                        HStack(spacing: 11) {
+                            ExerciseCatalogIcon(exercise: exercise)
+                                .frame(width: 36, height: 36)
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(exercise.name)
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+                                Text(exercise.resolvedMuscleProfile.primaryDescription)
+                                    .font(.caption2)
+                                    .foregroundStyle(Color.liftMuted)
+                                    .lineLimit(1)
                             }
+
+                            Spacer(minLength: 6)
+
+                            Text("\(prescription.sets) × \(prescription.reps)")
+                                .font(.caption2.weight(.bold).monospacedDigit())
+                                .foregroundStyle(Color.liftBlue)
+                                .padding(.horizontal, 9)
+                                .frame(minHeight: 28)
+                                .background(Color.liftBlue.opacity(0.10))
+                                .clipShape(Capsule())
+                        }
+                        .padding(.horizontal, 12)
+                        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+
+                        if exerciseIndex < session.exercises.count - 1 {
+                            Divider()
+                                .overlay(Color.liftSeparator)
+                                .padding(.leading, 59)
                         }
                     }
                 }
-                .padding(12)
-                .background(Color.liftCard)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.liftCard)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(isExpanded ? Color.liftBlue.opacity(0.28) : Color.white.opacity(0.06), lineWidth: 1)
+        }
+    }
+
+    private func toggleSession(_ index: Int) {
+        let update = {
+            if expandedSessionIndices.contains(index) {
+                expandedSessionIndices.remove(index)
+            } else {
+                expandedSessionIndices.insert(index)
+            }
+        }
+        if reduceMotion { update() } else { withAnimation(.snappy, update) }
+    }
+
+    private func toggleAllSessions(expand: Bool) {
+        let update = {
+            expandedSessionIndices = expand ? Set(template.sessions.indices) : []
+        }
+        if reduceMotion { update() } else { withAnimation(.snappy, update) }
+    }
+
+    private func templateExercise(for prescription: WorkoutProgramExerciseTemplate) -> TrainingExerciseCatalogItem {
+        appState.trainingExerciseLibrary.first { $0.id == prescription.exerciseID } ?? TrainingExerciseCatalogItem(
+            id: prescription.exerciseID,
+            name: prescription.exerciseID,
+            bodyPart: "Full body",
+            workoutCategory: "Strength",
+            defaultSets: prescription.sets,
+            defaultReps: prescription.reps,
+            symbolName: "dumbbell.fill",
+            equipment: "Equipment",
+            muscleProfile: ExerciseMuscleProfileResolver.profile(
+                name: prescription.exerciseID,
+                bodyPart: "Full body"
+            )
+        )
     }
 
     private func seedTrainingMaxesIfNeeded() {
@@ -3084,23 +3392,46 @@ struct ExerciseLibraryDetailView: View {
     }
 
     private var substitutesSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Find a substitute").font(.headline)
-            ForEach(substitutes) { recommendation in
-                HStack(spacing: 12) {
-                    ExerciseCatalogIcon(exercise: recommendation.exercise).frame(width: 40, height: 40)
+        NavigationLink {
+            SubstituteExerciseListView(sourceExercise: exercise, recommendations: substitutes)
+        } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(recommendation.exercise.name).font(.subheadline.weight(.bold))
-                        Text(recommendation.reasons.joined(separator: " • "))
-                            .font(.caption).foregroundStyle(Color.liftMuted).lineLimit(2)
+                        Text("Find a substitute").font(.headline)
+                        Text("Browse (substitutes.count) similar exercises")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
                     }
                     Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.liftBlue)
                 }
-                .padding(.vertical, 4)
+
+                HStack(spacing: -7) {
+                    ForEach(substitutes.prefix(3)) { recommendation in
+                        ExerciseCatalogIcon(exercise: recommendation.exercise)
+                            .frame(width: 38, height: 38)
+                            .background(Color.liftCard)
+                            .clipShape(Circle())
+                            .overlay { Circle().stroke(Color.liftBackground, lineWidth: 2) }
+                    }
+                    Spacer()
+                    Text(substitutes.prefix(2).map(\.exercise.name).joined(separator: " • "))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.liftMuted)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.trailing)
+                }
             }
+            .padding(14)
+            .contentShape(Rectangle())
+            .liftSurface()
         }
-        .padding(14)
-        .liftSurface()
+        .buttonStyle(.plain)
+        .accessibilityLabel("Find a substitute for \(exercise.name), \(substitutes.count) recommendations")
+        .accessibilityIdentifier("exercise.findSubstitute")
     }
 
     private func recordRow(_ title: String, _ value: String, symbol: String) -> some View {
@@ -3163,6 +3494,73 @@ struct ExerciseLibraryDetailView: View {
     }
 }
 
+struct SubstituteExerciseListView: View {
+    let sourceExercise: TrainingExerciseCatalogItem
+    let recommendations: [ExerciseSubstitutionRecommendation]
+
+    var body: some View {
+        AppBackground {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Alternatives to")
+                            .font(.caption.weight(.black))
+                            .tracking(1)
+                            .foregroundStyle(Color.liftBlue)
+                        Text(sourceExercise.name)
+                            .font(.title2.weight(.black))
+                        Text("Choose an exercise to review its muscles, technique, history, and records.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.liftMuted)
+                    }
+
+                    VStack(spacing: 0) {
+                        ForEach(Array(recommendations.enumerated()), id: \.element.id) { index, recommendation in
+                            NavigationLink {
+                                ExerciseLibraryDetailView(exercise: recommendation.exercise)
+                            } label: {
+                                HStack(spacing: 13) {
+                                    ExerciseCatalogIcon(exercise: recommendation.exercise)
+                                        .frame(width: 48, height: 48)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(recommendation.exercise.name)
+                                            .font(.subheadline.weight(.bold))
+                                            .foregroundStyle(.white)
+                                        Text(recommendation.reasons.joined(separator: " • "))
+                                            .font(.caption)
+                                            .foregroundStyle(Color.liftMuted)
+                                            .lineLimit(2)
+                                    }
+                                    Spacer(minLength: 8)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(Color.liftMuted)
+                                }
+                                .padding(14)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Open \(recommendation.exercise.name) exercise details")
+                            .accessibilityIdentifier("substitute.exercise.\(recommendation.exercise.id)")
+
+                            if index < recommendations.count - 1 {
+                                Divider().overlay(Color.liftSeparator).padding(.leading, 74)
+                            }
+                        }
+                    }
+                    .liftSurface()
+                }
+                .padding(16)
+                .padding(.bottom, 24)
+            }
+            .scrollIndicators(.hidden)
+        }
+        .navigationTitle("Substitutes")
+        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("substitutes.screen")
+    }
+}
+
 struct ExerciseMuscleMap: View {
     let profile: ExerciseMuscleProfile
 
@@ -3170,20 +3568,26 @@ struct ExerciseMuscleMap: View {
         GeometryReader { geometry in
             let showsLabels = geometry.size.width >= 150 && geometry.size.height >= 140
             let isCompact = geometry.size.width < 90 || geometry.size.height < 90
+            let cardShape = RoundedRectangle(
+                cornerRadius: min(14, geometry.size.height * 0.22),
+                style: .continuous
+            )
             ZStack {
-                RoundedRectangle(cornerRadius: min(14, geometry.size.height * 0.22), style: .continuous)
-                    .fill(Color.liftBlue.opacity(0.075))
+                cardShape
+                    .fill(Color(red: 0.075, green: 0.08, blue: 0.095))
                     .overlay {
-                        RoundedRectangle(cornerRadius: min(14, geometry.size.height * 0.22), style: .continuous)
-                            .stroke(Color.liftBlue.opacity(0.12), lineWidth: 1)
+                        cardShape
+                            .stroke(Color.white.opacity(0.055), lineWidth: 1)
                     }
 
                 VStack(spacing: showsLabels ? 5 : 0) {
                     HStack(spacing: geometry.size.width * 0.025) {
                         if isCompact && compactOrientation == .front {
                             AnatomicalMuscleFigure(profile: profile, side: .front)
+                                .scaleEffect(compactScale, anchor: compactFocus)
                         } else if isCompact {
                             AnatomicalMuscleFigure(profile: profile, side: .back)
+                                .scaleEffect(compactScale, anchor: compactFocus)
                         } else {
                             if profile.orientation == .front || profile.orientation == .split {
                                 AnatomicalMuscleFigure(profile: profile, side: .front)
@@ -3207,6 +3611,7 @@ struct ExerciseMuscleMap: View {
                 .padding(.horizontal, geometry.size.height * 0.065)
                 .padding(.vertical, geometry.size.height * 0.045)
             }
+            .clipShape(cardShape)
         }
     }
 
@@ -3215,6 +3620,31 @@ struct ExerciseMuscleMap: View {
         let active = profile.primary.filter { $0 != .fullBody }
         let backCount = active.filter(\.isBackFacing).count
         return backCount > active.count - backCount ? .back : .front
+    }
+
+    private var compactScale: CGFloat {
+        let active = profile.primary.filter { $0 != .fullBody }
+        guard !active.isEmpty else { return 0.92 }
+        if active.contains(where: { [.quads, .hamstrings, .calves, .tibialis, .adductors].contains($0) }) {
+            return 1.58
+        }
+        if active.contains(.glutes) { return 2.05 }
+        if active.contains(where: { [.abs, .obliques, .spinalErectors].contains($0) }) {
+            return 1.95
+        }
+        return 2.05
+    }
+
+    private var compactFocus: UnitPoint {
+        let active = profile.primary.filter { $0 != .fullBody }
+        if active.contains(where: { [.quads, .hamstrings, .calves, .tibialis, .adductors].contains($0) }) {
+            return .bottom
+        }
+        if active.contains(.glutes) { return UnitPoint(x: 0.5, y: 0.66) }
+        if active.contains(where: { [.abs, .obliques, .spinalErectors].contains($0) }) {
+            return UnitPoint(x: 0.5, y: 0.42)
+        }
+        return UnitPoint(x: 0.5, y: 0.20)
     }
 
     private func orientationLabel(_ title: String) -> some View {
@@ -3234,10 +3664,10 @@ private struct AnatomicalMuscleFigure: View {
     var body: some View {
         Canvas(opaque: false, rendersAsynchronously: true) { context, size in
             let wholeBody = profile.primary.contains(.fullBody)
-            let bodyFill = Color(red: 0.27, green: 0.30, blue: 0.39)
-            let bodyOutline = Color.white.opacity(0.16)
-            let segmentFill = Color(red: 0.32, green: 0.35, blue: 0.45)
-            let segmentOutline = Color.white.opacity(0.13)
+            let bodyFill = Color(red: 0.105, green: 0.11, blue: 0.135)
+            let bodyOutline = Color.black.opacity(0.42)
+            let segmentFill = Color(red: 0.155, green: 0.165, blue: 0.205)
+            let segmentOutline = Color.black.opacity(0.34)
             let lineWidth = max(0.45, min(size.width, size.height) * 0.018)
 
             for path in bodyPaths(in: size) {
@@ -3258,16 +3688,16 @@ private struct AnatomicalMuscleFigure: View {
 
             draw(
                 profile.secondary.filter(isVisible),
-                color: Color(red: 0.25, green: 0.49, blue: 0.95).opacity(0.62),
-                outline: Color.liftBlue.opacity(0.45),
+                color: Color(red: 0.02, green: 0.52, blue: 1.0).opacity(0.48),
+                outline: Color.black.opacity(0.28),
                 in: &context,
                 size: size,
                 lineWidth: lineWidth * 0.65
             )
             draw(
                 wholeBody ? visibleMuscleSegments : profile.primary.filter(isVisible),
-                color: Color(red: 0.14, green: 0.38, blue: 1.0),
-                outline: Color(red: 0.42, green: 0.64, blue: 1.0),
+                color: Color(red: 0.01, green: 0.53, blue: 1.0),
+                outline: Color.black.opacity(0.28),
                 in: &context,
                 size: size,
                 lineWidth: lineWidth * 0.85
@@ -3277,7 +3707,7 @@ private struct AnatomicalMuscleFigure: View {
             // the same anatomical segmentation at compact and expanded sizes.
             strokeMuscleSegments(
                 visibleMuscleSegments,
-                color: Color.white.opacity(0.13),
+                color: Color.black.opacity(0.34),
                 in: &context,
                 size: size,
                 lineWidth: lineWidth * 0.48
@@ -3346,12 +3776,14 @@ private struct AnatomicalMuscleFigure: View {
 
     private func bodyPaths(in size: CGSize) -> [Path] {
         let leftArm: [(CGFloat, CGFloat)] = [
-            (0.27, 0.23), (0.17, 0.25), (0.11, 0.36), (0.08, 0.51),
-            (0.10, 0.60), (0.15, 0.61), (0.19, 0.53), (0.22, 0.39), (0.31, 0.29)
+            (0.29, 0.22), (0.20, 0.225), (0.145, 0.285), (0.115, 0.38),
+            (0.085, 0.515), (0.105, 0.595), (0.155, 0.59), (0.19, 0.49),
+            (0.225, 0.36), (0.315, 0.285)
         ]
         let leftLeg: [(CGFloat, CGFloat)] = [
-            (0.29, 0.56), (0.49, 0.58), (0.47, 0.75), (0.43, 0.96),
-            (0.36, 0.99), (0.32, 0.94), (0.31, 0.78), (0.25, 0.64)
+            (0.285, 0.555), (0.49, 0.585), (0.465, 0.755), (0.44, 0.865),
+            (0.425, 0.975), (0.355, 0.99), (0.315, 0.945), (0.32, 0.84),
+            (0.295, 0.75), (0.245, 0.64)
         ]
 
         var torso = Path()
@@ -3367,8 +3799,8 @@ private struct AnatomicalMuscleFigure: View {
         torso.closeSubpath()
 
         return [
-            ellipse(0.36, 0.015, 0.28, 0.145, size),
-            roundedRect(0.42, 0.145, 0.16, 0.10, radius: 0.035, size),
+            ellipse(0.405, 0.012, 0.19, 0.145, size),
+            roundedRect(0.445, 0.14, 0.11, 0.10, radius: 0.03, size),
             torso,
             polygon(leftArm, size),
             polygon(mirrored(leftArm), size),
@@ -3510,13 +3942,31 @@ private struct AnatomicalMuscleFigure: View {
 
     private func polygon(_ points: [(CGFloat, CGFloat)], _ size: CGSize) -> Path {
         var path = Path()
-        guard let first = points.first else { return path }
-        path.move(to: point(first.0, first.1, size))
-        for coordinate in points.dropFirst() {
-            path.addLine(to: point(coordinate.0, coordinate.1, size))
+        guard points.count > 2, let first = points.first, let last = points.last else { return path }
+
+        // Muscle groups have soft connective boundaries rather than sharp corners.
+        // Drawing quadratic arcs through each control point keeps the normalized
+        // anatomy scalable while producing the rounded shapes used by modern
+        // training apps.
+        path.move(to: midpoint(last, first, size))
+        for index in points.indices {
+            let current = points[index]
+            let next = points[points.index(after: index) == points.endIndex ? points.startIndex : points.index(after: index)]
+            path.addQuadCurve(
+                to: midpoint(current, next, size),
+                control: point(current.0, current.1, size)
+            )
         }
         path.closeSubpath()
         return path
+    }
+
+    private func midpoint(
+        _ first: (CGFloat, CGFloat),
+        _ second: (CGFloat, CGFloat),
+        _ size: CGSize
+    ) -> CGPoint {
+        point((first.0 + second.0) / 2, (first.1 + second.1) / 2, size)
     }
 
     private func ellipse(_ x: CGFloat, _ y: CGFloat, _ width: CGFloat, _ height: CGFloat, _ size: CGSize) -> Path {

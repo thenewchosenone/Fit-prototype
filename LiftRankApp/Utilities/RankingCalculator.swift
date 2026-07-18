@@ -103,7 +103,16 @@ enum RankingCalculator {
         exerciseID: String? = nil
     ) -> [LeaderboardEntry] {
         let eligibleLifts = lifts.filter { lift in
-            !verifiedOnly || lift.verificationStatus.isDefaultLeaderboardEligible
+            guard lift.visibility == .publicLift,
+                  lift.repetitions == 1,
+                  lift.isActualOneRepMax,
+                  lift.resolvedModerationStatus != .rejected else { return false }
+            if verifiedOnly {
+                return lift.competitiveMovement == nil
+                    ? lift.verificationStatus.isDefaultLeaderboardEligible
+                    : lift.resolvedEvidenceStatus == .videoBacked
+            }
+            return true
         }
 
         let grouped = Dictionary(grouping: eligibleLifts, by: \.userID)

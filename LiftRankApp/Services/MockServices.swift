@@ -14,6 +14,7 @@ final class MockAuthenticationService: AuthenticationService {
     func signUp(email: String, password: String) async throws -> AccountSession { throw LiftRankServiceError.invalidCredentials }
     func signIn(email: String, password: String) async throws -> AccountSession { throw LiftRankServiceError.invalidCredentials }
     func requestPasswordReset(email: String) async throws {}
+    func signInWithApple(identityToken: String, nonce: String) async throws -> AccountSession { throw LiftRankServiceError.invalidCredentials }
     func signInDemo() async throws -> UserProfile { repository.currentProfile }
     func signOut() async throws {}
 }
@@ -93,6 +94,8 @@ final class MockLiftService: LiftService {
         repository.addLift(submission)
         return submission
     }
+    func vote(liftID: UUID, vote: CommunityVote?) async throws {}
+    func report(liftID: UUID, reason: LiftReportReason, note: String) async throws {}
 }
 
 @MainActor
@@ -158,6 +161,9 @@ final class MockSocialService: SocialService {
     private let repository: DemoRepository
     init(repository: DemoRepository) { self.repository = repository }
     func feed() async throws -> [ActivityItem] { repository.activities }
+    func block(userID: UUID) async throws {}
+    func unblock(userID: UUID) async throws {}
+    func blocks() async throws -> [UserBlockRecord] { [] }
 }
 
 @MainActor
@@ -324,6 +330,14 @@ final class MockVerificationService: VerificationService {
         repository.notifications.insert(NotificationItem(id: UUID(), title: status == .rejected ? "Lift rejected" : "Lift approved", message: note ?? "Verification updated.", kind: status.rawValue, createdAt: .now, isRead: false, destination: NotificationDestination(kind: .lift, targetID: lift.id)), at: 0)
         return repository.lifts[index]
     }
+    func moderate(liftID: UUID, decision: LiftModeratorDecision, note: String) async throws -> LiftSubmission {
+        guard let lift = repository.lifts.first(where: { $0.id == liftID }) else { throw LiftRankServiceError.invalidInput("Lift not found.") }
+        let status: VerificationStatus = decision == .reject ? .rejected : .videoVerified
+        var updated = try await updateVerification(for: lift, status: status, note: note)
+        updated.moderationStatus = decision == .requestReplacement ? .replacementRequested : decision == .reject ? .rejected : .clear
+        if let index = repository.lifts.firstIndex(where: { $0.id == liftID }) { repository.lifts[index] = updated }
+        return updated
+    }
 }
 
 struct MockMediaUploadService: MediaUploadService {
@@ -331,6 +345,11 @@ struct MockMediaUploadService: MediaUploadService {
         try await Task.sleep(for: .milliseconds(450))
         return localURL ?? URL(fileURLWithPath: "/tmp/liftrank-demo-video.mov")
     }
+    func uploadLiftVideo(localURL: URL, liftID: UUID, progress: @escaping @Sendable (Double) -> Void) async throws -> LiftMediaAsset {
+        progress(1)
+        return LiftMediaAsset(id: UUID(), ownerID: MockData.demoUserID, storagePath: localURL.path, contentType: "video/quicktime", byteCount: 0, createdAt: .now)
+    }
+    func signedPlaybackURL(assetID: UUID) async throws -> URL { URL(fileURLWithPath: "/tmp/liftrank-demo-video.mov") }
 }
 
 @MainActor
@@ -338,4 +357,36 @@ final class MockNotificationService: NotificationService {
     private let repository: DemoRepository
     init(repository: DemoRepository) { self.repository = repository }
     func notifications() async throws -> [NotificationItem] { repository.notifications }
+    func markRead(notificationID: UUID) async throws {
+        if let index = repository.notifications.firstIndex(where: { $0.id == notificationID }) { repository.notifications[index].isRead = true }
+    }
+    func registerDevice(_ registration: PushDeviceRegistration) async throws {}
+    func revokeDevice(deviceID: String) async throws {}
 }
+
+@MainActor
+final class MockWorkoutSyncService: WorkoutSyncService {
+    private var planDocuments: [WorkoutPlanDocument] = []
+    private var snapshots: [CompletedWorkoutSnapshot] = []
+    func plans() async throws -> [WorkoutPlanDocument] { planDocuments }
+    func savePlan(_ document: WorkoutPlanDocument, expectedRevision: Int) async throws -> WorkoutSyncResult {
+        guard !document.isSeededDemoData else { throw LiftRankServiceError.invalidInput("Demo data cannot be synced.") }
+        if let current = planDocuments.first(where: { $0.id == document.id }), current.revision != expectedRevision {
+            var conflict = document
+            conflict.id = UUID(); conflict.isConflictCopy = true; conflict.conflictOfRevision = expectedRevision
+            planDocuments.append(conflict)
+            return .conflict(server: current, localCopy: conflict)
+        }
+        var saved = document; saved.revision = expectedRevision + 1
+        planDocuments.removeAll { $0.id == saved.id }; planDocuments.append(saved)
+        return .saved(saved)
+    }
+    func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot] { snapshots.filter { since == nil || $0.completedAt > since! } }
+    func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws {
+        guard !snapshot.isSeededDemoData else { return }
+        if !snapshots.contains(where: { $0.id == snapshot.id }) { snapshots.append(snapshot) }
+    }
+}
+
+struct MockAnalyticsService: AnalyticsService { func track(_ event: AnalyticsEventRecord) async {} }
+struct MockAccountDeletionService: AccountDeletionService { func deleteAccount() async throws {} }

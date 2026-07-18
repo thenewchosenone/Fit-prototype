@@ -56,7 +56,6 @@ struct LiftRankApp: App {
             }
         }
         .environmentObject(appState)
-        .preferredColorScheme(.dark)
         .task { await appState.restoreAccount() }
     }
 }
@@ -85,7 +84,6 @@ private struct LocalDataRecoveryView: View {
             }
             .padding(28)
         }
-        .preferredColorScheme(.dark)
     }
 }
 

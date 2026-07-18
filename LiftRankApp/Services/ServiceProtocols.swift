@@ -8,6 +8,7 @@ protocol AuthenticationService {
     func signUp(email: String, password: String) async throws -> AccountSession
     func signIn(email: String, password: String) async throws -> AccountSession
     func requestPasswordReset(email: String) async throws
+    func signInWithApple(identityToken: String, nonce: String) async throws -> AccountSession
     func signInDemo() async throws -> UserProfile
     func signOut() async throws
 }
@@ -26,6 +27,8 @@ protocol ProfileService {
 protocol LiftService {
     func submissions() async throws -> [LiftSubmission]
     func submit(_ submission: LiftSubmission) async throws -> LiftSubmission
+    func vote(liftID: UUID, vote: CommunityVote?) async throws
+    func report(liftID: UUID, reason: LiftReportReason, note: String) async throws
 }
 
 @MainActor
@@ -48,6 +51,9 @@ protocol ChallengeService {
 @MainActor
 protocol SocialService {
     func feed() async throws -> [ActivityItem]
+    func block(userID: UUID) async throws
+    func unblock(userID: UUID) async throws
+    func blocks() async throws -> [UserBlockRecord]
 }
 
 @MainActor
@@ -114,14 +120,67 @@ protocol ExerciseCatalogService {
 protocol VerificationService {
     func pendingSubmissions() async throws -> [LiftSubmission]
     func updateVerification(for lift: LiftSubmission, status: VerificationStatus, note: String?) async throws -> LiftSubmission
+    func moderate(liftID: UUID, decision: LiftModeratorDecision, note: String) async throws -> LiftSubmission
 }
 
 @MainActor
 protocol MediaUploadService {
     func upload(localURL: URL?) async throws -> URL?
+    func uploadLiftVideo(localURL: URL, liftID: UUID, progress: @escaping @Sendable (Double) -> Void) async throws -> LiftMediaAsset
+    func signedPlaybackURL(assetID: UUID) async throws -> URL
 }
 
 @MainActor
 protocol NotificationService {
     func notifications() async throws -> [NotificationItem]
+    func markRead(notificationID: UUID) async throws
+    func registerDevice(_ registration: PushDeviceRegistration) async throws
+    func revokeDevice(deviceID: String) async throws
+}
+
+@MainActor
+protocol WorkoutSyncService {
+    func plans() async throws -> [WorkoutPlanDocument]
+    func savePlan(_ document: WorkoutPlanDocument, expectedRevision: Int) async throws -> WorkoutSyncResult
+    func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot]
+    func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws
+}
+
+@MainActor
+protocol AnalyticsService {
+    func track(_ event: AnalyticsEventRecord) async
+}
+
+@MainActor
+protocol AccountDeletionService {
+    /// The server function requires a recently authenticated JWT and performs
+    /// cascading cleanup plus Auth deletion atomically.
+    func deleteAccount() async throws
+}
+
+// Additive defaults keep lightweight previews and focused test doubles source
+// compatible while production implementations override every launch method.
+extension AuthenticationService {
+    func signInWithApple(identityToken: String, nonce: String) async throws -> AccountSession { throw LiftRankServiceError.configurationMissing }
+}
+extension LiftService {
+    func vote(liftID: UUID, vote: CommunityVote?) async throws { throw LiftRankServiceError.configurationMissing }
+    func report(liftID: UUID, reason: LiftReportReason, note: String) async throws { throw LiftRankServiceError.configurationMissing }
+}
+extension SocialService {
+    func block(userID: UUID) async throws { throw LiftRankServiceError.configurationMissing }
+    func unblock(userID: UUID) async throws { throw LiftRankServiceError.configurationMissing }
+    func blocks() async throws -> [UserBlockRecord] { [] }
+}
+extension VerificationService {
+    func moderate(liftID: UUID, decision: LiftModeratorDecision, note: String) async throws -> LiftSubmission { throw LiftRankServiceError.configurationMissing }
+}
+extension MediaUploadService {
+    func uploadLiftVideo(localURL: URL, liftID: UUID, progress: @escaping @Sendable (Double) -> Void) async throws -> LiftMediaAsset { throw LiftRankServiceError.configurationMissing }
+    func signedPlaybackURL(assetID: UUID) async throws -> URL { throw LiftRankServiceError.configurationMissing }
+}
+extension NotificationService {
+    func markRead(notificationID: UUID) async throws {}
+    func registerDevice(_ registration: PushDeviceRegistration) async throws {}
+    func revokeDevice(deviceID: String) async throws {}
 }
