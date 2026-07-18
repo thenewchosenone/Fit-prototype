@@ -386,7 +386,13 @@ enum PersonalWorkoutPlanCatalog {
 
     private static func movement(_ key: String) -> Movement {
         guard let movement = movements[key] else {
-            preconditionFailure("Unknown private workout movement: \(key)")
+            assertionFailure("Unknown private workout movement: \(key)")
+            return Movement(
+                id: "private_unavailable_\(key)",
+                name: "Unavailable exercise",
+                bodyPart: "Other",
+                equipment: "Other"
+            )
         }
         return movement
     }

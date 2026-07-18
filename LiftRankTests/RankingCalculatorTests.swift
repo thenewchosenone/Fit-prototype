@@ -13,6 +13,41 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(RankingCalculator.epleyOneRepMax(weight: 315, repetitions: 1), 315, accuracy: 0.001)
     }
 
+    func testPlateauRequiresThreeWorkoutsWithoutStrengthOrVolumeProgress() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let performances = [
+            plateauPerformance(date: now, weight: 100, reps: 8, volume: 2_400),
+            plateauPerformance(date: now.addingTimeInterval(-86_400), weight: 100, reps: 8, volume: 2_400),
+            plateauPerformance(date: now.addingTimeInterval(-172_800), weight: 100, reps: 8, volume: 2_400)
+        ]
+
+        XCTAssertTrue(RankingCalculator.isPlateau(performances: performances))
+        XCTAssertFalse(RankingCalculator.isPlateau(performances: Array(performances.prefix(2))))
+    }
+
+    func testPlateauClearsWhenStrengthOrVolumeImproves() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let baseline = plateauPerformance(date: now.addingTimeInterval(-172_800), weight: 100, reps: 8, volume: 2_400)
+        let unchanged = plateauPerformance(date: now.addingTimeInterval(-86_400), weight: 100, reps: 8, volume: 2_400)
+        let stronger = plateauPerformance(date: now, weight: 102.5, reps: 8, volume: 2_400)
+        let moreVolume = plateauPerformance(date: now, weight: 100, reps: 8, volume: 2_500)
+
+        XCTAssertFalse(RankingCalculator.isPlateau(performances: [stronger, unchanged, baseline]))
+        XCTAssertFalse(RankingCalculator.isPlateau(performances: [moreVolume, unchanged, baseline]))
+    }
+
+    private func plateauPerformance(date: Date, weight: Double, reps: Int, volume: Double) -> PlateauPerformance {
+        PlateauPerformance(
+            id: UUID(),
+            workoutID: UUID(),
+            performedAt: date,
+            weightKilograms: weight,
+            repetitions: reps,
+            estimatedOneRepMaxKilograms: RankingCalculator.epleyOneRepMax(weight: weight, repetitions: reps),
+            volumeKilograms: volume
+        )
+    }
+
     func testPoundsToKilogramsConversion() {
         XCTAssertEqual(RankingCalculator.poundsToKilograms(220.46226218), 100, accuracy: 0.001)
     }
@@ -2080,6 +2115,104 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertTrue(demoMediaIDs.contains("demo-leaderboard-bench"))
         XCTAssertTrue(demoMediaIDs.contains("demo-leaderboard-squat"))
         XCTAssertTrue(demoMediaIDs.contains("demo-leaderboard-deadlift"))
+    }
+
+    func testExerciseGuidanceIsCuratedAndOptional() throws {
+        let bench = try XCTUnwrap(MockData.trainingExerciseLibrary.first { $0.id == "barbell_bench_press" })
+        let calfRaise = try XCTUnwrap(MockData.trainingExerciseLibrary.first { $0.id == "machine_standing_calf_raise" })
+
+        XCTAssertEqual(bench.guidance?.steps.count, 3)
+        XCTAssertFalse(try XCTUnwrap(bench.guidance?.summary).isEmpty)
+        XCTAssertNil(calfRaise.guidance)
+    }
+
+    @MainActor
+    func testExerciseHistoryAndRecordsUseCompletedWorkingSetsInKilograms() throws {
+        let repository = DemoRepository()
+        repository.completedWorkouts = [
+            makeExerciseHistoryWorkout(
+                completedAt: Date(timeIntervalSince1970: 1_000),
+                unit: .kilograms,
+                sets: [
+                    (weight: 100, reps: 5, warmup: false, complete: true),
+                    (weight: 200, reps: 1, warmup: true, complete: true),
+                    (weight: 120, reps: 5, warmup: false, complete: false)
+                ]
+            ),
+            makeExerciseHistoryWorkout(
+                completedAt: Date(timeIntervalSince1970: 2_000),
+                unit: .pounds,
+                sets: [(weight: 242.508, reps: 3, warmup: false, complete: true)]
+            )
+        ]
+        let appState = AppState(repository: repository, serviceContainer: .demo(repository: repository))
+
+        let history = appState.exerciseHistory(for: "barbell_bench_press")
+        let records = appState.exerciseRecords(for: "barbell_bench_press")
+
+        XCTAssertEqual(history.count, 2)
+        XCTAssertEqual(try XCTUnwrap(records.heaviestWeightKilograms), 110, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(records.bestSetVolumeKilograms), 500, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(records.bestSessionVolumeKilograms), 500, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(records.bestEstimatedOneRepMaxKilograms), 121, accuracy: 0.01)
+        XCTAssertEqual(records.mostRepetitions, 5)
+    }
+
+    private func makeExerciseHistoryWorkout(
+        completedAt: Date,
+        unit: UnitSystem,
+        sets values: [(weight: Double, reps: Int, warmup: Bool, complete: Bool)]
+    ) -> CompletedWorkout {
+        let workoutID = UUID()
+        let prescriptionID = UUID()
+        let exercise = WorkoutExerciseSnapshot(
+            id: prescriptionID,
+            sourcePrescriptionID: nil,
+            exerciseID: "barbell_bench_press",
+            exerciseName: "Barbell Bench Press",
+            bodyPart: "Chest",
+            equipment: "Barbell",
+            targetSets: values.count,
+            targetReps: "5",
+            restSeconds: 120,
+            order: 0,
+            notes: "",
+            rankingExerciseID: "bench"
+        )
+        let sets = values.enumerated().map { index, value in
+            WorkoutSetLog(
+                id: UUID(),
+                prescriptionID: prescriptionID,
+                performedAt: completedAt,
+                setNumber: index + 1,
+                weight: value.weight,
+                reps: value.reps,
+                rpe: 8,
+                isWarmup: value.warmup,
+                isComplete: value.complete,
+                workoutID: workoutID,
+                recordedUnit: unit
+            )
+        }
+        return CompletedWorkout(
+            id: workoutID,
+            source: .freestyle,
+            sourceSessionID: nil,
+            sourcePlanID: nil,
+            name: "History Test",
+            dayLabel: "Test Day",
+            startedAt: completedAt.addingTimeInterval(-1_800),
+            completedAt: completedAt,
+            duration: 1_800,
+            effort: 3,
+            notes: "",
+            gymID: nil,
+            bodyweight: nil,
+            unit: unit,
+            exercises: [exercise],
+            sets: sets,
+            linkedSubmissionIDs: []
+        )
     }
 
     private func makeForumPost(communityID: UUID, author: UserProfile, title: String) -> ForumPost {

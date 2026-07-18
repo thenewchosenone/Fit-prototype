@@ -23,6 +23,7 @@ struct TrainingTrackerView: View {
     @State private var libraryFilters = ExerciseLibraryFilterSelection()
     @State private var showingLibraryFilters = false
     @State private var selectedLibraryExercise: TrainingExerciseCatalogItem?
+    @State private var showingCreateLibraryExercise = false
     @State private var selectedProgramTemplate: WorkoutProgramTemplate?
     @State private var isProgramLibraryExpanded = false
     @State private var showingProgressionEditor = false
@@ -31,6 +32,8 @@ struct TrainingTrackerView: View {
     @State private var workoutHistoryMonth = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
     @State private var selectedWorkoutHistoryDate: Date?
     @State private var selectedProgressExerciseID: String?
+    @State private var selectedPlateauInsight: PlateauInsight?
+    @AppStorage("liftrank.dismissedPlateauInsights") private var dismissedPlateauInsightIDs = ""
     let isEmbeddedInTab: Bool
 
     init(startOnProgress: Bool = false, isEmbeddedInTab: Bool = false) {
@@ -74,24 +77,32 @@ struct TrainingTrackerView: View {
             AppBackground {
                 VStack(spacing: 0) {
                     controls
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            if segment == .today {
-                                today
-                            } else if segment == .plans {
-                                plans
-                            } else if segment == .library {
-                                library
-                            } else {
-                                progress
+                    ScrollViewReader { scrollProxy in
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 16) {
+                                if segment == .today {
+                                    today
+                                } else if segment == .plans {
+                                    plans
+                                } else if segment == .library {
+                                    library(scrollProxy: scrollProxy)
+                                } else {
+                                    progress
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 12)
+                            .padding(.bottom, isEmbeddedInTab ? 132 : 36)
+                        }
+                        .id(segment)
+                        .scrollIndicators(.hidden)
+                        .overlay(alignment: .trailing) {
+                            if segment == .library && librarySearch.isEmpty {
+                                libraryAlphabetIndex(scrollProxy: scrollProxy)
+                                    .padding(.trailing, 2)
                             }
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-                        .padding(.bottom, isEmbeddedInTab ? 132 : 36)
                     }
-                    .id(segment)
-                    .scrollIndicators(.hidden)
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
@@ -125,6 +136,12 @@ struct TrainingTrackerView: View {
                 )
                 .presentationDetents([.large])
             }
+            .sheet(isPresented: $showingCreateLibraryExercise) {
+                LibraryCustomExerciseView { exercise in
+                    selectedLibraryExercise = exercise
+                }
+                .environmentObject(appState)
+            }
             .sheet(item: $selectedProgramTemplate) { template in
                 WorkoutProgramTemplateDetailView(template: template)
                     .environmentObject(appState)
@@ -142,6 +159,11 @@ struct TrainingTrackerView: View {
                 CompletedWorkoutDetailView(workout: workout)
                     .environmentObject(appState)
                     .presentationDetents([.large])
+            }
+            .sheet(item: $selectedPlateauInsight) { insight in
+                PlateauInsightDetailView(insight: insight)
+                    .environmentObject(appState)
+                    .presentationDetents([.medium, .large])
             }
             .alert("Rename Plan", isPresented: $showingRenamePlan) {
                 TextField("Plan name", text: $renamePlanName)
@@ -326,6 +348,14 @@ struct TrainingTrackerView: View {
                 Spacer()
             }
 
+            if let insight = visiblePlateauInsights.first {
+                PlateauAlertCard(insight: insight) {
+                    selectedPlateauInsight = insight
+                } dismiss: {
+                    dismissPlateauInsight(insight)
+                }
+            }
+
             if let active = appState.activeWorkout {
                 ActiveWorkoutResumeCard(workout: active) {
                     showingActiveWorkout = true
@@ -352,6 +382,83 @@ struct TrainingTrackerView: View {
             TodayWorkoutStats(week: selectedWeek, sessions: scheduledSessions)
                 .environmentObject(appState)
         }
+    }
+
+    private var visiblePlateauInsights: [PlateauInsight] {
+        let dismissed = Set(dismissedPlateauInsightIDs.split(separator: "|").map(String.init))
+        return appState.plateauInsights.filter { !dismissed.contains($0.id) }
+    }
+
+    private func dismissPlateauInsight(_ insight: PlateauInsight) {
+        var dismissed = Set(dismissedPlateauInsightIDs.split(separator: "|").map(String.init))
+        dismissed.insert(insight.id)
+        dismissedPlateauInsightIDs = dismissed.sorted().joined(separator: "|")
+        Haptics.light()
+    }
+
+    private var librarySections: [(letter: String, results: [ExerciseSearchResult])] {
+        let grouped = Dictionary(grouping: filteredLibraryResults.sorted {
+            $0.exercise.name.localizedStandardCompare($1.exercise.name) == .orderedAscending
+        }) { result in
+            result.exercise.name.first.map { String($0).uppercased() } ?? "#"
+        }
+        return grouped.keys.sorted().map { ($0, grouped[$0] ?? []) }
+    }
+
+    private func libraryAlphabetIndex(scrollProxy: ScrollViewProxy) -> some View {
+        VStack(spacing: 1) {
+            ForEach(librarySections.map(\.letter), id: \.self) { letter in
+                Button(letter) {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        scrollProxy.scrollTo("library-letter-\(letter)", anchor: .top)
+                    }
+                }
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(Color.liftBlue)
+                .frame(width: 22)
+                .frame(minHeight: 12)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Jump to exercises beginning with \(letter)")
+            }
+        }
+        .padding(.vertical, 6)
+        .background(Color.liftBackground.opacity(0.9))
+        .clipShape(Capsule())
+    }
+
+    private func libraryRow(_ result: ExerciseSearchResult) -> some View {
+        let exercise = result.exercise
+        return Button {
+            selectedLibraryExercise = exercise
+        } label: {
+            HStack(spacing: 12) {
+                ExerciseCatalogIcon(exercise: exercise)
+                    .frame(width: 44, height: 44)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(exercise.name)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                    if let reason = result.reasonLabel, !librarySearch.isEmpty {
+                        Text(reason)
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(Color.liftBlue)
+                    }
+                    Text("\(exercise.equipment) • \(exercise.resolvedMuscleProfile.primaryDescription)")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.liftMuted)
+            }
+            .padding(.horizontal, 12)
+            .frame(minHeight: 64)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens exercise details, history, records, and charts")
     }
 
     private var plans: some View {
@@ -510,7 +617,7 @@ struct TrainingTrackerView: View {
         }
     }
 
-    private var library: some View {
+    private func library(scrollProxy: ScrollViewProxy) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Image(systemName: "magnifyingglass")
@@ -549,6 +656,16 @@ struct TrainingTrackerView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Filter exercise library")
                 .accessibilityValue(libraryFilters.isEmpty ? "No filters applied" : "\(libraryFilters.activeCategoryCount) filter categories applied")
+
+                Button {
+                    showingCreateLibraryExercise = true
+                } label: {
+                    Image(systemName: "plus")
+                        .foregroundStyle(Color.liftBlue)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Create custom exercise")
             }
             .padding(.leading, 12)
             .padding(.trailing, 4)
@@ -609,56 +726,35 @@ struct TrainingTrackerView: View {
                 .buttonStyle(LiftSecondaryButtonStyle())
             } else {
 
-                VStack(spacing: 0) {
-                    ForEach(Array(filteredLibraryResults.enumerated()), id: \.element.id) { index, result in
-                        let exercise = result.exercise
-                        Button {
-                            selectedLibraryExercise = exercise
-                        } label: {
-                            HStack(spacing: 12) {
-                                ExerciseCatalogIcon(exercise: exercise)
-                                    .frame(width: 44, height: 44)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(exercise.name)
-                                        .font(.subheadline.weight(.semibold))
-                                    if let reason = result.reasonLabel {
-                                        Text(reason)
-                                            .font(.caption2.weight(.bold))
-                                            .foregroundStyle(Color.liftBlue)
-                                    }
-                                    Text("\(exercise.resolvedMuscleProfile.primaryDescription) • \(exercise.equipment)")
-                                        .font(.caption)
-                                        .foregroundStyle(Color.liftMuted)
-                                        .lineLimit(1)
-                                }
-                                Spacer()
-                                Text("\(exercise.defaultSets) × \(exercise.defaultReps)")
-                                    .font(.caption.weight(.semibold).monospacedDigit())
-                                    .foregroundStyle(Color.liftMuted)
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(Color.liftMuted)
-                            }
-                            .padding(.horizontal, 12)
-                            .frame(minHeight: 64)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityHint("Opens exercise anatomy and defaults")
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ForEach(librarySections, id: \.letter) { section in
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(section.letter)
+                                .font(.caption.weight(.black))
+                                .foregroundStyle(Color.liftBlue)
+                                .padding(.horizontal, 12)
+                                .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                                .background(Color.liftCardRaised.opacity(0.7))
+                                .id("library-letter-\(section.letter)")
 
-                        if index < filteredLibraryResults.count - 1 {
-                            Divider()
-                                .overlay(Color.white.opacity(0.07))
-                                .padding(.leading, 68)
+                            ForEach(Array(section.results.enumerated()), id: \.element.id) { index, result in
+                                libraryRow(result)
+                                if index < section.results.count - 1 {
+                                    Divider()
+                                        .overlay(Color.white.opacity(0.07))
+                                        .padding(.leading, 68)
+                                }
+                            }
+                        }
+                        .background(Color.liftCard)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
                         }
                     }
                 }
-                .background(Color.liftCard)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                }
+                .padding(.trailing, librarySearch.isEmpty ? 16 : 0)
             }
         }
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
@@ -1033,6 +1129,138 @@ struct TrainingTrackerView: View {
     private func applyRequestedSegment() {
         guard let requested = TrackerSegment(rawValue: appState.requestedTrackerSegment) else { return }
         segment = requested
+    }
+}
+
+private struct PlateauAlertCard: View {
+    let insight: PlateauInsight
+    let openDetails: () -> Void
+    let dismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack(alignment: .top, spacing: 11) {
+                Image(systemName: "equal.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(Color.liftGold)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Possible plateau")
+                        .font(.headline)
+                    Text("\(insight.exerciseName) has not improved in 3 workouts.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                }
+                Spacer()
+                Button(action: dismiss) {
+                    Image(systemName: "xmark")
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.liftMuted)
+                .accessibilityLabel("Dismiss plateau alert")
+            }
+
+            Button("Review recent sets", action: openDetails)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(Color.liftBlue)
+        }
+        .padding(14)
+        .background(Color.liftGold.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.liftGold.opacity(0.28), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct PlateauInsightDetailView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    let insight: PlateauInsight
+
+    var body: some View {
+        NavigationStack {
+            AppBackground {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label("Possible plateau", systemImage: "equal.circle.fill")
+                                .font(.title3.weight(.black))
+                                .foregroundStyle(Color.liftGold)
+                            Text(insight.exerciseName)
+                                .font(.headline)
+                            Text("Estimated strength and total working-set volume have not increased by more than 1% across these three workouts.")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.liftMuted)
+                        }
+
+                        VStack(spacing: 0) {
+                            ForEach(Array(insight.performances.enumerated()), id: \.element.id) { index, performance in
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(performance.performedAt, style: .date)
+                                            .font(.caption)
+                                            .foregroundStyle(Color.liftMuted)
+                                        Text(setDescription(performance))
+                                            .font(.subheadline.weight(.bold).monospacedDigit())
+                                    }
+                                    Spacer()
+                                    VStack(alignment: .trailing, spacing: 3) {
+                                        Text("EST. 1RM")
+                                            .font(.caption2.weight(.bold))
+                                            .foregroundStyle(Color.liftMuted)
+                                        Text(oneRepMaxDescription(performance))
+                                            .font(.subheadline.weight(.bold))
+                                    }
+                                }
+                                .padding(14)
+                                if index < insight.performances.count - 1 {
+                                    Divider().overlay(Color.liftSeparator).padding(.leading, 14)
+                                }
+                            }
+                        }
+                        .liftSurface()
+
+                        LiftCard {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Insight, not instruction")
+                                    .font(.headline)
+                                Text("A plateau can be normal. Review recovery, technique, exercise order, and programming before adding load. Increase weight or repetitions only when your form and readiness support it.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding(16)
+                }
+            }
+            .navigationTitle("Plateau details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func setDescription(_ performance: PlateauPerformance) -> String {
+        let value = displayWeight(performance.weightKilograms)
+        return "\(RankingCalculator.format(value)) \(appState.currentProfile.preferredUnit.shortLabel) × \(performance.repetitions)"
+    }
+
+    private func oneRepMaxDescription(_ performance: PlateauPerformance) -> String {
+        let value = displayWeight(performance.estimatedOneRepMaxKilograms)
+        return "\(RankingCalculator.format(value)) \(appState.currentProfile.preferredUnit.shortLabel)"
+    }
+
+    private func displayWeight(_ kilograms: Double) -> Double {
+        appState.currentProfile.preferredUnit == .kilograms
+            ? kilograms
+            : RankingCalculator.kilogramsToPounds(kilograms)
     }
 }
 
@@ -2519,6 +2747,25 @@ struct ExerciseCatalogIcon: View {
 struct ExerciseLibraryDetailView: View {
     @EnvironmentObject private var appState: AppState
     let exercise: TrainingExerciseCatalogItem
+    @State private var selectedTab: ExerciseDetailTab = .about
+    @State private var chartMetric: ExerciseChartMetric = .estimatedMax
+    @State private var selectedWorkout: CompletedWorkout?
+    @State private var showsChartTable = false
+
+    private enum ExerciseDetailTab: String, CaseIterable, Identifiable {
+        case about = "About"
+        case history = "History"
+        case records = "Records"
+        case charts = "Charts"
+        var id: String { rawValue }
+    }
+
+    private enum ExerciseChartMetric: String, CaseIterable, Identifiable {
+        case estimatedMax = "Est. 1RM"
+        case volume = "Volume"
+        case heaviest = "Heaviest"
+        var id: String { rawValue }
+    }
 
     private var profile: ExerciseMuscleProfile { exercise.resolvedMuscleProfile }
     private var splitProfile: ExerciseMuscleProfile {
@@ -2530,6 +2777,8 @@ struct ExerciseLibraryDetailView: View {
     private var demoMediaID: String? {
         exercise.demonstrationMediaID
     }
+    private var history: [ExerciseHistoryEntry] { appState.exerciseHistory(for: exercise.id) }
+    private var records: ExerciseRecords { appState.exerciseRecords(for: exercise.id) }
 
     var body: some View {
         AppBackground {
@@ -2542,75 +2791,20 @@ struct ExerciseLibraryDetailView: View {
                             mediaID: demoMediaID,
                             badge: "Exercise Demo"
                         )
-                    }
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        ExerciseMuscleMap(profile: splitProfile)
-                            .frame(height: 270)
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel(anatomyAccessibilityLabel)
-
-                        HStack(spacing: 8) {
-                            anatomyLegend("Primary", color: Color.liftBlue)
-                            if !profile.secondary.isEmpty {
-                                anatomyLegend("Secondary", color: Color.liftBlue.opacity(0.38))
-                            }
-                            anatomyLegend("Unaffected", color: Color.liftMuted.opacity(0.45))
-                        }
-                    }
-                    .padding(14)
-                    .liftSurface()
-
-                    VStack(alignment: .leading, spacing: 14) {
-                        muscleList(title: "Primary muscles", muscles: profile.primary, color: Color.liftBlue)
-                        if !profile.secondary.isEmpty {
-                            Divider().overlay(Color.white.opacity(0.07))
-                            muscleList(title: "Secondary muscles", muscles: profile.secondary, color: Color.liftBlue.opacity(0.58))
-                        }
-                    }
-                    .padding(14)
-                    .liftSurface()
-
-                    VStack(spacing: 0) {
-                        detailRow("Equipment", exercise.equipment)
-                        Divider().overlay(Color.white.opacity(0.07))
-                        detailRow("Movement", exercise.movementType)
-                        Divider().overlay(Color.white.opacity(0.07))
-                        detailRow("Pattern", exercise.movementPattern.rawValue)
-                        Divider().overlay(Color.white.opacity(0.07))
-                        detailRow("Difficulty", exercise.difficulty.title)
-                        Divider().overlay(Color.white.opacity(0.07))
-                        detailRow("Tracking", exercise.trackingType)
-                        Divider().overlay(Color.white.opacity(0.07))
-                        detailRow("Default prescription", "\(exercise.defaultSets) sets × \(exercise.defaultReps)")
-                    }
-                    .padding(.horizontal, 14)
-                    .liftSurface()
-
-                    if !substitutes.isEmpty {
+                    } else {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("Find a substitute")
-                                .font(.headline.weight(.bold))
-                            ForEach(substitutes) { recommendation in
-                                HStack(spacing: 12) {
-                                    ExerciseCatalogIcon(exercise: recommendation.exercise)
-                                        .frame(width: 40, height: 40)
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(recommendation.exercise.name)
-                                            .font(.subheadline.weight(.bold))
-                                        Text(recommendation.reasons.joined(separator: " • "))
-                                            .font(.caption)
-                                            .foregroundStyle(Color.liftMuted)
-                                            .lineLimit(2)
-                                    }
-                                    Spacer()
-                                }
-                                .padding(.vertical, 4)
-                            }
+                            ExerciseMuscleMap(profile: splitProfile)
+                                .frame(height: 230)
+                            Text("Highlighted muscle preview")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
                         }
                         .padding(14)
                         .liftSurface()
                     }
+
+                    detailTabs
+                    selectedTabContent
                 }
                 .padding(16)
                 .padding(.bottom, 24)
@@ -2620,7 +2814,325 @@ struct ExerciseLibraryDetailView: View {
         .navigationTitle(exercise.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
+        .sheet(item: $selectedWorkout) { workout in
+            CompletedWorkoutDetailView(workout: workout)
+                .environmentObject(appState)
+                .presentationDetents([.large])
+        }
     }
+
+    private var detailTabs: some View {
+        HStack(spacing: 4) {
+            ForEach(ExerciseDetailTab.allCases) { tab in
+                Button(tab.rawValue) {
+                    withAnimation(.easeInOut(duration: 0.18)) { selectedTab = tab }
+                }
+                .font(.subheadline.weight(selectedTab == tab ? .bold : .medium))
+                .foregroundStyle(selectedTab == tab ? .white : Color.liftMuted)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(selectedTab == tab ? Color.liftCardRaised : Color.clear)
+                .clipShape(Capsule())
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
+            }
+        }
+        .padding(4)
+        .background(Color.liftCard)
+        .clipShape(Capsule())
+    }
+
+    @ViewBuilder
+    private var selectedTabContent: some View {
+        switch selectedTab {
+        case .about: aboutTab
+        case .history: historyTab
+        case .records: recordsTab
+        case .charts: chartsTab
+        }
+    }
+
+    private var aboutTab: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 10) {
+                compactFact("Muscle group", profile.primaryDescription, symbol: "figure.arms.open")
+                compactFact("Equipment", exercise.equipment, symbol: "dumbbell.fill")
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                ExerciseMuscleMap(profile: splitProfile)
+                    .frame(height: 220)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(anatomyAccessibilityLabel)
+                HStack(spacing: 8) {
+                    anatomyLegend("Primary", color: Color.liftBlue)
+                    if !profile.secondary.isEmpty {
+                        anatomyLegend("Secondary", color: Color.liftBlue.opacity(0.38))
+                    }
+                }
+            }
+            .padding(14)
+            .liftSurface()
+
+            if let guidance = exercise.guidance {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(guidance.summary)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.liftMuted)
+                    Text("How to perform")
+                        .font(.headline)
+                    ForEach(Array(guidance.steps.enumerated()), id: \.offset) { index, step in
+                        HStack(alignment: .top, spacing: 12) {
+                            Text("\(index + 1)")
+                                .font(.caption.weight(.black))
+                                .foregroundStyle(Color.liftBackground)
+                                .frame(width: 24, height: 24)
+                                .background(Color.white)
+                                .clipShape(Circle())
+                            Text(step)
+                                .font(.subheadline)
+                                .foregroundStyle(Color.liftMuted)
+                        }
+                    }
+                    if !guidance.cues.isEmpty {
+                        Divider().overlay(Color.liftSeparator)
+                        Label(guidance.cues.joined(separator: " • "), systemImage: "checkmark.seal.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.liftGold)
+                    }
+                }
+                .padding(16)
+                .liftSurface()
+            } else {
+                LiftCard {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Technique guidance in review")
+                            .font(.headline)
+                        Text("Use the anatomy, movement details, and your coach’s guidance for this exercise.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.liftMuted)
+                    }
+                }
+            }
+
+            VStack(spacing: 0) {
+                detailRow("Movement", exercise.movementType)
+                Divider().overlay(Color.liftSeparator)
+                detailRow("Pattern", exercise.movementPattern.rawValue)
+                Divider().overlay(Color.liftSeparator)
+                detailRow("Difficulty", exercise.difficulty.title)
+                Divider().overlay(Color.liftSeparator)
+                detailRow("Tracking", exercise.trackingType)
+                Divider().overlay(Color.liftSeparator)
+                detailRow("Default", "\(exercise.defaultSets) sets × \(exercise.defaultReps)")
+            }
+            .padding(.horizontal, 14)
+            .liftSurface()
+
+            if !substitutes.isEmpty { substitutesSection }
+        }
+    }
+
+    private var historyTab: some View {
+        Group {
+            if history.isEmpty {
+                LiftEmptyState(
+                    title: "No history yet",
+                    message: "Complete this exercise in a workout to see its history here.",
+                    symbolName: "clock"
+                )
+                .padding(.vertical, 44)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(history.enumerated()), id: \.element.id) { index, entry in
+                        Button { selectedWorkout = entry.workout } label: {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(entry.workout.completedAt, style: .date)
+                                        .font(.subheadline.weight(.bold))
+                                    Text("\(entry.sets.count) working sets • \(entry.workout.name)")
+                                        .font(.caption)
+                                        .foregroundStyle(Color.liftMuted)
+                                        .lineLimit(1)
+                                }
+                                Spacer()
+                                VStack(alignment: .trailing, spacing: 3) {
+                                    Text(bestSetText(entry))
+                                        .font(.subheadline.weight(.bold).monospacedDigit())
+                                    Text("Best set")
+                                        .font(.caption2)
+                                        .foregroundStyle(Color.liftMuted)
+                                }
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                            .padding(14)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        if index < history.count - 1 {
+                            Divider().overlay(Color.liftSeparator).padding(.leading, 14)
+                        }
+                    }
+                }
+                .liftSurface()
+            }
+        }
+    }
+
+    private var recordsTab: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Personal records")
+                .font(.headline)
+            VStack(spacing: 0) {
+                recordRow("Best estimated 1RM", weightText(records.bestEstimatedOneRepMaxKilograms), symbol: "trophy.fill")
+                Divider().overlay(Color.liftSeparator)
+                recordRow("Best session volume", volumeText(records.bestSessionVolumeKilograms), symbol: "chart.bar.fill")
+                Divider().overlay(Color.liftSeparator)
+                recordRow("Best set volume", volumeText(records.bestSetVolumeKilograms), symbol: "square.stack.3d.up.fill")
+                Divider().overlay(Color.liftSeparator)
+                recordRow("Heaviest weight", weightText(records.heaviestWeightKilograms), symbol: "dumbbell.fill")
+            }
+            .padding(.horizontal, 14)
+            .liftSurface()
+            Text("Records use completed working sets only. Estimated 1RM is informational and is not a recommendation to attempt that weight.")
+                .font(.caption)
+                .foregroundStyle(Color.liftMuted)
+        }
+    }
+
+    private var chartsTab: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Picker("Chart metric", selection: $chartMetric) {
+                ForEach(ExerciseChartMetric.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            if chartEntries.isEmpty {
+                LiftEmptyState(
+                    title: "Not enough data",
+                    message: "Complete weighted working sets to build this chart.",
+                    symbolName: "chart.xyaxis.line"
+                )
+                .padding(.vertical, 44)
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    Chart(chartEntries) { entry in
+                        LineMark(
+                            x: .value("Date", entry.workout.completedAt),
+                            y: .value(chartMetric.rawValue, chartValue(entry))
+                        )
+                        .foregroundStyle(Color.liftBlue)
+                        PointMark(
+                            x: .value("Date", entry.workout.completedAt),
+                            y: .value(chartMetric.rawValue, chartValue(entry))
+                        )
+                        .foregroundStyle(Color.liftGold)
+                    }
+                    .frame(height: 220)
+                    .chartYAxis { AxisMarks(position: .trailing) }
+                    .accessibilityLabel("\(exercise.name) \(chartMetric.rawValue) chart with \(chartEntries.count) workouts")
+
+                    DisclosureGroup("Show data table", isExpanded: $showsChartTable) {
+                        VStack(spacing: 0) {
+                            ForEach(chartEntries.suffix(8)) { entry in
+                                HStack {
+                                    Text(entry.workout.completedAt, style: .date)
+                                    Spacer()
+                                    Text(chartDisplayValue(entry))
+                                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                                }
+                                .font(.caption)
+                                .padding(.vertical, 8)
+                            }
+                        }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .tint(Color.liftBlue)
+                }
+                .padding(14)
+                .liftSurface()
+            }
+        }
+    }
+
+    private var chartEntries: [ExerciseHistoryEntry] {
+        history.reversed().filter { chartValue($0) > 0 }
+    }
+
+    private func chartValue(_ entry: ExerciseHistoryEntry) -> Double {
+        switch chartMetric {
+        case .estimatedMax: return displayWeight(entry.estimatedOneRepMaxKilograms ?? 0)
+        case .volume: return displayWeight(entry.sessionVolumeKilograms)
+        case .heaviest: return displayWeight(entry.bestWeightKilograms ?? 0)
+        }
+    }
+
+    private func chartDisplayValue(_ entry: ExerciseHistoryEntry) -> String {
+        chartMetric == .volume ? volumeText(entry.sessionVolumeKilograms) : weightText(chartMetric == .estimatedMax ? entry.estimatedOneRepMaxKilograms : entry.bestWeightKilograms)
+    }
+
+    private func compactFact(_ title: String, _ value: String, symbol: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: symbol).foregroundStyle(Color.liftBlue)
+            Text(title).font(.caption).foregroundStyle(Color.liftMuted)
+            Text(value).font(.subheadline.weight(.bold)).lineLimit(2)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
+        .liftSurface()
+    }
+
+    private var substitutesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Find a substitute").font(.headline)
+            ForEach(substitutes) { recommendation in
+                HStack(spacing: 12) {
+                    ExerciseCatalogIcon(exercise: recommendation.exercise).frame(width: 40, height: 40)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(recommendation.exercise.name).font(.subheadline.weight(.bold))
+                        Text(recommendation.reasons.joined(separator: " • "))
+                            .font(.caption).foregroundStyle(Color.liftMuted).lineLimit(2)
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .padding(14)
+        .liftSurface()
+    }
+
+    private func recordRow(_ title: String, _ value: String, symbol: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol).foregroundStyle(Color.liftGold).frame(width: 26)
+            Text(title).font(.subheadline)
+            Spacer()
+            Text(value).font(.subheadline.weight(.bold).monospacedDigit())
+        }
+        .frame(minHeight: 56)
+    }
+
+    private func bestSetText(_ entry: ExerciseHistoryEntry) -> String {
+        guard let weight = entry.bestWeightKilograms, let reps = entry.bestRepetitions else { return "—" }
+        return "\(RankingCalculator.format(displayWeight(weight))) \(displayUnit) × \(reps)"
+    }
+
+    private func weightText(_ kilograms: Double?) -> String {
+        guard let kilograms, kilograms > 0 else { return "—" }
+        return "\(RankingCalculator.format(displayWeight(kilograms))) \(displayUnit)"
+    }
+
+    private func volumeText(_ kilograms: Double?) -> String {
+        guard let kilograms, kilograms > 0 else { return "—" }
+        return "\(RankingCalculator.format(displayWeight(kilograms))) \(displayUnit)"
+    }
+
+    private func displayWeight(_ kilograms: Double) -> Double {
+        appState.currentProfile.preferredUnit == .kilograms ? kilograms : RankingCalculator.kilogramsToPounds(kilograms)
+    }
+
+    private var displayUnit: String { appState.currentProfile.preferredUnit.shortLabel }
 
     private var anatomyAccessibilityLabel: String {
         let secondary = profile.secondary.isEmpty ? "" : "; secondary muscles \(profile.secondaryDescription)"
@@ -2634,24 +3146,6 @@ struct ExerciseLibraryDetailView: View {
                 .foregroundStyle(Color.liftMuted)
         } icon: {
             Circle().fill(color).frame(width: 8, height: 8)
-        }
-    }
-
-    private func muscleList(title: String, muscles: [ExerciseMuscleRegion], color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Text(title)
-                .font(.headline.weight(.bold))
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 7)], alignment: .leading, spacing: 7) {
-                ForEach(muscles) { muscle in
-                    Text(muscle.displayName)
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(color)
-                        .padding(.horizontal, 10)
-                        .frame(maxWidth: .infinity, minHeight: 32)
-                        .background(color.opacity(0.12))
-                        .clipShape(Capsule())
-                }
-            }
         }
     }
 
@@ -3099,6 +3593,64 @@ struct CreateCustomExerciseView: View {
         .navigationDestination(item: $createdExercise) { exercise in
             AddExerciseToWorkoutView(exercise: exercise, session: session, onAdded: onAdded)
                 .environmentObject(appState)
+        }
+    }
+}
+
+private struct LibraryCustomExerciseView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    let onSaved: (TrainingExerciseCatalogItem) -> Void
+    @State private var name = ""
+    @State private var muscleGroup = "Chest"
+    @State private var equipment = "Dumbbell"
+    @State private var trackingType = "Weight + Reps"
+
+    private let muscleGroups = ["Chest", "Back", "Shoulders", "Arms", "Quads", "Hamstrings", "Glutes", "Core", "Full Body"]
+    private let equipmentOptions = ["Barbell", "Dumbbell", "Cable", "Machine", "Bodyweight", "Kettlebell", "Band"]
+    private let trackingTypes = ["Weight + Reps", "Reps Only", "Time"]
+
+    var body: some View {
+        NavigationStack {
+            AppBackground {
+                Form {
+                    Section("Exercise") {
+                        TextField("Exercise name", text: $name)
+                        Picker("Primary area", selection: $muscleGroup) {
+                            ForEach(muscleGroups, id: \.self) { Text($0).tag($0) }
+                        }
+                        Picker("Equipment", selection: $equipment) {
+                            ForEach(equipmentOptions, id: \.self) { Text($0).tag($0) }
+                        }
+                    }
+                    Section("Tracking") {
+                        Picker("Tracking type", selection: $trackingType) {
+                            ForEach(trackingTypes, id: \.self) { Text($0).tag($0) }
+                        }
+                    }
+                }
+                .scrollContentBackground(.hidden)
+            }
+            .navigationTitle("New Exercise")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        guard let exercise = appState.saveCustomExercise(
+                            name: name,
+                            bodyPart: muscleGroup,
+                            equipment: equipment,
+                            trackingType: trackingType
+                        ) else { return }
+                        dismiss()
+                        onSaved(exercise)
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
         }
     }
 }

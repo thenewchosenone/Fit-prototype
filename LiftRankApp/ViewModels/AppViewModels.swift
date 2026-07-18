@@ -77,8 +77,22 @@ final class AppState: ObservableObject {
     var isDemoMode: Bool { accountStatus == .demo }
     var isAuthenticated: Bool { accountStatus == .authenticated || accountStatus == .needsOnboarding }
 
+    static var allowsDemoMode: Bool {
+#if DEBUG
+        true
+#else
+        false
+#endif
+    }
+
     func restoreAccount() async {
         guard accountStatus == .restoring else { return }
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTestingDemoMode") {
+            await enterDemoMode()
+            return
+        }
+#endif
         guard authService.isConfigured else {
             accountStatus = .configurationRequired
             return
@@ -124,6 +138,11 @@ final class AppState: ObservableObject {
     }
 
     func enterDemoMode() async {
+        guard Self.allowsDemoMode else {
+            accountMessage = "Demo mode is unavailable in production builds."
+            accountStatus = authService.isConfigured ? .signedOut : .configurationRequired
+            return
+        }
         serviceContainer = .demo(repository: repository)
         _ = try? await authService.signInDemo()
         accountSession = nil
@@ -2294,6 +2313,112 @@ final class AppState: ObservableObject {
         return Array(reasons.prefix(3))
     }
 
+}
+
+extension AppState {
+    func exerciseHistory(for exerciseID: String) -> [ExerciseHistoryEntry] {
+        completedWorkouts.compactMap { workout in
+            let snapshotIDs = Set(workout.exercises.filter { $0.exerciseID == exerciseID }.map(\.id))
+            let sets = workout.sets.filter {
+                snapshotIDs.contains($0.prescriptionID) && $0.isComplete && !$0.isWarmup
+            }
+            let normalized = sets.compactMap { set -> (weight: Double, reps: Int, estimatedMax: Double, volume: Double)? in
+                guard let weight = set.weight, weight > 0, let reps = set.reps, reps > 0 else { return nil }
+                let kilograms = set.recordedUnit == .kilograms
+                    ? weight
+                    : RankingCalculator.poundsToKilograms(weight)
+                return (
+                    kilograms,
+                    reps,
+                    RankingCalculator.epleyOneRepMax(weight: kilograms, repetitions: reps),
+                    kilograms * Double(reps)
+                )
+            }
+            guard !sets.isEmpty else { return nil }
+            let best = normalized.max { $0.estimatedMax < $1.estimatedMax }
+            return ExerciseHistoryEntry(
+                workout: workout,
+                sets: sets,
+                bestWeightKilograms: best?.weight,
+                bestRepetitions: best?.reps,
+                estimatedOneRepMaxKilograms: best?.estimatedMax,
+                sessionVolumeKilograms: normalized.reduce(0) { $0 + $1.volume }
+            )
+        }
+        .sorted { $0.workout.completedAt > $1.workout.completedAt }
+    }
+
+    func exerciseRecords(for exerciseID: String) -> ExerciseRecords {
+        let history = exerciseHistory(for: exerciseID)
+        let normalizedSets = history.flatMap(\.sets).compactMap { set -> (weight: Double, reps: Int)? in
+            guard let weight = set.weight, weight > 0, let reps = set.reps, reps > 0 else { return nil }
+            return (set.recordedUnit == .kilograms ? weight : RankingCalculator.poundsToKilograms(weight), reps)
+        }
+        let estimatedMaxes = normalizedSets.map {
+            RankingCalculator.epleyOneRepMax(weight: $0.weight, repetitions: $0.reps)
+        }
+        let setVolumes = normalizedSets.map { $0.weight * Double($0.reps) }
+        let sessionVolumes = history.map(\.sessionVolumeKilograms).filter { $0 > 0 }
+        return ExerciseRecords(
+            bestEstimatedOneRepMaxKilograms: estimatedMaxes.max(),
+            bestSessionVolumeKilograms: sessionVolumes.max(),
+            bestSetVolumeKilograms: setVolumes.max(),
+            heaviestWeightKilograms: normalizedSets.map(\.weight).max(),
+            mostRepetitions: normalizedSets.map(\.reps).max()
+        )
+    }
+
+    var plateauInsights: [PlateauInsight] {
+        var exerciseNames: [String: String] = [:]
+        var performancesByExercise: [String: [PlateauPerformance]] = [:]
+
+        for workout in completedWorkouts.sorted(by: { $0.completedAt > $1.completedAt }) {
+            for exercise in workout.exercises {
+                let sets = workout.sets.filter {
+                    $0.prescriptionID == exercise.id && $0.isComplete && !$0.isWarmup
+                }
+                guard !sets.isEmpty else { continue }
+
+                let normalizedSets = sets.compactMap { set -> (WorkoutSetLog, Double, Int)? in
+                    guard let weight = set.weight, weight > 0, let reps = set.reps, reps > 0 else { return nil }
+                    let kilograms = set.recordedUnit == .kilograms
+                        ? weight
+                        : RankingCalculator.poundsToKilograms(weight)
+                    return (set, kilograms, reps)
+                }
+                guard let best = normalizedSets.max(by: {
+                    RankingCalculator.epleyOneRepMax(weight: $0.1, repetitions: $0.2) <
+                    RankingCalculator.epleyOneRepMax(weight: $1.1, repetitions: $1.2)
+                }) else { continue }
+
+                let volume = normalizedSets.reduce(0) { $0 + ($1.1 * Double($1.2)) }
+                exerciseNames[exercise.exerciseID] = exercise.exerciseName
+                performancesByExercise[exercise.exerciseID, default: []].append(
+                    PlateauPerformance(
+                        id: best.0.id,
+                        workoutID: workout.id,
+                        performedAt: workout.completedAt,
+                        weightKilograms: best.1,
+                        repetitions: best.2,
+                        estimatedOneRepMaxKilograms: RankingCalculator.epleyOneRepMax(weight: best.1, repetitions: best.2),
+                        volumeKilograms: volume
+                    )
+                )
+            }
+        }
+
+        return performancesByExercise.compactMap { exerciseID, performances in
+            let recent = Array(performances.sorted { $0.performedAt > $1.performedAt }.prefix(3))
+            guard RankingCalculator.isPlateau(performances: recent), let latest = recent.first else { return nil }
+            return PlateauInsight(
+                id: "\(exerciseID)-\(Int(latest.performedAt.timeIntervalSince1970))",
+                exerciseID: exerciseID,
+                exerciseName: exerciseNames[exerciseID] ?? "Exercise",
+                performances: recent
+            )
+        }
+        .sorted { $0.latestPerformance.performedAt > $1.latestPerformance.performedAt }
+    }
 }
 
 enum Haptics {

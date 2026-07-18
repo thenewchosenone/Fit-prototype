@@ -220,21 +220,13 @@ struct LeaderboardsView: View {
                         activeSelector = .repetitions
                     }
                 }
-                LeaderboardFilterControl(title: "Age", value: appState.leaderboardFilters.ageGroup ?? "All", symbol: "person.text.rectangle") {
-                    activeSelector = .age
-                }
-                LeaderboardFilterControl(title: "Time", value: appState.leaderboardFilters.timeRange, symbol: "calendar") {
-                    activeSelector = .timeRange
-                }
-                LeaderboardFilterControl(title: "Status", value: verificationLabel, symbol: "checkmark.seal.fill") {
-                    activeSelector = .verification
-                }
                 Button {
                     Haptics.light()
                     appState.showingLeaderboardFilters = true
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "slider.horizontal.3")
+                        Text("Filters")
                         if activeFilterCount > 0 { Text("\(activeFilterCount)") }
                     }
                     .font(.caption.weight(.bold))

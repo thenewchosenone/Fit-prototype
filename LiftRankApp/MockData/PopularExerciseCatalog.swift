@@ -207,7 +207,7 @@ enum PopularExerciseCatalog {
         "machine_plate_loaded_chest_press": ["Hammer Strength Bench Press", "Hammer Iso-Lateral Bench Press"],
         "machine_incline_chest_press": ["Hammer Strength Incline Press", "Hammer Iso-Lateral Incline Press"],
         "machine_decline_chest_press": ["Hammer Strength Decline Press", "Hammer Iso-Lateral Decline Press"],
-        "machine_iso_lateral_chest_press": ["Hammer Strength Chest Press", "Hammer Iso Chest Press"],
+        "machine_iso_lateral_chest_press": ["Hammer Strength Iso-Lateral Chest Press", "Hammer Iso Chest Press"],
         "machine_high_row": ["Hammer Strength High Row", "Hammer Iso-Lateral High Row"],
         "machine_low_row": ["Hammer Strength Low Row", "Hammer Iso-Lateral Low Row"],
         "machine_iso_lateral_row": ["Hammer Strength Iso-Lateral Row", "Hammer Strength Row"],
@@ -252,4 +252,93 @@ enum PopularExerciseCatalog {
         if value.contains("chest") || value.contains("shoulder") || value.contains("tricep") { return "figure.strengthtraining.traditional" }
         return "dumbbell.fill"
     }
+}
+
+enum ExerciseGuidanceCatalog {
+    static func guidance(for exerciseID: String) -> ExerciseGuidance? {
+        entries[exerciseID]
+    }
+
+    private static let entries: [String: ExerciseGuidance] = [
+        "barbell_bench_press": .init(
+            summary: "A horizontal press for the chest, triceps, and front shoulders.",
+            steps: ["Set your eyes beneath the bar and plant both feet.", "Retract your shoulder blades and lower the bar with control.", "Touch the lower chest, then press while keeping your upper back set."],
+            cues: ["Use a spotter or safeties", "Keep wrists stacked over elbows"]
+        ),
+        "incline_db_press": .init(
+            summary: "An angled dumbbell press emphasizing the upper chest and front shoulders.",
+            steps: ["Set the bench to a moderate incline and brace your feet.", "Lower the dumbbells beside the upper chest with controlled elbows.", "Press upward and slightly inward without losing shoulder position."],
+            cues: ["Avoid an excessively steep bench", "Control the bottom position"]
+        ),
+        "lat_pulldown": .init(
+            summary: "A vertical pull that trains the lats and upper back through a controlled overhead range.",
+            steps: ["Secure your thighs and take a comfortable overhand grip.", "Set your shoulders down before bending the elbows.", "Pull toward the upper chest, then return overhead under control."],
+            cues: ["Keep the torso mostly still", "Do not pull behind the neck"]
+        ),
+        "pull_up": .init(
+            summary: "A bodyweight vertical pull for the lats, upper back, and arms.",
+            steps: ["Begin from a controlled hang with your ribs braced.", "Drive the elbows down as your chest rises toward the bar.", "Lower to a comfortable full range without dropping into the shoulders."],
+            cues: ["Avoid swinging", "Use assistance when full reps break down"]
+        ),
+        "seated_cable_row": .init(
+            summary: "A seated horizontal pull for the middle back, lats, and elbow flexors.",
+            steps: ["Sit tall with the cable aligned near the lower ribs.", "Pull the handle toward your torso while keeping the chest steady.", "Reach forward under control without rounding aggressively."],
+            cues: ["Lead with the elbows", "Keep momentum minimal"]
+        ),
+        "single_arm_db_row": .init(
+            summary: "A supported single-arm row that trains the lats and upper back.",
+            steps: ["Brace one hand and keep your spine long.", "Let the working shoulder reach naturally at the bottom.", "Row the dumbbell toward the hip, then lower it with control."],
+            cues: ["Keep the hips square", "Do not twist to finish the rep"]
+        ),
+        "back_squat": .init(
+            summary: "A barbell squat for the quads, glutes, and trunk.",
+            steps: ["Set the bar securely, brace, and walk out with controlled steps.", "Descend between your hips while keeping balanced pressure through the feet.", "Drive upward with the torso and hips rising together."],
+            cues: ["Use rack safeties", "Choose depth you can control"]
+        ),
+        "conventional_deadlift": .init(
+            summary: "A floor pull that trains the posterior chain, back, and grip.",
+            steps: ["Stand with the bar over mid-foot and take your grip.", "Brace, set your back, and remove slack from the bar.", "Push the floor away and stand tall without leaning backward."],
+            cues: ["Keep the bar close", "Reset when position is lost"]
+        ),
+        "sumo_deadlift": .init(
+            summary: "A wide-stance floor pull emphasizing the hips, legs, and back.",
+            steps: ["Choose a stable wide stance and grip inside the legs.", "Brace and wedge the hips toward the bar before it leaves the floor.", "Push through the floor and finish with the knees and hips extended."],
+            cues: ["Keep knees tracking with toes", "Do not jerk the bar from the floor"]
+        ),
+        "romanian_deadlift": .init(
+            summary: "A hip hinge for the hamstrings, glutes, and spinal erectors.",
+            steps: ["Start tall with the load close to the thighs.", "Push the hips back while maintaining a softly bent knee.", "Stop at your controlled hamstring range, then drive the hips forward."],
+            cues: ["Keep the load close", "Do not chase floor depth"]
+        ),
+        "leg_press": .init(
+            summary: "A supported machine press for the quads and glutes.",
+            steps: ["Set your feet where the knees can track comfortably.", "Lower the platform until your pelvis is about to roll from the pad.", "Press through the whole foot without locking the knees forcefully."],
+            cues: ["Keep hips against the pad", "Use the machine safeties"]
+        ),
+        "barbell_overhead_press": .init(
+            summary: "A standing vertical press for the shoulders, triceps, and upper body.",
+            steps: ["Hold the bar near the upper chest with wrists stacked.", "Brace the trunk and press while moving your head clear of the bar.", "Finish overhead with control, then return to the shoulders."],
+            cues: ["Avoid excessive back extension", "Keep the bar path close"]
+        ),
+        "db_shoulder_press": .init(
+            summary: "A dumbbell vertical press for the shoulders and triceps.",
+            steps: ["Set the bench and begin with the dumbbells beside the shoulders.", "Press overhead while keeping the ribs controlled.", "Lower to a comfortable depth without bouncing."],
+            cues: ["Keep forearms stacked", "Use a controlled setup"]
+        ),
+        "ez_bar_curl": .init(
+            summary: "An elbow-flexion exercise for the biceps and forearms.",
+            steps: ["Stand tall with a comfortable grip on the angled bar.", "Curl without allowing the upper arms to drift far forward.", "Squeeze briefly, then lower until the elbows extend under control."],
+            cues: ["Keep the torso quiet", "Do not force painful wrist angles"]
+        ),
+        "triceps_pressdown": .init(
+            summary: "A cable isolation movement for the triceps.",
+            steps: ["Stand stable with the elbows near your sides.", "Extend the elbows until the arms are straight without shrugging.", "Return the handle under control while keeping the upper arms steady."],
+            cues: ["Avoid leaning on the cable", "Use a pain-free attachment"]
+        ),
+        "plank": .init(
+            summary: "An isometric trunk exercise that challenges full-body bracing.",
+            steps: ["Set the elbows beneath the shoulders and extend the legs.", "Brace the abdomen and glutes to create a straight body line.", "Hold while breathing steadily and stop when position breaks."],
+            cues: ["Do not let the lower back sag", "Quality matters more than duration"]
+        )
+    ]
 }

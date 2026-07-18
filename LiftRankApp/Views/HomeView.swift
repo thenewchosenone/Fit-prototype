@@ -26,10 +26,8 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     balancedOverview
-                    quickStats
                     recentPRs
                     weeklyActivity
-                    communityHighlights
                 }
                 .padding(.horizontal, LiftDesign.screenHorizontalPadding)
                 .padding(.top, 8)

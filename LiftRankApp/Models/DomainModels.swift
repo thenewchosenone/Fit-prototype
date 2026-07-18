@@ -117,6 +117,10 @@ struct TrainingExerciseCatalogItem: Identifiable, Codable, Hashable {
         muscleProfile ?? ExerciseMuscleProfileResolver.profile(name: name, bodyPart: bodyPart)
     }
 
+    var guidance: ExerciseGuidance? {
+        ExerciseGuidanceCatalog.guidance(for: id)
+    }
+
     func matchesSearch(_ query: String) -> Bool {
         matchResult(for: query) != nil
     }
@@ -124,6 +128,12 @@ struct TrainingExerciseCatalogItem: Identifiable, Codable, Hashable {
     func matchResult(for query: String) -> ExerciseSearchResult? {
         ExerciseCatalogSearch.match(exercise: self, query: query)
     }
+}
+
+struct ExerciseGuidance: Hashable {
+    var summary: String
+    var steps: [String]
+    var cues: [String]
 }
 
 enum ExerciseMovementPattern: String, Codable, CaseIterable, Hashable, Identifiable {
@@ -249,8 +259,10 @@ enum ExerciseCatalogSearch {
             )
         }
 
-        let primaryMatch = primaryMuscles.contains { queryTokens.allSatisfy(tokens(from: $0).contains) }
-        let equipmentMatch = metadataTokens.contains { queryTokens.contains($0) }
+        let primaryMatch = queryTokens.count == 1 && primaryMuscles.contains {
+            tokens(from: $0).contains(queryTokens[0])
+        }
+        let equipmentMatch = queryTokens.count == 1 && metadataTokens.contains(queryTokens[0])
         if primaryMatch || equipmentMatch {
             return ExerciseSearchResult(
                 exercise: exercise,
@@ -263,8 +275,10 @@ enum ExerciseCatalogSearch {
         let secondaryMatch = secondaryMuscles.contains { muscle in
             queryTokens.allSatisfy { muscle.contains($0) || $0.contains(muscle) }
         }
-        let partialTokenMatch = queryTokens.contains { token in
-            normalizedName.contains(token) || normalizedAliases.contains(where: { $0.contains(token) })
+        let searchableValues = [normalizedName] + normalizedAliases
+        let partialTokenMatch = queryTokens.allSatisfy { token in
+            guard token.count >= 2 else { return false }
+            return searchableValues.contains { $0.contains(token) }
         }
         if secondaryMatch || partialTokenMatch {
             return ExerciseSearchResult(exercise: exercise, score: 220, kind: .secondaryPartial, matchedAlias: nil)
@@ -1408,6 +1422,43 @@ struct CompletedWorkout: Identifiable, Codable, Hashable {
     var totalVolume: Double {
         completedWorkingSets.reduce(0) { $0 + $1.volume }
     }
+}
+
+struct PlateauPerformance: Identifiable, Hashable {
+    var id: UUID
+    var workoutID: UUID
+    var performedAt: Date
+    var weightKilograms: Double
+    var repetitions: Int
+    var estimatedOneRepMaxKilograms: Double
+    var volumeKilograms: Double
+}
+
+struct PlateauInsight: Identifiable, Hashable {
+    var id: String
+    var exerciseID: String
+    var exerciseName: String
+    var performances: [PlateauPerformance]
+
+    var latestPerformance: PlateauPerformance { performances[0] }
+}
+
+struct ExerciseHistoryEntry: Identifiable, Hashable {
+    var id: UUID { workout.id }
+    var workout: CompletedWorkout
+    var sets: [WorkoutSetLog]
+    var bestWeightKilograms: Double?
+    var bestRepetitions: Int?
+    var estimatedOneRepMaxKilograms: Double?
+    var sessionVolumeKilograms: Double
+}
+
+struct ExerciseRecords: Hashable {
+    var bestEstimatedOneRepMaxKilograms: Double?
+    var bestSessionVolumeKilograms: Double?
+    var bestSetVolumeKilograms: Double?
+    var heaviestWeightKilograms: Double?
+    var mostRepetitions: Int?
 }
 
 enum WorkoutPRSubmissionState: String, Codable, Hashable {

@@ -193,20 +193,22 @@ struct AuthenticationView: View {
                             .foregroundStyle(Color.liftBlue)
                     }
 
-                    Divider().overlay(Color.white.opacity(0.08))
-                    Button {
-                        Task { await appState.enterDemoMode() }
-                    } label: {
-                        Label("Enter Explicit Demo Mode", systemImage: "person.crop.circle.badge.checkmark")
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: 48)
+                    if AppState.allowsDemoMode {
+                        Divider().overlay(Color.white.opacity(0.08))
+                        Button {
+                            Task { await appState.enterDemoMode() }
+                        } label: {
+                            Label("Enter Explicit Demo Mode", systemImage: "person.crop.circle.badge.checkmark")
+                                .frame(maxWidth: .infinity)
+                                .frame(minHeight: 48)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(Color.liftBlue)
+                        Text("Demo mode uses seeded local identities and never writes to your Supabase account.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                            .multilineTextAlignment(.center)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(Color.liftBlue)
-                    Text("Demo mode uses seeded local identities and never writes to your Supabase account.")
-                        .font(.caption)
-                        .foregroundStyle(Color.liftMuted)
-                        .multilineTextAlignment(.center)
                     Spacer(minLength: 28)
                 }
                 .padding(.horizontal, 24)

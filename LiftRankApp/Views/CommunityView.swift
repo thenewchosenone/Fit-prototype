@@ -1932,11 +1932,15 @@ struct ForumHomeView: View {
 
     private var quickActions: some View {
         HStack(spacing: 10) {
-            Button { appState.communityPath.append(.saved) } label: {
-                Label("Saved", systemImage: "bookmark.fill")
-            }
-            Button { appState.communityPath.append(.watched) } label: {
-                Label("Watched", systemImage: "bell.badge.fill")
+            Menu {
+                Button { appState.communityPath.append(.saved) } label: {
+                    Label("Saved posts", systemImage: "bookmark.fill")
+                }
+                Button { appState.communityPath.append(.watched) } label: {
+                    Label("Watched posts", systemImage: "bell.badge.fill")
+                }
+            } label: {
+                Label("My posts", systemImage: "tray.full.fill")
             }
             Spacer()
             Button { showingSearch.toggle() } label: {

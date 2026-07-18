@@ -39,6 +39,25 @@ enum RankingCalculator {
         return ((currentPersonalRecord - previousPersonalRecord) / previousPersonalRecord) * 100
     }
 
+    static func isPlateau(
+        performances: [PlateauPerformance],
+        requiredWorkouts: Int = 3,
+        improvementThreshold: Double = 0.01
+    ) -> Bool {
+        guard requiredWorkouts >= 2, performances.count >= requiredWorkouts else { return false }
+        let recent = Array(performances.sorted { $0.performedAt > $1.performedAt }.prefix(requiredWorkouts))
+        guard let oldest = recent.last,
+              oldest.estimatedOneRepMaxKilograms > 0,
+              oldest.volumeKilograms > 0 else { return false }
+
+        let newer = recent.dropLast()
+        let strengthCeiling = oldest.estimatedOneRepMaxKilograms * (1 + improvementThreshold)
+        let volumeCeiling = oldest.volumeKilograms * (1 + improvementThreshold)
+        let strengthImproved = newer.contains { $0.estimatedOneRepMaxKilograms > strengthCeiling }
+        let volumeImproved = newer.contains { $0.volumeKilograms > volumeCeiling }
+        return !strengthImproved && !volumeImproved
+    }
+
     static func weightClass(for bodyweight: Double, sexCategory: SexCategory, classes: [WeightClass]) -> WeightClass? {
         let bodyweightKilograms = poundsToKilograms(bodyweight)
         return classes.first { weightClass in

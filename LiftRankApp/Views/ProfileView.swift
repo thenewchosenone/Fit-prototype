@@ -8,6 +8,7 @@ struct ProfileView: View {
     let profile: UserProfile
     let isCurrentUser: Bool
     @State private var showingPhotoManager = false
+    @State private var showingAthleteDetails = false
     private struct ProfileChartPoint: Identifiable {
         let id = UUID()
         let label: String
@@ -24,11 +25,8 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     summary
-                    rankings
-                    progress
-                    videos
-                    achievements
                     recentSubmissions
+                    athleteDetails
                 }
                 .padding()
                 .padding(.bottom, isCurrentUser ? 96 : 24)
@@ -84,13 +82,11 @@ struct ProfileView: View {
                     }
                     Spacer()
                 }
-                Label(profile.hideGym ? "Gym hidden" : profile.primaryGymName, systemImage: profile.hideGym ? "eye.slash" : "building.2")
+                Label(identityLocation, systemImage: profile.hideGym && profile.hideCity ? "eye.slash" : "location")
                     .font(.subheadline)
                     .foregroundStyle(Color.liftMuted)
-                Label(profile.hideCity ? "Location hidden" : "\(profile.city), \(profile.state)", systemImage: profile.hideCity ? "eye.slash" : "location")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.liftMuted)
-                Text("\(profile.hideExactAge ? "Age hidden" : profile.ageGroup) • \(profile.hideBodyweight ? "Weight class hidden" : weightClassName) • \(profile.experienceLevel.rawValue)")
+                    .lineLimit(2)
+                Text("\(profile.hideBodyweight ? "Weight class hidden" : weightClassName) • \(profile.experienceLevel.rawValue)")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
                 HStack(spacing: 12) {
@@ -119,6 +115,39 @@ struct ProfileView: View {
                 }
             }
         }
+    }
+
+    private var athleteDetails: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DisclosureGroup(isExpanded: $showingAthleteDetails) {
+                VStack(alignment: .leading, spacing: 18) {
+                    rankings
+                    progress
+                    videos
+                    achievements
+                }
+                .padding(.top, 18)
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("More athlete details")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                    Text("Rankings, progress, videos, and achievements")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                }
+            }
+            .tint(Color.liftBlue)
+        }
+        .padding(16)
+        .liftSurface()
+    }
+
+    private var identityLocation: String {
+        let gym = profile.hideGym ? nil : profile.primaryGymName
+        let location = profile.hideCity ? nil : "\(profile.city), \(profile.state)"
+        let value = [gym, location].compactMap { $0 }.joined(separator: " • ")
+        return value.isEmpty ? "Gym and location hidden" : value
     }
 
     private var socialActions: some View {
