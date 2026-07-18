@@ -160,6 +160,9 @@ final class DemoRepository: ObservableObject {
     @Published var activeWorkout: ActiveWorkoutState?
     @Published var completedWorkouts: [CompletedWorkout]
     @Published var pendingWorkoutPRSubmissions: [PendingWorkoutPRSubmission]
+    @Published var pendingCompletedWorkoutUploads: [CompletedWorkoutSnapshot]
+    @Published var workoutPlanSyncRevisions: [UUID: Int]
+    @Published var workoutPlanLastSyncedPayloads: [UUID: Data]
     @Published var workoutPreferences: WorkoutPreferences
     @Published var workoutPlanProgressionSettings: [WorkoutPlanProgressionSettings]
     @Published var communityThreads: [CommunityThread]
@@ -221,6 +224,9 @@ final class DemoRepository: ObservableObject {
         activeWorkout = nil
         completedWorkouts = []
         pendingWorkoutPRSubmissions = []
+        pendingCompletedWorkoutUploads = []
+        workoutPlanSyncRevisions = [:]
+        workoutPlanLastSyncedPayloads = [:]
         workoutPreferences = WorkoutPreferences()
         workoutPlanProgressionSettings = []
         communityThreads = seededThreads
@@ -320,6 +326,9 @@ final class DemoRepository: ObservableObject {
         activeWorkout = nil
         completedWorkouts.removeAll()
         pendingWorkoutPRSubmissions.removeAll()
+        pendingCompletedWorkoutUploads.removeAll()
+        workoutPlanSyncRevisions.removeAll()
+        workoutPlanLastSyncedPayloads.removeAll()
         workoutPlans.removeAll()
         workoutPhases.removeAll()
         workoutWeeks.removeAll()
@@ -358,6 +367,9 @@ final class DemoRepository: ObservableObject {
             $activeWorkout.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $completedWorkouts.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $pendingWorkoutPRSubmissions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $pendingCompletedWorkoutUploads.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $workoutPlanSyncRevisions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $workoutPlanLastSyncedPayloads.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutPreferences.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutPlanProgressionSettings.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $achievementUnlocks.dropFirst().map { _ in () }.eraseToAnyPublisher(),
@@ -389,7 +401,10 @@ final class DemoRepository: ObservableObject {
                 preferences: workoutPreferences,
                 planProgressionSettings: workoutPlanProgressionSettings,
                 achievementUnlocks: achievementUnlocks,
-                rankingHistory: rankingHistory
+                rankingHistory: rankingHistory,
+                pendingCompletedWorkoutUploads: pendingCompletedWorkoutUploads,
+                workoutPlanSyncRevisions: workoutPlanSyncRevisions,
+                workoutPlanLastSyncedPayloads: workoutPlanLastSyncedPayloads
             )
         )
     }
@@ -410,6 +425,9 @@ final class DemoRepository: ObservableObject {
             activeWorkout = snapshot.activeWorkout
             completedWorkouts = snapshot.completedWorkouts
             pendingWorkoutPRSubmissions = snapshot.pendingPRSubmissions
+            pendingCompletedWorkoutUploads = snapshot.pendingCompletedWorkoutUploads ?? []
+            workoutPlanSyncRevisions = snapshot.workoutPlanSyncRevisions ?? [:]
+            workoutPlanLastSyncedPayloads = snapshot.workoutPlanLastSyncedPayloads ?? [:]
             workoutPreferences = snapshot.preferences
             workoutPlanProgressionSettings = snapshot.planProgressionSettings ?? []
             achievementUnlocks = snapshot.achievementUnlocks ?? []

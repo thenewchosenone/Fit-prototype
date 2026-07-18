@@ -9,13 +9,13 @@ select has_table('public', 'exercise_catalog_versions', 'catalog versions exist'
 select has_table('public', 'exercises', 'canonical exercises exist');
 select has_table('public', 'exercise_aliases', 'legacy aliases exist');
 select is((select count(*)::integer from public.exercise_catalog_versions where is_current), 1, 'one current catalog version exists');
-select is((select count(*)::integer from public.exercises where ranking_movement is not null), 5, 'five exercises map to ranked movements');
+select is((select count(*)::integer from public.exercises where ranking_movement is not null), 7, 'seven exercises map to ranked movements');
 select is((select count(*)::integer from public.exercise_aliases a left join public.exercises e on e.id = a.exercise_id where e.id is null), 0, 'every alias resolves to one exercise');
 select is((select count(*)::integer from public.exercise_aliases), (select count(distinct alias)::integer from public.exercise_aliases), 'aliases are globally unique');
 select is((select id from public.resolve_exercise_identifier('bench_press')), 'barbell-bench-press', 'iOS bench alias resolves');
 select is((select id from public.resolve_exercise_identifier('barbell-bench')), 'barbell-bench-press', 'web bench alias resolves');
 select is((select id from public.resolve_exercise_identifier('sumo_deadlift')), 'sumo-deadlift', 'sumo remains a distinct exercise');
-select is((select ranking_movement from public.resolve_exercise_identifier('sumo_deadlift')), 'deadlift', 'sumo maps to competitive deadlift');
+select is((select ranking_movement from public.resolve_exercise_identifier('sumo_deadlift')), 'sumo_deadlift', 'sumo maps to its distinct competitive leaderboard');
 select is((select ranking_movement from public.resolve_exercise_identifier('incline_bench_press')), null, 'incline bench is not competition bench');
 
 select throws_ok(

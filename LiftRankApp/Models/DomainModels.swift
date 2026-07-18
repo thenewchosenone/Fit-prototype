@@ -734,6 +734,54 @@ struct LegalAcceptanceRecord: Identifiable, Codable, Hashable {
     var acceptedAt: Date
 }
 
+enum LegalDocumentKind: String, Codable, CaseIterable, Identifiable {
+    case privacy
+    case terms
+    case communityRules = "community_rules"
+    case fitnessDisclaimer = "fitness_disclaimer"
+
+    var id: String { rawValue }
+}
+
+struct LegalDocumentSection: Hashable {
+    let title: String
+    let body: String
+}
+
+struct LegalDocument: Identifiable, Hashable {
+    let kind: LegalDocumentKind
+    let version: String
+    let title: String
+    let summary: String
+    let sections: [LegalDocumentSection]
+
+    var id: String { "\(kind.rawValue):\(version)" }
+
+    static let currentVersion = "2026-07-18"
+    static let current: [LegalDocument] = [
+        LegalDocument(kind: .privacy, version: currentVersion, title: "Privacy Notice", summary: "How LiftRank stores and shares account, training, location, and video data.", sections: [
+            .init(title: "Data we use", body: "LiftRank stores account identity, training history, competitive records, privacy choices, gym and location selections, community content, messages, reports, and videos you choose to upload."),
+            .init(title: "Visibility", body: "Profile fields can be public, friends-only, gym-only, or private. A public ratio or weight-class ranking may indirectly reveal information about your bodyweight."),
+            .init(title: "No advertising tracking", body: "Launch analytics measure signup, activation, workouts, PR submissions, sharing, and return activity. LiftRank does not use advertising identifiers or cross-app tracking.")
+        ]),
+        LegalDocument(kind: .terms, version: currentVersion, title: "Terms of Use", summary: "The rules for using LiftRank and keeping an account in good standing.", sections: [
+            .init(title: "Account responsibility", body: "Provide accurate eligibility and lift information, protect your credentials, and use only an account you are authorized to control."),
+            .init(title: "Competitive records", body: "Video-backed means a video is attached; it does not mean LiftRank approved technique. Attempts can be reported, reviewed, or removed from rankings."),
+            .init(title: "Account action", body: "Content or accounts may be restricted for abuse, manipulation, unlawful conduct, or repeated violations of the community rules.")
+        ]),
+        LegalDocument(kind: .communityRules, version: currentVersion, title: "Community Rules", summary: "Standards for posts, messages, reports, and competitive conduct.", sections: [
+            .init(title: "Respect athletes", body: "No harassment, threats, hate, sexual exploitation, impersonation, doxxing, or targeted abuse."),
+            .init(title: "Keep competition honest", body: "Do not falsify weight, identity, exercise, video, or eligibility information. Use reports for genuine concerns, not retaliation."),
+            .init(title: "Keep content safe", body: "No spam, illegal content, dangerous medical claims, or content that violates another person’s privacy or intellectual property.")
+        ]),
+        LegalDocument(kind: .fitnessDisclaimer, version: currentVersion, title: "Fitness Disclaimer", summary: "Strength training carries risk and LiftRank does not provide medical advice.", sections: [
+            .init(title: "Training risk", body: "Strength training and maximal attempts can cause serious injury. Use appropriate equipment, spotters, progression, and qualified coaching."),
+            .init(title: "Not medical advice", body: "LiftRank content and community activity are general information, not diagnosis, treatment, or individualized medical guidance."),
+            .init(title: "Stop when unsafe", body: "Consult a qualified professional before training when health, injury, pregnancy, medication, or other conditions may affect safety.")
+        ])
+    ]
+}
+
 enum AnalyticsEventName: String, Codable, CaseIterable, Identifiable {
     case signupCompleted = "signup_completed"
     case onboardingCompleted = "onboarding_completed"
@@ -886,6 +934,20 @@ struct NotificationDestination: Codable, Hashable {
         self.gymID = gymID
         self.rankingType = rankingType
         self.trackerStartsOnProgress = trackerStartsOnProgress
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind, targetID, exerciseID, gymID, rankingType, trackerStartsOnProgress
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try values.decodeIfPresent(NotificationDestinationKind.self, forKey: .kind) ?? .home
+        targetID = try values.decodeIfPresent(UUID.self, forKey: .targetID)
+        exerciseID = try values.decodeIfPresent(String.self, forKey: .exerciseID)
+        gymID = try values.decodeIfPresent(UUID.self, forKey: .gymID)
+        rankingType = try values.decodeIfPresent(RankingType.self, forKey: .rankingType)
+        trackerStartsOnProgress = try values.decodeIfPresent(Bool.self, forKey: .trackerStartsOnProgress) ?? false
     }
 }
 
@@ -1626,6 +1688,15 @@ struct WorkoutPlanDocument: Identifiable, Codable, Hashable {
     var isSeededDemoData: Bool = false
 }
 
+struct WorkoutPlanSyncPayload: Codable, Hashable {
+    var plan: WorkoutPlan
+    var phases: [WorkoutPhase]
+    var weeks: [WorkoutWeek]
+    var sessions: [WorkoutSession]
+    var prescriptions: [WorkoutExercisePrescription]
+    var progression: WorkoutPlanProgressionSettings?
+}
+
 /// Completed workouts are immutable server snapshots keyed by the client UUID.
 /// Retrying an offline upload therefore cannot create a duplicate workout.
 struct CompletedWorkoutSnapshot: Identifiable, Codable, Hashable {
@@ -1721,7 +1792,7 @@ struct WorkoutPreferences: Codable, Hashable {
 }
 
 struct WorkoutPersistenceSnapshot: Codable, Hashable {
-    static let currentVersion = 4
+    static let currentVersion = 5
 
     var schemaVersion: Int
     var plans: [WorkoutPlan]
@@ -1741,6 +1812,9 @@ struct WorkoutPersistenceSnapshot: Codable, Hashable {
     var planProgressionSettings: [WorkoutPlanProgressionSettings]? = nil
     var achievementUnlocks: [AchievementUnlock]? = nil
     var rankingHistory: [RankingHistorySnapshot]? = nil
+    var pendingCompletedWorkoutUploads: [CompletedWorkoutSnapshot]? = nil
+    var workoutPlanSyncRevisions: [UUID: Int]? = nil
+    var workoutPlanLastSyncedPayloads: [UUID: Data]? = nil
 }
 
 struct WorkoutCompletionInsights: Hashable {

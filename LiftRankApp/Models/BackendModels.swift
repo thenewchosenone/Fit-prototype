@@ -15,6 +15,7 @@ enum AccountStatus: Equatable {
     case restoring
     case signedOut
     case needsOnboarding
+    case needsLegalAcceptance
     case authenticated
     case demo
     case configurationRequired
@@ -28,6 +29,15 @@ enum PrivacyAudience: String, Codable, CaseIterable, Identifiable {
     case privateProfile = "private"
 
     var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .publicProfile: return "Public"
+        case .friends: return "Friends"
+        case .gym: return "Gym"
+        case .privateProfile: return "Private"
+        }
+    }
 }
 
 struct ProfilePrivacySettings: Codable, Equatable {
@@ -154,4 +164,3 @@ enum LiftRankServiceError: LocalizedError, Equatable {
         }
     }
 }
-

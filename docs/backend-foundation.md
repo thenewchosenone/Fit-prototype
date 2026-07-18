@@ -28,14 +28,19 @@ Each of two clean resets runs 64 identity/social assertions, 20 exercise asserti
 
 ## iOS configuration
 
-Never commit credentials. Add these environment variables to the LiftRank Run scheme:
+Never commit private credentials. Supply these environment variables to the LiftRank Run scheme or as protected CI build settings:
 
+- `LIFTRANK_BACKEND_ENVIRONMENT` (`local`, `staging`, or `production`)
 - `LIFTRANK_SUPABASE_URL`
 - `LIFTRANK_SUPABASE_ANON_KEY`
 
-They can alternatively be supplied as Xcode build settings for generated Info.plist entries. Use only the public client key, never a service-role key. Hosted endpoints require HTTPS; HTTP is accepted only for localhost development.
+Debug builds use the current Supabase project as staging. Release builds deliberately leave URL and public-key settings empty until a distinct production project is provisioned. Never point a Release archive at staging. Use only the public client key, never a service-role key. Hosted endpoints require HTTPS; local configuration accepts only localhost.
 
 Missing configuration shows a setup-required screen and never silently enters demo mode. Demo mode is an explicit, isolated choice.
+
+## Push delivery
+
+`send-notifications` is an internal Supabase Edge Function; the iOS client must never invoke it. Configure `APNS_TEAM_ID`, `APNS_KEY_ID`, `APNS_PRIVATE_KEY`, `APNS_BUNDLE_ID`, and a long random `NOTIFICATION_DELIVERY_SECRET` only in the function environment. Schedule an authenticated server-side call with `Authorization: Bearer <NOTIFICATION_DELIVERY_SECRET>`. APNs and service-role credentials must never be placed in Xcode settings, Info.plist, the repository, or client-visible database rows.
 
 ## Account flow
 
@@ -47,7 +52,7 @@ Missing configuration shows a setup-required screen and never silently enters de
 6. Gym and friendship actions call secured functions; caller identity comes from `auth.uid()`.
 7. Other-user identity comes from `get_profile_card`, which applies field privacy and never returns birth date.
 
-Workout, lift, leaderboard, forum, and messaging synchronization are out of scope. Existing local screens are not remotely synchronized account data.
+Workout, lift, leaderboard, forum, messaging, media, notification, analytics, and account-deletion services now have production Supabase implementations. Active workouts remain local by design; completed history and editable plans use the synchronization service.
 
 ## Exercise identity
 
@@ -84,7 +89,6 @@ The initial remote exercise seed contains shared/core identities. The full recon
 - **Fourth gym rejected:** expected server enforcement.
 - **Primary gym cannot be left:** choose another joined gym as primary first.
 
-## Next recommended phase
+## Next release step
 
-Add dated bodyweight records, completed-workout synchronization, canonical exercise linking for workout snapshots, and an explicit offline-conflict policy. Verification and rankings should follow authoritative records.
-
+Run the complete pgTAP suite from two clean local databases, promote the same migrations to staging, and perform the two-account release rehearsal described in `release-readiness.md`.

@@ -10,7 +10,7 @@ struct SettingsView: View {
     @State private var hideLocation = false
     @State private var allowComments = true
     @State private var notificationPreferences = true
-    @State private var appearance = "Dark"
+    @AppStorage("liftrank.appearance") private var appearance = LiftAppearance.system.rawValue
     @State private var settingsInfo: SettingsInfoPage?
     @State private var confirmingDeletion = false
 
@@ -54,18 +54,21 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                     }
-                    Section("Prototype and Safety") {
-                        Button("About this beta") { settingsInfo = .about }
+                    Section("Legal and Safety") {
+                        Button("About LiftRank") { settingsInfo = .about }
                         Button("Privacy notice") { settingsInfo = .privacy }
-                        Button("Terms and fitness disclaimer") { settingsInfo = .terms }
+                        Button("Terms of use") { settingsInfo = .terms }
+                        Button("Community rules") { settingsInfo = .communityRules }
+                        Button("Fitness disclaimer") { settingsInfo = .fitnessDisclaimer }
                         Link("Send feedback", destination: URL(string: "https://github.com/thenewchosenone/Fit-prototype/issues/new")!)
                         LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Prototype")
                         LabeledContent("Build", value: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Local")
                     }
                     Section("Appearance") {
                         Picker("Appearance", selection: $appearance) {
-                            Text("Dark").tag("Dark")
-                            Text("System").tag("System")
+                            ForEach(LiftAppearance.allCases) { option in
+                                Text(option.rawValue).tag(option.rawValue)
+                            }
                         }
                     }
                     Section("Developer") {
@@ -147,14 +150,18 @@ enum SettingsInfoPage: String, Identifiable {
     case about
     case privacy
     case terms
+    case communityRules
+    case fitnessDisclaimer
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .about: return "About this beta"
+        case .about: return "About LiftRank"
         case .privacy: return "Privacy notice"
-        case .terms: return "Terms and disclaimer"
+        case .terms: return "Terms of use"
+        case .communityRules: return "Community rules"
+        case .fitnessDisclaimer: return "Fitness disclaimer"
         }
     }
 
@@ -162,22 +169,95 @@ enum SettingsInfoPage: String, Identifiable {
         switch self {
         case .about:
             return [
-                ("LiftRank beta", "This build previews ranked strength tracking, community, gyms, messages, and workout planning before the production backend is complete."),
-                ("Seeded data", "Some rankings, messages, gyms, and posts use seeded demo data so the app can be tested without a live member base."),
+                ("LiftRank", "LiftRank is a competitive strength platform for tracking workouts, recording true one-rep PRs, and comparing eligible lifts."),
+                ("Evidence labels", "Video-backed means a lift has attached video evidence. It does not mean LiftRank approved the athlete’s technique."),
                 ("Feedback", "Report bugs, confusing flows, and missing gym or exercise data through the feedback link in Settings.")
             ]
-        case .privacy:
-            return [
-                ("Prototype data", "Local demo changes may be reset during development. Do not enter sensitive health, financial, or private account information into prototype builds."),
-                ("Public surfaces", "Public lift submissions, community posts, gym activity, and profile fields can appear across the app unless privacy controls hide them."),
-                ("Messages", "Messages are part of the prototype experience and should not be treated as secure medical, legal, or private record storage.")
-            ]
-        case .terms:
-            return [
-                ("Fitness disclaimer", "LiftRank content is general information and personal experience, not medical advice, diagnosis, or individualized training instruction."),
-                ("Safe use", "Do not rely on prototype rankings or exercise guidance for maximal attempts without qualified coaching and appropriate safety precautions."),
-                ("Community rules", "Harassment, unsafe supplement advice, misleading lift claims, and spam may be reported and moderated.")
-            ]
+        case .privacy: return documentSections(.privacy)
+        case .terms: return documentSections(.terms)
+        case .communityRules: return documentSections(.communityRules)
+        case .fitnessDisclaimer: return documentSections(.fitnessDisclaimer)
+        }
+    }
+
+    private func documentSections(_ kind: LegalDocumentKind) -> [(String, String)] {
+        LegalDocument.current.first(where: { $0.kind == kind })?.sections.map { ($0.title, $0.body) } ?? []
+    }
+}
+
+struct LegalAcceptanceView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var acknowledged: Set<LegalDocumentKind> = []
+    @State private var expanded: LegalDocumentKind?
+
+    private var documents: [LegalDocument] {
+        appState.outstandingLegalDocuments.isEmpty ? LegalDocument.current : appState.outstandingLegalDocuments
+    }
+
+    var body: some View {
+        AppBackground {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Before you compete")
+                        .font(.system(size: 32, weight: .black, design: .rounded))
+                    Text("Review and accept the current policies. We record each document version so future changes can be shown clearly.")
+                        .foregroundStyle(Color.liftMuted)
+
+                    ForEach(documents) { document in
+                        LiftCard {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Button {
+                                    withAnimation(.snappy) { expanded = expanded == document.kind ? nil : document.kind }
+                                } label: {
+                                    HStack(alignment: .top, spacing: 12) {
+                                        VStack(alignment: .leading, spacing: 5) {
+                                            Text(document.title).font(.headline)
+                                            Text(document.summary).font(.subheadline).foregroundStyle(Color.liftMuted)
+                                            Text("Version \(document.version)").font(.caption2).foregroundStyle(Color.liftMuted)
+                                        }
+                                        Spacer()
+                                        Image(systemName: expanded == document.kind ? "chevron.up" : "chevron.down")
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityHint("Shows the full document")
+
+                                if expanded == document.kind {
+                                    ForEach(document.sections, id: \.title) { section in
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(section.title).font(.subheadline.weight(.bold))
+                                            Text(section.body).font(.subheadline).foregroundStyle(Color.liftMuted)
+                                        }
+                                    }
+                                }
+
+                                Toggle("I have read and accept \(document.title)", isOn: Binding(
+                                    get: { acknowledged.contains(document.kind) },
+                                    set: { accepted in
+                                        if accepted { acknowledged.insert(document.kind) }
+                                        else { acknowledged.remove(document.kind) }
+                                    }
+                                ))
+                                .tint(Color.liftBlue)
+                            }
+                        }
+                    }
+
+                    if let message = appState.accountMessage {
+                        Text(message).font(.caption).foregroundStyle(Color.liftRed)
+                    }
+
+                    PrimaryButton(title: appState.accountOperationInProgress ? "Saving…" : "Accept and Continue", symbolName: "checkmark.shield.fill") {
+                        Task { await appState.acceptCurrentLegalDocuments() }
+                    }
+                    .disabled(appState.accountOperationInProgress || documents.contains { !acknowledged.contains($0.kind) })
+
+                    Button("Sign out") { Task { await appState.signOutAccount() } }
+                        .frame(maxWidth: .infinity)
+                        .foregroundStyle(Color.liftMuted)
+                }
+                .padding(20)
+            }
         }
     }
 }

@@ -43,12 +43,6 @@ protocol GymService {
 }
 
 @MainActor
-protocol ChallengeService {
-    func challenges() async throws -> [Challenge]
-    func join(_ challenge: Challenge) async throws -> Challenge
-}
-
-@MainActor
 protocol SocialService {
     func feed() async throws -> [ActivityItem]
     func block(userID: UUID) async throws
@@ -86,6 +80,7 @@ protocol CommunityService {
 
 @MainActor
 protocol MessagingService {
+    func createOrGetThread(with userID: UUID) async throws -> DirectMessageThread
     func threads() async throws -> [DirectMessageThread]
     func messages(for thread: DirectMessageThread) async throws -> [DirectMessage]
     func sendMessage(in thread: DirectMessageThread, body: String) async throws -> DirectMessage?
@@ -142,6 +137,7 @@ protocol NotificationService {
 protocol WorkoutSyncService {
     func plans() async throws -> [WorkoutPlanDocument]
     func savePlan(_ document: WorkoutPlanDocument, expectedRevision: Int) async throws -> WorkoutSyncResult
+    func deletePlan(id: UUID) async throws
     func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot]
     func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws
 }
@@ -149,6 +145,12 @@ protocol WorkoutSyncService {
 @MainActor
 protocol AnalyticsService {
     func track(_ event: AnalyticsEventRecord) async
+}
+
+@MainActor
+protocol LegalAcceptanceService {
+    func acceptances() async throws -> [LegalAcceptanceRecord]
+    func accept(documents: [LegalDocument]) async throws
 }
 
 @MainActor

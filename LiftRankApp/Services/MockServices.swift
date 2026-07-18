@@ -144,19 +144,6 @@ final class MockGymService: GymService {
 }
 
 @MainActor
-final class MockChallengeService: ChallengeService {
-    private let repository: DemoRepository
-    init(repository: DemoRepository) { self.repository = repository }
-    func challenges() async throws -> [Challenge] { repository.challenges }
-    func join(_ challenge: Challenge) async throws -> Challenge {
-        guard let index = repository.challenges.firstIndex(where: { $0.id == challenge.id }) else { return challenge }
-        repository.challenges[index].isJoined = true
-        repository.challenges[index].participantCount += 1
-        return repository.challenges[index]
-    }
-}
-
-@MainActor
 final class MockSocialService: SocialService {
     private let repository: DemoRepository
     init(repository: DemoRepository) { self.repository = repository }
@@ -230,6 +217,10 @@ final class MockCommunityService: CommunityService {
 final class MockMessagingService: MessagingService {
     private let repository: DemoRepository
     init(repository: DemoRepository) { self.repository = repository }
+    func createOrGetThread(with userID: UUID) async throws -> DirectMessageThread {
+        guard let profile = repository.profiles.first(where: { $0.id == userID }) else { throw LiftRankServiceError.invalidInput("Member not found.") }
+        return repository.messageThread(with: profile)
+    }
     func threads() async throws -> [DirectMessageThread] { repository.messageThreads }
     func messages(for thread: DirectMessageThread) async throws -> [DirectMessage] {
         repository.directMessages.filter { $0.threadID == thread.id }
@@ -381,6 +372,7 @@ final class MockWorkoutSyncService: WorkoutSyncService {
         planDocuments.removeAll { $0.id == saved.id }; planDocuments.append(saved)
         return .saved(saved)
     }
+    func deletePlan(id: UUID) async throws { planDocuments.removeAll { $0.id == id } }
     func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot] { snapshots.filter { since == nil || $0.completedAt > since! } }
     func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws {
         guard !snapshot.isSeededDemoData else { return }
@@ -389,4 +381,8 @@ final class MockWorkoutSyncService: WorkoutSyncService {
 }
 
 struct MockAnalyticsService: AnalyticsService { func track(_ event: AnalyticsEventRecord) async {} }
+struct MockLegalAcceptanceService: LegalAcceptanceService {
+    func acceptances() async throws -> [LegalAcceptanceRecord] { [] }
+    func accept(documents: [LegalDocument]) async throws {}
+}
 struct MockAccountDeletionService: AccountDeletionService { func deleteAccount() async throws {} }

@@ -341,10 +341,30 @@ private extension UIImage {
 }
 
 extension Color {
-    static let liftBackground = Color(red: 0.035, green: 0.043, blue: 0.075)
-    static let liftCard = Color(red: 0.085, green: 0.098, blue: 0.15)
-    static let liftCardRaised = Color(red: 0.125, green: 0.14, blue: 0.205)
-    static let liftMuted = Color(red: 0.60, green: 0.62, blue: 0.70)
+    private static func semantic(light: UIColor, dark: UIColor) -> Color {
+        Color(uiColor: UIColor { traits in traits.userInterfaceStyle == .dark ? dark : light })
+    }
+
+    static let liftBackground = semantic(
+        light: .white,
+        dark: UIColor(red: 0.035, green: 0.043, blue: 0.075, alpha: 1)
+    )
+    static let liftCard = semantic(
+        light: UIColor(red: 0.965, green: 0.97, blue: 0.98, alpha: 1),
+        dark: UIColor(red: 0.085, green: 0.098, blue: 0.15, alpha: 1)
+    )
+    static let liftCardRaised = semantic(
+        light: UIColor(red: 0.91, green: 0.925, blue: 0.95, alpha: 1),
+        dark: UIColor(red: 0.125, green: 0.14, blue: 0.205, alpha: 1)
+    )
+    static let liftText = semantic(
+        light: UIColor(red: 0.055, green: 0.065, blue: 0.10, alpha: 1),
+        dark: .white
+    )
+    static let liftMuted = semantic(
+        light: UIColor(red: 0.36, green: 0.39, blue: 0.46, alpha: 1),
+        dark: UIColor(red: 0.60, green: 0.62, blue: 0.70, alpha: 1)
+    )
     static let liftBlue = Color(red: 0.20, green: 0.38, blue: 1.0)
     static let liftPurple = Color(red: 0.35, green: 0.31, blue: 0.92)
     static let liftGreen = Color(red: 0.08, green: 0.72, blue: 0.55)
@@ -352,8 +372,29 @@ extension Color {
     static let liftSilver = Color(red: 0.72, green: 0.74, blue: 0.78)
     static let liftBronze = Color(red: 0.74, green: 0.46, blue: 0.24)
     static let liftRed = Color(red: 0.92, green: 0.27, blue: 0.38)
-    static let liftSeparator = Color.white.opacity(0.075)
-    static let liftField = Color(red: 0.065, green: 0.075, blue: 0.12)
+    static let liftSeparator = semantic(
+        light: UIColor.black.withAlphaComponent(0.09),
+        dark: UIColor.white.withAlphaComponent(0.075)
+    )
+    static let liftField = semantic(
+        light: UIColor(red: 0.94, green: 0.948, blue: 0.965, alpha: 1),
+        dark: UIColor(red: 0.065, green: 0.075, blue: 0.12, alpha: 1)
+    )
+}
+
+enum LiftAppearance: String, CaseIterable, Identifiable {
+    case system = "System"
+    case light = "Light"
+    case dark = "Dark"
+
+    var id: String { rawValue }
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
+    }
 }
 
 enum LiftDesign {
@@ -398,7 +439,7 @@ struct AppBackground<Content: View>: View {
                 .ignoresSafeArea()
             content
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(Color.liftText)
         .tint(Color.liftBlue)
     }
 }
@@ -589,7 +630,7 @@ struct CompactSectionHeader: View {
                 }
                 Text(title)
                     .font(.headline.weight(.bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.liftText)
             }
             Spacer()
             if let actionTitle, let action {
@@ -656,7 +697,7 @@ struct NativeIconButton: View {
     let symbolName: String
     let accessibilityLabel: String
     var badge: Int? = nil
-    var tint = Color.white
+    var tint = Color.liftText
     let action: () -> Void
 
     var body: some View {
@@ -712,7 +753,7 @@ struct LiftActionRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.liftText)
                     if let subtitle {
                         Text(subtitle)
                             .font(.caption)

@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import SwiftUI
 import UIKit
+import UserNotifications
 
 @MainActor
 final class AppState: ObservableObject {
@@ -45,6 +46,9 @@ final class AppState: ObservableObject {
     @Published var accountMessage: String?
     @Published private(set) var remoteGymMemberships: [GymMembershipRecord] = []
     @Published private(set) var remoteFriendRelationships: [FriendRelationshipRecord] = []
+    @Published private(set) var remoteBlocks: [UserBlockRecord] = []
+    @Published private(set) var outstandingLegalDocuments: [LegalDocument] = []
+    @Published private(set) var authenticatedPrivacy = ProfilePrivacySettings()
     private var cancellables = Set<AnyCancellable>()
 
     private(set) var serviceContainer: AppServiceContainer!
@@ -53,7 +57,6 @@ final class AppState: ObservableObject {
     var liftService: any LiftService { serviceContainer.lifts }
     var leaderboardService: any LeaderboardService { serviceContainer.leaderboards }
     var gymService: any GymService { serviceContainer.gyms }
-    lazy var challengeService = MockChallengeService(repository: repository)
     var socialService: any SocialService { serviceContainer.social }
     var communityService: any CommunityService { serviceContainer.communities }
     var messagingService: any MessagingService { serviceContainer.messaging }
@@ -65,6 +68,7 @@ final class AppState: ObservableObject {
     var notificationService: any NotificationService { serviceContainer.notifications }
     var workoutSyncService: any WorkoutSyncService { serviceContainer.workoutSync }
     var analyticsService: any AnalyticsService { serviceContainer.analytics }
+    var legalAcceptanceService: any LegalAcceptanceService { serviceContainer.legalAcceptances }
     var accountDeletionService: any AccountDeletionService { serviceContainer.accountDeletion }
 
     init(repository: DemoRepository? = nil, serviceContainer: AppServiceContainer? = nil) {
@@ -78,7 +82,7 @@ final class AppState: ObservableObject {
     }
 
     var isDemoMode: Bool { accountStatus == .demo }
-    var isAuthenticated: Bool { accountStatus == .authenticated || accountStatus == .needsOnboarding }
+    var isAuthenticated: Bool { accountStatus == .authenticated || accountStatus == .needsOnboarding || accountStatus == .needsLegalAcceptance }
 
     static var allowsDemoMode: Bool {
 #if DEBUG
@@ -129,6 +133,7 @@ final class AppState: ObservableObject {
                 self.accountStatus = .signedOut
             } else {
                 try await self.loadAuthenticatedAccount()
+                await self.track(.signupCompleted)
             }
         }
     }
@@ -171,10 +176,13 @@ final class AppState: ObservableObject {
     }
 
     func signOutAccount() async {
+        if isAuthenticated, !isDemoMode { try? await notificationService.revokeDevice(deviceID: Self.pushDeviceID) }
         do { try await authService.signOut() } catch { accountMessage = userMessage(error) }
         accountSession = nil
         remoteGymMemberships = []
         remoteFriendRelationships = []
+        remoteBlocks = []
+        outstandingLegalDocuments = []
         profilePhotoStore.clearMemoryCache()
         accountStatus = authService.isConfigured ? .signedOut : .configurationRequired
     }
@@ -182,12 +190,15 @@ final class AppState: ObservableObject {
     func deleteAuthenticatedAccount() async {
         await performAccountOperation {
             guard self.isAuthenticated, !self.isDemoMode else { throw LiftRankServiceError.permissionDenied }
+            try? await self.notificationService.revokeDevice(deviceID: Self.pushDeviceID)
             try await self.accountDeletionService.deleteAccount()
             self.repository.clearLocalUserData()
             self.profilePhotoStore.removeNamespace(.authenticated)
             self.accountSession = nil
             self.remoteGymMemberships = []
             self.remoteFriendRelationships = []
+            self.remoteBlocks = []
+            self.outstandingLegalDocuments = []
             self.accountStatus = self.authService.isConfigured ? .signedOut : .configurationRequired
         }
     }
@@ -195,8 +206,22 @@ final class AppState: ObservableObject {
     func saveAuthenticatedProfile(_ draft: ProfileDraft) async throws {
         let profile = try await profileService.saveProfile(draft)
         apply(profile)
-        accountStatus = profile.onboardingCompleted ? .authenticated : .needsOnboarding
+        if profile.onboardingCompleted {
+            await track(.onboardingCompleted)
+            try await refreshLegalAcceptanceStatus()
+        } else {
+            accountStatus = .needsOnboarding
+        }
         await refreshRemoteSocialState()
+    }
+
+    func acceptCurrentLegalDocuments() async {
+        await performAccountOperation {
+            guard self.isAuthenticated, !self.isDemoMode else { throw LiftRankServiceError.permissionDenied }
+            try await self.legalAcceptanceService.accept(documents: LegalDocument.current)
+            try await self.refreshLegalAcceptanceStatus()
+            await self.requestPushRegistrationIfNeeded()
+        }
     }
 
     func refreshRemoteSocialState() async {
@@ -210,6 +235,11 @@ final class AppState: ObservableObject {
             repository.joinedGymIDs = Set(joined.filter { $0.leftAt == nil }.map(\.gymID))
             remoteGymMemberships = joined
             remoteFriendRelationships = friends
+            if let primaryMembership = joined.first(where: { $0.isPrimary && $0.leftAt == nil }),
+               let primaryGym = directory.first(where: { $0.id == primaryMembership.gymID }) {
+                repository.currentProfile.primaryGymID = primaryGym.id
+                repository.currentProfile.primaryGymName = primaryGym.name
+            }
             repository.friendRequests = friends.compactMap { relationship in
                 guard relationship.status != .cancelled else { return nil }
                 return FriendRequest(
@@ -253,9 +283,221 @@ final class AppState: ObservableObject {
     private func loadAuthenticatedAccount() async throws {
         let profile = try await profileService.authenticatedProfile()
         apply(profile)
-        accountStatus = profile.onboardingCompleted ? .authenticated : .needsOnboarding
+        if profile.onboardingCompleted {
+            try await refreshLegalAcceptanceStatus()
+            if accountStatus == .authenticated {
+                await track(.weeklyReturn)
+                await requestPushRegistrationIfNeeded()
+            }
+        } else {
+            outstandingLegalDocuments = []
+            accountStatus = .needsOnboarding
+        }
         await refreshRemoteSocialState()
         await refreshProductionLaunchData()
+        await synchronizeCompletedWorkoutHistory()
+        await synchronizeWorkoutPlans()
+    }
+
+    private func refreshLegalAcceptanceStatus() async throws {
+        let accepted = try await legalAcceptanceService.acceptances()
+        let acceptedKeys = Set(accepted.map { "\($0.documentKind):\($0.documentVersion)" })
+        outstandingLegalDocuments = LegalDocument.current.filter {
+            !acceptedKeys.contains("\($0.kind.rawValue):\($0.version)")
+        }
+        accountStatus = outstandingLegalDocuments.isEmpty ? .authenticated : .needsLegalAcceptance
+    }
+
+    private func track(_ name: AnalyticsEventName, properties: [String: String] = [:]) async {
+        guard let userID = accountSession?.userID else { return }
+        await analyticsService.track(AnalyticsEventRecord(
+            id: UUID(), userID: userID, name: name, occurredAt: .now, properties: properties
+        ))
+    }
+
+    private static var pushDeviceID: String {
+        let key = "LiftRankPushDeviceID"
+        if let value = UserDefaults.standard.string(forKey: key) { return value }
+        let value = UUID().uuidString
+        UserDefaults.standard.set(value, forKey: key)
+        return value
+    }
+
+    func requestPushRegistrationIfNeeded() async {
+        guard accountStatus == .authenticated,
+              !isDemoMode,
+              ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
+        else { return }
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        var authorized = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+        if settings.authorizationStatus == .notDetermined {
+            authorized = (try? await center.requestAuthorization(options: [.alert, .badge, .sound])) ?? false
+        }
+        if authorized { await MainActor.run { UIApplication.shared.registerForRemoteNotifications() } }
+    }
+
+    func registerPushToken(_ token: String) async {
+        guard accountStatus == .authenticated, let userID = accountSession?.userID, !token.isEmpty else { return }
+#if DEBUG
+        let pushEnvironment = "sandbox"
+#else
+        let pushEnvironment = "production"
+#endif
+        let registration = PushDeviceRegistration(
+            id: UUID(), userID: userID, deviceID: Self.pushDeviceID, token: token,
+            environment: pushEnvironment,
+            updatedAt: .now
+        )
+        try? await notificationService.registerDevice(registration)
+    }
+
+    func synchronizeCompletedWorkoutHistory() async {
+        guard isAuthenticated, !isDemoMode else { return }
+        var remaining: [CompletedWorkoutSnapshot] = []
+        for snapshot in repository.pendingCompletedWorkoutUploads {
+            do { try await workoutSyncService.uploadCompletedWorkout(snapshot) }
+            catch { remaining.append(snapshot) }
+        }
+        repository.pendingCompletedWorkoutUploads = remaining
+
+        guard let remote = try? await workoutSyncService.completedWorkouts(since: nil) else {
+            repository.persistWorkoutSnapshot()
+            return
+        }
+        let decoder = JSONDecoder()
+        for snapshot in remote where !repository.completedWorkouts.contains(where: { $0.id == snapshot.id }) {
+            guard let workout = try? decoder.decode(CompletedWorkout.self, from: snapshot.payload) else { continue }
+            repository.completedWorkouts.append(workout)
+        }
+        repository.persistWorkoutSnapshot()
+    }
+
+    func synchronizeWorkoutPlans() async {
+        guard isAuthenticated, !isDemoMode else { return }
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        guard var remoteByID = try? await workoutSyncService.plans().reduce(into: [UUID: WorkoutPlanDocument](), { $0[$1.id] = $1 }) else { return }
+        let seededIDs = Set(MockData.workoutPlans.map(\.id)).union([PersonalWorkoutPlanCatalog.planID])
+
+        for plan in repository.workoutPlans where !seededIDs.contains(plan.id) {
+            guard let payload = workoutPlanPayload(planID: plan.id), let data = try? encoder.encode(payload) else { continue }
+            let knownRevision = repository.workoutPlanSyncRevisions[plan.id]
+            let lastPayload = repository.workoutPlanLastSyncedPayloads[plan.id]
+
+            if let remote = remoteByID[plan.id] {
+                if knownRevision == nil {
+                    if remote.payload == data {
+                        repository.workoutPlanSyncRevisions[plan.id] = remote.revision
+                        repository.workoutPlanLastSyncedPayloads[plan.id] = data
+                    } else if let serverPayload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: remote.payload) {
+                        let conflict = remappedConflictPayload(payload, documentID: UUID())
+                        applyWorkoutPlanPayload(serverPayload, replacing: plan.id)
+                        applyWorkoutPlanPayload(conflict, replacing: nil)
+                    }
+                    continue
+                }
+
+                if data == lastPayload {
+                    if remote.payload != data, let serverPayload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: remote.payload) {
+                        applyWorkoutPlanPayload(serverPayload, replacing: plan.id)
+                    }
+                    repository.workoutPlanSyncRevisions[plan.id] = remote.revision
+                    repository.workoutPlanLastSyncedPayloads[plan.id] = remote.payload
+                    continue
+                }
+
+                let document = WorkoutPlanDocument(
+                    id: plan.id, ownerID: currentProfile.id, revision: knownRevision ?? remote.revision,
+                    name: plan.name, payload: data, updatedAt: .now
+                )
+                if let result = try? await workoutSyncService.savePlan(document, expectedRevision: knownRevision ?? remote.revision) {
+                    applyWorkoutSyncResult(result)
+                    if case let .saved(saved) = result { remoteByID[saved.id] = saved }
+                }
+            } else {
+                let document = WorkoutPlanDocument(
+                    id: plan.id, ownerID: currentProfile.id, revision: 0,
+                    name: plan.name, payload: data, updatedAt: .now
+                )
+                if let result = try? await workoutSyncService.savePlan(document, expectedRevision: 0) {
+                    applyWorkoutSyncResult(result)
+                }
+            }
+        }
+
+        for document in remoteByID.values where !repository.workoutPlans.contains(where: { $0.id == document.id }) {
+            guard let payload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: document.payload) else { continue }
+            applyWorkoutPlanPayload(payload, replacing: nil)
+            repository.workoutPlanSyncRevisions[document.id] = document.revision
+            repository.workoutPlanLastSyncedPayloads[document.id] = document.payload
+        }
+        repository.persistWorkoutSnapshot()
+    }
+
+    private func workoutPlanPayload(planID: UUID) -> WorkoutPlanSyncPayload? {
+        guard let plan = repository.workoutPlans.first(where: { $0.id == planID }) else { return nil }
+        let phases = repository.workoutPhases.filter { $0.planID == planID }
+        let weeks = repository.workoutWeeks.filter { $0.planID == planID }
+        let weekIDs = Set(weeks.map(\.id))
+        let sessions = repository.workoutSessions.filter { weekIDs.contains($0.weekID) }
+        let sessionIDs = Set(sessions.map(\.id))
+        return WorkoutPlanSyncPayload(
+            plan: plan, phases: phases, weeks: weeks, sessions: sessions,
+            prescriptions: repository.workoutPrescriptions.filter { sessionIDs.contains($0.sessionID) },
+            progression: repository.workoutPlanProgressionSettings.first { $0.planID == planID }
+        )
+    }
+
+    private func applyWorkoutSyncResult(_ result: WorkoutSyncResult) {
+        let decoder = JSONDecoder()
+        switch result {
+        case let .saved(saved):
+            repository.workoutPlanSyncRevisions[saved.id] = saved.revision
+            repository.workoutPlanLastSyncedPayloads[saved.id] = saved.payload
+        case let .conflict(server, localCopy):
+            if let payload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: server.payload) {
+                applyWorkoutPlanPayload(payload, replacing: server.id)
+            }
+            if let payload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: localCopy.payload) {
+                applyWorkoutPlanPayload(remappedConflictPayload(payload, documentID: localCopy.id), replacing: nil)
+            }
+            repository.workoutPlanSyncRevisions[server.id] = server.revision
+            repository.workoutPlanLastSyncedPayloads[server.id] = server.payload
+            repository.workoutPlanSyncRevisions[localCopy.id] = localCopy.revision
+        }
+    }
+
+    private func applyWorkoutPlanPayload(_ payload: WorkoutPlanSyncPayload, replacing planID: UUID?) {
+        if let planID {
+            let weekIDs = Set(repository.workoutWeeks.filter { $0.planID == planID }.map(\.id))
+            let sessionIDs = Set(repository.workoutSessions.filter { weekIDs.contains($0.weekID) }.map(\.id))
+            repository.workoutPrescriptions.removeAll { sessionIDs.contains($0.sessionID) }
+            repository.workoutSessions.removeAll { weekIDs.contains($0.weekID) }
+            repository.workoutWeeks.removeAll { $0.planID == planID }
+            repository.workoutPhases.removeAll { $0.planID == planID }
+            repository.workoutPlanProgressionSettings.removeAll { $0.planID == planID }
+            repository.workoutPlans.removeAll { $0.id == planID }
+        }
+        repository.workoutPlans.append(payload.plan)
+        repository.workoutPhases.append(contentsOf: payload.phases)
+        repository.workoutWeeks.append(contentsOf: payload.weeks)
+        repository.workoutSessions.append(contentsOf: payload.sessions)
+        repository.workoutPrescriptions.append(contentsOf: payload.prescriptions)
+        if let progression = payload.progression { repository.workoutPlanProgressionSettings.append(progression) }
+    }
+
+    private func remappedConflictPayload(_ payload: WorkoutPlanSyncPayload, documentID: UUID) -> WorkoutPlanSyncPayload {
+        let phaseIDs = Dictionary(uniqueKeysWithValues: payload.phases.map { ($0.id, UUID()) })
+        let weekIDs = Dictionary(uniqueKeysWithValues: payload.weeks.map { ($0.id, UUID()) })
+        let sessionIDs = Dictionary(uniqueKeysWithValues: payload.sessions.map { ($0.id, UUID()) })
+        var plan = payload.plan; plan.id = documentID; plan.name += " (Conflict copy)"
+        let phases = payload.phases.map { value -> WorkoutPhase in var copy = value; copy.id = phaseIDs[value.id]!; copy.planID = documentID; return copy }
+        let weeks = payload.weeks.map { value -> WorkoutWeek in var copy = value; copy.id = weekIDs[value.id]!; copy.planID = documentID; copy.phaseID = phaseIDs[value.phaseID] ?? value.phaseID; return copy }
+        let sessions = payload.sessions.map { value -> WorkoutSession in var copy = value; copy.id = sessionIDs[value.id]!; copy.weekID = weekIDs[value.weekID] ?? value.weekID; return copy }
+        let prescriptions = payload.prescriptions.map { value -> WorkoutExercisePrescription in var copy = value; copy.id = UUID(); copy.sessionID = sessionIDs[value.sessionID] ?? value.sessionID; return copy }
+        var progression = payload.progression; progression?.planID = documentID
+        return WorkoutPlanSyncPayload(plan: plan, phases: phases, weeks: weeks, sessions: sessions, prescriptions: prescriptions, progression: progression)
     }
 
     func refreshProductionLaunchData() async {
@@ -289,6 +531,26 @@ final class AppState: ObservableObject {
             repository.directMessages = messages
         }
         if let notifications = try? await notificationService.notifications() { repository.notifications = notifications }
+        remoteBlocks = (try? await socialService.blocks()) ?? []
+    }
+
+    func isBlocked(_ userID: UUID) -> Bool { remoteBlocks.contains { $0.blockedID == userID } }
+
+    func setBlocked(_ userID: UUID, blocked: Bool) {
+        guard userID != currentProfile.id else { return }
+        Task {
+            do {
+                if blocked { try await socialService.block(userID: userID) }
+                else { try await socialService.unblock(userID: userID) }
+                remoteBlocks = (try? await socialService.blocks()) ?? []
+                if blocked {
+                    repository.activities.removeAll { $0.profile.id == userID }
+                    repository.forumPosts.removeAll { $0.authorID == userID }
+                    repository.forumComments.removeAll { $0.authorID == userID }
+                    repository.messageThreads.removeAll { $0.participantIDs.contains(userID) }
+                }
+            } catch { accountMessage = userMessage(error) }
+        }
     }
 
     private func apply(_ remote: AuthenticatedProfile) {
@@ -305,6 +567,11 @@ final class AppState: ObservableObject {
         local.experienceLevel = remote.experienceLevel ?? .beginner
         local.followers = 0
         local.following = 0
+        authenticatedPrivacy = remote.privacy
+        local.hideExactAge = remote.privacy.ageBandAudience == .privateProfile
+        local.hideBodyweight = remote.privacy.bodyweightAudience == .privateProfile
+        local.hideCity = remote.privacy.locationAudience == .privateProfile
+        local.hideGym = remote.privacy.gymAudience == .privateProfile
         if let avatarPath = remote.avatarPath {
             local.avatarPath = avatarPath
         }
@@ -763,6 +1030,7 @@ final class AppState: ObservableObject {
             return
         }
         submission = saved
+        await track(.prSubmitted, properties: ["movement": movement?.rawValue ?? "noncanonical"])
         if let videoURL,
            let asset = try? await mediaUploadService.uploadLiftVideo(localURL: videoURL, liftID: liftID, progress: { [weak self] value in
                Task { @MainActor in self?.uploadProgress = value }
@@ -771,6 +1039,7 @@ final class AppState: ObservableObject {
             submission.evidenceStatus = .videoBacked
             submission.verificationStatus = .videoVerified
             submission.remoteVideoURL = try? await mediaUploadService.signedPlaybackURL(assetID: asset.id)
+            await track(.videoBackedPRSubmitted, properties: ["movement": movement?.rawValue ?? "noncanonical"])
         }
         lastSubmissionResult = submission
     }
@@ -993,12 +1262,17 @@ final class AppState: ObservableObject {
     @discardableResult
     func joinForumCommunity(_ communityID: UUID, note: String = "") -> ForumMembershipStatus? {
         let result = repository.joinForumCommunity(communityID, note: note)
+        if isAuthenticated, !isDemoMode, let community = repository.forumCommunities.first(where: { $0.id == communityID }) {
+            Task { _ = try? await communityService.join(community: community, note: note) }
+        }
         result == .joined ? Haptics.success() : Haptics.light()
         return result
     }
 
     func leaveForumCommunity(_ communityID: UUID) {
+        let community = repository.forumCommunities.first { $0.id == communityID }
         repository.leaveForumCommunity(communityID)
+        if isAuthenticated, !isDemoMode, let community { Task { try? await communityService.leave(community: community) } }
         Haptics.light()
     }
 
@@ -1058,6 +1332,12 @@ final class AppState: ObservableObject {
             isLocked: false, removedAt: nil, removalReason: nil
         )
         let created = repository.createForumPost(post)
+        if created, isAuthenticated, !isDemoMode {
+            Task {
+                _ = try? await communityService.createPost(post)
+                if kind == .workoutShare { await track(.workoutShared, properties: ["workout_id": workoutID?.uuidString ?? "unknown"]) }
+            }
+        }
         created ? Haptics.success() : Haptics.warning()
         return created
     }
@@ -1092,6 +1372,12 @@ final class AppState: ObservableObject {
             isPinned: false, isLocked: false, removedAt: nil, removalReason: nil
         )
         let created = repository.createForumPost(post)
+        if created, isAuthenticated, !isDemoMode {
+            Task {
+                _ = try? await communityService.createPost(post)
+                if kind == .workoutShare { await track(.workoutShared, properties: ["workout_id": workoutID?.uuidString ?? "unknown"]) }
+            }
+        }
         created ? Haptics.success() : Haptics.warning()
         return created
     }
@@ -1103,34 +1389,47 @@ final class AppState: ObservableObject {
     }
 
     func voteForumPost(_ postID: UUID, vote: CommunityVote?) {
+        let post = repository.forumPosts.first { $0.id == postID }
         repository.voteForumPost(postID, vote: vote)
+        if isAuthenticated, !isDemoMode, let post { Task { try? await communityService.vote(post: post, vote: vote) } }
         Haptics.light()
     }
 
     func toggleForumPostSaved(_ postID: UUID) {
+        let post = repository.forumPosts.first { $0.id == postID }
         repository.toggleForumPostSaved(postID)
+        if isAuthenticated, !isDemoMode, let post { Task { try? await communityService.toggleSaved(post: post) } }
         Haptics.light()
     }
 
     func toggleForumPostWatched(_ postID: UUID) {
+        let post = repository.forumPosts.first { $0.id == postID }
         repository.toggleForumPostWatched(postID)
+        if isAuthenticated, !isDemoMode, let post { Task { try? await communityService.toggleWatched(post: post) } }
         Haptics.light()
     }
 
     func voteInForumPoll(postID: UUID, optionID: UUID) {
+        let post = repository.forumPosts.first { $0.id == postID }
         repository.voteInForumPoll(postID: postID, optionID: optionID)
+        if isAuthenticated, !isDemoMode, let post { Task { try? await communityService.vote(pollPost: post, optionID: optionID) } }
         Haptics.light()
     }
 
     @discardableResult
     func addForumComment(postID: UUID, parentCommentID: UUID?, body: String) -> ForumComment? {
         let comment = repository.addForumComment(postID: postID, parentCommentID: parentCommentID, body: body)
+        if isAuthenticated, !isDemoMode, let post = repository.forumPosts.first(where: { $0.id == postID }) {
+            Task { _ = try? await communityService.addComment(to: post, parentCommentID: parentCommentID, body: body) }
+        }
         comment == nil ? Haptics.warning() : Haptics.success()
         return comment
     }
 
     func voteForumComment(_ commentID: UUID, vote: CommunityVote?) {
+        let comment = repository.forumComments.first { $0.id == commentID }
         repository.voteForumComment(commentID, vote: vote)
+        if isAuthenticated, !isDemoMode, let comment { Task { try? await communityService.vote(comment: comment, vote: vote) } }
         Haptics.light()
     }
 
@@ -1164,12 +1463,15 @@ final class AppState: ObservableObject {
             targetType: targetType, targetID: targetID, communityID: communityID,
             reason: reason, note: note.trimmingCharacters(in: .whitespacesAndNewlines)
         )
+        if submitted, isAuthenticated, !isDemoMode { Task { _ = try? await communityService.report(targetType: targetType, targetID: targetID, communityID: communityID, reason: reason, note: note) } }
         submitted ? Haptics.success() : Haptics.warning()
         return submitted
     }
 
     func moderateForumPost(_ postID: UUID, action: ForumModerationActionKind, reason: String = "") {
+        let post = repository.forumPosts.first { $0.id == postID }
         repository.moderateForumPost(postID, action: action, reason: reason)
+        if isAuthenticated, !isDemoMode, let post { Task { try? await communityService.moderate(post: post, action: action, reason: reason) } }
         Haptics.warning()
     }
 
@@ -1402,7 +1704,17 @@ final class AppState: ObservableObject {
             Haptics.warning()
             return
         }
-        selectedMessageThread = repository.messageThread(with: profile)
+        if isAuthenticated, !isDemoMode {
+            Task {
+                do {
+                    let thread = try await messagingService.createOrGetThread(with: profile.id)
+                    if !repository.messageThreads.contains(where: { $0.id == thread.id }) { repository.messageThreads.append(thread) }
+                    selectedMessageThread = thread
+                } catch { accountMessage = userMessage(error) }
+            }
+        } else {
+            selectedMessageThread = repository.messageThread(with: profile)
+        }
         Haptics.light()
     }
 
@@ -1427,20 +1739,32 @@ final class AppState: ObservableObject {
             Haptics.warning()
             return
         }
-        repository.addMessage(to: thread, body: cleanBody)
-        if let updatedThread = repository.messageThreads.first(where: { $0.id == thread.id }) {
-            selectedMessageThread = updatedThread
+        if isAuthenticated, !isDemoMode {
+            Task {
+                do {
+                    if let message = try await messagingService.sendMessage(in: thread, body: cleanBody) {
+                        repository.directMessages.append(message)
+                        if let index = repository.messageThreads.firstIndex(where: { $0.id == thread.id }) { repository.messageThreads[index].updatedAt = message.createdAt }
+                        selectedMessageThread = repository.messageThreads.first(where: { $0.id == thread.id }) ?? thread
+                    }
+                } catch { accountMessage = userMessage(error) }
+            }
+        } else {
+            repository.addMessage(to: thread, body: cleanBody)
+            selectedMessageThread = repository.messageThreads.first(where: { $0.id == thread.id })
         }
         Haptics.success()
     }
 
     func deleteMessage(_ message: DirectMessage) {
         repository.deleteMessage(message)
+        if isAuthenticated, !isDemoMode { Task { try? await messagingService.deleteMessage(message) } }
         Haptics.warning()
     }
 
     func deleteMessageThread(_ thread: DirectMessageThread) {
         repository.deleteMessageThread(thread)
+        if isAuthenticated, !isDemoMode { Task { try? await messagingService.deleteThread(thread) } }
         if selectedMessageThread?.id == thread.id {
             selectedMessageThread = nil
         }
@@ -1449,6 +1773,7 @@ final class AppState: ObservableObject {
 
     func reportMessage(_ message: DirectMessage, reason: MessageReportReason, note: String) {
         repository.reportMessage(message, reason: reason, note: note.trimmingCharacters(in: .whitespacesAndNewlines))
+        if isAuthenticated, !isDemoMode { Task { try? await messagingService.reportMessage(message, reason: reason, note: note) } }
         Haptics.warning()
     }
 
@@ -1465,6 +1790,75 @@ final class AppState: ObservableObject {
             } catch {
                 accountMessage = userMessage(error)
             }
+        }
+    }
+
+    func saveEditedProfile(_ profile: UserProfile, primaryGym: Gym, privacy: ProfilePrivacySettings) async -> Bool {
+        guard !accountOperationInProgress else { return false }
+        accountOperationInProgress = true
+        accountMessage = nil
+        defer { accountOperationInProgress = false }
+
+        var updatedProfile = profile
+        updatedProfile.primaryGymID = primaryGym.id
+        updatedProfile.primaryGymName = primaryGym.name
+        updatedProfile.city = primaryGym.city
+        updatedProfile.state = primaryGym.state
+
+        do {
+            if isAuthenticated && !isDemoMode {
+                if !isGymJoined(primaryGym) {
+                    _ = try await gymMembershipService.join(primaryGym, maximumMemberships: Self.maximumJoinedGyms)
+                }
+                try await gymMembershipService.setPrimary(primaryGym)
+            } else if !repository.joinGym(primaryGym, maximumMemberships: Self.maximumJoinedGyms) {
+                throw LiftRankServiceError.gymLimitReached
+            }
+
+            var saved: UserProfile
+            if isAuthenticated && !isDemoMode {
+                let existing = try await profileService.authenticatedProfile()
+                let remote = try await profileService.saveProfile(ProfileDraft(
+                    username: updatedProfile.username,
+                    displayName: updatedProfile.displayName,
+                    bio: existing.bio,
+                    preferredUnit: updatedProfile.preferredUnit,
+                    birthDate: existing.birthDate,
+                    sexCategory: updatedProfile.sexCategory,
+                    heightCentimeters: updatedProfile.heightInches * 2.54,
+                    city: updatedProfile.city,
+                    region: updatedProfile.state,
+                    countryCode: existing.countryCode ?? "US",
+                    yearsExperience: updatedProfile.yearsExperience,
+                    experienceLevel: updatedProfile.experienceLevel,
+                    privacy: privacy,
+                    completesOnboarding: existing.onboardingCompleted
+                ))
+                apply(remote)
+                saved = repository.currentProfile
+            } else {
+                saved = try await profileService.updateProfile(updatedProfile)
+            }
+            saved.avatarPath = updatedProfile.avatarPath
+            saved.primaryGymID = primaryGym.id
+            saved.primaryGymName = primaryGym.name
+            saved.city = primaryGym.city
+            saved.state = primaryGym.state
+            repository.currentProfile = saved
+            authenticatedPrivacy = privacy
+            if let index = repository.profiles.firstIndex(where: { $0.id == saved.id }) {
+                repository.profiles[index] = saved
+            }
+            if isAuthenticated && !isDemoMode {
+                await refreshRemoteSocialState()
+            }
+            repository.persistWorkoutSnapshot()
+            Haptics.success()
+            return true
+        } catch {
+            accountMessage = userMessage(error)
+            Haptics.warning()
+            return false
         }
     }
 
@@ -1527,6 +1921,7 @@ final class AppState: ObservableObject {
     @discardableResult
     func startWorkout(_ session: WorkoutSession) -> Bool {
         guard activeWorkout == nil else { return false }
+        let isFirstWorkout = completedWorkouts.isEmpty
         let week = workoutWeeks.first { $0.id == session.weekID }
         let unit = currentProfile.preferredUnit
         let bodyweight = unit == .kilograms
@@ -1539,13 +1934,17 @@ final class AppState: ObservableObject {
             bodyweight: bodyweight,
             unit: unit
         ) != nil
-        if started { Haptics.success() }
+        if started {
+            Haptics.success()
+            if isFirstWorkout { Task { await track(.firstWorkoutStarted) } }
+        }
         return started
     }
 
     @discardableResult
     func startFreestyleWorkoutInstance() -> Bool {
         guard activeWorkout == nil else { return false }
+        let isFirstWorkout = completedWorkouts.isEmpty
         let unit = currentProfile.preferredUnit
         let bodyweight = unit == .kilograms
             ? RankingCalculator.poundsToKilograms(currentProfile.bodyweightPounds)
@@ -1555,7 +1954,10 @@ final class AppState: ObservableObject {
             bodyweight: bodyweight,
             unit: unit
         ) != nil
-        if started { Haptics.success() }
+        if started {
+            Haptics.success()
+            if isFirstWorkout { Task { await track(.firstWorkoutStarted) } }
+        }
         return started
     }
 
@@ -1573,6 +1975,7 @@ final class AppState: ObservableObject {
     func updateSourcePlanFromActiveWorkout() -> Bool {
         let updated = repository.updateSourcePlanFromActiveWorkout()
         updated ? Haptics.success() : Haptics.warning()
+        if updated { Task { await synchronizeWorkoutPlans() } }
         return updated
     }
 
@@ -1621,7 +2024,22 @@ final class AppState: ObservableObject {
     @discardableResult
     func finishActiveWorkout(effort: Int, notes: String) -> CompletedWorkout? {
         let completed = repository.finishActiveWorkout(effort: effort, notes: notes)
-        if completed != nil { Haptics.success() }
+        if let completed {
+            Haptics.success()
+            if isAuthenticated, !isDemoMode, let payload = try? JSONEncoder().encode(completed) {
+                let snapshot = CompletedWorkoutSnapshot(
+                    id: completed.id,
+                    ownerID: currentProfile.id,
+                    payload: payload,
+                    completedAt: completed.completedAt
+                )
+                if !repository.pendingCompletedWorkoutUploads.contains(where: { $0.id == snapshot.id }) {
+                    repository.pendingCompletedWorkoutUploads.append(snapshot)
+                }
+                Task { await synchronizeCompletedWorkoutHistory() }
+            }
+            Task { await track(.workoutCompleted, properties: ["workout_id": completed.id.uuidString]) }
+        }
         return completed
     }
 
@@ -2235,6 +2653,7 @@ final class AppState: ObservableObject {
         repository.addWorkoutPlan(plan)
         selectedWorkoutPlanID = plan.id
         Haptics.success()
+        Task { await synchronizeWorkoutPlans() }
     }
 
     func suggestedTrainingMaxKilograms(for template: WorkoutProgramTemplate) -> [String: Double] {
@@ -2285,6 +2704,7 @@ final class AppState: ObservableObject {
         )
         selectedWorkoutPlanID = plan.id
         Haptics.success()
+        Task { await synchronizeWorkoutPlans() }
         return plan
     }
 
@@ -2300,6 +2720,7 @@ final class AppState: ObservableObject {
             trainingMaxKilograms: trainingMaxKilograms
         )
         changed ? Haptics.success() : Haptics.warning()
+        if changed { Task { await synchronizeWorkoutPlans() } }
         return changed
     }
 
@@ -2313,6 +2734,7 @@ final class AppState: ObservableObject {
         plan.name = cleanName
         repository.updateWorkoutPlan(plan)
         Haptics.success()
+        Task { await synchronizeWorkoutPlans() }
     }
 
     func duplicateSelectedWorkoutPlan() {
@@ -2320,6 +2742,7 @@ final class AppState: ObservableObject {
         let copy = repository.duplicateWorkoutPlan(plan)
         selectedWorkoutPlanID = copy.id
         Haptics.success()
+        Task { await synchronizeWorkoutPlans() }
     }
 
     func deleteSelectedWorkoutPlan() {
@@ -2330,8 +2753,11 @@ final class AppState: ObservableObject {
         }
         let fallback = repository.workoutPlans.first { $0.id != plan.id }
         repository.deleteWorkoutPlan(plan)
+        repository.workoutPlanSyncRevisions[plan.id] = nil
+        repository.workoutPlanLastSyncedPayloads[plan.id] = nil
         selectedWorkoutPlanID = fallback?.id ?? repository.workoutPlans.first?.id ?? MockData.defaultWorkoutPlanID
         Haptics.warning()
+        if isAuthenticated, !isDemoMode { Task { try? await workoutSyncService.deletePlan(id: plan.id) } }
     }
 
     func updateBodyweight(_ entry: BodyweightEntry) {

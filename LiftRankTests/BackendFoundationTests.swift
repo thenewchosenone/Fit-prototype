@@ -3,6 +3,37 @@ import XCTest
 
 @MainActor
 final class BackendFoundationTests: XCTestCase {
+    func testNotificationDestinationDecodesServerMinimalPayload() throws {
+        let threadID = UUID()
+        let data = try XCTUnwrap("{\"kind\":\"messageThread\",\"targetID\":\"\(threadID.uuidString)\"}".data(using: .utf8))
+        let destination = try JSONDecoder().decode(NotificationDestination.self, from: data)
+        XCTAssertEqual(destination.kind, .messageThread)
+        XCTAssertEqual(destination.targetID, threadID)
+        XCTAssertFalse(destination.trackerStartsOnProgress)
+    }
+
+    func testSupabaseConfigurationRequiresExplicitEnvironment() {
+        XCTAssertNil(SupabaseConfiguration.load(environment: [
+            "LIFTRANK_SUPABASE_URL": "https://example.supabase.co",
+            "LIFTRANK_SUPABASE_ANON_KEY": "public-key"
+        ], bundle: Bundle(for: BackendFoundationTests.self)))
+    }
+
+    func testSupabaseConfigurationSeparatesHostedAndLocalEnvironments() throws {
+        let staging = try XCTUnwrap(SupabaseConfiguration.load(environment: [
+            "LIFTRANK_BACKEND_ENVIRONMENT": "staging",
+            "LIFTRANK_SUPABASE_URL": "https://example.supabase.co",
+            "LIFTRANK_SUPABASE_ANON_KEY": "public-key"
+        ]))
+        XCTAssertEqual(staging.environment, .staging)
+
+        XCTAssertNil(SupabaseConfiguration.load(environment: [
+            "LIFTRANK_BACKEND_ENVIRONMENT": "local",
+            "LIFTRANK_SUPABASE_URL": "https://example.supabase.co",
+            "LIFTRANK_SUPABASE_ANON_KEY": "public-key"
+        ]))
+    }
+
     func testMissingConfigurationRoutesToConfigurationRequired() async {
         let repository = DemoRepository()
         let state = AppState(repository: repository, serviceContainer: AppServiceContainer(
@@ -34,6 +65,13 @@ final class BackendFoundationTests: XCTestCase {
         let state = makeState(session: session, onboardingCompleted: true)
         await state.restoreAccount()
         XCTAssertEqual(state.accountStatus, .authenticated)
+    }
+
+    func testCompletedSessionRequiresCurrentLegalAcceptance() async {
+        let state = makeState(session: session, onboardingCompleted: true, hasCurrentLegalAcceptance: false)
+        await state.restoreAccount()
+        XCTAssertEqual(state.accountStatus, .needsLegalAcceptance)
+        XCTAssertEqual(Set(state.outstandingLegalDocuments.map(\.kind)), Set(LegalDocumentKind.allCases))
     }
 
     func testExpiredSessionIsRedactedAndReturnsSignedOut() async {
@@ -73,17 +111,54 @@ final class BackendFoundationTests: XCTestCase {
         }
     }
 
+    func testWorkoutSyncPreservesAConflictCopy() async throws {
+        let service = MockWorkoutSyncService()
+        let original = WorkoutPlanDocument(
+            id: UUID(), ownerID: session.userID, revision: 0, name: "Strength",
+            payload: Data("first".utf8), updatedAt: .now
+        )
+        guard case let .saved(saved) = try await service.savePlan(original, expectedRevision: 0) else {
+            return XCTFail("Expected initial save")
+        }
+        var stale = original
+        stale.payload = Data("stale edit".utf8)
+        guard case let .conflict(server, localCopy) = try await service.savePlan(stale, expectedRevision: 0) else {
+            return XCTFail("Expected a conflict")
+        }
+        XCTAssertEqual(server.revision, saved.revision)
+        XCTAssertTrue(localCopy.isConflictCopy)
+        XCTAssertNotEqual(localCopy.id, original.id)
+    }
+
+    func testCompletedWorkoutUploadIsIdempotentAndRejectsSeededData() async throws {
+        let service = MockWorkoutSyncService()
+        let snapshot = CompletedWorkoutSnapshot(
+            id: UUID(), ownerID: session.userID, payload: Data("workout".utf8), completedAt: .now
+        )
+        try await service.uploadCompletedWorkout(snapshot)
+        try await service.uploadCompletedWorkout(snapshot)
+        let firstUpload = try await service.completedWorkouts(since: nil)
+        XCTAssertEqual(firstUpload.count, 1)
+
+        var seeded = snapshot
+        seeded.id = UUID()
+        seeded.isSeededDemoData = true
+        try await service.uploadCompletedWorkout(seeded)
+        let afterSeededUpload = try await service.completedWorkouts(since: nil)
+        XCTAssertEqual(afterSeededUpload.count, 1)
+    }
+
     private let session = AccountSession(
         userID: UUID(uuidString: "90000000-0000-0000-0000-000000000001")!,
         email: "member@example.test",
         expiresAt: .now.addingTimeInterval(3600)
     )
 
-    private func makeState(session: AccountSession?, onboardingCompleted: Bool) -> AppState {
-        makeState(authentication: TestAuthenticationService(session: session), onboardingCompleted: onboardingCompleted)
+    private func makeState(session: AccountSession?, onboardingCompleted: Bool, hasCurrentLegalAcceptance: Bool = true) -> AppState {
+        makeState(authentication: TestAuthenticationService(session: session), onboardingCompleted: onboardingCompleted, hasCurrentLegalAcceptance: hasCurrentLegalAcceptance)
     }
 
-    private func makeState(authentication: any AuthenticationService, onboardingCompleted: Bool) -> AppState {
+    private func makeState(authentication: any AuthenticationService, onboardingCompleted: Bool, hasCurrentLegalAcceptance: Bool = true) -> AppState {
         let repository = DemoRepository()
         let profile = TestProfileService(profile: AuthenticatedProfile(
             id: session.userID, username: "member_test", displayName: "Member Test", bio: "",
@@ -98,9 +173,28 @@ final class BackendFoundationTests: XCTestCase {
             gyms: MockGymService(repository: repository),
             gymMemberships: MockGymMembershipService(repository: repository),
             friendships: MockFriendRelationshipService(repository: repository),
-            exercises: MockExerciseCatalogService()
+            exercises: MockExerciseCatalogService(),
+            legalAcceptances: TestLegalAcceptanceService(userID: session.userID, accepted: hasCurrentLegalAcceptance)
         ))
     }
+}
+
+@MainActor
+private struct TestLegalAcceptanceService: LegalAcceptanceService {
+    let userID: UUID
+    let accepted: Bool
+
+    func acceptances() async throws -> [LegalAcceptanceRecord] {
+        guard accepted else { return [] }
+        return LegalDocument.current.map {
+            LegalAcceptanceRecord(
+                id: UUID(), userID: userID, documentKind: $0.kind.rawValue,
+                documentVersion: $0.version, acceptedAt: .now
+            )
+        }
+    }
+
+    func accept(documents: [LegalDocument]) async throws {}
 }
 
 @MainActor
@@ -140,4 +234,3 @@ private final class TestProfileService: ProfileService {
     func currentProfile() async throws -> UserProfile { MockData.demoProfile }
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile { profile }
 }
-

@@ -1,4 +1,8 @@
 begin;
+create schema if not exists extensions;
+create extension if not exists pgtap with schema extensions;
+set local search_path = public, extensions;
+
 select plan(13);
 
 select has_type('public', 'competitive_movement', 'canonical movement type exists');

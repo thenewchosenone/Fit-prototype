@@ -1,11 +1,15 @@
 import SwiftData
 import SwiftUI
+import UIKit
+import UserNotifications
 
 @main
 struct LiftRankApp: App {
+    @UIApplicationDelegateAdaptor(LiftRankApplicationDelegate.self) private var applicationDelegate
     private let modelContainer: ModelContainer?
     private let localDataError: String?
     @StateObject private var appState: AppState
+    @AppStorage("liftrank.appearance") private var appearanceValue = LiftAppearance.system.rawValue
 
     init() {
         do {
@@ -36,8 +40,10 @@ struct LiftRankApp: App {
             if let modelContainer {
                 accountRoot
                     .modelContainer(modelContainer)
+                    .preferredColorScheme(LiftAppearance(rawValue: appearanceValue)?.colorScheme)
             } else {
                 LocalDataRecoveryView(details: localDataError)
+                    .preferredColorScheme(LiftAppearance(rawValue: appearanceValue)?.colorScheme)
             }
         }
     }
@@ -51,13 +57,44 @@ struct LiftRankApp: App {
                 AuthenticationView()
             case .needsOnboarding:
                 OnboardingView {}
+            case .needsLegalAcceptance:
+                LegalAcceptanceView()
             case .authenticated, .demo:
                 MainTabView()
             }
         }
         .environmentObject(appState)
         .task { await appState.restoreAccount() }
+        .onReceive(NotificationCenter.default.publisher(for: .liftRankDidReceivePushToken)) { notification in
+            guard let token = notification.object as? String else { return }
+            Task { await appState.registerPushToken(token) }
+        }
     }
+}
+
+final class LiftRankApplicationDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
+        return true
+    }
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+        NotificationCenter.default.post(name: .liftRankDidReceivePushToken, object: token)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        // Simulator and unsigned builds have no APNs entitlement. In-app
+        // notifications continue to work without presenting a false error.
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        [.banner, .sound, .badge]
+    }
+}
+
+extension Notification.Name {
+    static let liftRankDidReceivePushToken = Notification.Name("LiftRankDidReceivePushToken")
 }
 
 private struct LocalDataRecoveryView: View {

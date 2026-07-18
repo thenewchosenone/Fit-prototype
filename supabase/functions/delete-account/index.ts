@@ -12,7 +12,16 @@ Deno.serve(async (request) => {
   const { data: { user }, error } = await userClient.auth.getUser();
   if (error || !user) return new Response("Unauthorized", { status: 401 });
 
-  const issuedAt = Number(user.aud && JSON.parse(atob(authorization.split(".")[1] ?? "")).iat);
+  const payloadSegment = authorization.replace(/^Bearer\s+/i, "").split(".")[1] ?? "";
+  let issuedAt = Number.NaN;
+  try {
+    const normalized = payloadSegment.replaceAll("-", "+").replaceAll("_", "/")
+      .padEnd(Math.ceil(payloadSegment.length / 4) * 4, "=");
+    issuedAt = Number(JSON.parse(atob(normalized)).iat);
+  } catch {
+    // getUser above validates the token; malformed timestamp data is still
+    // rejected because deletion requires explicit recent authentication.
+  }
   if (!Number.isFinite(issuedAt) || Date.now() / 1000 - issuedAt > 600) {
     return new Response("Recent authentication required", { status: 403 });
   }

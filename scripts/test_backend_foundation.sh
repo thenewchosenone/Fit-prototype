@@ -58,6 +58,25 @@ grant usage on schema auth to anon, authenticated, service_role;
 grant execute on function auth.uid() to anon, authenticated, service_role;
 create schema extensions;
 grant usage on schema extensions to anon, authenticated, service_role;
+create schema storage;
+create table storage.buckets (
+  id text primary key, name text not null unique, public boolean not null default false,
+  file_size_limit bigint, allowed_mime_types text[]
+);
+create table storage.objects (
+  id uuid primary key default gen_random_uuid(), bucket_id text not null references storage.buckets(id),
+  name text not null, owner_id text, created_at timestamptz not null default now(),
+  unique(bucket_id, name)
+);
+alter table storage.objects enable row level security;
+create function storage.foldername(name text) returns text[] language sql immutable as $$
+  select case when position('/' in name) = 0 then array[]::text[]
+              else string_to_array(regexp_replace(name, '/[^/]*$', ''), '/') end
+$$;
+grant usage on schema storage to anon, authenticated, service_role;
+grant select, insert, update, delete on storage.objects to authenticated, service_role;
+grant select on storage.buckets to authenticated, service_role;
+grant execute on function storage.foldername(text) to anon, authenticated, service_role;
 SQL
 }
 
@@ -69,7 +88,8 @@ run_reset() {
   bootstrap | psql_local >/dev/null
   psql_local -f "$WORK/pgtap-load.sql" >/dev/null
   for migration in "$ROOT"/supabase/migrations/*.sql; do psql_local -f "$migration" >/dev/null; done
-  for test_file in "$ROOT/supabase/tests/202607140001_identity_social_foundation.test.sql" "$ROOT/supabase/tests/202607140003_exercise_catalog.test.sql"; do
+  for test_file in "$ROOT"/supabase/tests/*.test.sql; do
+    [[ "$(basename "$test_file")" == "202607140002_gym_membership_concurrency.test.sql" ]] && continue
     local staged="$WORK/$(basename "$test_file")"
     sed '/create extension if not exists pgtap/d' "$test_file" > "$staged"
     psql_local -f "$staged" | tee "$staged.$db.log"

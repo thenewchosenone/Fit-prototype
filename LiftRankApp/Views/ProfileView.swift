@@ -58,6 +58,15 @@ struct ProfileView: View {
                         }
                         .accessibilityLabel("Profile options")
                     }
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Button(appState.isBlocked(profile.id) ? "Unblock athlete" : "Block athlete", role: appState.isBlocked(profile.id) ? nil : .destructive) {
+                                appState.setBlocked(profile.id, blocked: !appState.isBlocked(profile.id))
+                            }
+                        } label: { Image(systemName: "ellipsis.circle.fill") }
+                        .accessibilityLabel("Athlete options")
+                    }
                 }
             }
         }
@@ -438,15 +447,62 @@ struct ProfileView: View {
     }
 }
 
+private enum EditProfileSelector: String, Identifiable {
+    case location
+    case gym
+
+    var id: String { rawValue }
+    var title: String { self == .location ? "Choose Location" : "Choose Primary Gym" }
+}
+
+private struct EditProfileLocation: Identifiable, Hashable {
+    let city: String
+    let state: String
+    var id: String { "\(state.lowercased())|\(city.lowercased())" }
+}
+
 struct EditProfileView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var draft = MockData.demoProfile
     @State private var showingPhotoManager = false
+    @State private var activeSelector: EditProfileSelector?
+    @State private var selectedGymID: UUID?
+    @State private var privacy = ProfilePrivacySettings()
     private var ageGroups: [String] {
         MockData.standardAgeGroups.contains(draft.ageGroup)
             ? MockData.standardAgeGroups
             : [draft.ageGroup] + MockData.standardAgeGroups
+    }
+
+    private var selectedGym: Gym? {
+        appState.gyms.first { $0.id == selectedGymID }
+    }
+
+    private var locations: [EditProfileLocation] {
+        var unique: [String: EditProfileLocation] = [:]
+        for gym in appState.gyms where !gym.city.isEmpty && !gym.state.isEmpty {
+            let location = EditProfileLocation(city: gym.city, state: gym.state)
+            unique[location.id] = location
+        }
+        if !draft.city.isEmpty && !draft.state.isEmpty {
+            let current = EditProfileLocation(city: draft.city, state: draft.state)
+            unique[current.id] = current
+        }
+        return unique.values.sorted {
+            $0.state == $1.state ? $0.city.localizedCaseInsensitiveCompare($1.city) == .orderedAscending :
+                $0.state.localizedCaseInsensitiveCompare($1.state) == .orderedAscending
+        }
+    }
+
+    private var gymsForSelectedLocation: [Gym] {
+        let matching = appState.gyms.filter {
+            $0.city.caseInsensitiveCompare(draft.city) == .orderedSame &&
+                $0.state.caseInsensitiveCompare(draft.state) == .orderedSame
+        }
+        return (matching.isEmpty ? appState.gyms : matching).sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
     }
 
     var body: some View {
@@ -487,22 +543,58 @@ struct EditProfileView: View {
                         NumericInputField(title: "Bodyweight", value: $draft.bodyweightPounds, unit: "lb", presentation: .formRow)
                     }
                     Section("Location") {
-                        TextField("City", text: $draft.city)
-                        TextField("State", text: $draft.state)
-                        TextField("Primary gym", text: $draft.primaryGymName)
+                        profileSelectionRow(
+                            title: "City and state",
+                            value: draft.city.isEmpty ? "Choose a location" : "\(draft.city), \(draft.state)",
+                            symbol: "mappin.and.ellipse"
+                        ) { activeSelector = .location }
+                        profileSelectionRow(
+                            title: "Primary gym",
+                            value: selectedGym?.name ?? "Choose a gym",
+                            symbol: "building.2.fill"
+                        ) { activeSelector = .gym }
                     }
                     Section("Privacy") {
-                        Toggle("Hide bodyweight", isOn: $draft.hideBodyweight)
-                        Toggle("Hide exact age", isOn: $draft.hideExactAge)
-                        Toggle("Hide city", isOn: $draft.hideCity)
-                        Toggle("Hide gym", isOn: $draft.hideGym)
+                        audiencePicker("Profile", selection: $privacy.profileAudience)
+                        audiencePicker("Age band", selection: $privacy.ageBandAudience)
+                        audiencePicker("Division", selection: $privacy.divisionAudience)
+                        audiencePicker("Bodyweight", selection: $privacy.bodyweightAudience)
+                        audiencePicker("Location", selection: $privacy.locationAudience)
+                        audiencePicker("Gym", selection: $privacy.gymAudience)
+                        audiencePicker("Friend list", selection: $privacy.friendListAudience)
                         Toggle("Hide lift videos", isOn: $draft.hideLiftVideos)
+                        Text("Ratio and weight-class rankings may indirectly reveal bodyweight even when the bodyweight field is private.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
                     }
                 }
                 .scrollContentBackground(.hidden)
             }
             .navigationTitle("Edit Profile")
-            .onAppear { draft = appState.currentProfile }
+            .onAppear {
+                draft = appState.currentProfile
+                privacy = appState.authenticatedPrivacy
+                selectedGymID = appState.gyms.first(where: {
+                    $0.id == draft.primaryGymID || $0.name == draft.primaryGymName
+                })?.id
+            }
+            .sheet(item: $activeSelector) { selector in
+                LeaderboardOptionSheet(
+                    title: selector.title,
+                    options: options(for: selector),
+                    selectedID: selectedID(for: selector),
+                    isSearchable: true,
+                    searchPrompt: selector == .location ? "Search city or state" : "Search gyms",
+                    emptyTitle: selector == .location ? "No locations available" : "No gyms available",
+                    emptyMessage: selector == .location
+                        ? "Locations appear when gyms are added to the directory."
+                        : "Choose another location or request that this gym be added."
+                ) { id in
+                    select(id, for: selector)
+                    activeSelector = nil
+                }
+                .presentationDetents([.medium, .large])
+            }
             .sheet(isPresented: $showingPhotoManager, onDismiss: {
                 draft = appState.currentProfile
             }) {
@@ -515,11 +607,93 @@ struct EditProfileView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        appState.updateProfile(draft)
-                        dismiss()
+                        guard let selectedGym else { return }
+                        Task {
+                            if await appState.saveEditedProfile(draft, primaryGym: selectedGym, privacy: privacy) {
+                                dismiss()
+                            }
+                        }
                     }
+                    .disabled(selectedGym == nil || appState.accountOperationInProgress)
                 }
             }
+        }
+    }
+
+    private func audiencePicker(_ title: String, selection: Binding<PrivacyAudience>) -> some View {
+        Picker(title, selection: selection) {
+            ForEach(PrivacyAudience.allCases) { audience in
+                Text(audience.label).tag(audience)
+            }
+        }
+    }
+
+    private func profileSelectionRow(title: String, value: String, symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: symbol)
+                    .foregroundStyle(Color.liftBlue)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                    Text(value)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.liftMuted)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title), \(value)")
+    }
+
+    private func options(for selector: EditProfileSelector) -> [LeaderboardOption] {
+        switch selector {
+        case .location:
+            return locations.map {
+                LeaderboardOption(id: $0.id, title: $0.city, subtitle: $0.state, symbol: "mappin.and.ellipse")
+            }
+        case .gym:
+            return gymsForSelectedLocation.map {
+                LeaderboardOption(id: $0.id.uuidString, title: $0.name, subtitle: "\($0.city), \($0.state)", symbol: "building.2.fill")
+            }
+        }
+    }
+
+    private func selectedID(for selector: EditProfileSelector) -> String {
+        switch selector {
+        case .location:
+            return EditProfileLocation(city: draft.city, state: draft.state).id
+        case .gym:
+            return selectedGymID?.uuidString ?? ""
+        }
+    }
+
+    private func select(_ id: String, for selector: EditProfileSelector) {
+        switch selector {
+        case .location:
+            guard let location = locations.first(where: { $0.id == id }) else { return }
+            draft.city = location.city
+            draft.state = location.state
+            if let gym = selectedGym,
+               gym.city.caseInsensitiveCompare(location.city) != .orderedSame ||
+                gym.state.caseInsensitiveCompare(location.state) != .orderedSame {
+                selectedGymID = nil
+            }
+        case .gym:
+            guard let gymID = UUID(uuidString: id), let gym = appState.gyms.first(where: { $0.id == gymID }) else { return }
+            selectedGymID = gym.id
+            draft.primaryGymID = gym.id
+            draft.primaryGymName = gym.name
+            draft.city = gym.city
+            draft.state = gym.state
         }
     }
 

@@ -34,6 +34,7 @@ struct SubmitLiftView: View {
     @State private var caption = ""
     @State private var visibility = LiftVisibility.publicLift
     @State private var requestVerification = true
+    @State private var confirmsMatchedDumbbells = true
     @State private var pickerItem: PhotosPickerItem?
     @State private var selectedVideoURL: URL?
     @State private var showingVideoReview = false
@@ -51,6 +52,8 @@ struct SubmitLiftView: View {
     private var selectedGym: Gym? {
         appState.gyms.first { $0.id == gymID }
     }
+
+    private var selectedMovement: CompetitiveMovement? { CompetitiveMovement.resolve(exerciseID: exercise.id) }
 
     var body: some View {
         NavigationStack {
@@ -71,6 +74,7 @@ struct SubmitLiftView: View {
                                 showingResult = true
                             }
                         }
+                        .disabled(selectedMovement == .dumbbellBenchPress && !confirmsMatchedDumbbells)
                     }
                     .padding(.horizontal, LiftDesign.screenHorizontalPadding)
                     .padding(.top, 12)
@@ -149,11 +153,11 @@ struct SubmitLiftView: View {
                     .accessibilityLabel("Weight unit")
                     ViewThatFits(in: .horizontal) {
                         HStack(alignment: .top, spacing: 12) {
-                            NumericInputField(title: "Weight", value: $weight, unit: unit.shortLabel, precision: 0...2, presentation: .inset)
+                            NumericInputField(title: selectedMovement == .dumbbellBenchPress ? "Weight per hand" : "Weight", value: $weight, unit: unit.shortLabel, precision: 0...2, presentation: .inset)
                             IntegerInputField(title: "Reps", value: $repetitions, presentation: .inset)
                         }
                         VStack(alignment: .leading, spacing: 12) {
-                            NumericInputField(title: "Weight", value: $weight, unit: unit.shortLabel, precision: 0...2, presentation: .inset)
+                            NumericInputField(title: selectedMovement == .dumbbellBenchPress ? "Weight per hand" : "Weight", value: $weight, unit: unit.shortLabel, precision: 0...2, presentation: .inset)
                             IntegerInputField(title: "Reps", value: $repetitions, presentation: .inset)
                         }
                     }
@@ -163,6 +167,18 @@ struct SubmitLiftView: View {
                     }
                     .pickerStyle(.segmented)
                     .accessibilityLabel("Maximum type")
+                    if selectedMovement == .dumbbellBenchPress {
+                        Toggle("Matched dumbbell pair", isOn: $confirmsMatchedDumbbells)
+                            .tint(Color.liftBlue)
+                        Text("Enter the weight of one dumbbell. Both dumbbells must match for ranking eligibility.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                    }
+                    if isActualOneRepMax && repetitions != 1 {
+                        Label("An actual 1RM must be exactly one repetition. This set will stay in history but will not rank.", systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftGold)
+                    }
                 }
             }
 

@@ -94,7 +94,7 @@ struct HomeView: View {
                             .foregroundStyle(Color.liftGold)
                         Text(active.name)
                             .font(.headline.weight(.black))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.liftText)
                         Text(active.pausedAt == nil ? "Keep your sets and timer moving" : "Paused — ready when you are")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -205,7 +205,7 @@ struct HomeView: View {
         .clipShape(Capsule())
         .overlay {
             Capsule()
-                .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                .stroke(Color.liftSeparator, lineWidth: 1)
         }
         .accessibilityLabel("\(value) day streak")
     }
@@ -264,7 +264,7 @@ struct HomeView: View {
 
                 Text(todayWorkoutTitle)
                     .font(.subheadline.weight(.black))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.liftText)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
@@ -325,7 +325,7 @@ struct HomeView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text("\(Int(appState.overallScore))")
                         .font(.system(size: 36, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.liftText)
                     Text("score")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Color.liftMuted)
@@ -333,7 +333,7 @@ struct HomeView: View {
 
                 Text("Advanced")
                     .font(.subheadline.weight(.black))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.liftText)
 
                 Spacer(minLength: 2)
 
@@ -415,7 +415,7 @@ struct HomeView: View {
                     .foregroundStyle(tint)
                 Text(title)
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.liftText)
                     .lineLimit(2)
             }
             .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
@@ -429,7 +429,7 @@ struct HomeView: View {
 
     private var statDivider: some View {
         Rectangle()
-            .fill(Color.white.opacity(0.07))
+            .fill(Color.liftSeparator)
             .frame(width: 1, height: 48)
     }
 
@@ -480,7 +480,7 @@ struct HomeView: View {
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(lift.exerciseName)
                                         .font(.subheadline.weight(.bold))
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(Color.liftText)
                                     Text("\(RankingCalculator.format(lift.weight)) \(lift.unit.shortLabel) × \(lift.repetitions) \(lift.repetitions == 1 ? "rep" : "reps")")
                                         .font(.caption)
                                         .foregroundStyle(Color.liftMuted)
@@ -503,7 +503,7 @@ struct HomeView: View {
 
                         if index < min(2, appState.currentUserLifts.count - 1) {
                             Divider()
-                                .overlay(Color.white.opacity(0.06))
+                                .overlay(Color.liftSeparator)
                         }
                     }
             }
@@ -573,7 +573,7 @@ struct HomeView: View {
                     HStack(alignment: .firstTextBaseline) {
                         Text("\(thisWeekWorkoutCount)/\(plannedWorkoutCount)")
                             .font(.system(size: 32, weight: .black, design: .rounded))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.liftText)
                         Text("workouts")
                             .font(.subheadline.weight(.bold))
                             .foregroundStyle(Color.liftMuted)
@@ -606,7 +606,7 @@ struct HomeView: View {
                                     .foregroundStyle(Calendar.current.isDateInToday(point.date) ? Color.liftBlue : Color.liftMuted)
                                 ZStack {
                                     Circle()
-                                        .fill(point.count > 0 ? Color.liftBlue : Color.white.opacity(0.07))
+                                        .fill(point.count > 0 ? Color.liftBlue : Color.liftSeparator)
                                         .frame(width: 30, height: 30)
                                     if point.count > 0 {
                                         Image(systemName: "checkmark")
@@ -642,7 +642,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(value)
                 .font(.subheadline.weight(.black).monospacedDigit())
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.liftText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
             Text(label)
@@ -687,7 +687,7 @@ struct HomeView: View {
                             }
                             Text(item.title)
                                 .font(.headline)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.liftText)
                                 .lineLimit(2)
                             Text(item.detail)
                                 .font(.caption)
@@ -1089,7 +1089,7 @@ private struct HomeNotificationCenterView: View {
                 HStack {
                     Text(notification.title)
                         .font(.headline)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.liftText)
                     Spacer()
                     if !notification.isRead {
                         Circle()
@@ -1212,7 +1212,7 @@ private struct StreakDetailView: View {
                     ForEach(1...7, id: \.self) { day in
                         VStack(spacing: 7) {
                             Circle()
-                                .fill(day <= streakDays ? Color.orange : Color.white.opacity(0.09))
+                                .fill(day <= streakDays ? Color.orange : Color.liftSeparator)
                                 .frame(width: 30, height: 30)
                                 .overlay {
                                     Image(systemName: day <= streakDays ? "checkmark" : "circle")

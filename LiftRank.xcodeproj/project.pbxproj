@@ -95,6 +95,7 @@
 		200000000000000000000033 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		200000000000000000000034 /* LiftRankUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiftRankUITests.swift; sourceTree = "<group>"; };
 		200000000000000000000035 /* LiftRankUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LiftRankUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		200000000000000000000036 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -165,6 +166,7 @@
 				200000000000000000000031 /* Resources/DemoMedia */,
 				200000000000000000000032 /* Assets.xcassets */,
 				200000000000000000000033 /* PrivacyInfo.xcprivacy */,
+				200000000000000000000036 /* Info.plist */,
 			);
 			path = LiftRankApp;
 			sourceTree = "<group>";
@@ -521,15 +523,8 @@
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 32TGWTQNP8;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_LIFTRANK_SUPABASE_ANON_KEY = "$(LIFTRANK_SUPABASE_ANON_KEY)";
-				INFOPLIST_KEY_LIFTRANK_SUPABASE_URL = "$(LIFTRANK_SUPABASE_URL)";
-				INFOPLIST_KEY_NSCameraUsageDescription = "LiftRank can record lift videos for verification.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "LiftRank lets you choose lift videos for verification.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LiftRankApp/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -538,6 +533,9 @@
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.liftrank.app;
 				PRODUCT_NAME = LiftRank;
+				LIFTRANK_BACKEND_ENVIRONMENT = staging;
+				LIFTRANK_SUPABASE_ANON_KEY = "sb_publishable_-E0_LDnNoeWSsumsaRn1ww_gPYt89mY";
+				LIFTRANK_SUPABASE_URL = "https://dfpvamnucwyafxklnjwt.supabase.co";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -555,15 +553,8 @@
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 32TGWTQNP8;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_LIFTRANK_SUPABASE_ANON_KEY = "$(LIFTRANK_SUPABASE_ANON_KEY)";
-				INFOPLIST_KEY_LIFTRANK_SUPABASE_URL = "$(LIFTRANK_SUPABASE_URL)";
-				INFOPLIST_KEY_NSCameraUsageDescription = "LiftRank can record lift videos for verification.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "LiftRank lets you choose lift videos for verification.";
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LiftRankApp/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -572,6 +563,9 @@
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.liftrank.app;
 				PRODUCT_NAME = LiftRank;
+				LIFTRANK_BACKEND_ENVIRONMENT = production;
+				LIFTRANK_SUPABASE_ANON_KEY = "";
+				LIFTRANK_SUPABASE_URL = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;

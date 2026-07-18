@@ -294,6 +294,9 @@ struct LeaderboardOptionSheet: View {
     let options: [LeaderboardOption]
     let selectedID: String
     var isSearchable = false
+    var searchPrompt = "Search gyms"
+    var emptyTitle = "No options found"
+    var emptyMessage = "Try another search."
     let onSelect: (String) -> Void
     @State private var searchText = ""
     @State private var isSearchPresented = true
@@ -310,37 +313,47 @@ struct LeaderboardOptionSheet: View {
         NavigationStack {
             AppBackground {
                 ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(visibleOptions) { option in
-                            Button {
-                                onSelect(option.id)
-                            } label: {
-                                HStack(spacing: 12) {
-                                    if let symbol = option.symbol {
-                                        Image(systemName: symbol)
-                                            .foregroundStyle(Color.liftBlue)
-                                            .frame(width: 24)
-                                    }
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(option.title).font(.body.weight(.medium)).foregroundStyle(.white)
-                                        if let subtitle = option.subtitle {
-                                            Text(subtitle).font(.caption).foregroundStyle(Color.liftMuted).lineLimit(1)
+                    if visibleOptions.isEmpty {
+                        LiftEmptyState(
+                            title: emptyTitle,
+                            message: emptyMessage,
+                            symbolName: "magnifyingglass"
+                        )
+                        .padding(.top, 48)
+                        .padding(.horizontal, 20)
+                    } else {
+                        LazyVStack(spacing: 0) {
+                            ForEach(visibleOptions) { option in
+                                Button {
+                                    onSelect(option.id)
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        if let symbol = option.symbol {
+                                            Image(systemName: symbol)
+                                                .foregroundStyle(Color.liftBlue)
+                                                .frame(width: 24)
+                                        }
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(option.title).font(.body.weight(.medium)).foregroundStyle(.white)
+                                            if let subtitle = option.subtitle {
+                                                Text(subtitle).font(.caption).foregroundStyle(Color.liftMuted).lineLimit(1)
+                                            }
+                                        }
+                                        Spacer()
+                                        if option.id == selectedID {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.title3)
+                                                .foregroundStyle(Color.liftBlue)
                                         }
                                     }
-                                    Spacer()
-                                    if option.id == selectedID {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .font(.title3)
-                                            .foregroundStyle(Color.liftBlue)
-                                    }
+                                    .padding(.horizontal, 20)
+                                    .frame(minHeight: 58)
+                                    .contentShape(Rectangle())
                                 }
-                                .padding(.horizontal, 20)
-                                .frame(minHeight: 58)
-                                .contentShape(Rectangle())
+                                .buttonStyle(.plain)
+                                .accessibilityAddTraits(option.id == selectedID ? .isSelected : [])
+                                Divider().overlay(Color.white.opacity(0.07)).padding(.leading, 56)
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityAddTraits(option.id == selectedID ? .isSelected : [])
-                            Divider().overlay(Color.white.opacity(0.07)).padding(.leading, 56)
                         }
                     }
                 }
@@ -353,7 +366,7 @@ struct LeaderboardOptionSheet: View {
                     get: { isSearchable && isSearchPresented },
                     set: { isSearchPresented = $0 }
                 ),
-                prompt: "Search gyms"
+                prompt: searchPrompt
             )
             .onChange(of: isSearchPresented) { _, isPresented in
                 if !isPresented {

@@ -19,6 +19,7 @@ struct AppServiceContainer {
     let notifications: any NotificationService
     let workoutSync: any WorkoutSyncService
     let analytics: any AnalyticsService
+    let legalAcceptances: any LegalAcceptanceService
     let accountDeletion: any AccountDeletionService
 
     init(
@@ -38,6 +39,7 @@ struct AppServiceContainer {
         notifications: (any NotificationService)? = nil,
         workoutSync: (any WorkoutSyncService)? = nil,
         analytics: (any AnalyticsService)? = nil,
+        legalAcceptances: (any LegalAcceptanceService)? = nil,
         accountDeletion: (any AccountDeletionService)? = nil
     ) {
         let unavailable = UnavailableLaunchService()
@@ -48,6 +50,7 @@ struct AppServiceContainer {
         self.messaging = messaging ?? UnavailableMessagingService(); self.verification = verification ?? unavailable
         self.media = media ?? unavailable; self.notifications = notifications ?? unavailable
         self.workoutSync = workoutSync ?? unavailable; self.analytics = analytics ?? unavailable
+        self.legalAcceptances = legalAcceptances ?? unavailable
         self.accountDeletion = accountDeletion ?? unavailable
     }
 
@@ -70,7 +73,7 @@ struct AppServiceContainer {
                 , lifts: unavailable, leaderboards: unavailable,
                 social: unavailable, communities: unavailable, messaging: unavailableMessaging,
                 verification: unavailable, media: unavailable, notifications: unavailable,
-                workoutSync: unavailable, analytics: unavailable, accountDeletion: unavailable
+                workoutSync: unavailable, analytics: unavailable, legalAcceptances: unavailable, accountDeletion: unavailable
             )
         }
 
@@ -85,7 +88,7 @@ struct AppServiceContainer {
             , lifts: SupabaseLiftService(client: client), leaderboards: SupabaseLeaderboardService(client: client),
             social: SupabaseSocialService(client: client), communities: SupabaseCommunityService(client: client), messaging: SupabaseMessagingService(client: client),
             verification: SupabaseVerificationService(client: client), media: SupabaseMediaUploadService(client: client), notifications: SupabaseNotificationService(client: client),
-            workoutSync: SupabaseWorkoutSyncService(client: client), analytics: SupabaseAnalyticsService(client: client), accountDeletion: SupabaseAccountDeletionService(client: client)
+            workoutSync: SupabaseWorkoutSyncService(client: client), analytics: SupabaseAnalyticsService(client: client), legalAcceptances: SupabaseLegalAcceptanceService(client: client), accountDeletion: SupabaseAccountDeletionService(client: client)
         )
     }
 
@@ -100,7 +103,7 @@ struct AppServiceContainer {
             , lifts: MockLiftService(repository: repository), leaderboards: MockLeaderboardService(repository: repository),
             social: MockSocialService(repository: repository), communities: MockCommunityService(repository: repository), messaging: MockMessagingService(repository: repository),
             verification: MockVerificationService(repository: repository), media: MockMediaUploadService(), notifications: MockNotificationService(repository: repository),
-            workoutSync: MockWorkoutSyncService(), analytics: MockAnalyticsService(), accountDeletion: MockAccountDeletionService()
+            workoutSync: MockWorkoutSyncService(), analytics: MockAnalyticsService(), legalAcceptances: MockLegalAcceptanceService(), accountDeletion: MockAccountDeletionService()
         )
     }
 }
@@ -108,7 +111,7 @@ struct AppServiceContainer {
 /// Production features fail explicitly when configuration is absent. This keeps
 /// release builds from silently presenting seeded users, rankings, or messages.
 @MainActor
-final class UnavailableLaunchService: LiftService, LeaderboardService, SocialService, CommunityService, VerificationService, MediaUploadService, NotificationService, WorkoutSyncService, AnalyticsService, AccountDeletionService {
+final class UnavailableLaunchService: LiftService, LeaderboardService, SocialService, CommunityService, VerificationService, MediaUploadService, NotificationService, WorkoutSyncService, AnalyticsService, LegalAcceptanceService, AccountDeletionService {
     private var error: LiftRankServiceError { .configurationMissing }
     func submissions() async throws -> [LiftSubmission] { throw error }
     func submit(_ submission: LiftSubmission) async throws -> LiftSubmission { throw error }
@@ -153,15 +156,19 @@ final class UnavailableLaunchService: LiftService, LeaderboardService, SocialSer
     func revokeDevice(deviceID: String) async throws { throw error }
     func plans() async throws -> [WorkoutPlanDocument] { throw error }
     func savePlan(_ document: WorkoutPlanDocument, expectedRevision: Int) async throws -> WorkoutSyncResult { throw error }
+    func deletePlan(id: UUID) async throws { throw error }
     func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot] { throw error }
     func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws { throw error }
     func track(_ event: AnalyticsEventRecord) async {}
+    func acceptances() async throws -> [LegalAcceptanceRecord] { throw error }
+    func accept(documents: [LegalDocument]) async throws { throw error }
     func deleteAccount() async throws { throw error }
 }
 
 @MainActor
 final class UnavailableMessagingService: MessagingService {
     private var error: LiftRankServiceError { .configurationMissing }
+    func createOrGetThread(with userID: UUID) async throws -> DirectMessageThread { throw error }
     func threads() async throws -> [DirectMessageThread] { throw error }
     func messages(for thread: DirectMessageThread) async throws -> [DirectMessage] { throw error }
     func sendMessage(in thread: DirectMessageThread, body: String) async throws -> DirectMessage? { throw error }

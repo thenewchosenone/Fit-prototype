@@ -56,6 +56,45 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Progress awards"].exists)
     }
 
+    func testEditProfileUsesSearchableLocationAndGymPickers() {
+        let app = launchDemo()
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
+        app.tabBars.buttons["Me"].tap()
+
+        let editProfile = app.buttons["Edit athlete profile"]
+        XCTAssertTrue(editProfile.waitForExistence(timeout: 5))
+        editProfile.tap()
+
+        XCTAssertTrue(app.navigationBars["Edit Profile"].waitForExistence(timeout: 5))
+        let location = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "City and state")).firstMatch
+        XCTAssertTrue(location.waitForExistence(timeout: 5))
+        var attempts = 0
+        while !location.isHittable && attempts < 5 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(location.isHittable)
+
+        location.tap()
+        let locationSearch = app.searchFields["Search city or state"]
+        XCTAssertTrue(locationSearch.waitForExistence(timeout: 5))
+        locationSearch.typeText("Miami")
+        let miami = app.buttons["Miami, Florida"]
+        XCTAssertTrue(miami.waitForExistence(timeout: 5))
+        miami.tap()
+
+        XCTAssertTrue(app.navigationBars["Edit Profile"].waitForExistence(timeout: 5))
+        let gym = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Primary gym")).firstMatch
+        attempts = 0
+        while !gym.exists && attempts < 4 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(gym.waitForExistence(timeout: 5))
+        gym.tap()
+        XCTAssertTrue(app.searchFields["Search gyms"].waitForExistence(timeout: 5))
+    }
+
     func testFindSubstituteOpensRecommendationsAndExerciseDetails() {
         let app = launchDemo()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))

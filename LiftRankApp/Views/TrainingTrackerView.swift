@@ -2523,7 +2523,7 @@ struct WorkoutProgramTemplateDetailView: View {
         VStack(spacing: 3) {
             Text(value)
                 .font(.headline.weight(.black).monospacedDigit())
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.liftText)
             Text(label)
                 .font(.system(size: 9, weight: .black, design: .rounded))
                 .tracking(0.7)
@@ -2561,7 +2561,7 @@ struct WorkoutProgramTemplateDetailView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(session.name)
                             .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.liftText)
                         Text("\(session.exercises.count) exercises · \(setCount) working sets")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -2597,7 +2597,7 @@ struct WorkoutProgramTemplateDetailView: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(exercise.name)
                                     .font(.caption.weight(.bold))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(Color.liftText)
                                     .lineLimit(1)
                                 Text(exercise.resolvedMuscleProfile.primaryDescription)
                                     .font(.caption2)
@@ -3092,7 +3092,8 @@ struct ExerciseLibraryDetailView: View {
         AppBackground {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if let demoMediaID {
+                    if let demoMediaID,
+                       BundledDemoMediaLibrary.shared.url(for: demoMediaID) != nil {
                         DemoMediaCard(
                             title: exercise.name,
                             subtitle: "\(exercise.equipment) • \(exercise.movementPattern.rawValue)",
@@ -3136,7 +3137,7 @@ struct ExerciseLibraryDetailView: View {
                     withAnimation(.easeInOut(duration: 0.18)) { selectedTab = tab }
                 }
                 .font(.subheadline.weight(selectedTab == tab ? .bold : .medium))
-                .foregroundStyle(selectedTab == tab ? .white : Color.liftMuted)
+                .foregroundStyle(selectedTab == tab ? Color.liftText : Color.liftMuted)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .background(selectedTab == tab ? Color.liftCardRaised : Color.clear)
                 .clipShape(Capsule())
@@ -3399,7 +3400,7 @@ struct ExerciseLibraryDetailView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Find a substitute").font(.headline)
-                        Text("Browse (substitutes.count) similar exercises")
+                        Text("Browse \(substitutes.count) similar exercises")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                     }
