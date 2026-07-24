@@ -23,25 +23,29 @@ extension AppState {
         }
     }
 
-    func saveEditedProfile(_ profile: UserProfile, primaryGym: Gym, privacy: ProfilePrivacySettings) async -> Bool {
+    func saveEditedProfile(_ profile: UserProfile, primaryGym: Gym?, privacy: ProfilePrivacySettings) async -> Bool {
         guard beginAccountMutation() else { return false }
         defer { endAccountMutation() }
 
         var updatedProfile = profile
-        updatedProfile.primaryGymID = primaryGym.id
-        updatedProfile.primaryGymName = primaryGym.name
-        updatedProfile.city = primaryGym.city
-        updatedProfile.state = primaryGym.state
+        if let primaryGym {
+            updatedProfile.primaryGymID = primaryGym.id
+            updatedProfile.primaryGymName = primaryGym.name
+        }
+        updatedProfile.yearsExperience = 0
+        updatedProfile.experienceLevel = earnedExperienceLevel
 
         do {
-            if isAuthenticated && !isDemoMode {
+            if features.gymFeeds, let primaryGym, isAuthenticated && !isDemoMode {
                 guard try await accountSocialStore.ensureGymJoined(
                     primaryGym,
                     maximumMemberships: Self.maximumJoinedGyms,
                     authenticated: true
                 ) else { throw LiftRankServiceError.gymLimitReached }
                 try await accountSocialStore.setPrimaryGym(primaryGym, authenticated: true)
-            } else if !profileStore.isGymJoined(primaryGym.id) &&
+            } else if features.gymFeeds,
+                        let primaryGym,
+                        !profileStore.isGymJoined(primaryGym.id) &&
                         !profileStore.joinGym(primaryGym, maximumMemberships: Self.maximumJoinedGyms) {
                 throw LiftRankServiceError.gymLimitReached
             }

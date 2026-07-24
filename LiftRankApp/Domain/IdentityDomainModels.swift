@@ -19,6 +19,7 @@ struct UserProfile: Identifiable, Codable, Hashable {
     var preferredUnit: UnitSystem
     var city: String
     var state: String
+    var cityID: UUID? = nil
     var primaryGymID: UUID
     var primaryGymName: String
     var yearsExperience: Int

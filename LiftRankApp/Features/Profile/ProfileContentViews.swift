@@ -280,25 +280,38 @@ struct EditProfileView: View {
                         Picker("Division", selection: $draft.sexCategory) {
                             ForEach(SexCategory.allCases.filter { $0 != .open }) { Text($0.rawValue).tag($0) }
                         }
-                        Picker("Experience", selection: $draft.experienceLevel) {
-                            ForEach(ExperienceLevel.allCases) { Text($0.rawValue).tag($0) }
+                        LabeledContent("Experience") {
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text(appState.earnedExperienceLevel.rawValue)
+                                    .foregroundStyle(Color.liftBlue)
+                                Text(appState.earnedExperienceDescription)
+                                    .font(.caption2)
+                                    .foregroundStyle(Color.liftMuted)
+                            }
                         }
                     }
                     Section("Body") {
                         NumericInputField(title: "Height", value: $draft.heightInches, unit: "in", presentation: .formRow)
-                        NumericInputField(title: "Bodyweight", value: $draft.bodyweightPounds, unit: "lb", presentation: .formRow)
+                        NumericInputField(
+                            title: "Bodyweight",
+                            value: bodyweightDisplayValue,
+                            unit: draft.preferredUnit.shortLabel,
+                            presentation: .formRow
+                        )
                     }
                     Section("Location") {
                         profileSelectionRow(
-                            title: "City and state",
+                            title: "Location",
                             value: draft.city.isEmpty ? "Choose a location" : "\(draft.city), \(draft.state)",
                             symbol: "mappin.and.ellipse"
                         ) { activeSelector = .location }
-                        profileSelectionRow(
-                            title: "Primary gym",
-                            value: selectedGym?.name ?? "Choose a gym",
-                            symbol: "building.2.fill"
-                        ) { activeSelector = .gym }
+                        if appState.features.gymFeeds {
+                            profileSelectionRow(
+                                title: "Primary gym",
+                                value: selectedGym?.name ?? "Choose a gym",
+                                symbol: "building.2.fill"
+                            ) { activeSelector = .gym }
+                        }
                     }
                     Section("Privacy") {
                         audiencePicker("Profile", selection: $privacy.profileAudience)
@@ -306,7 +319,9 @@ struct EditProfileView: View {
                         audiencePicker("Division", selection: $privacy.divisionAudience)
                         audiencePicker("Bodyweight", selection: $privacy.bodyweightAudience)
                         audiencePicker("Location", selection: $privacy.locationAudience)
-                        audiencePicker("Gym", selection: $privacy.gymAudience)
+                        if appState.features.gymFeeds {
+                            audiencePicker("Gym", selection: $privacy.gymAudience)
+                        }
                         audiencePicker("Friend list", selection: $privacy.friendListAudience)
                         Toggle("Hide lift videos", isOn: $draft.hideLiftVideos)
                         Text("Ratio and weight-class rankings may indirectly reveal bodyweight even when the bodyweight field is private.")
@@ -333,7 +348,7 @@ struct EditProfileView: View {
                     searchPrompt: selector == .location ? "Search city or state" : "Search gyms",
                     emptyTitle: selector == .location ? "No locations available" : "No gyms available",
                     emptyMessage: selector == .location
-                        ? "Locations appear when gyms are added to the directory."
+                        ? "Try a different city or state search."
                         : "Choose another location or request that this gym be added."
                 ) { id in
                     select(id, for: selector)
@@ -352,14 +367,16 @@ struct EditProfileView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        guard let selectedGym else { return }
+                        var outgoingDraft = draft
+                        outgoingDraft.yearsExperience = 0
+                        outgoingDraft.experienceLevel = appState.earnedExperienceLevel
                         Task {
-                            if await appState.saveEditedProfile(draft, primaryGym: selectedGym, privacy: privacy) {
+                            if await appState.saveEditedProfile(outgoingDraft, primaryGym: selectedGym, privacy: privacy) {
                                 dismiss()
                             }
                         }
                     }
-                    .disabled(selectedGym == nil || appState.accountOperationInProgress)
+                    .disabled((appState.features.gymFeeds && selectedGym == nil) || appState.accountOperationInProgress)
                 }
             }
         }
@@ -371,6 +388,17 @@ struct EditProfileView: View {
                 Text(audience.label).tag(audience)
             }
         }
+    }
+
+    private var bodyweightDisplayValue: Binding<Double> {
+        Binding(
+            get: {
+                MeasurementFormatting.convert(draft.bodyweightPounds, from: .pounds, to: draft.preferredUnit)
+            },
+            set: { newValue in
+                draft.bodyweightPounds = MeasurementFormatting.convert(newValue, from: draft.preferredUnit, to: .pounds)
+            }
+        )
     }
 
     private func profileSelectionRow(title: String, value: String, symbol: String, action: @escaping () -> Void) -> some View {
@@ -437,8 +465,6 @@ struct EditProfileView: View {
             selectedGymID = gym.id
             draft.primaryGymID = gym.id
             draft.primaryGymName = gym.name
-            draft.city = gym.city
-            draft.state = gym.state
         }
     }
 

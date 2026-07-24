@@ -99,11 +99,13 @@ private struct PrivateDetailsDTO: Codable {
     let city: String?
     let region: String?
     let countryCode: String?
+    let cityID: UUID?
     let yearsExperience: Int?
     let experienceLevel: String?
 
     enum CodingKeys: String, CodingKey {
         case city, region
+        case cityID = "city_id"
         case userID = "user_id"
         case birthDate = "birth_date"
         case sexCategory = "sex_category"
@@ -187,9 +189,11 @@ final class SupabaseProfileService: ProfileService {
         let existing = try await authenticatedProfile()
         let draft = ProfileDraft(
             username: profile.username, displayName: profile.displayName, bio: existing.bio,
+            avatarPath: profile.avatarPath,
             preferredUnit: profile.preferredUnit, birthDate: existing.birthDate,
             sexCategory: profile.sexCategory, heightCentimeters: profile.heightInches * 2.54,
             bodyweightPounds: profile.bodyweightPounds,
+            cityID: profile.cityID,
             city: profile.city, region: profile.state, countryCode: existing.countryCode ?? "US",
             yearsExperience: profile.yearsExperience, experienceLevel: profile.experienceLevel,
             privacy: ProfilePrivacySettings(
@@ -211,8 +215,16 @@ final class SupabaseProfileService: ProfileService {
             _ = try await claimUsername(draft.username)
             let params = SaveProfileParameters(draft: draft)
             try await client.rpc("save_own_profile", params: params).execute()
+            try await client.from("profiles")
+                .update(ProfileAvatarPathUpdate(avatarPath: draft.avatarPath))
+                .eq("id", value: try await client.auth.session.user.id)
+                .execute()
             try await client.from("profile_private_details")
                 .update(PrivateBodyweightUpdate(bodyweightPounds: draft.bodyweightPounds))
+                .eq("user_id", value: try await client.auth.session.user.id)
+                .execute()
+            try await client.from("profile_privacy")
+                .update(ProfileBodyweightAudienceUpdate(bodyweightAudience: draft.privacy.bodyweightAudience))
                 .eq("user_id", value: try await client.auth.session.user.id)
                 .execute()
             return try await authenticatedProfile()
@@ -244,6 +256,46 @@ final class SupabaseProfileService: ProfileService {
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
+    func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String {
+        do {
+            let userPath = try await client.auth.session.user.id.uuidString.lowercased()
+            let normalizedPath = "\(userPath)/avatar"
+            try await client.storage.from("profile-avatars").upload(
+                "\(normalizedPath)/avatar-full.jpg",
+                fileURL: fullImageURL,
+                options: FileOptions(cacheControl: "3600", contentType: "image/jpeg", upsert: true)
+            )
+            try await client.storage.from("profile-avatars").upload(
+                "\(normalizedPath)/avatar-thumb.jpg",
+                fileURL: thumbnailURL,
+                options: FileOptions(cacheControl: "3600", contentType: "image/jpeg", upsert: true)
+            )
+            return normalizedPath
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func downloadProfileAvatar(avatarPath: String) async throws -> ProfileAvatarDownload? {
+        do {
+            let fullURL = try await client.storage.from("profile-avatars")
+                .createSignedURL(path: "\(avatarPath)/avatar-full.jpg", expiresIn: 300)
+            let thumbURL = try await client.storage.from("profile-avatars")
+                .createSignedURL(path: "\(avatarPath)/avatar-thumb.jpg", expiresIn: 300)
+            let (fullImageData, _) = try await URLSession.shared.data(from: fullURL)
+            let thumbnailData = try? await URLSession.shared.data(from: thumbURL).0
+            return ProfileAvatarDownload(fullImageData: fullImageData, thumbnailData: thumbnailData)
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func removeProfileAvatar(avatarPath: String?) async throws {
+        guard let avatarPath else { return }
+        do {
+            try await client.storage.from("profile-avatars").remove(paths: [
+                "\(avatarPath)/avatar-full.jpg",
+                "\(avatarPath)/avatar-thumb.jpg"
+            ])
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
     private func map(profile: ProfileDTO, details: PrivateDetailsDTO, privacy: PrivacyDTO) -> AuthenticatedProfile {
         AuthenticatedProfile(
             id: profile.id, username: profile.username, displayName: profile.displayName,
@@ -253,7 +305,7 @@ final class SupabaseProfileService: ProfileService {
             birthDate: details.birthDate.flatMap { ISO8601DateFormatter.liftRankDate.date(from: $0) },
             sexCategory: sex(details.sexCategory), heightCentimeters: details.heightCM,
             bodyweightPounds: details.bodyweightPounds,
-            city: details.city, region: details.region, countryCode: details.countryCode,
+            city: details.city, region: details.region, countryCode: details.countryCode, cityID: details.cityID,
             yearsExperience: details.yearsExperience,
             experienceLevel: details.experienceLevel.flatMap { value in ExperienceLevel.allCases.first { $0.rawValue.lowercased() == value } },
             privacy: ProfilePrivacySettings(
@@ -283,6 +335,16 @@ private struct PrivateBodyweightUpdate: Encodable {
     enum CodingKeys: String, CodingKey { case bodyweightPounds = "bodyweight_lb" }
 }
 
+private struct ProfileBodyweightAudienceUpdate: Encodable {
+    let bodyweightAudience: PrivacyAudience
+    enum CodingKeys: String, CodingKey { case bodyweightAudience = "bodyweight_audience" }
+}
+
+private struct ProfileAvatarPathUpdate: Encodable {
+    let avatarPath: String?
+    enum CodingKeys: String, CodingKey { case avatarPath = "avatar_path" }
+}
+
 private struct SaveProfileParameters: Encodable {
     let newDisplayName: String
     let newBio: String
@@ -290,6 +352,7 @@ private struct SaveProfileParameters: Encodable {
     let newBirthDate: String?
     let newSexCategory: String?
     let newHeightCM: Double?
+    let newCityID: UUID?
     let newCity: String
     let newRegion: String
     let newCountryCode: String
@@ -307,7 +370,7 @@ private struct SaveProfileParameters: Encodable {
         case newDisplayName = "new_display_name", newBio = "new_bio"
         case newPreferredUnit = "new_preferred_unit", newBirthDate = "new_birth_date"
         case newSexCategory = "new_sex_category", newHeightCM = "new_height_cm"
-        case newCity = "new_city", newRegion = "new_region", newCountryCode = "new_country_code"
+        case newCityID = "new_city_id", newCity = "new_city", newRegion = "new_region", newCountryCode = "new_country_code"
         case newYearsExperience = "new_years_experience", newExperienceLevel = "new_experience_level"
         case newProfileAudience = "new_profile_audience", newAgeBandAudience = "new_age_band_audience"
         case newDivisionAudience = "new_division_audience", newLocationAudience = "new_location_audience"
@@ -322,6 +385,7 @@ private struct SaveProfileParameters: Encodable {
         newBirthDate = draft.birthDate.map { ISO8601DateFormatter.liftRankDate.string(from: $0) }
         newSexCategory = draft.sexCategory?.rawValue.lowercased()
         newHeightCM = draft.heightCentimeters
+        newCityID = draft.cityID
         newCity = draft.city
         newRegion = draft.region
         newCountryCode = draft.countryCode

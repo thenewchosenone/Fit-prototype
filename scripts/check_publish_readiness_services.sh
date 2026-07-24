@@ -42,7 +42,9 @@ else
   fail "Missing custom URL scheme 'liftrank' in Info.plist."
 fi
 
-if grep -q "auth-callback" "$ROOT/LiftRankApp/Services/SupabaseServices.swift"; then
+if rg -q "auth-callback" \
+  "$ROOT/LiftRankApp/Services/SupabaseServiceSupport.swift" \
+  "$ROOT/LiftRankApp/Services/SupabaseServices.swift" 2>/dev/null; then
   pass "Auth callback URL in client code is set to liftrank://auth-callback."
 else
   fail "Auth callback URL is missing in client authentication service."

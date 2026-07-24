@@ -2,8 +2,12 @@ import Foundation
 
 extension DemoRepository {
     func updateBodyweight(_ entry: BodyweightEntry) {
-        guard let index = bodyweightEntries.firstIndex(where: { $0.id == entry.id }) else { return }
-        bodyweightEntries[index] = entry
+        if let index = bodyweightEntries.firstIndex(where: { $0.id == entry.id }) {
+            bodyweightEntries[index] = entry
+        } else {
+            bodyweightEntries.append(entry)
+        }
+        bodyweightEntries.sort { $0.targetDate < $1.targetDate }
         persistWorkoutSnapshot()
     }
 

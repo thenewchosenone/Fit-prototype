@@ -161,6 +161,9 @@ extension AppState {
 
     func deleteCompletedWorkout(_ workout: CompletedWorkout) {
         activeWorkoutStore.deleteCompletedWorkout(workout)
+        if isAuthenticated, !isDemoMode {
+            Task { await workoutSyncStore.synchronizeDeletedCompletedWorkout(id: workout.id) }
+        }
         Haptics.warning()
     }
 
@@ -170,7 +173,7 @@ extension AppState {
             if isAuthenticated, !isDemoMode {
                 await synchronizeCompletedWorkoutHistory()
             }
-            let detail = "\(workout.completedWorkingSets.count) sets · \(Int(workout.totalVolume)) \(workout.unit.shortLabel) volume"
+            let detail = "\(workout.completedWorkingSets.count) sets · \(MeasurementFormatting.formatRecordedWeight(workout.totalVolume, unit: workout.unit)) volume"
             let activity = try await serviceContainer.social.shareWorkout(
                 snapshotID: workout.id,
                 title: workout.name,

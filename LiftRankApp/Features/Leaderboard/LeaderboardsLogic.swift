@@ -11,7 +11,7 @@ extension LeaderboardsView {
         return allEntries.filter { entry in
             entry.profile.username.lowercased().contains(query) ||
             entry.profile.displayName.lowercased().contains(query) ||
-            entry.profile.primaryGymName.lowercased().contains(query) ||
+            (appState.features.gymFeeds && entry.profile.primaryGymName.lowercased().contains(query)) ||
             entry.profile.city.lowercased().contains(query) ||
             entry.lift.exerciseName.lowercased().contains(query)
         }
@@ -155,7 +155,7 @@ extension LeaderboardsView {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(Color.liftMuted)
-            TextField("Search lifters, gyms, exercises", text: $searchText)
+            TextField(appState.features.gymFeeds ? "Search lifters, gyms, exercises" : "Search lifters or exercises", text: $searchText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
             if !searchText.isEmpty {
@@ -211,6 +211,7 @@ extension LeaderboardsView {
 
     var scopeLabel: String {
         if let gymID = appState.leaderboardFilters.gymID {
+            guard appState.features.gymFeeds else { return "Global" }
             if gymID == appState.currentProfile.primaryGymID { return "My gym" }
             return appState.gyms.first(where: { $0.id == gymID })?.name ?? "Gym"
         }
@@ -281,7 +282,7 @@ extension LeaderboardsView {
             if appState.leaderboardFilters.gymID == appState.currentProfile.primaryGymID { return "gym" }
             if appState.leaderboardFilters.city == appState.currentProfile.city { return "city" }
             if appState.leaderboardFilters.weightClassID == bodyweightClass?.id { return "class" }
-            if let gymID = appState.leaderboardFilters.gymID { return "gym:\(gymID.uuidString)" }
+            if appState.features.gymFeeds, let gymID = appState.leaderboardFilters.gymID { return "gym:\(gymID.uuidString)" }
             return "global"
         case .exercise: return appState.leaderboardFilters.exerciseID ?? "all"
         case .repetitions: return appState.leaderboardFilters.repetitionCount.map(String.init) ?? "all"

@@ -154,6 +154,7 @@ protocol CompetitionRepository: AnyObject {
     var profiles: [UserProfile] { get }
     var currentProfile: UserProfile { get }
     var joinedGymIDs: Set<UUID> { get }
+    func refreshAchievementUnlocks(now: Date)
 }
 
 @MainActor
@@ -256,6 +257,7 @@ protocol WorkoutRepository: ActiveWorkoutRepository, TrainingProgressRepository 
 protocol WorkoutSyncRepository: AnyObject {
     var currentProfile: UserProfile { get }
     var pendingCompletedWorkoutUploads: [CompletedWorkoutSnapshot] { get set }
+    var deletedCompletedWorkoutIDs: Set<UUID> { get set }
     var completedWorkouts: [CompletedWorkout] { get set }
     var workoutPlans: [WorkoutPlan] { get set }
     var workoutPhases: [WorkoutPhase] { get set }

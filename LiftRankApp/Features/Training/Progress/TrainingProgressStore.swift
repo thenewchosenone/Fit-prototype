@@ -122,8 +122,27 @@ final class TrainingProgressStore {
     }
 
     func volumeByBodyPart(planID: UUID, preferredUnit: UnitSystem) -> [String: Double] {
+        volumeByBodyPart(
+            workouts: repository.completedWorkouts.filter { $0.sourcePlanID == nil || $0.sourcePlanID == planID },
+            preferredUnit: preferredUnit
+        )
+    }
+
+    func weeklyVolumeByBodyPart(referenceDate: Date = .now, preferredUnit: UnitSystem) -> [String: Double] {
+        guard let week = calendar.dateInterval(of: .weekOfYear, for: referenceDate) else {
+            return volumeByBodyPart(workouts: repository.completedWorkouts, preferredUnit: preferredUnit)
+        }
+        return volumeByBodyPart(
+            workouts: repository.completedWorkouts.filter {
+                $0.completedAt >= week.start && $0.completedAt < week.end
+            },
+            preferredUnit: preferredUnit
+        )
+    }
+
+    private func volumeByBodyPart(workouts: [CompletedWorkout], preferredUnit: UnitSystem) -> [String: Double] {
         var totals: [String: Double] = [:]
-        for workout in repository.completedWorkouts where workout.sourcePlanID == nil || workout.sourcePlanID == planID {
+        for workout in workouts {
             for exercise in workout.exercises {
                 let volume = workout.sets
                     .filter { $0.prescriptionID == exercise.id && $0.isComplete && !$0.isWarmup }

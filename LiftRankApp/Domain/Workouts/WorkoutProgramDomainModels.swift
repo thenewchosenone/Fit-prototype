@@ -322,9 +322,13 @@ struct WorkoutPreferences: Codable, Hashable {
 }
 
 struct WorkoutPersistenceSnapshot: Codable, Hashable {
-    static let currentVersion = 6
+    static let currentVersion = 8
 
     var schemaVersion: Int
+    var currentProfile: UserProfile? = nil
+    var profiles: [UserProfile]? = nil
+    var gyms: [Gym]? = nil
+    var joinedGymIDs: Set<UUID>? = nil
     var plans: [WorkoutPlan]
     var phases: [WorkoutPhase]
     var weeks: [WorkoutWeek]
@@ -345,6 +349,7 @@ struct WorkoutPersistenceSnapshot: Codable, Hashable {
     var achievementUnlocks: [AchievementUnlock]? = nil
     var rankingHistory: [RankingHistorySnapshot]? = nil
     var pendingCompletedWorkoutUploads: [CompletedWorkoutSnapshot]? = nil
+    var deletedCompletedWorkoutIDs: Set<UUID>? = nil
     var workoutPlanSyncRevisions: [UUID: Int]? = nil
     var workoutPlanLastSyncedPayloads: [UUID: Data]? = nil
 }

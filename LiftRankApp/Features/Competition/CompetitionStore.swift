@@ -64,6 +64,7 @@ final class CompetitionStore: ObservableObject {
     func refreshProductionData() async {
         // Production must never retain seeded/demo rankings when loading fails.
         repository.lifts = []
+        remoteLeaderboardEntries = []
         guard let liftService else { return }
         repository.lifts = (try? await liftService.submissions()) ?? []
         await refreshLeaderboard()
@@ -108,10 +109,11 @@ final class CompetitionStore: ObservableObject {
 
     var overallScore: Double {
         let best = currentUserLifts.map(\.estimatedOneRepMax).max() ?? 0
+        let recentProgress = currentUserLifts.isEmpty ? 0.0 : 74.0
         return RankingCalculator.overallScore(
             relativeStrength: min(100, relativeTotal * 22),
             absoluteStrength: min(100, best / 6),
-            recentProgress: 74
+            recentProgress: recentProgress
         )
     }
 
@@ -388,6 +390,7 @@ final class CompetitionStore: ObservableObject {
         } else {
             repository.lifts.insert(submission, at: 0)
         }
+        repository.refreshAchievementUnlocks(now: now())
     }
 
     private func track(_ name: AnalyticsEventName, properties: [String: String]) async {

@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var hideLocation = false
     @State private var allowComments = true
     @State private var notificationPreferences = true
+    @State private var privacy = ProfilePrivacySettings()
     @AppStorage("liftrank.appearance") private var appearance = LiftAppearance.system.rawValue
     @State private var settingsInfo: SettingsInfoPage?
     @State private var confirmingDeletion = false
@@ -113,17 +114,20 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .onAppear {
                 let profile = appState.currentProfile
+                privacy = appState.authenticatedPrivacy
                 preferredUnit = profile.preferredUnit
-                privateProfile = false
-                hideBodyweight = profile.hideBodyweight
-                hideExactAge = profile.hideExactAge
-                hideLocation = profile.hideCity
+                privateProfile = privacy.profileAudience == .privateProfile
+                hideBodyweight = privacy.bodyweightAudience == .privateProfile
+                hideExactAge = privacy.ageBandAudience == .privateProfile
+                hideLocation = privacy.locationAudience == .privateProfile
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
-                        persistProfileSettings()
-                        dismiss()
+                        Task {
+                            await persistProfileSettings()
+                            dismiss()
+                        }
                     }
                 }
             }
@@ -146,19 +150,33 @@ struct SettingsView: View {
         }
     }
 
-    private func persistProfileSettings() {
+    private func persistProfileSettings() async {
         var profile = appState.currentProfile
+        var updatedPrivacy = privacy
         profile.preferredUnit = preferredUnit
         profile.hideBodyweight = hideBodyweight
         profile.hideExactAge = hideExactAge
         profile.hideCity = hideLocation
+        updatedPrivacy.profileAudience = privateProfile ? .privateProfile : .publicProfile
+        updatedPrivacy.bodyweightAudience = hideBodyweight ? .privateProfile : .publicProfile
+        updatedPrivacy.ageBandAudience = hideExactAge ? .privateProfile : .publicProfile
+        updatedPrivacy.locationAudience = hideLocation ? .privateProfile : .publicProfile
         if privateProfile {
             profile.hideExactAge = true
             profile.hideBodyweight = true
             profile.hideCity = true
             profile.hideGym = true
+            updatedPrivacy.ageBandAudience = .privateProfile
+            updatedPrivacy.bodyweightAudience = .privateProfile
+            updatedPrivacy.locationAudience = .privateProfile
+            updatedPrivacy.gymAudience = .privateProfile
         }
-        appState.updateProfile(profile)
+        if appState.isAuthenticated && !appState.isDemoMode {
+            _ = await appState.saveEditedProfile(profile, primaryGym: nil, privacy: updatedPrivacy)
+        } else {
+            appState.updateProfile(profile)
+            appState.setAuthenticatedPrivacy(updatedPrivacy)
+        }
     }
 }
 

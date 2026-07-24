@@ -349,6 +349,11 @@ enum ExerciseMuscleProfileResolver {
     static func profile(name: String, bodyPart: String) -> ExerciseMuscleProfile {
         let body = bodyPart.lowercased()
         let movement = name.lowercased()
+
+        if let curated = curatedProfile(movement: movement, body: body) {
+            return curated
+        }
+
         var primary: [ExerciseMuscleRegion] = []
         var secondary: [ExerciseMuscleRegion] = []
 
@@ -425,6 +430,106 @@ enum ExerciseMuscleProfileResolver {
             ? .split
             : (hasBack ? .back : .front)
         return ExerciseMuscleProfile(primary: primary, secondary: secondary, orientation: orientation)
+    }
+
+    private static func curatedProfile(movement: String, body: String) -> ExerciseMuscleProfile? {
+        func profile(
+            primary: [ExerciseMuscleRegion],
+            secondary: [ExerciseMuscleRegion] = [],
+            orientation: ExerciseMuscleMapOrientation? = nil
+        ) -> ExerciseMuscleProfile {
+            let cleanedSecondary = secondary.filter { !primary.contains($0) }
+            let resolvedOrientation = orientation ?? mapOrientation(primary: primary)
+            return ExerciseMuscleProfile(primary: primary, secondary: cleanedSecondary, orientation: resolvedOrientation)
+        }
+
+        if movement.contains("triceps dip") {
+            return profile(primary: [.triceps], secondary: [.chest, .frontDelts], orientation: .split)
+        }
+        if movement.contains("dip") {
+            return profile(primary: [.chest, .triceps], secondary: [.frontDelts], orientation: .split)
+        }
+        if movement.contains("fly") || movement.contains("pec deck") {
+            let primary: [ExerciseMuscleRegion] = movement.contains("incline") ? [.upperChest] : [.chest]
+            return profile(primary: primary, secondary: [.frontDelts], orientation: .front)
+        }
+        if movement.contains("bench") || movement.contains("chest press") || (movement.contains("press") && (body.contains("chest") || movement.contains("push-up"))) {
+            let primary: [ExerciseMuscleRegion] = movement.contains("incline") ? [.upperChest] : [.chest]
+            return profile(primary: primary, secondary: [.frontDelts, .triceps], orientation: .split)
+        }
+        if movement.contains("shoulder press") || movement.contains("overhead press") || movement.contains("military press") {
+            return profile(primary: [.frontDelts, .sideDelts], secondary: [.triceps, .traps], orientation: .split)
+        }
+        if movement.contains("lateral raise") {
+            return profile(primary: [.sideDelts], secondary: [.traps], orientation: .split)
+        }
+        if movement.contains("rear delt") || movement.contains("reverse pec deck") || movement.contains("face pull") {
+            return profile(primary: [.rearDelts], secondary: [.upperBack, .traps], orientation: .back)
+        }
+        if movement.contains("upright row") {
+            return profile(primary: [.sideDelts, .traps], secondary: [.biceps], orientation: .split)
+        }
+        if movement.contains("row") {
+            return profile(primary: [.upperBack, .lats], secondary: [.rearDelts, .biceps], orientation: .split)
+        }
+        if movement.contains("pulldown") || movement.contains("pull-up") || movement.contains("chin-up") {
+            return profile(primary: [.lats], secondary: [.upperBack, .biceps, .rearDelts], orientation: .split)
+        }
+        if movement.contains("pullover") {
+            return profile(primary: [.lats], secondary: [.chest, .triceps], orientation: .split)
+        }
+        if movement.contains("hack squat") || movement.contains("leg press") || movement.contains("squat") || movement.contains("lunge") || movement.contains("step-up") {
+            return profile(primary: [.quads], secondary: [.glutes, .adductors, .hamstrings], orientation: .split)
+        }
+        if movement.contains("deadlift") || movement.contains("romanian") || movement.contains("good morning") {
+            return profile(primary: [.hamstrings, .glutes], secondary: [.spinalErectors, .upperBack], orientation: .split)
+        }
+        if movement.contains("back extension") || movement.contains("hyperextension") {
+            return profile(primary: [.spinalErectors, .glutes], secondary: [.hamstrings], orientation: .back)
+        }
+        if movement.contains("hip thrust") || movement.contains("glute bridge") || movement.contains("kickback") {
+            return profile(primary: [.glutes], secondary: [.hamstrings], orientation: .back)
+        }
+        if movement.contains("leg curl") || movement.contains("nordic") {
+            return profile(primary: [.hamstrings], secondary: [.glutes], orientation: .back)
+        }
+        if movement.contains("leg extension") || movement.contains("sissy squat") {
+            return profile(primary: [.quads], orientation: .front)
+        }
+        if movement.contains("calf raise") || movement.contains("calf press") {
+            return profile(primary: [.calves], orientation: .back)
+        }
+        if movement.contains("tibialis") {
+            return profile(primary: [.tibialis], orientation: .front)
+        }
+        if movement.contains("curl") && !movement.contains("leg curl") {
+            return profile(primary: [.biceps], secondary: [.forearms], orientation: .front)
+        }
+        if movement.contains("pressdown") || movement.contains("pushdown") || movement.contains("skullcrusher") || movement.contains("skull crusher") || movement.contains("triceps extension") {
+            return profile(primary: [.triceps], secondary: [.forearms], orientation: .back)
+        }
+        if movement.contains("crunch") || movement.contains("sit-up") || movement.contains("leg raise") || movement.contains("plank") || movement.contains("pallof") {
+            return profile(primary: [.abs], secondary: [.obliques], orientation: .front)
+        }
+        if movement.contains("russian twist") || movement.contains("woodchop") || movement.contains("side bend") {
+            return profile(primary: [.obliques], secondary: [.abs], orientation: .front)
+        }
+        if movement.contains("shrug") {
+            return profile(primary: [.traps], secondary: [.forearms], orientation: .back)
+        }
+        if movement.contains("carry") {
+            return profile(primary: [.fullBody], secondary: [.forearms, .traps, .abs], orientation: .split)
+        }
+
+        return nil
+    }
+
+    private static func mapOrientation(primary: [ExerciseMuscleRegion]) -> ExerciseMuscleMapOrientation {
+        let hasFront = primary.contains { !$0.isBackFacing && $0 != .fullBody }
+        let hasBack = primary.contains { $0.isBackFacing }
+        return primary.contains(.fullBody) || (hasFront && hasBack)
+            ? .split
+            : (hasBack ? .back : .front)
     }
 }
 

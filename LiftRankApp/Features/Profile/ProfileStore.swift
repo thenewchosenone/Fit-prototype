@@ -85,7 +85,7 @@ final class ProfileStore: ObservableObject {
 
     func saveEditedProfile(
         _ profile: UserProfile,
-        primaryGym: Gym,
+        primaryGym: Gym?,
         privacy: ProfilePrivacySettings,
         authenticated: Bool
     ) async throws -> UserProfile {
@@ -97,15 +97,20 @@ final class ProfileStore: ObservableObject {
                 username: profile.username,
                 displayName: profile.displayName,
                 bio: existing.bio,
+                avatarPath: profile.avatarPath,
                 preferredUnit: profile.preferredUnit,
-                birthDate: existing.birthDate,
+                birthDate: ProfileDisplayFormatting.representativeBirthDate(
+                    for: profile.ageGroup,
+                    fallback: existing.birthDate ?? Date()
+                ),
                 sexCategory: profile.sexCategory,
                 heightCentimeters: profile.heightInches * 2.54,
                 bodyweightPounds: profile.bodyweightPounds,
+                cityID: profile.cityID,
                 city: profile.city,
                 region: profile.state,
                 countryCode: existing.countryCode ?? "US",
-                yearsExperience: profile.yearsExperience,
+                yearsExperience: nil,
                 experienceLevel: profile.experienceLevel,
                 privacy: privacy,
                 completesOnboarding: existing.onboardingCompleted
@@ -117,16 +122,39 @@ final class ProfileStore: ObservableObject {
         }
 
         saved.avatarPath = profile.avatarPath
-        saved.primaryGymID = primaryGym.id
-        saved.primaryGymName = primaryGym.name
-        saved.city = primaryGym.city
-        saved.state = primaryGym.state
+        if let primaryGym {
+            saved.primaryGymID = primaryGym.id
+            saved.primaryGymName = primaryGym.name
+        }
+        saved.cityID = profile.cityID
+        saved.city = profile.city
+        saved.state = profile.state
         saveProfile(saved)
         return saved
     }
 
+    func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String {
+        guard let profileService else { throw LiftRankServiceError.configurationMissing }
+        return try await profileService.uploadProfileAvatar(
+            avatarPath: avatarPath,
+            fullImageURL: fullImageURL,
+            thumbnailURL: thumbnailURL
+        )
+    }
+
+    func downloadProfileAvatar(avatarPath: String) async throws -> ProfileAvatarDownload? {
+        guard let profileService else { throw LiftRankServiceError.configurationMissing }
+        return try await profileService.downloadProfileAvatar(avatarPath: avatarPath)
+    }
+
+    func removeProfileAvatar(avatarPath: String?) async throws {
+        guard let profileService else { throw LiftRankServiceError.configurationMissing }
+        try await profileService.removeProfileAvatar(avatarPath: avatarPath)
+    }
+
     func applyAuthenticatedProfile(_ remote: AuthenticatedProfile, retainingDemoProfiles: Bool) {
         var local = repository.currentProfile
+        let localAvatarPath = local.avatarPath
         local.id = remote.id
         local.username = remote.username
         local.displayName = remote.displayName
@@ -136,6 +164,7 @@ final class ProfileStore: ObservableObject {
         local.bodyweightPounds = remote.bodyweightPounds ?? 0
         local.city = remote.city ?? ""
         local.state = remote.region ?? ""
+        local.cityID = remote.cityID
         local.yearsExperience = remote.yearsExperience ?? 0
         local.experienceLevel = remote.experienceLevel ?? .beginner
         local.followers = 0
@@ -144,9 +173,7 @@ final class ProfileStore: ObservableObject {
         local.hideBodyweight = remote.privacy.bodyweightAudience == .privateProfile
         local.hideCity = remote.privacy.locationAudience == .privateProfile
         local.hideGym = remote.privacy.gymAudience == .privateProfile
-        if let avatarPath = remote.avatarPath {
-            local.avatarPath = avatarPath
-        }
+        local.avatarPath = remote.avatarPath ?? localAvatarPath
 
         repository.currentProfile = local
         if !retainingDemoProfiles {

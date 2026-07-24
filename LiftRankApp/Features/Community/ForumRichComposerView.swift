@@ -256,7 +256,7 @@ struct ForumRichComposerView: View {
         communityID = gymID == nil ? (appState.forumComposerCommunityID ?? appState.joinedForumCommunities.first?.id) : nil
         if let liftID = appState.forumComposerLiftID {
             kind = .liftShare; selectedLiftID = liftID
-            if let lift = appState.lifts.first(where: { $0.id == liftID }) { title = "\(lift.exerciseName) PR — \(MeasurementFormatting.formatDisplayedWeight(lift.weight, unit: lift.unit))" }
+            if let lift = appState.lifts.first(where: { $0.id == liftID }) { title = "\(lift.exerciseName) PR — \(MeasurementFormatting.formatRecordedWeight(lift.weight, unit: lift.unit))" }
         } else if let workoutID = appState.forumComposerWorkoutID {
             kind = .workoutShare; selectedWorkoutID = workoutID
             if let workout = appState.completedWorkouts.first(where: { $0.id == workoutID }) { title = "Completed \(workout.name)" }

@@ -6,11 +6,18 @@ import UIKit
 protocol ProfilePhotoStore: AnyObject {
     func thumbnail(for avatarPath: String?) -> UIImage?
     func image(for avatarPath: String?) -> UIImage?
+    func fileURLs(for avatarPath: String?) -> ProfilePhotoFileURLs?
     @discardableResult
     func save(image: UIImage, userID: UUID, mode: AccountMode) throws -> String
+    func cache(fullImageData: Data, thumbnailData: Data?, avatarPath: String) throws
     func remove(avatarPath: String?)
     func clearMemoryCache()
     func removeNamespace(_ mode: AccountMode)
+}
+
+struct ProfilePhotoFileURLs {
+    var fullImageURL: URL
+    var thumbnailURL: URL
 }
 
 final class LocalProfilePhotoStore: ProfilePhotoStore {
@@ -28,11 +35,17 @@ final class LocalProfilePhotoStore: ProfilePhotoStore {
         loadVariant("full", avatarPath: avatarPath)
     }
 
+    func fileURLs(for avatarPath: String?) -> ProfilePhotoFileURLs? {
+        guard let avatarPath,
+              let fullImageURL = fileURL(for: avatarPath, variant: "full"),
+              let thumbnailURL = fileURL(for: avatarPath, variant: "thumb") else { return nil }
+        return ProfilePhotoFileURLs(fullImageURL: fullImageURL, thumbnailURL: thumbnailURL)
+    }
+
     @discardableResult
     func save(image: UIImage, userID: UUID, mode: AccountMode) throws -> String {
-        let relative = "\(mode.rawValue)/\(userID.uuidString.lowercased())/avatar"
-        let directory = try directoryURL().appendingPathComponent(mode.rawValue, isDirectory: true)
-            .appendingPathComponent(userID.uuidString.lowercased(), isDirectory: true)
+        let relative = Self.avatarPath(userID: userID, mode: mode)
+        let directory = try directoryURL().appendingPathComponent(relative, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
 
         let full = image.resizedSquare(to: 1024)
@@ -50,10 +63,22 @@ final class LocalProfilePhotoStore: ProfilePhotoStore {
         return relative
     }
 
+    func cache(fullImageData: Data, thumbnailData: Data?, avatarPath: String) throws {
+        let directory = try directoryURL().appendingPathComponent(avatarPath, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try fullImageData.write(to: directory.appendingPathComponent("avatar-full.jpg"), options: .atomic)
+        try (thumbnailData ?? fullImageData).write(to: directory.appendingPathComponent("avatar-thumb.jpg"), options: .atomic)
+        if let full = UIImage(data: fullImageData) {
+            cache.setObject(full, forKey: "\(avatarPath)-full" as NSString)
+        }
+        if let thumb = UIImage(data: thumbnailData ?? fullImageData) {
+            cache.setObject(thumb, forKey: "\(avatarPath)-thumb" as NSString)
+        }
+    }
+
     func remove(avatarPath: String?) {
         guard let avatarPath else { return }
-        let parent = avatarPath.split(separator: "/").dropLast().joined(separator: "/")
-        guard let url = try? directoryURL().appendingPathComponent(parent, isDirectory: true) else { return }
+        guard let url = try? directoryURL().appendingPathComponent(avatarPath, isDirectory: true) else { return }
         try? FileManager.default.removeItem(at: url)
         cache.removeObject(forKey: "\(avatarPath)-full" as NSString)
         cache.removeObject(forKey: "\(avatarPath)-thumb" as NSString)
@@ -96,6 +121,16 @@ final class LocalProfilePhotoStore: ProfilePhotoStore {
         let directory = root.appendingPathComponent("LiftRank/ProfilePhotos", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
+    }
+
+    private static func avatarPath(userID: UUID, mode: AccountMode) -> String {
+        let accountPath = "\(userID.uuidString.lowercased())/avatar"
+        switch mode {
+        case .authenticated:
+            return accountPath
+        case .demo:
+            return "demo/\(accountPath)"
+        }
     }
 }
 

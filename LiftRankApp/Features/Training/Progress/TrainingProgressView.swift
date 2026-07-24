@@ -3,7 +3,7 @@ import SwiftUI
 
 extension TrainingTrackerView {
     var progress: some View {
-        let totals = appState.volumeByBodyPart()
+        let totals = appState.weeklyVolumeByBodyPart()
         let maxVolume = max(1, totals.values.max() ?? 1)
         let totalVolume = totals.values.reduce(0, +)
         let rankedTotals = totals
@@ -120,29 +120,76 @@ extension TrainingTrackerView {
             }
             .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
 
-            Text("Bodyweight")
-                .font(.title3.weight(.black))
+            HStack(alignment: .center) {
+                Text("Bodyweight")
+                    .font(.title3.weight(.black))
+                Spacer()
+                Button {
+                    logBodyweightEntry()
+                } label: {
+                    Label("Log", systemImage: "plus")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.black)
+                        .padding(.horizontal, 12)
+                        .frame(height: 32)
+                        .background(Color.liftBlue)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Log bodyweight")
+            }
 
             VStack(alignment: .leading, spacing: 8) {
-                Chart(recentBodyweightEntries) { row in
-                    if let actual = row.actual {
-                        LineMark(x: .value("Week", row.week), y: .value("Bodyweight", actual))
+                if recentBodyweightEntries.contains(where: { $0.actual != nil }) {
+                    Chart(recentBodyweightEntries) { row in
+                        if let actual = row.actual {
+                            let displayValue = MeasurementFormatting.displayBodyweightValue(
+                                actual,
+                                preferredUnit: appState.currentProfile.preferredUnit
+                            )
+                            LineMark(x: .value("Week", row.week), y: .value("Bodyweight", displayValue))
+                                .foregroundStyle(Color.liftBlue)
+                            PointMark(x: .value("Week", row.week), y: .value("Bodyweight", displayValue))
+                                .foregroundStyle(Color.liftGreen)
+                        }
+                    }
+                    .frame(height: 150)
+                    .chartYAxis {
+                        AxisMarks(position: .trailing) {
+                            AxisGridLine().foregroundStyle(Color.liftSeparator)
+                            AxisValueLabel().foregroundStyle(Color.liftMuted)
+                        }
+                    }
+                    .chartXAxis {
+                        AxisMarks {
+                            AxisValueLabel().foregroundStyle(Color.liftMuted)
+                        }
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Image(systemName: "scalemass.fill")
+                            .font(.title2.weight(.black))
                             .foregroundStyle(Color.liftBlue)
-                        PointMark(x: .value("Week", row.week), y: .value("Bodyweight", actual))
-                            .foregroundStyle(Color.liftGreen)
+                        Text("No bodyweight logged yet")
+                            .font(.headline.weight(.bold))
+                        Text("Add today’s bodyweight to start seeing your trend here.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                        Button {
+                            logBodyweightEntry()
+                        } label: {
+                            Text("Log bodyweight")
+                                .font(.subheadline.weight(.black))
+                                .foregroundStyle(Color.black)
+                                .padding(.horizontal, 16)
+                                .frame(height: 40)
+                                .background(Color.liftBlue)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 4)
                     }
-                }
-                .frame(height: 150)
-                .chartYAxis {
-                    AxisMarks(position: .trailing) {
-                        AxisGridLine().foregroundStyle(Color.liftSeparator)
-                        AxisValueLabel().foregroundStyle(Color.liftMuted)
-                    }
-                }
-                .chartXAxis {
-                    AxisMarks {
-                        AxisValueLabel().foregroundStyle(Color.liftMuted)
-                    }
+                    .frame(maxWidth: .infinity, minHeight: 150, alignment: .leading)
                 }
             }
             .padding(12)
@@ -216,7 +263,7 @@ extension TrainingTrackerView {
     ) -> some View {
         let tint = volumeTint(for: bodyPart)
         let share = value / max(totalVolume, 1)
-        let relativeWidth = value / max(maxVolume, 1)
+        let barWidth = min(max(share, 0), 1)
 
         return HStack(spacing: 11) {
             Text("\(index + 1)")
@@ -249,7 +296,7 @@ extension TrainingTrackerView {
                                     endPoint: .trailing
                                 )
                             )
-                            .frame(width: max(7, geometry.size.width * relativeWidth))
+                            .frame(width: max(7, geometry.size.width * barWidth))
                     }
                 }
                 .frame(height: 7)
@@ -281,7 +328,7 @@ extension TrainingTrackerView {
 
     private var workoutHistorySection: some View {
         WorkoutHistoryCalendar(
-            workouts: appState.completedWorkouts,
+            workouts: completedTrainingHistoryWorkouts,
             displayedMonth: $workoutHistoryMonth,
             selectedDate: $selectedWorkoutHistoryDate
         ) { workout in
@@ -465,21 +512,25 @@ extension TrainingTrackerView {
         }
     }
 
+    private var completedTrainingHistoryWorkouts: [CompletedWorkout] {
+        appState.completedWorkouts.filter { !$0.completedWorkingSets.isEmpty }
+    }
+
     private var progressExerciseOptions: [TrainingExerciseCatalogItem] {
-        let IDs = Set(appState.completedWorkouts.flatMap { $0.exercises.map(\.exerciseID) })
+        let IDs = Set(completedTrainingHistoryWorkouts.flatMap { $0.exercises.map(\.exerciseID) })
         return appState.trainingExerciseLibrary.filter { IDs.contains($0.id) }.sorted { $0.name < $1.name }
     }
 
     private func exerciseProgressPoints(for exerciseID: String) -> [ExerciseProgressPoint] {
         WorkoutProgressPresentation.progressPoints(
-            from: appState.completedWorkouts,
+            from: completedTrainingHistoryWorkouts,
             exerciseID: exerciseID,
             preferredUnit: appState.currentProfile.preferredUnit
         )
     }
 
     private func syncWorkoutHistorySelection() {
-        guard let mostRecent = appState.completedWorkouts.max(by: { $0.completedAt < $1.completedAt }) else {
+        guard let mostRecent = completedTrainingHistoryWorkouts.max(by: { $0.completedAt < $1.completedAt }) else {
             selectedWorkoutHistoryDate = nil
             workoutHistoryMonth = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
             return
@@ -522,7 +573,7 @@ extension TrainingTrackerView {
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        Text(MeasurementFormatting.formatPoundsOrDash(row.actual))
+                Text(MeasurementFormatting.formatBodyweightOrDash(row.actual, preferredUnit: appState.currentProfile.preferredUnit))
                             .font(.subheadline.weight(.semibold).monospacedDigit())
                             .frame(width: 76, alignment: .trailing)
                         Image(systemName: "chevron.right")
@@ -537,7 +588,7 @@ extension TrainingTrackerView {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                    .accessibilityLabel("Week \(row.week), \(MeasurementFormatting.formatPoundsOrMissing(row.actual)), edit")
+                .accessibilityLabel("Week \(row.week), \(MeasurementFormatting.formatBodyweightOrDash(row.actual, preferredUnit: appState.currentProfile.preferredUnit)), edit")
 
                 if index < recentBodyweightEntries.count - 1 {
                     Divider()
@@ -561,6 +612,13 @@ extension TrainingTrackerView {
             .sorted { $0.targetDate < $1.targetDate }
             .suffix(limit)
             .map { $0 }
+    }
+
+    private func logBodyweightEntry() {
+        selectedBodyweightEntry = BodyweightEntry.draftForCurrentWeek(
+            entries: appState.bodyweightEntries,
+            currentBodyweightPounds: appState.currentProfile.bodyweightPounds
+        )
     }
 
     private var activeInjuryEntries: [InjuryEntry] {

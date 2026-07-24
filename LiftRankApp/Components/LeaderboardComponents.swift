@@ -181,6 +181,7 @@ struct CompactLeaderboardRow: View {
     var isCurrentUser = false
     var preferredUnit: UnitSystem = .pounds
     var isExerciseLeaderboard = false
+    var showsGym = false
 
     private var rankColor: Color {
         switch entry.rank {
@@ -214,10 +215,12 @@ struct CompactLeaderboardRow: View {
                             .foregroundStyle(Color.liftBlue)
                     }
                 }
-                Text(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)
-                    .font(.caption2)
-                    .foregroundStyle(Color.liftMuted)
-                    .lineLimit(1)
+                if showsGym {
+                    Text(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)
+                        .font(.caption2)
+                        .foregroundStyle(Color.liftMuted)
+                        .lineLimit(1)
+                }
                 Text(detailText)
                     .font(.caption2)
                     .foregroundStyle(Color.liftMuted.opacity(0.84))
@@ -268,7 +271,11 @@ struct CompactLeaderboardRow: View {
         if let breakdown = entry.powerliftingBreakdown, !isExerciseLeaderboard {
             return "S \(formatted(breakdown.squatKilograms)) • B \(formatted(breakdown.benchKilograms)) • D \(formatted(breakdown.deadliftKilograms))"
         }
-        let location = entry.profile.hideCity ? "Location hidden" : "\(entry.profile.city), \(entry.profile.state)"
+        let location = ProfileDisplayFormatting.location(
+            city: entry.profile.city,
+            region: entry.profile.state,
+            hidden: entry.profile.hideCity
+        )
         return "\(entry.lift.repetitions) rep\(entry.lift.repetitions == 1 ? "" : "s") • \(formattedBodyweight) BW • \(location)"
     }
 
@@ -276,7 +283,10 @@ struct CompactLeaderboardRow: View {
         if entry.profile.hideBodyweight {
             return "Hidden"
         }
-        return MeasurementFormatting.compactDisplayedWeight(entry.lift.bodyweightAtLift, unit: preferredUnit)
+        return MeasurementFormatting.formatBodyweightOrDash(
+            entry.lift.bodyweightAtLift,
+            preferredUnit: preferredUnit
+        )
     }
 
     private func formatted(_ kilograms: Double?) -> String {

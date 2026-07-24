@@ -79,7 +79,7 @@ struct WorkoutSummaryView: View {
                         HStack(spacing: 10) {
                             summaryMetric("Exercises", "\(summary.completedExercises)/\(summary.totalExercises)", "dumbbell.fill")
                             summaryMetric("Sets", "\(summary.totalSets)", "checkmark.circle.fill")
-                            summaryMetric("Volume", "\(Int(summary.totalVolume))", "scalemass.fill")
+                            summaryMetric("Volume", MeasurementFormatting.formatRecordedWeight(summary.totalVolume, unit: appState.activeWorkout?.unit ?? appState.currentProfile.preferredUnit), "scalemass.fill")
                         }
 
                         HStack(spacing: 10) {
@@ -347,20 +347,31 @@ struct WorkoutSummaryView: View {
     }
 
     private func comparisonSection(_ previous: CompletedWorkout) -> some View {
-        let previousVolume = previous.totalVolume
+        let currentUnit = appState.activeWorkout?.unit ?? appState.currentProfile.preferredUnit
+        let displayUnit = appState.currentProfile.preferredUnit
+        let previousVolume = MeasurementFormatting.displayRecordedVolume(
+            previous.totalVolume,
+            recordedUnit: previous.unit,
+            preferredUnit: displayUnit
+        )
+        let currentVolume = MeasurementFormatting.displayRecordedVolume(
+            summary.totalVolume,
+            recordedUnit: currentUnit,
+            preferredUnit: displayUnit
+        )
         let previousSets = previous.completedWorkingSets.count
-        let volumeDelta = summary.totalVolume - previousVolume
+        let volumeDelta = currentVolume - previousVolume
         let setDelta = summary.totalSets - previousSets
         let durationDelta = activeDuration - previous.duration
         return VStack(alignment: .leading, spacing: 10) {
             Text("Compared with last \(previous.name)")
                 .font(.headline.weight(.bold))
             HStack(spacing: 10) {
-                summaryMetric("Volume", signedValue(volumeDelta), "chart.bar.fill")
+                summaryMetric("Volume", "\(signedValue(volumeDelta)) \(displayUnit.shortLabel)", "chart.bar.fill")
                 summaryMetric("Sets", signedValue(Double(setDelta)), "plusminus")
                 summaryMetric("Time", signedDuration(durationDelta), "clock.arrow.circlepath")
             }
-            Text("Previous: \(Int(previousVolume)) \(previous.unit.shortLabel) in \(previousSets) sets")
+            Text("Previous: \(Int(previousVolume)) \(displayUnit.shortLabel) in \(previousSets) sets")
                 .font(.caption)
                 .foregroundStyle(Color.liftMuted)
         }

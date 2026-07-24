@@ -390,8 +390,10 @@ final class AppState: ObservableObject {
     }
 
     func saveAuthenticatedProfile(_ draft: ProfileDraft) async throws {
+        var uploadReadyDraft = draft
+        uploadReadyDraft.avatarPath = try await uploadProfilePhotoIfNeeded(avatarPath: draft.avatarPath)
         let profile = try await profileStore.saveAuthenticatedProfile(
-            draft,
+            uploadReadyDraft,
             retainingDemoProfiles: sessionStore.usesDemoAuthenticationService
         )
         authenticatedPrivacy = profile.privacy
@@ -402,6 +404,24 @@ final class AppState: ObservableObject {
             accountStatus = .needsOnboarding
         }
         await refreshRemoteSocialState()
+    }
+
+    func searchCities(countryCode: String, region: String, query: String, limit: Int = 8) async -> [LocationCitySuggestion] {
+        do {
+            return try await serviceContainer.locations.searchCities(
+                countryCode: countryCode,
+                region: region,
+                query: query,
+                limit: limit
+            )
+        } catch {
+            return LaunchLocationCatalog.citySuggestions(
+                countryCode: countryCode,
+                regionName: region,
+                query: query,
+                limit: limit
+            )
+        }
     }
 
     func acceptCurrentLegalDocuments() async {
@@ -434,6 +454,7 @@ final class AppState: ObservableObject {
             outstandingLegalDocuments = []
             accountStatus = .needsOnboarding
         }
+        await cacheAuthenticatedProfilePhotoIfNeeded()
         await refreshRemoteSocialState()
         await refreshProductionLaunchData()
         await synchronizeCompletedWorkoutHistory()
@@ -568,8 +589,13 @@ final class AppState: ObservableObject {
     var pendingReviewLifts: [LiftSubmission] { competitionStore.pendingReviewLifts }
     var activities: [ActivityItem] { repository.activities }
     var challenges: [Challenge] { repository.challenges }
-    var achievements: [Achievement] { repository.achievements }
-    var achievementUnlocks: [AchievementUnlock] { repository.achievementUnlocks }
+    var achievements: [Achievement] {
+        repository.achievements.filter { shouldShowAchievement(title: $0.title) }
+    }
+
+    var achievementUnlocks: [AchievementUnlock] {
+        repository.achievementUnlocks.filter { shouldShowAchievement(title: $0.title) }
+    }
     var competitiveStatistics: CompetitiveStatistics { repository.computedStatistics() }
     var notifications: [NotificationItem] { notificationStore.notifications }
     var unreadNotificationCount: Int { notificationStore.unreadCount }
@@ -584,6 +610,10 @@ final class AppState: ObservableObject {
     var trainingExerciseLibrary: [TrainingExerciseCatalogItem] { exerciseLibraryStore.exercises }
     var workoutEntries: [WorkoutExerciseEntry] { repository.workoutEntries }
     var bodyweightEntries: [BodyweightEntry] { trainingProgressStore.bodyweightEntries }
+
+    private func shouldShowAchievement(title: String) -> Bool {
+        features.gymFeeds || !title.localizedCaseInsensitiveContains("gym")
+    }
     var strainEntries: [StrainEntry] { trainingProgressStore.strainEntries }
     var injuryEntries: [InjuryEntry] { trainingProgressStore.injuryEntries }
     var activeWorkout: ActiveWorkoutState? { activeWorkoutStore.workout }

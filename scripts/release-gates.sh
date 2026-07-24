@@ -9,6 +9,7 @@ mkdir -p "$report_dir"
 required_scheme_file="$ROOT/LiftRank.xcodeproj/xcshareddata/xcschemes/LiftRank.xcscheme"
 required_scheme_name="LiftRank"
 services_check_script="$ROOT/scripts/check_publish_readiness_services.sh"
+metadata_check_script="$ROOT/scripts/check_launch_metadata.sh"
 
 evidence_file="$report_dir/release-evidence.md"
 summary_file="$report_dir/summary.txt"
@@ -217,6 +218,12 @@ elif [ -f "$services_check_script" ]; then
   run_step "publish_readiness.services" "ios-services-readiness" bash "$services_check_script"
 else
   run_step "publish_readiness.services" "ios-services-readiness" bash ./scripts/check_publish_readiness_services.sh
+fi
+
+if [ -x "$metadata_check_script" ]; then
+  run_step "publish_readiness.app_store_metadata" "app-store-metadata-readiness" "$metadata_check_script"
+else
+  run_step "publish_readiness.app_store_metadata" "app-store-metadata-readiness" bash "$metadata_check_script"
 fi
 
 if [ "$run_web_frontend" -eq 1 ]; then

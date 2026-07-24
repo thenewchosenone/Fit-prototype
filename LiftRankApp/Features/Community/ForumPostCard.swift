@@ -272,7 +272,7 @@ private struct ForumWorkoutShareView: View {
                 Text(workout.name).font(.subheadline.weight(.bold))
                 Text("\(workout.completedWorkingSets.count) working sets • \(Int(workout.duration / 60)) min")
                     .font(.caption).foregroundStyle(Color.liftMuted)
-                Text("\(MeasurementFormatting.formatDisplayedWeight(workout.totalVolume, unit: workout.unit)) volume")
+                Text("\(MeasurementFormatting.formatRecordedWeight(workout.totalVolume, unit: workout.unit)) volume")
                     .font(.caption.weight(.semibold)).foregroundStyle(Color.liftBlue)
             }
             Spacer()

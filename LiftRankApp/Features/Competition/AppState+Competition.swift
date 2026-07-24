@@ -14,6 +14,20 @@ extension AppState {
         competitionStore.overallScore
     }
 
+    var earnedExperienceLevel: ExperienceLevel {
+        RankingFormatting.earnedExperienceLevel(
+            relativeTotal: relativeTotal,
+            verifiedLiftCount: competitiveStatistics.verifiedLiftCount
+        )
+    }
+
+    var earnedExperienceDescription: String {
+        RankingFormatting.earnedExperienceDescription(
+            relativeTotal: relativeTotal,
+            verifiedLiftCount: competitiveStatistics.verifiedLiftCount
+        )
+    }
+
     func leaderboardSnapshotDate(referenceDate: Date = .now) -> Date {
         competitionStore.leaderboardSnapshotDate(referenceDate: referenceDate)
     }

@@ -80,7 +80,7 @@ enum WorkoutProgramCatalog {
                 exercise("chest_supported_row", 3, "8-12"), exercise("hip_thrust", 2, "8-12", 150), exercise("triceps_pressdown", 2, "10-15", 75)
             ])
         ],
-        requiredTrainingMaxExerciseIDs: ["back_squat", "barbell_bench_press", "conventional_deadlift", "barbell_overhead_press"]
+        requiredTrainingMaxExerciseIDs: []
     )
 
     private static let bodybuildingUpperLower = WorkoutProgramTemplate(
@@ -112,30 +112,45 @@ enum WorkoutProgramCatalog {
         defaultProgression: .rirRepRange,
         sessions: [
             .init(dayIndex: 2, name: "Push A", exercises: [exercise("barbell_bench_press", 3, "6-10", 180), exercise("incline_db_press", 3, "8-12"), exercise("machine_shoulder_press", 3, "8-10"), exercise("cable_lateral_raise", 3, "12-20", 60), exercise("triceps_pressdown", 3, "10-15", 75)]),
-            .init(dayIndex: 3, name: "Pull A", exercises: [exercise("conventional_deadlift", 2, "4-6", 210), exercise("lat_pulldown", 3, "8-12"), exercise("chest_supported_row", 3, "8-12"), exercise("rear_delt_fly", 3, "12-20", 60), exercise("ez_bar_curl", 3, "8-12", 75)]),
+            .init(dayIndex: 3, name: "Pull A", exercises: [exercise("machine_t_bar_row", 3, "8-12", 150), exercise("lat_pulldown", 3, "8-12"), exercise("chest_supported_row", 3, "8-12"), exercise("rear_delt_fly", 3, "12-20", 60), exercise("ez_bar_curl", 3, "8-12", 75)]),
             .init(dayIndex: 4, name: "Legs A", exercises: [exercise("back_squat", 3, "6-10", 180), exercise("romanian_deadlift", 3, "8-10", 150), exercise("leg_press", 3, "10-15", 150), exercise("lying_leg_curl", 3, "10-15", 90), exercise("machine_standing_calf_raise", 3, "10-15", 75)]),
             .init(dayIndex: 5, name: "Push B", exercises: [exercise("barbell_overhead_press", 3, "6-10", 150), exercise("machine_chest_press", 3, "8-12"), exercise("cable_fly", 3, "10-15", 75), exercise("cable_lateral_raise", 3, "12-20", 60), exercise("overhead_triceps_extension", 3, "10-15", 75)]),
             .init(dayIndex: 6, name: "Pull B", exercises: [exercise("pull_up", 3, "6-10", 150), exercise("seated_cable_row", 3, "8-12"), exercise("cable_pullover", 3, "10-15", 75), exercise("rear_delt_fly", 3, "12-20", 60), exercise("incline_db_curl", 3, "10-12", 75)]),
             .init(dayIndex: 7, name: "Legs B", exercises: [exercise("hack_squat", 3, "8-12", 150), exercise("hip_thrust", 3, "8-12", 150), exercise("bulgarian_split_squat", 3, "8-10"), exercise("leg_extension", 3, "12-15", 75), exercise("seated_leg_curl", 3, "10-15", 90), exercise("machine_seated_calf_raise", 3, "10-15", 75)])
         ],
-        requiredTrainingMaxExerciseIDs: ["back_squat", "barbell_bench_press", "conventional_deadlift", "barbell_overhead_press"]
+        requiredTrainingMaxExerciseIDs: []
     )
 
     private static let beginnerPowerlifting = WorkoutProgramTemplate(
         id: "beginner_powerlifting_12",
         version: 1,
-        name: "Beginner Powerlifting",
-        summary: "Three focused days for practicing squat, bench press, and deadlift with simple repeatable prescriptions.",
+        name: "Beginner Powerlifting Base",
+        summary: "Three focused days for learning the squat, bench press, and deadlift with repeatable novice strength prescriptions.",
         category: .powerlifting,
         level: .beginner,
         daysPerWeek: 3,
         defaultProgression: .fixed,
         sessions: [
-            .init(dayIndex: 2, name: "Squat + Bench", exercises: [exercise("back_squat", 3, "5", 210), exercise("barbell_bench_press", 3, "5", 180), exercise("seated_cable_row", 3, "8-10"), exercise("cable_crunch", 3, "10-15", 60)]),
-            .init(dayIndex: 4, name: "Deadlift + Press", exercises: [exercise("conventional_deadlift", 3, "5", 240), exercise("barbell_overhead_press", 3, "5", 180), exercise("lat_pulldown", 3, "8-10"), exercise("bulgarian_split_squat", 2, "8-10")]),
-            .init(dayIndex: 6, name: "Squat + Bench Volume", exercises: [exercise("back_squat", 3, "5", 210, "Use a lighter, technically perfect load."), exercise("barbell_bench_press", 4, "5", 180), exercise("romanian_deadlift", 3, "6-8", 150), exercise("triceps_pressdown", 2, "10-15", 75)])
+            .init(dayIndex: 2, name: "Squat + Bench", exercises: [
+                exercise("back_squat", 3, "5", 210, "Add load only when all sets are fast and technically consistent."),
+                exercise("barbell_bench_press", 3, "5", 180, "Pause the first rep of each set for practice."),
+                exercise("seated_cable_row", 3, "8-12", 120),
+                exercise("cable_crunch", 3, "10-15", 60)
+            ]),
+            .init(dayIndex: 4, name: "Deadlift + Press", exercises: [
+                exercise("conventional_deadlift", 1, "5", 240, "One crisp top set. Stop if positions break down."),
+                exercise("barbell_overhead_press", 3, "5", 180),
+                exercise("lat_pulldown", 3, "8-12", 120),
+                exercise("bulgarian_split_squat", 2, "8-10", 120)
+            ]),
+            .init(dayIndex: 6, name: "Squat + Bench Volume", exercises: [
+                exercise("back_squat", 3, "5", 210, "Use a lighter, technically perfect load."),
+                exercise("barbell_bench_press", 4, "5", 180, "Controlled volume work. Leave 1-2 reps in reserve."),
+                exercise("romanian_deadlift", 3, "6-8", 150),
+                exercise("triceps_pressdown", 3, "10-15", 75)
+            ])
         ],
-        requiredTrainingMaxExerciseIDs: ["back_squat", "barbell_bench_press", "conventional_deadlift", "barbell_overhead_press"]
+        requiredTrainingMaxExerciseIDs: []
     )
 
     private static let intermediatePowerlifting = WorkoutProgramTemplate(
@@ -148,12 +163,32 @@ enum WorkoutProgramCatalog {
         daysPerWeek: 4,
         defaultProgression: .percentage,
         sessions: [
-            .init(dayIndex: 2, name: "Squat + Bench", exercises: [exercise("back_squat", 4, "5", 240), exercise("barbell_bench_press", 4, "5", 210), exercise("leg_press", 3, "8-12", 120), exercise("chest_supported_row", 3, "8-12")]),
-            .init(dayIndex: 3, name: "Deadlift + Bench", exercises: [exercise("conventional_deadlift", 3, "4", 270), exercise("barbell_bench_press", 3, "6", 180, "Use a controlled volume load."), exercise("lat_pulldown", 3, "8-12"), exercise("lying_leg_curl", 3, "10-15", 90)]),
-            .init(dayIndex: 5, name: "Squat Volume + Press", exercises: [exercise("back_squat", 3, "6", 210, "Use a controlled volume load."), exercise("barbell_overhead_press", 3, "6", 180), exercise("romanian_deadlift", 3, "6-8", 150), exercise("cable_crunch", 3, "10-15", 60)]),
-            .init(dayIndex: 7, name: "Bench Intensity + Pull", exercises: [exercise("barbell_bench_press", 4, "3", 210), exercise("conventional_deadlift", 2, "5", 240, "Use a lighter technique load."), exercise("seated_cable_row", 3, "8-12"), exercise("triceps_pressdown", 3, "10-15", 75)])
+            .init(dayIndex: 2, name: "Squat Intensity + Bench Volume", exercises: [
+                exercise("back_squat", 4, "3-5", 240, "Competition stance. Belt/commands optional on the heaviest set."),
+                exercise("barbell_bench_press", 5, "5", 210, "Paused first rep, controlled touch point."),
+                exercise("chest_supported_row", 4, "8-12", 120),
+                exercise("cable_crunch", 3, "10-15", 60)
+            ]),
+            .init(dayIndex: 4, name: "Deadlift Intensity + Bench Technique", exercises: [
+                exercise("conventional_deadlift", 3, "2-4", 270, "Competition setup. Keep every rep fast from the floor."),
+                exercise("barbell_bench_press", 4, "4", 180, "Pause every rep with a lighter technique load."),
+                exercise("lat_pulldown", 3, "8-12", 120),
+                exercise("lying_leg_curl", 3, "10-15", 90)
+            ]),
+            .init(dayIndex: 5, name: "Squat Volume + Posterior Chain", exercises: [
+                exercise("back_squat", 4, "4-6", 210, "Backoff volume. Use a controlled load and consistent depth."),
+                exercise("romanian_deadlift", 3, "6-8", 150),
+                exercise("leg_press", 3, "8-12", 150),
+                exercise("cable_crunch", 3, "10-15", 60)
+            ]),
+            .init(dayIndex: 7, name: "Bench Intensity + Deadlift Technique", exercises: [
+                exercise("barbell_bench_press", 5, "1-3", 210, "Practice meet-style pauses on the heaviest sets."),
+                exercise("conventional_deadlift", 2, "3-5", 240, "Lighter technique pulls. No grinding."),
+                exercise("seated_cable_row", 4, "8-12", 120),
+                exercise("triceps_pressdown", 3, "10-15", 75)
+            ])
         ],
-        requiredTrainingMaxExerciseIDs: ["back_squat", "barbell_bench_press", "conventional_deadlift", "barbell_overhead_press"]
+        requiredTrainingMaxExerciseIDs: ["back_squat", "barbell_bench_press", "conventional_deadlift"]
     )
 
     private static let cablesOnlyFoundation = WorkoutProgramTemplate(

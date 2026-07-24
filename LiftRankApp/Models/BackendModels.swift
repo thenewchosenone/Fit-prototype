@@ -54,11 +54,13 @@ struct ProfileDraft: Equatable {
     var username: String
     var displayName: String
     var bio: String
+    var avatarPath: String? = nil
     var preferredUnit: UnitSystem
     var birthDate: Date?
     var sexCategory: SexCategory?
     var heightCentimeters: Double?
     var bodyweightPounds: Double?
+    var cityID: UUID? = nil
     var city: String
     var region: String
     var countryCode: String
@@ -66,6 +68,23 @@ struct ProfileDraft: Equatable {
     var experienceLevel: ExperienceLevel?
     var privacy: ProfilePrivacySettings
     var completesOnboarding: Bool
+}
+
+struct LocationCitySuggestion: Equatable, Identifiable, Hashable {
+    let canonicalID: UUID?
+    let city: String
+    let region: String
+    let countryCode: String
+    let countryName: String
+    let population: Int?
+
+    var id: String {
+        canonicalID?.uuidString ?? "\(countryCode)|\(region)|\(city)"
+    }
+
+    var displayDetail: String {
+        [region, countryName].filter { !$0.isEmpty }.joined(separator: ", ")
+    }
 }
 
 struct AuthenticatedProfile: Equatable {
@@ -83,6 +102,7 @@ struct AuthenticatedProfile: Equatable {
     var city: String?
     var region: String?
     var countryCode: String?
+    var cityID: UUID? = nil
     var yearsExperience: Int?
     var experienceLevel: ExperienceLevel?
     var privacy: ProfilePrivacySettings

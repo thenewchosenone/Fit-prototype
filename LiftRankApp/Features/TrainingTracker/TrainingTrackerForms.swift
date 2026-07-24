@@ -42,6 +42,7 @@ struct CreateWorkoutPlanView: View {
 }
 
 struct BodyweightEntryEditor: View {
+    @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var draft: BodyweightEntry
     let onSave: (BodyweightEntry) -> Void
@@ -62,8 +63,8 @@ struct BodyweightEntryEditor: View {
 
                     OptionalNumericInputField(
                         title: "Actual bodyweight",
-                        value: $draft.actual,
-                        unit: "lb"
+                        value: displayedBodyweight,
+                        unit: appState.currentProfile.preferredUnit.shortLabel
                     )
 
                     VStack(alignment: .leading, spacing: 7) {
@@ -100,5 +101,28 @@ struct BodyweightEntryEditor: View {
                 }
             }
         }
+    }
+
+    private var displayedBodyweight: Binding<Double?> {
+        Binding(
+            get: {
+                draft.actual.map {
+                    MeasurementFormatting.convert(
+                        $0,
+                        from: .pounds,
+                        to: appState.currentProfile.preferredUnit
+                    )
+                }
+            },
+            set: { newValue in
+                draft.actual = newValue.map {
+                    MeasurementFormatting.convert(
+                        $0,
+                        from: appState.currentProfile.preferredUnit,
+                        to: .pounds
+                    )
+                }
+            }
+        )
     }
 }

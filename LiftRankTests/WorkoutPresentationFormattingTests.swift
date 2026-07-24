@@ -63,6 +63,174 @@ final class WorkoutPresentationFormattingTests: XCTestCase {
         XCTAssertEqual(RankingFormatting.bodyweightInLbText(225.4), "225 lb BW")
     }
 
+    func testLeaderboardRankTextNeverInventsPercentileForMissingRank() {
+        XCTAssertEqual(RankingFormatting.leaderboardRankText(rank: nil), "Unranked")
+        XCTAssertEqual(RankingFormatting.leaderboardRankText(rank: 4), "#4")
+    }
+
+    func testStrengthScoreTierKeepsLowScoreBeginner() {
+        XCTAssertEqual(RankingFormatting.strengthTier(for: 14).label, "Beginner")
+        XCTAssertEqual(RankingFormatting.strengthTier(for: 60).label, "Advanced")
+    }
+
+    func testEarnedExperienceRequiresVerifiedStrengthData() {
+        XCTAssertEqual(
+            RankingFormatting.earnedExperienceLevel(relativeTotal: 5.5, verifiedLiftCount: 0),
+            .beginner
+        )
+        XCTAssertEqual(
+            RankingFormatting.earnedExperienceDescription(relativeTotal: 5.5, verifiedLiftCount: 0),
+            "Submit verified lifts to earn a level"
+        )
+        XCTAssertEqual(
+            RankingFormatting.earnedExperienceLevel(relativeTotal: 4.2, verifiedLiftCount: 3),
+            .advanced
+        )
+    }
+
+    func testBodyweightFormattingUsesPreferredUnitFromPoundsStorage() {
+        XCTAssertEqual(
+            MeasurementFormatting.formatBodyweight(220.46226218, preferredUnit: .kilograms),
+            "100 kg"
+        )
+        XCTAssertEqual(
+            MeasurementFormatting.displayBodyweightValue(220.46226218, preferredUnit: .kilograms),
+            100,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            MeasurementFormatting.formatBodyweightOrDash(nil, preferredUnit: .pounds),
+            "—"
+        )
+        XCTAssertEqual(
+            MeasurementFormatting.formatBodyweightOrDash(0, preferredUnit: .pounds),
+            "—"
+        )
+    }
+
+    func testProfileLocationFormattingHandlesVisibleHiddenAndMissingStates() {
+        XCTAssertEqual(
+            ProfileDisplayFormatting.location(city: "Miami", region: "Florida"),
+            "Miami, Florida"
+        )
+        XCTAssertEqual(
+            ProfileDisplayFormatting.location(city: "Miami", region: nil),
+            "Miami"
+        )
+        XCTAssertEqual(
+            ProfileDisplayFormatting.location(city: nil, region: "Florida"),
+            "Florida"
+        )
+        XCTAssertEqual(
+            ProfileDisplayFormatting.location(city: "Miami", region: "Florida", hidden: true),
+            "Location hidden"
+        )
+        XCTAssertEqual(
+            ProfileDisplayFormatting.location(city: "  ", region: nil),
+            "Location missing"
+        )
+    }
+
+    func testThreeLiftTotalFormattingUsesPreferredUnitFromPoundsStorage() {
+        XCTAssertEqual(
+            RankingFormatting.threeLiftTotalText(totalPounds: 1102.31131, preferredUnit: .kilograms),
+            "500 kg"
+        )
+        XCTAssertEqual(
+            RankingFormatting.threeLiftTotalText(totalPounds: 500, preferredUnit: .pounds),
+            "500 lb"
+        )
+    }
+
+    func testWorkoutSetTextPreservesRecordedPoundsInsteadOfConvertingAgain() {
+        let set = WorkoutSetLog(
+            id: UUID(),
+            prescriptionID: UUID(),
+            performedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            setNumber: 1,
+            weight: 500,
+            reps: 10,
+            rpe: 8,
+            isWarmup: false,
+            isComplete: true,
+            recordedUnit: .pounds
+        )
+
+        XCTAssertEqual(
+            MeasurementFormatting.workoutSetText(set: set, trackingKind: .weightReps),
+            "500 lb × 10"
+        )
+    }
+
+    func testCanonicalWorkoutAndBodyweightDisplayUseDifferentStorageRules() {
+        let recordedSet = WorkoutSetLog(
+            id: UUID(),
+            prescriptionID: UUID(),
+            performedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            setNumber: 1,
+            weight: 500,
+            reps: 10,
+            rpe: nil,
+            isWarmup: false,
+            isComplete: true,
+            recordedUnit: .pounds
+        )
+
+        XCTAssertEqual(
+            MeasurementFormatting.workoutSetText(set: recordedSet, trackingKind: .weightReps),
+            "500 lb × 10"
+        )
+        XCTAssertEqual(
+            MeasurementFormatting.formatBodyweight(220.46226218, preferredUnit: .kilograms),
+            "100 kg"
+        )
+    }
+
+    func testRecordedVolumeDisplayConvertsBeforeComparingWorkoutSummaries() {
+        XCTAssertEqual(
+            MeasurementFormatting.displayRecordedVolume(220.46226218, recordedUnit: .pounds, preferredUnit: .kilograms),
+            100,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            MeasurementFormatting.formatRecordedVolume(100, recordedUnit: .kilograms, preferredUnit: .pounds),
+            "220.5 lb"
+        )
+    }
+
+    func testCurrentWeekBodyweightDraftReusesExistingEntry() {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let existing = BodyweightEntry(
+            id: UUID(),
+            week: 4,
+            targetDate: now.addingTimeInterval(-86_400),
+            actual: 205,
+            notes: "existing"
+        )
+
+        let draft = BodyweightEntry.draftForCurrentWeek(
+            entries: [existing],
+            currentBodyweightPounds: 210,
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertEqual(draft.id, existing.id)
+        XCTAssertEqual(draft.actual, 205)
+    }
+
+    func testCurrentWeekBodyweightDraftStartsBlankWhenProfileBodyweightIsMissing() {
+        let draft = BodyweightEntry.draftForCurrentWeek(
+            entries: [],
+            currentBodyweightPounds: 0,
+            now: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+
+        XCTAssertNil(draft.actual)
+        XCTAssertEqual(draft.week, 1)
+    }
+
     func testShortDurationText() {
         XCTAssertEqual(MeasurementFormatting.shortDurationText(0), "0m")
         XCTAssertEqual(MeasurementFormatting.shortDurationText(59), "0m")

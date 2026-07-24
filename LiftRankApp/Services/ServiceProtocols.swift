@@ -23,6 +23,19 @@ protocol ProfileService {
     func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile
     func claimUsername(_ username: String) async throws -> String
     func profileCard(userID: UUID) async throws -> PublicProfileCard
+    func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String
+    func downloadProfileAvatar(avatarPath: String) async throws -> ProfileAvatarDownload?
+    func removeProfileAvatar(avatarPath: String?) async throws
+}
+
+struct ProfileAvatarDownload: Equatable {
+    var fullImageData: Data
+    var thumbnailData: Data?
+}
+
+@MainActor
+protocol LocationService {
+    func searchCities(countryCode: String, region: String, query: String, limit: Int) async throws -> [LocationCitySuggestion]
 }
 
 @MainActor
@@ -149,6 +162,7 @@ protocol WorkoutSyncService {
     func deletePlan(id: UUID) async throws
     func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot]
     func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws
+    func deleteCompletedWorkout(id: UUID) async throws
 }
 
 @MainActor
@@ -196,4 +210,7 @@ extension NotificationService {
     func markRead(notificationID: UUID) async throws {}
     func registerDevice(_ registration: PushDeviceRegistration) async throws {}
     func revokeDevice(deviceID: String) async throws {}
+}
+extension WorkoutSyncService {
+    func deleteCompletedWorkout(id: UUID) async throws { throw LiftRankServiceError.configurationMissing }
 }

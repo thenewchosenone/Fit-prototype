@@ -3,6 +3,7 @@ import SwiftUI
 private enum WorkoutSessionSheet: Identifiable {
     case summary
     case addExercise
+    case substitute(WorkoutExerciseSnapshot)
     case incompleteFinish(completedSets: Int, plannedSets: Int)
 
     var id: String {
@@ -11,6 +12,8 @@ private enum WorkoutSessionSheet: Identifiable {
             return "summary"
         case .addExercise:
             return "addExercise"
+        case let .substitute(exercise):
+            return "substitute-\(exercise.id.uuidString)"
         case .incompleteFinish:
             return "incompleteFinish"
         }
@@ -58,9 +61,14 @@ struct WorkoutSessionRunView: View {
                                     }
 
                                     ForEach(exercises) { exercise in
-                                        SwipeToDeleteRow(actionTitle: "Delete \(exercise.exerciseName)") {
-                                            appState.removeExerciseFromActiveWorkout(exercise)
-                                        } content: {
+                                        ExerciseSwipeActionRow(
+                                            substituteAction: {
+                                                presentedSheet = .substitute(exercise)
+                                            },
+                                            removeAction: {
+                                                appState.removeExerciseFromActiveWorkout(exercise)
+                                            }
+                                        ) {
                                             NavigationLink {
                                                 PrescriptionTrackView(exercise: exercise)
                                                     .environmentObject(appState)
@@ -69,22 +77,27 @@ struct WorkoutSessionRunView: View {
                                             }
                                             .buttonStyle(.plain)
                                             .accessibilityIdentifier("workout.exercise.\(exercise.id.uuidString)")
-                                            .contextMenu {
-                                                Button {
-                                                    _ = appState.moveActiveWorkoutExercise(exercise, direction: -1)
-                                                } label: {
-                                                    Label("Move Up", systemImage: "arrow.up")
-                                                }
-                                                Button {
-                                                    _ = appState.moveActiveWorkoutExercise(exercise, direction: 1)
-                                                } label: {
-                                                    Label("Move Down", systemImage: "arrow.down")
-                                                }
-                                                Button(role: .destructive) {
-                                                    appState.removeExerciseFromActiveWorkout(exercise)
-                                                } label: {
-                                                    Label("Remove from this workout", systemImage: "trash")
-                                                }
+                                        }
+                                        .contextMenu {
+                                            Button {
+                                                presentedSheet = .substitute(exercise)
+                                            } label: {
+                                                Label("Find Substitute", systemImage: "arrow.triangle.2.circlepath")
+                                            }
+                                            Button {
+                                                _ = appState.moveActiveWorkoutExercise(exercise, direction: -1)
+                                            } label: {
+                                                Label("Move Up", systemImage: "arrow.up")
+                                            }
+                                            Button {
+                                                _ = appState.moveActiveWorkoutExercise(exercise, direction: 1)
+                                            } label: {
+                                                Label("Move Down", systemImage: "arrow.down")
+                                            }
+                                            Button(role: .destructive) {
+                                                appState.removeExerciseFromActiveWorkout(exercise)
+                                            } label: {
+                                                Label("Remove from this workout", systemImage: "trash")
                                             }
                                         }
                                     }
@@ -143,6 +156,10 @@ struct WorkoutSessionRunView: View {
                     }
                 case .addExercise:
                     ActiveWorkoutAddExercisePickerView()
+                        .environmentObject(appState)
+                        .presentationDetents([.large])
+                case let .substitute(exercise):
+                    ActiveWorkoutSubstitutePickerView(exercise: exercise)
                         .environmentObject(appState)
                         .presentationDetents([.large])
                 case let .incompleteFinish(completedSets, plannedSets):
@@ -431,6 +448,209 @@ struct WorkoutSessionRunView: View {
             muscleProfile: exercise.muscleProfile,
             rankingExerciseID: exercise.rankingExerciseID
         )
+    }
+}
+
+private struct ExerciseSwipeActionRow<Content: View>: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isOpen = false
+    @State private var dragOffset: CGFloat = 0
+    let substituteAction: () -> Void
+    let removeAction: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    private let substituteWidth: CGFloat = 104
+    private let removeWidth: CGFloat = 88
+
+    private var actionWidth: CGFloat { substituteWidth + removeWidth }
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            HStack(spacing: 0) {
+                Button {
+                    close()
+                    substituteAction()
+                } label: {
+                    VStack(spacing: 5) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                        Text("Substitute")
+                            .font(.caption2.weight(.bold))
+                    }
+                    .foregroundStyle(Color.liftBackground)
+                    .frame(width: substituteWidth)
+                    .frame(maxHeight: .infinity)
+                    .background(Color.liftBlue)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Find a substitute")
+
+                Button(role: .destructive) {
+                    close()
+                    removeAction()
+                } label: {
+                    VStack(spacing: 5) {
+                        Image(systemName: "trash.fill")
+                        Text("Remove")
+                            .font(.caption2.weight(.bold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(width: removeWidth)
+                    .frame(maxHeight: .infinity)
+                    .background(Color.liftRed)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove exercise")
+            }
+
+            content()
+                .contentShape(Rectangle())
+                .offset(x: displayedOffset)
+                .simultaneousGesture(swipeGesture)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityAction(named: "Find substitute", substituteAction)
+        .accessibilityAction(named: "Remove exercise", removeAction)
+    }
+
+    private var displayedOffset: CGFloat {
+        min(0, max(-actionWidth, (isOpen ? -actionWidth : 0) + dragOffset))
+    }
+
+    private var swipeGesture: some Gesture {
+        DragGesture(minimumDistance: 14)
+            .onChanged { value in
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                dragOffset = value.translation.width
+            }
+            .onEnded { value in
+                guard abs(value.translation.width) > abs(value.translation.height) else {
+                    dragOffset = 0
+                    return
+                }
+                let projectedOffset = (isOpen ? -actionWidth : 0) + value.predictedEndTranslation.width
+                animate { isOpen = projectedOffset < -(actionWidth * 0.35) }
+                dragOffset = 0
+            }
+    }
+
+    private func close() {
+        animate { isOpen = false }
+        dragOffset = 0
+    }
+
+    private func animate(_ changes: @escaping () -> Void) {
+        if reduceMotion {
+            changes()
+        } else {
+            withAnimation(.snappy(duration: 0.22), changes)
+        }
+    }
+}
+
+private struct ActiveWorkoutSubstitutePickerView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    let exercise: WorkoutExerciseSnapshot
+
+    private var sourceExercise: TrainingExerciseCatalogItem {
+        appState.trainingExerciseLibrary.first { $0.id == exercise.exerciseID } ?? TrainingExerciseCatalogItem(
+            id: exercise.exerciseID,
+            name: exercise.exerciseName,
+            bodyPart: exercise.bodyPart,
+            workoutCategory: exercise.bodyPart,
+            defaultSets: exercise.targetSets,
+            defaultReps: exercise.targetReps,
+            symbolName: "figure.strengthtraining.traditional",
+            equipment: exercise.equipment,
+            muscleProfile: exercise.muscleProfile,
+            rankingExerciseID: exercise.rankingExerciseID
+        )
+    }
+
+    private var activeExerciseIDs: Set<String> {
+        Set(appState.activeWorkout?.exercises.map(\.exerciseID) ?? []).subtracting([exercise.exerciseID])
+    }
+
+    private var recommendations: [ExerciseSubstitutionRecommendation] {
+        appState.substitutionRecommendations(for: sourceExercise, limit: 12)
+    }
+
+    var body: some View {
+        NavigationStack {
+            AppBackground {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        LiftSheetHeader(
+                            title: "Find a substitute",
+                            subtitle: "Replace \(exercise.exerciseName) in this workout only."
+                        )
+
+                        if recommendations.isEmpty {
+                            LiftEmptyState(
+                                title: "No substitutes found",
+                                message: "Try adding a different exercise from the library.",
+                                symbolName: "arrow.triangle.2.circlepath"
+                            )
+                        } else {
+                            VStack(spacing: 0) {
+                                ForEach(Array(recommendations.enumerated()), id: \.element.id) { index, recommendation in
+                                    let substitute = recommendation.exercise
+                                    let alreadyInWorkout = activeExerciseIDs.contains(substitute.id)
+                                    Button {
+                                        guard !alreadyInWorkout else { return }
+                                        _ = appState.substituteActiveWorkoutExercise(exercise, with: substitute)
+                                        dismiss()
+                                    } label: {
+                                        HStack(spacing: 13) {
+                                            ExerciseCatalogIcon(exercise: substitute)
+                                                .frame(width: 48, height: 48)
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(substitute.name)
+                                                    .font(.subheadline.weight(.bold))
+                                                    .foregroundStyle(Color.liftText)
+                                                Text(recommendation.reasons.joined(separator: " • "))
+                                                    .font(.caption)
+                                                    .foregroundStyle(Color.liftMuted)
+                                                    .lineLimit(2)
+                                                if alreadyInWorkout {
+                                                    Text("Already in this workout")
+                                                        .font(.caption2.weight(.bold))
+                                                        .foregroundStyle(Color.liftGold)
+                                                }
+                                            }
+                                            Spacer(minLength: 8)
+                                            Image(systemName: alreadyInWorkout ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath")
+                                                .font(.headline.weight(.bold))
+                                                .foregroundStyle(alreadyInWorkout ? Color.liftMuted : Color.liftBlue)
+                                        }
+                                        .padding(14)
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .disabled(alreadyInWorkout)
+                                    .accessibilityIdentifier("activeWorkout.substitute.\(substitute.id)")
+
+                                    if index < recommendations.count - 1 {
+                                        Divider().overlay(Color.liftSeparator).padding(.leading, 74)
+                                    }
+                                }
+                            }
+                            .liftSurface()
+                        }
+                    }
+                    .padding(16)
+                    .padding(.bottom, 24)
+                }
+                .scrollIndicators(.hidden)
+            }
+            .navigationTitle("Substitute")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
     }
 }
 

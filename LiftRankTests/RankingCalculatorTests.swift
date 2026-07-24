@@ -147,6 +147,17 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(RankingCalculator.overallScore(relativeStrength: 80, absoluteStrength: 70, recentProgress: 50), 71, accuracy: 0.001)
     }
 
+    @MainActor
+    func testOverallScoreDoesNotAddProgressForUserWithNoLifts() {
+        let repository = DemoRepository()
+        repository.currentProfile = MockData.emptyProfile
+        repository.lifts = []
+        let store = CompetitionStore(repository: repository)
+
+        XCTAssertEqual(store.overallScore, 0, accuracy: 0.001)
+        XCTAssertEqual(RankingFormatting.strengthTier(for: store.overallScore).label, "Beginner")
+    }
+
     func testExerciseProgressChartKeepsOnlyHighestSetPerDay() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
@@ -627,6 +638,16 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertTrue(WorkoutHistoryCalendarData.workouts(on: nil, from: [], calendar: calendar).isEmpty)
     }
 
+    func testWorkoutHistoryWeekdaySymbolsFollowCalendarWeekStart() {
+        var sundayStart = Calendar(identifier: .gregorian)
+        sundayStart.firstWeekday = 1
+        XCTAssertEqual(WorkoutHistoryCalendarData.weekdaySymbols(calendar: sundayStart), ["S", "M", "T", "W", "T", "F", "S"])
+
+        var mondayStart = Calendar(identifier: .gregorian)
+        mondayStart.firstWeekday = 2
+        XCTAssertEqual(WorkoutHistoryCalendarData.weekdaySymbols(calendar: mondayStart), ["M", "T", "W", "T", "F", "S", "S"])
+    }
+
     @MainActor
     func testWorkoutStreakRemainsActiveWhenLastWorkoutWasYesterday() {
         let appState = AppState()
@@ -1000,6 +1021,31 @@ final class RankingCalculatorTests: XCTestCase {
         )
         let added = try XCTUnwrap(appState.addSetLog(to: exercise))
         XCTAssertEqual(added.setNumber, originalLogs.count)
+    }
+
+    @MainActor
+    func testDeletedPlannedWorkoutSetDoesNotReappearAfterRelaunch() throws {
+        let store = InMemoryWorkoutPersistenceStore()
+        let firstRepository = DemoRepository(workoutPersistenceStore: store)
+        let firstState = AppState(repository: firstRepository)
+        let session = try XCTUnwrap(firstRepository.workoutSessions.first(where: { session in
+            firstRepository.workoutPrescriptions.contains { $0.sessionID == session.id }
+        }))
+
+        XCTAssertTrue(firstState.startWorkout(session))
+        let exercise = try XCTUnwrap(firstState.activeWorkout?.exercises.first)
+        let originalLogs = firstState.setLogs(for: exercise)
+        XCTAssertGreaterThanOrEqual(originalLogs.count, 3)
+
+        firstState.deleteSetLog(originalLogs[1])
+        XCTAssertEqual(firstState.setLogs(for: exercise).count, originalLogs.count - 1)
+
+        let restoredRepository = DemoRepository(workoutPersistenceStore: store)
+        let restoredStore = ActiveWorkoutStore(repository: restoredRepository)
+        let restoredExercise = try XCTUnwrap(restoredStore.workout?.exercises.first)
+
+        XCTAssertEqual(restoredStore.setLogs(for: restoredExercise).count, originalLogs.count - 1)
+        XCTAssertFalse(restoredStore.setLogs(for: restoredExercise).contains { $0.id == originalLogs[1].id })
     }
 
     func testCompositeBodyPartsResolveToMultipleHighlightedRegions() {
@@ -1522,6 +1568,26 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(
             Set(ProfileLiftVideoLibrary.visibleLifts(for: athleteID, viewerID: athleteID, allLifts: lifts).map(\.id)),
             Set([publicVideo.id, privateVideo.id])
+        )
+    }
+
+    @MainActor
+    func testLiftAwardsRefreshForCurrentUserLoggedLiftOnly() {
+        let repository = DemoRepository()
+        repository.lifts = []
+        repository.achievementUnlocks = []
+        let currentUserID = repository.currentProfile.id
+        repository.lifts = [makeLift(userID: UUID(), weight: 225, exerciseID: "bench")]
+
+        repository.refreshAchievementUnlocks(now: Date(timeIntervalSince1970: 1_800_000_000))
+        XCTAssertFalse(repository.achievementUnlocks.contains { $0.title == "First Lift Logged" })
+
+        repository.addLift(makeLift(userID: currentUserID, weight: 225, exerciseID: "bench"))
+
+        XCTAssertTrue(repository.achievementUnlocks.contains { $0.title == "First Lift Logged" })
+        XCTAssertEqual(
+            RankingCalculator.bestLift(exerciseID: "bench", submissions: repository.lifts.filter { $0.userID == currentUserID })?.weight,
+            225
         )
     }
 
@@ -3068,6 +3134,34 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertTrue(profile.secondary.contains(.glutes))
         XCTAssertFalse(profile.secondary.contains(.triceps))
         XCTAssertFalse(profile.secondary.contains(.frontDelts))
+    }
+
+    func testDipMuscleProfileSeparatesPrimaryAndSecondaryMuscles() throws {
+        let dip = try XCTUnwrap(MockData.trainingExerciseLibrary.first { $0.id == "machine_assisted_dip" })
+        let profile = dip.resolvedMuscleProfile
+
+        XCTAssertEqual(profile.primary, [.chest, .triceps])
+        XCTAssertEqual(profile.secondary, [.frontDelts])
+        XCTAssertEqual(profile.orientation, .split)
+    }
+
+    func testBackPullMuscleProfileKeepsArmsSecondary() throws {
+        let pulldown = try XCTUnwrap(MockData.trainingExerciseLibrary.first { $0.id == "lat_pulldown" })
+        let profile = pulldown.resolvedMuscleProfile
+
+        XCTAssertEqual(profile.primary, [.lats])
+        XCTAssertTrue(profile.secondary.contains(.upperBack))
+        XCTAssertTrue(profile.secondary.contains(.biceps))
+        XCTAssertFalse(profile.primary.contains(.biceps))
+    }
+
+    func testPressMuscleProfileKeepsChestPrimaryAndTricepsSecondary() throws {
+        let bench = try XCTUnwrap(MockData.trainingExerciseLibrary.first { $0.id == "barbell_bench_press" })
+        let profile = bench.resolvedMuscleProfile
+
+        XCTAssertEqual(profile.primary, [.chest])
+        XCTAssertTrue(profile.secondary.contains(.frontDelts))
+        XCTAssertTrue(profile.secondary.contains(.triceps))
     }
 
     func testExerciseLibraryFiltersUseORWithinAndANDBetweenCategories() throws {

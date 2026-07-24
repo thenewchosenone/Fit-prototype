@@ -1,26 +1,47 @@
 import SwiftUI
 
+enum ExerciseMuscleMapDisplayStyle {
+    case hero
+    case standard
+    case compact
+}
+
 struct ExerciseMuscleMap: View {
     let profile: ExerciseMuscleProfile
+    let displayStyle: ExerciseMuscleMapDisplayStyle
+
+    init(profile: ExerciseMuscleProfile, displayStyle: ExerciseMuscleMapDisplayStyle = .standard) {
+        self.profile = profile
+        self.displayStyle = displayStyle
+    }
 
     var body: some View {
         GeometryReader { geometry in
-            let showsLabels = geometry.size.width >= 150 && geometry.size.height >= 140
-            let isCompact = geometry.size.width < 90 || geometry.size.height < 90
+            let showsLabels = displayStyle != .compact && geometry.size.width >= 140 && geometry.size.height >= 110
+            let isCompact = displayStyle == .compact || geometry.size.width < 90 || geometry.size.height < 90
             let cardShape = RoundedRectangle(
-                cornerRadius: min(14, geometry.size.height * 0.22),
+                cornerRadius: min(displayStyle == .hero ? 18 : 14, geometry.size.height * 0.22),
                 style: .continuous
             )
             ZStack {
                 cardShape
-                    .fill(Color(red: 0.075, green: 0.08, blue: 0.095))
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.045, green: 0.05, blue: 0.065),
+                                Color(red: 0.085, green: 0.09, blue: 0.11)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
                     .overlay {
                         cardShape
-                            .stroke(Color.white.opacity(0.055), lineWidth: 1)
+                            .stroke(Color.white.opacity(displayStyle == .hero ? 0.08 : 0.055), lineWidth: 1)
                     }
 
                 VStack(spacing: showsLabels ? 5 : 0) {
-                    HStack(spacing: geometry.size.width * 0.025) {
+                    HStack(spacing: figureSpacing(width: geometry.size.width)) {
                         if isCompact && compactOrientation == .front {
                             AnatomicalMuscleFigure(profile: profile, side: .front)
                                 .scaleEffect(compactScale, anchor: compactFocus)
@@ -47,8 +68,8 @@ struct ExerciseMuscleMap: View {
                         }
                     }
                 }
-                .padding(.horizontal, geometry.size.height * 0.065)
-                .padding(.vertical, geometry.size.height * 0.045)
+                .padding(.horizontal, horizontalPadding(height: geometry.size.height))
+                .padding(.vertical, verticalPadding(height: geometry.size.height))
             }
             .clipShape(cardShape)
         }
@@ -65,13 +86,13 @@ struct ExerciseMuscleMap: View {
         let active = profile.primary.filter { $0 != .fullBody }
         guard !active.isEmpty else { return 0.92 }
         if active.contains(where: { [.quads, .hamstrings, .calves, .tibialis, .adductors].contains($0) }) {
-            return 1.58
+            return displayStyle == .compact ? 1.42 : 1.58
         }
-        if active.contains(.glutes) { return 2.05 }
+        if active.contains(.glutes) { return displayStyle == .compact ? 1.72 : 2.05 }
         if active.contains(where: { [.abs, .obliques, .spinalErectors].contains($0) }) {
-            return 1.95
+            return displayStyle == .compact ? 1.68 : 1.95
         }
-        return 2.05
+        return displayStyle == .compact ? 1.70 : 2.05
     }
 
     private var compactFocus: UnitPoint {
@@ -88,10 +109,34 @@ struct ExerciseMuscleMap: View {
 
     private func orientationLabel(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 9, weight: .bold, design: .rounded))
-            .tracking(0.8)
+            .font(.system(size: displayStyle == .hero ? 10 : 9, weight: .black, design: .rounded))
+            .tracking(1.2)
             .foregroundStyle(Color.liftMuted)
             .frame(maxWidth: .infinity)
+    }
+
+    private func figureSpacing(width: CGFloat) -> CGFloat {
+        switch displayStyle {
+        case .hero: return max(18, width * 0.055)
+        case .standard: return max(10, width * 0.035)
+        case .compact: return width * 0.025
+        }
+    }
+
+    private func horizontalPadding(height: CGFloat) -> CGFloat {
+        switch displayStyle {
+        case .hero: return height * 0.075
+        case .standard: return height * 0.065
+        case .compact: return height * 0.045
+        }
+    }
+
+    private func verticalPadding(height: CGFloat) -> CGFloat {
+        switch displayStyle {
+        case .hero: return height * 0.055
+        case .standard: return height * 0.045
+        case .compact: return height * 0.035
+        }
     }
 }
 
@@ -103,11 +148,14 @@ struct AnatomicalMuscleFigure: View {
     var body: some View {
         Canvas(opaque: false, rendersAsynchronously: true) { context, size in
             let wholeBody = profile.primary.contains(.fullBody)
-            let bodyFill = Color(red: 0.105, green: 0.11, blue: 0.135)
-            let bodyOutline = Color.black.opacity(0.42)
-            let segmentFill = Color(red: 0.155, green: 0.165, blue: 0.205)
-            let segmentOutline = Color.black.opacity(0.34)
+            let bodyFill = Color(red: 0.095, green: 0.10, blue: 0.125)
+            let bodyOutline = Color.black.opacity(0.54)
+            let segmentFill = Color(red: 0.18, green: 0.19, blue: 0.235)
+            let segmentOutline = Color.black.opacity(0.42)
+            let secondaryFill = Color.liftGreen.opacity(0.52)
+            let primaryFill = Color.liftBlue
             let lineWidth = max(0.45, min(size.width, size.height) * 0.018)
+            let primaryRegions = wholeBody ? visibleMuscleSegments : profile.primary.filter(isVisible)
 
             for path in bodyPaths(in: size) {
                 context.fill(path, with: .color(bodyFill))
@@ -127,16 +175,27 @@ struct AnatomicalMuscleFigure: View {
 
             draw(
                 profile.secondary.filter(isVisible),
-                color: Color(red: 0.02, green: 0.52, blue: 1.0).opacity(0.48),
-                outline: Color.black.opacity(0.28),
+                color: secondaryFill,
+                outline: Color.black.opacity(0.32),
                 in: &context,
                 size: size,
                 lineWidth: lineWidth * 0.65
             )
+
+            var glowContext = context
+            glowContext.addFilter(.shadow(color: primaryFill.opacity(0.42), radius: lineWidth * 2.4, x: 0, y: 0))
             draw(
-                wholeBody ? visibleMuscleSegments : profile.primary.filter(isVisible),
-                color: Color(red: 0.01, green: 0.53, blue: 1.0),
-                outline: Color.black.opacity(0.28),
+                primaryRegions,
+                color: primaryFill.opacity(0.72),
+                outline: Color.clear,
+                in: &glowContext,
+                size: size,
+                lineWidth: 0
+            )
+            draw(
+                primaryRegions,
+                color: primaryFill,
+                outline: Color.black.opacity(0.24),
                 in: &context,
                 size: size,
                 lineWidth: lineWidth * 0.85

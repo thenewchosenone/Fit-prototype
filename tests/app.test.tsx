@@ -329,7 +329,7 @@ describe("LiftRank platform UI", () => {
     renderApp("/library/back-squat");
 
     expect(await screen.findByRole("heading", { name: "Back Squat" })).toBeVisible();
-    const visual = screen.getByAltText("Back Squat: Quads muscles highlighted") as HTMLImageElement;
+    const visual = screen.getAllByAltText("Back Squat: Quads muscles highlighted")[0] as HTMLImageElement;
     expect(visual.src).toContain("quads");
     expect(visual).toHaveAttribute("width", "512");
     expect(visual).toHaveAttribute("height", "512");
@@ -342,17 +342,13 @@ describe("LiftRank platform UI", () => {
     expect(screen.queryByText("Completed sets")).not.toBeInTheDocument();
   });
 
-  it("labels demonstration media separately and supports pause controls", async () => {
-    const user = userEvent.setup();
+  it("labels anatomy references separately from verification evidence", async () => {
     renderApp("/library/back-squat");
 
-    expect(await screen.findByText("Demo Media")).toBeVisible();
-    expect(screen.getByAltText("Back Squat movement demonstration")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Pause" }));
-    expect(screen.queryByAltText("Back Squat movement demonstration")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Play" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "View demonstration full screen" })).toBeVisible();
-    expect(screen.getByText(/not verification evidence/i)).toBeVisible();
+    expect(await screen.findByText("Anatomy Reference")).toBeVisible();
+    expect(screen.getAllByAltText("Back Squat: Quads muscles highlighted")[0]).toBeVisible();
+    expect(screen.getByRole("button", { name: "View anatomy reference full screen" })).toBeVisible();
+    expect(screen.getByText(/not movement or verification evidence/i)).toBeVisible();
   });
 
   it("maps catalog body regions to highlighted-muscle artwork", () => {

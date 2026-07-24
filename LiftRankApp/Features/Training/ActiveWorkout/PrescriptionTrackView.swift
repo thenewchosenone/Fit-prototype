@@ -51,22 +51,15 @@ struct PrescriptionTrackView: View {
                         setColumnHeader
 
                             ForEach(activeLogs) { log in
-                                SwipeToDeleteRow(actionTitle: "Delete set \(log.setNumber)") {
-                                    if focusedInput?.logID == log.id {
-                                        focusedInput = nil
-                                    }
-                                    appState.deleteSetLog(log)
-                                } content: {
-                                    WorkoutSetLogRow(
-                                        log: log,
-                                        trackingKind: trackingKind,
-                                        previousLog: appState.previousSetLog(for: exercise, setNumber: log.setNumber),
-                                        focusedInput: $focusedInput
-                                    ) {
-                                        startRestTimer()
-                                    }
-                                    .environmentObject(appState)
+                                WorkoutSetLogRow(
+                                    log: log,
+                                    trackingKind: trackingKind,
+                                    previousLog: appState.previousSetLog(for: exercise, setNumber: log.setNumber),
+                                    focusedInput: $focusedInput
+                                ) {
+                                    startRestTimer()
                                 }
+                                .environmentObject(appState)
                                 .id(log.id)
                             }
                         }
@@ -269,7 +262,7 @@ struct PrescriptionTrackView: View {
 
     private func ensureTargetSetsExist() {
         let existing = appState.setLogs(for: exercise).count
-        guard existing < exercise.targetSets else { return }
+        guard existing == 0, exercise.targetSets > 0 else { return }
         for _ in existing..<exercise.targetSets {
             _ = appState.addSetLog(to: exercise)
         }

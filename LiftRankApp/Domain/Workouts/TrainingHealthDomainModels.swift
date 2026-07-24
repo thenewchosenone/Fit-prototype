@@ -6,6 +6,27 @@ struct BodyweightEntry: Identifiable, Codable, Hashable {
     var targetDate: Date
     var actual: Double?
     var notes: String
+
+    static func draftForCurrentWeek(
+        entries: [BodyweightEntry],
+        currentBodyweightPounds: Double,
+        calendar: Calendar = .current,
+        now: Date = .now
+    ) -> BodyweightEntry {
+        if let currentWeekEntry = entries.first(where: {
+            calendar.isDate($0.targetDate, equalTo: now, toGranularity: .weekOfYear)
+        }) {
+            return currentWeekEntry
+        }
+
+        return BodyweightEntry(
+            id: UUID(),
+            week: (entries.map(\.week).max() ?? 0) + 1,
+            targetDate: now,
+            actual: currentBodyweightPounds > 0 ? currentBodyweightPounds : nil,
+            notes: ""
+        )
+    }
 }
 
 enum RecoveryStatus: String, Codable, Hashable {

@@ -136,7 +136,7 @@ struct MeHubView: View {
                                 Text("@\(appState.currentProfile.username)")
                                     .font(.subheadline)
                                     .foregroundStyle(Color.liftMuted)
-                                Text("\(appState.currentProfile.experienceLevel.rawValue) lifter")
+                                Text("\(appState.earnedExperienceLevel.rawValue) lifter")
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(Color.liftBlue)
                             }
@@ -268,15 +268,13 @@ struct AwardsView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 12) {
-                        CompactSectionHeader(title: "Showcase")
+                        CompactSectionHeader(title: "Unlocked awards (\(unlockedAchievements.count))")
                         if unlockedAchievements.isEmpty {
                             LiftEmptyState(title: "No awards yet", message: "Complete workouts and log lifts to unlock your first award.", symbolName: "sparkles")
                         } else {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    ForEach(unlockedAchievements.prefix(3)) { achievement in
-                                        awardTile(achievement, unlocked: true).frame(width: 168)
-                                    }
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                                ForEach(unlockedAchievements) { achievement in
+                                    awardTile(achievement, unlocked: true)
                                 }
                             }
                         }
@@ -285,8 +283,8 @@ struct AwardsView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         CompactSectionHeader(title: "Personal records")
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            personalRecord("Bench", exerciseID: "bench-press")
-                            personalRecord("Squat", exerciseID: "back-squat")
+                            personalRecord("Bench", exerciseID: "bench")
+                            personalRecord("Squat", exerciseID: "squat")
                             personalRecord("Deadlift", exerciseID: "deadlift")
                             VStack(alignment: .leading, spacing: 8) {
                                 Image(systemName: "dumbbell.fill").foregroundStyle(Color.liftGold)
@@ -298,9 +296,9 @@ struct AwardsView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 12) {
-                        CompactSectionHeader(title: "Progress awards")
+                        CompactSectionHeader(title: "Locked awards (\(progressAchievements.count))")
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                            ForEach(progressAchievements.prefix(12)) { awardTile($0, unlocked: false) }
+                            ForEach(progressAchievements) { awardTile($0, unlocked: false) }
                         }
                     }
                 }

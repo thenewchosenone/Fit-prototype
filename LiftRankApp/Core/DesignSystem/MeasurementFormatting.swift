@@ -49,6 +49,23 @@ enum MeasurementFormatting {
         "\(format(displayWeight(kilograms, unit: unit))) \(unit.shortLabel)"
     }
 
+    static func formatRecordedWeight(_ value: Double, unit: UnitSystem, format: (Double) -> String = RankingCalculator.format) -> String {
+        "\(format(value)) \(unit.shortLabel)"
+    }
+
+    static func displayRecordedVolume(_ value: Double, recordedUnit: UnitSystem, preferredUnit: UnitSystem) -> Double {
+        convert(value, from: recordedUnit, to: preferredUnit)
+    }
+
+    static func formatRecordedVolume(
+        _ value: Double,
+        recordedUnit: UnitSystem,
+        preferredUnit: UnitSystem,
+        format: (Double) -> String = RankingCalculator.format
+    ) -> String {
+        "\(format(displayRecordedVolume(value, recordedUnit: recordedUnit, preferredUnit: preferredUnit))) \(preferredUnit.shortLabel)"
+    }
+
     static func compactDisplayedWeight(_ kilograms: Double, unit: UnitSystem, format: (Double) -> String = RankingCalculator.format) -> String {
         "\(format(displayWeight(kilograms, unit: unit)))\(unit.shortLabel)"
     }
@@ -71,6 +88,20 @@ enum MeasurementFormatting {
     static func formatPoundsOrMissing(_ pounds: Double?) -> String {
         guard let pounds else { return "no bodyweight" }
         return "\(RankingCalculator.format(pounds)) pounds"
+    }
+
+    static func formatBodyweight(_ pounds: Double, preferredUnit: UnitSystem, format: (Double) -> String = RankingCalculator.format) -> String {
+        let value = convert(pounds, from: .pounds, to: preferredUnit)
+        return "\(format(value)) \(preferredUnit.shortLabel)"
+    }
+
+    static func displayBodyweightValue(_ pounds: Double, preferredUnit: UnitSystem) -> Double {
+        convert(pounds, from: .pounds, to: preferredUnit)
+    }
+
+    static func formatBodyweightOrDash(_ pounds: Double?, preferredUnit: UnitSystem, format: (Double) -> String = RankingCalculator.format) -> String {
+        guard let pounds, pounds > 0 else { return "—" }
+        return formatBodyweight(pounds, preferredUnit: preferredUnit, format: format)
     }
 
     static func repetitionText(_ repetitions: Int, includeLabel: Bool = false) -> String {
@@ -109,15 +140,16 @@ enum MeasurementFormatting {
         let weight = set.weight ?? 0
         switch trackingKind {
         case .weightReps:
-            return liftSetText(weightKilograms: weight, unit: set.recordedUnit, repetitions: reps, includeRepLabel: includeRepLabel, format: format)
+            let repLabel = includeRepLabel ? " \(reps == 1 ? "rep" : "reps")" : ""
+            return "\(formatRecordedWeight(weight, unit: set.recordedUnit, format: format)) × \(reps)\(repLabel)"
         case .bodyweightReps, .repsOnly:
             return "\(reps) \(reps == 1 ? "rep" : "reps")"
         case .assistedBodyweight:
-            return "\(reps) \(reps == 1 ? "rep" : "reps") @ \(formatDisplayedWeight(weight, unit: set.recordedUnit, format: format)) assist"
+            return "\(reps) \(reps == 1 ? "rep" : "reps") @ \(formatRecordedWeight(weight, unit: set.recordedUnit, format: format)) assist"
         case .time:
             return shortClockText(TimeInterval(reps))
         case .weightTime:
-            return "\(formatDisplayedWeight(weight, unit: set.recordedUnit, format: format)) x \(shortClockText(TimeInterval(reps)))"
+            return "\(formatRecordedWeight(weight, unit: set.recordedUnit, format: format)) x \(shortClockText(TimeInterval(reps)))"
         }
     }
 

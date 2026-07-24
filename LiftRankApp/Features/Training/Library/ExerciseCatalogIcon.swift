@@ -4,7 +4,7 @@ struct ExerciseCatalogIcon: View {
     let exercise: TrainingExerciseCatalogItem
 
     var body: some View {
-        ExerciseMuscleMap(profile: exercise.resolvedMuscleProfile)
+        ExerciseMuscleMap(profile: exercise.resolvedMuscleProfile, displayStyle: .compact)
         .frame(width: 54, height: 54)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityDescription)

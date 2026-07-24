@@ -237,7 +237,8 @@ extension HomeView {
     }
 
     var strengthOverviewCard: some View {
-        Button {
+        let strengthTier = RankingFormatting.strengthTier(for: appState.overallScore)
+        return Button {
             appState.selectedTab = 1
         } label: {
             VStack(alignment: .leading, spacing: 10) {
@@ -262,14 +263,14 @@ extension HomeView {
                         .foregroundStyle(Color.liftMuted)
                 }
 
-                Text("Advanced")
+                Text(strengthTier.label)
                     .font(.subheadline.weight(.black))
                     .foregroundStyle(Color.liftText)
 
                 Spacer(minLength: 2)
 
                 HStack {
-                    Label("Global ranking", systemImage: "chart.line.uptrend.xyaxis")
+                    Label("Global rank", systemImage: "chart.line.uptrend.xyaxis")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.liftMuted)
                     Spacer()
@@ -283,7 +284,7 @@ extension HomeView {
             .liftSurface()
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Open leaderboards, strength score \(Int(appState.overallScore)), Advanced, global ranking")
+        .accessibilityLabel("Open leaderboards, strength score \(Int(appState.overallScore)), \(strengthTier.label), global rank")
     }
 
     var quickStats: some View {
@@ -298,8 +299,8 @@ extension HomeView {
             statDivider
             compactStat(
                 title: "Bodyweight",
-                value: "\(Int(appState.currentProfile.bodyweightPounds))",
-                unit: "lb",
+                value: bodyweightStat.value,
+                unit: bodyweightStat.unit,
                 symbol: "scalemass.fill",
                 tint: .liftBlue
             )
@@ -316,6 +317,16 @@ extension HomeView {
         .liftSurface()
     }
 
+    var bodyweightStat: (value: String, unit: String) {
+        let text = MeasurementFormatting.formatBodyweightOrDash(
+            appState.currentProfile.bodyweightPounds,
+            preferredUnit: appState.currentProfile.preferredUnit
+        )
+        guard text != "—" else { return ("—", "") }
+        let parts = text.split(separator: " ", maxSplits: 1).map(String.init)
+        return (parts.first ?? text, parts.dropFirst().first ?? "")
+    }
+
     var highlights: some View {
         VStack(alignment: .leading, spacing: 12) {
             dashboardSectionHeader("Quick actions")
@@ -326,9 +337,9 @@ extension HomeView {
                     appState.selectedTab = 2
                 }
                 highlightButton("Bodyweight", "scalemass.fill", Color.liftGold) {
-                    selectedBodyweightEntry = appState.bodyweightEntries.last ?? BodyweightEntry(
-                        id: UUID(), week: 1, targetDate: .now,
-                        actual: appState.currentProfile.bodyweightPounds, notes: ""
+                    selectedBodyweightEntry = BodyweightEntry.draftForCurrentWeek(
+                        entries: appState.bodyweightEntries,
+                        currentBodyweightPounds: appState.currentProfile.bodyweightPounds
                     )
                 }
                 highlightButton("Awards", "trophy.fill", Color.liftGreen) {
@@ -429,7 +440,7 @@ extension HomeView {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Open \(lift.exerciseName) PR, \(MeasurementFormatting.formatDisplayedWeight(lift.weight, unit: lift.unit)), \(lift.resolvedEvidenceStatus.displayName)")
+                    .accessibilityLabel("Open \(lift.exerciseName) PR, \(MeasurementFormatting.formatRecordedWeight(lift.weight, unit: lift.unit)), \(lift.resolvedEvidenceStatus.displayName)")
                     .accessibilityHint(liftHasVideo(lift) ? "Shows PR video and attempt details" : "Shows the workout set and attempt details")
 
                     if index < min(2, appState.currentUserLifts.count - 1) {
@@ -689,13 +700,14 @@ extension HomeView {
     var weeklyPoints: [WeeklyPoint] {
         let calendar = Calendar.current
         guard let interval = calendar.dateInterval(of: .weekOfYear, for: .now) else { return [] }
-        let symbols = ["M", "T", "W", "T", "F", "S", "S"]
+        let symbols = WorkoutHistoryCalendarData.weekdaySymbols(calendar: calendar)
         return (0..<7).map { offset in
             let date = calendar.date(byAdding: .day, value: offset, to: interval.start) ?? interval.start
+            let symbol = symbols.indices.contains(offset) ? symbols[offset] : ""
             let count = thisWeekCompletedWorkouts
                 .filter { calendar.isDate($0.completedAt, inSameDayAs: date) }
                 .count
-            return WeeklyPoint(date: date, day: symbols[offset], count: count)
+            return WeeklyPoint(date: date, day: symbol, count: count)
         }
     }
 

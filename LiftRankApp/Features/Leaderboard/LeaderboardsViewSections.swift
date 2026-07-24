@@ -8,7 +8,7 @@ extension LeaderboardsView {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                             LeaderboardMetricStrip(
-                                rank: currentUserEntry.map { "#\($0.rank)" } ?? "Unranked",
+                                rank: RankingFormatting.leaderboardRankText(rank: currentUserEntry?.rank),
                                 lifters: allEntries.count,
                                 ranking: appState.leaderboardFilters.rankingType.rawValue,
                                 nextUpdate: appState.nextLeaderboardUpdateDate(referenceDate: .now)
@@ -50,7 +50,8 @@ extension LeaderboardsView {
                                                     rankingType: appState.leaderboardFilters.rankingType,
                                                     isCurrentUser: entry.profile.id == appState.currentProfile.id,
                                                     preferredUnit: appState.currentProfile.preferredUnit,
-                                                    isExerciseLeaderboard: appState.leaderboardFilters.exerciseID != nil
+                                                    isExerciseLeaderboard: appState.leaderboardFilters.exerciseID != nil,
+                                                    showsGym: appState.features.gymFeeds
                                                 )
                                             }
                                             .buttonStyle(.plain)

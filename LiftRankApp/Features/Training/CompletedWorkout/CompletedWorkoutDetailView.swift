@@ -20,7 +20,7 @@ struct CompletedWorkoutDetailView: View {
                             HStack(spacing: 8) {
                                 detailMetric("Duration", durationText, "timer")
                                 detailMetric("Sets", "\(workout.completedWorkingSets.count)", "checkmark.circle")
-                                detailMetric("Volume", "\(Int(workout.totalVolume))", "scalemass")
+                                detailMetric("Volume", MeasurementFormatting.formatRecordedWeight(workout.totalVolume, unit: workout.unit), "scalemass")
                             }
                         }
                         .padding(14)
@@ -34,7 +34,10 @@ struct CompletedWorkoutDetailView: View {
                             if !sets.isEmpty {
                                 VStack(alignment: .leading, spacing: 10) {
                                     HStack(spacing: 10) {
-                                        ExerciseMuscleMap(profile: exercise.muscleProfile ?? ExerciseMuscleProfileResolver.profile(name: exercise.exerciseName, bodyPart: exercise.bodyPart))
+                                        ExerciseMuscleMap(
+                                            profile: exercise.muscleProfile ?? ExerciseMuscleProfileResolver.profile(name: exercise.exerciseName, bodyPart: exercise.bodyPart),
+                                            displayStyle: .compact
+                                        )
                                             .frame(width: 46, height: 46)
                                             .accessibilityHidden(true)
                                         VStack(alignment: .leading, spacing: 3) {

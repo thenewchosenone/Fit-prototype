@@ -78,6 +78,8 @@ struct WorkoutSetLogRow: View {
     @State private var weightText: String
     @State private var showValidation = false
     @State private var showingDetails = false
+    @State private var pendingPersistTask: Task<Void, Never>?
+    @State private var isDeleting = false
     let previousLog: WorkoutSetLog?
     let trackingKind: ExerciseTrackingKind
     var onCompleted: (() -> Void)?
@@ -147,10 +149,7 @@ struct WorkoutSetLogRow: View {
                     .keyboardType(.numberPad)
                     .onChange(of: repsText) { _, _ in
                         draft.reps = parsedReps
-                        appState.updateSetLog(draft)
-                        if appState.attemptAutomaticCompletion(before: draft) {
-                            onCompleted?()
-                        }
+                        schedulePersistIfIdle()
                     }
 
                 if trackingKind.requiresWeight {
@@ -158,10 +157,7 @@ struct WorkoutSetLogRow: View {
                         .keyboardType(.decimalPad)
                         .onChange(of: weightText) { _, _ in
                             draft.weight = parsedWeight
-                            appState.updateSetLog(draft)
-                            if appState.attemptAutomaticCompletion(before: draft) {
-                                onCompleted?()
-                            }
+                            schedulePersistIfIdle()
                         }
                 }
 
@@ -207,6 +203,9 @@ struct WorkoutSetLogRow: View {
                     .accessibilityLabel(draft.isWarmup ? "Mark as working set" : "Mark as warmup set")
 
                     Button(role: .destructive) {
+                        isDeleting = true
+                        pendingPersistTask?.cancel()
+                        pendingPersistTask = nil
                         appState.deleteSetLog(draft)
                     } label: {
                         Label("Delete", systemImage: "trash")
@@ -223,6 +222,8 @@ struct WorkoutSetLogRow: View {
                         .frame(width: 34, alignment: .leading)
                     ForEach([6, 7, 8, 9, 10], id: \.self) { value in
                         Button {
+                            pendingPersistTask?.cancel()
+                            pendingPersistTask = nil
                             draft.rpe = draft.rpe == value ? nil : value
                             appState.updateSetLog(draft)
                             Haptics.light()
@@ -272,16 +273,30 @@ struct WorkoutSetLogRow: View {
                 Label(showingDetails ? "Hide RPE" : "Add RPE", systemImage: "slider.horizontal.3")
             }
             Button {
+                pendingPersistTask?.cancel()
+                pendingPersistTask = nil
                 draft.isWarmup.toggle()
                 appState.updateSetLog(draft)
             } label: {
                 Label(draft.isWarmup ? "Mark Working Set" : "Mark Warmup Set", systemImage: "flame")
             }
             Button(role: .destructive) {
+                isDeleting = true
+                pendingPersistTask?.cancel()
+                pendingPersistTask = nil
                 appState.deleteSetLog(draft)
             } label: {
                 Label("Delete Set", systemImage: "trash")
             }
+        }
+        .onDisappear {
+            if !isDeleting {
+                persistImmediately()
+            }
+        }
+        .onChange(of: focusedInput) { oldValue, newValue in
+            guard isInputFocus(oldValue), !isInputFocus(newValue), !isDeleting else { return }
+            persistImmediately()
         }
     }
 
@@ -323,6 +338,8 @@ struct WorkoutSetLogRow: View {
     }
 
     private func usePreviousValues() {
+        pendingPersistTask?.cancel()
+        pendingPersistTask = nil
         guard let previousLog else { return }
         if let reps = previousLog.reps {
             repsText = String(reps)
@@ -337,6 +354,8 @@ struct WorkoutSetLogRow: View {
     }
 
     private func toggleCompletion() {
+        pendingPersistTask?.cancel()
+        pendingPersistTask = nil
         guard draft.isComplete || hasRequiredInputs else {
             showValidation = true
             return
@@ -350,6 +369,41 @@ struct WorkoutSetLogRow: View {
         if completing {
             Haptics.success()
             if triggerTimer { onCompleted?() }
+        }
+    }
+
+    private func schedulePersist() {
+        pendingPersistTask?.cancel()
+        let snapshot = draft
+        pendingPersistTask = Task {
+            try? await Task.sleep(for: .milliseconds(550))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                appState.updateSetLog(snapshot)
+                pendingPersistTask = nil
+            }
+        }
+    }
+
+    private func schedulePersistIfIdle() {
+        guard !isInputFocus(focusedInput) else { return }
+        schedulePersist()
+    }
+
+    private func isInputFocus(_ focus: WorkoutSetInputFocus?) -> Bool {
+        focus?.logID == draft.id
+    }
+
+    private func persistImmediately() {
+        pendingPersistTask?.cancel()
+        pendingPersistTask = nil
+        persistDraft()
+    }
+
+    private func persistDraft() {
+        appState.updateSetLog(draft)
+        if appState.attemptAutomaticCompletion(before: draft) {
+            onCompleted?()
         }
     }
 

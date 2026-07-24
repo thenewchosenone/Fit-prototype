@@ -244,7 +244,7 @@ struct RecentPRDetailView: View {
                 Spacer()
 
                 VStack(alignment: .trailing, spacing: 3) {
-                        Text(MeasurementFormatting.liftSetText(weightKilograms: context.set.weight ?? 0, unit: context.set.recordedUnit, repetitions: context.set.reps ?? 0))
+                    Text(MeasurementFormatting.workoutSetText(set: context.set, trackingKind: trackingKind(for: context.exercise)))
                         .font(.subheadline.weight(.black).monospacedDigit())
                     if let rpe = context.set.rpe {
                         Text("RPE \(rpe)")
@@ -274,7 +274,7 @@ struct RecentPRDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Attempt details")
                 .font(.headline.weight(.bold))
-            detailRow("Bodyweight", MeasurementFormatting.formatDisplayedWeight(lift.bodyweightAtLift, unit: .pounds))
+            detailRow("Bodyweight", MeasurementFormatting.formatBodyweight(lift.bodyweightAtLift, preferredUnit: appState.currentProfile.preferredUnit))
             detailRow("Relative strength", RankingFormatting.ratioText(lift.bodyweightMultiple))
             detailRow("Evidence", lift.resolvedEvidenceStatus.rawValue)
             detailRow("Review status", lift.resolvedModerationStatus.rawValue)
@@ -331,6 +331,11 @@ struct RecentPRDetailView: View {
     private func setWeightInPounds(_ set: WorkoutSetLog) -> Double {
         guard let weight = set.weight else { return 0 }
         return MeasurementFormatting.convert(weight, from: set.recordedUnit, to: .pounds)
+    }
+
+    private func trackingKind(for exercise: WorkoutExerciseSnapshot) -> ExerciseTrackingKind {
+        let catalog = appState.trainingExerciseLibrary.first { $0.id == exercise.exerciseID }
+        return ExerciseTrackingKind(catalog?.trackingType ?? "Weight + Reps")
     }
 }
 

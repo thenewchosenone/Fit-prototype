@@ -64,6 +64,7 @@ struct AppServiceContainer {
     let features: FeatureAvailability
     let authentication: any AuthenticationService
     let profile: any ProfileService
+    let locations: any LocationService
     let gyms: any GymService
     let gymMemberships: any GymMembershipService
     let friendships: any FriendRelationshipService
@@ -85,6 +86,7 @@ struct AppServiceContainer {
         features: FeatureAvailability = .resolved(for: nil),
         authentication: any AuthenticationService,
         profile: any ProfileService,
+        locations: (any LocationService)? = nil,
         gyms: any GymService,
         gymMemberships: any GymMembershipService,
         friendships: any FriendRelationshipService,
@@ -104,7 +106,9 @@ struct AppServiceContainer {
     ) {
         let unavailable = UnavailableLaunchService()
         self.features = features
-        self.authentication = authentication; self.profile = profile; self.gyms = gyms
+        self.authentication = authentication; self.profile = profile
+        self.locations = locations ?? BundledLocationService()
+        self.gyms = gyms
         self.gymMemberships = gymMemberships; self.friendships = friendships; self.exercises = exercises
         self.lifts = lifts ?? unavailable; self.leaderboards = leaderboards ?? unavailable
         self.social = social ?? unavailable; self.communities = communities ?? unavailable
@@ -131,6 +135,7 @@ struct AppServiceContainer {
                 features: .resolved(for: nil),
                 authentication: UnconfiguredAuthenticationService(repository: repository),
                 profile: unavailableAccountData,
+                locations: BundledLocationService(),
                 gyms: unavailableAccountData,
                 gymMemberships: unavailableAccountData,
                 friendships: unavailableAccountData,
@@ -153,6 +158,7 @@ struct AppServiceContainer {
             features: .resolved(for: configuration.environment),
             authentication: SupabaseAuthenticationService(client: client),
             profile: SupabaseProfileService(client: client),
+            locations: SupabaseLocationService(client: client),
             gyms: SupabaseGymService(client: client),
             gymMemberships: SupabaseGymMembershipService(client: client),
             friendships: SupabaseFriendRelationshipService(client: client),
@@ -169,6 +175,7 @@ struct AppServiceContainer {
             features: .resolved(for: nil),
             authentication: MockAuthenticationService(repository: repository),
             profile: MockProfileService(repository: repository),
+            locations: BundledLocationService(),
             gyms: MockGymService(repository: repository),
             gymMemberships: MockGymMembershipService(repository: repository),
             friendships: MockFriendRelationshipService(repository: repository),
@@ -258,6 +265,9 @@ final class UnavailableAccountDataService: ProfileService, GymService, GymMember
     func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile { throw error }
     func claimUsername(_ username: String) async throws -> String { throw error }
     func profileCard(userID: UUID) async throws -> PublicProfileCard { throw error }
+    func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String { throw error }
+    func downloadProfileAvatar(avatarPath: String) async throws -> ProfileAvatarDownload? { throw error }
+    func removeProfileAvatar(avatarPath: String?) async throws { throw error }
 
     func gyms() async throws -> [Gym] { throw error }
     func memberships() async throws -> [GymMembershipRecord] { throw error }

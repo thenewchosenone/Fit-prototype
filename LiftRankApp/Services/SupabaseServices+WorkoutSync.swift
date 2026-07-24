@@ -67,6 +67,17 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
+    func deleteCompletedWorkout(id: UUID) async throws {
+        do {
+            let userID = try await client.auth.session.user.id
+            try await client.from("completed_workout_snapshots")
+                .delete()
+                .eq("owner_id", value: userID)
+                .eq("id", value: id)
+                .execute()
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
     private func preserveConflict(_ document: WorkoutPlanDocument, expectedRevision: Int, ownerID: UUID) async throws -> WorkoutSyncResult {
         let serverRow: WorkoutPlanDocumentDTO = try await client.from("workout_plan_documents")
             .select().eq("owner_id", value: ownerID).eq("id", value: document.id).single().execute().value
@@ -136,4 +147,3 @@ private struct CompletedWorkoutSnapshotDTO: Codable {
         return CompletedWorkoutSnapshot(id: id, ownerID: ownerID, payload: data, completedAt: completedAt)
     }
 }
-

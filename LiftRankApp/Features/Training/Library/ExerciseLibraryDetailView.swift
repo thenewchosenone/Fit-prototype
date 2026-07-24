@@ -52,9 +52,11 @@ struct ExerciseLibraryDetailView: View {
                         )
                     } else {
                         VStack(alignment: .leading, spacing: 10) {
-                            ExerciseMuscleMap(profile: splitProfile)
+                            ExerciseMuscleMap(profile: splitProfile, displayStyle: .hero)
                                 .frame(height: 230)
-                            Text("Highlighted muscle preview")
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel(anatomyAccessibilityLabel)
+                            Text("Muscles worked")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
                         }
@@ -117,20 +119,7 @@ struct ExerciseLibraryDetailView: View {
                 compactFact("Equipment", exercise.equipment, symbol: "dumbbell.fill")
             }
 
-            VStack(alignment: .leading, spacing: 12) {
-                ExerciseMuscleMap(profile: splitProfile)
-                    .frame(height: 220)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(anatomyAccessibilityLabel)
-                HStack(spacing: 8) {
-                    anatomyLegend("Primary", color: Color.liftBlue)
-                    if !profile.secondary.isEmpty {
-                        anatomyLegend("Secondary", color: Color.liftBlue.opacity(0.38))
-                    }
-                }
-            }
-            .padding(14)
-            .liftSurface()
+            musclesWorkedSection
 
             if let guidance = exercise.guidance {
                 VStack(alignment: .leading, spacing: 14) {
@@ -443,6 +432,53 @@ struct ExerciseLibraryDetailView: View {
             : "Records use completed working sets only. Time-based exercises store duration in seconds."
     }
 
+    private var musclesWorkedSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Muscles worked")
+                .font(.headline)
+            muscleChipGroup("Primary", regions: profile.primary, color: Color.liftBlue)
+            if !profile.secondary.isEmpty {
+                muscleChipGroup("Secondary", regions: profile.secondary, color: Color.liftGreen)
+            }
+        }
+        .padding(14)
+        .liftSurface()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(anatomyAccessibilityLabel)
+    }
+
+    private func muscleChipGroup(_ title: String, regions: [ExerciseMuscleRegion], color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(color)
+                    .frame(width: 8, height: 8)
+                Text(title)
+                    .font(.caption.weight(.black))
+                    .textCase(.uppercase)
+                    .tracking(0.8)
+                    .foregroundStyle(Color.liftMuted)
+            }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 86), spacing: 8)], alignment: .leading, spacing: 8) {
+                ForEach(regions) { region in
+                    Text(region.displayName)
+                        .font(.caption.weight(.bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                        .foregroundStyle(Color.liftText)
+                        .padding(.horizontal, 10)
+                        .frame(maxWidth: .infinity, minHeight: 30)
+                        .background(color.opacity(0.16))
+                        .clipShape(Capsule())
+                        .overlay {
+                            Capsule()
+                                .stroke(color.opacity(0.35), lineWidth: 1)
+                        }
+                }
+            }
+        }
+    }
+
     private func displayWeight(_ kilograms: Double) -> Double {
         appState.currentProfile.preferredUnit == .kilograms ? kilograms : RankingCalculator.kilogramsToPounds(kilograms)
     }
@@ -451,17 +487,7 @@ struct ExerciseLibraryDetailView: View {
 
     private var anatomyAccessibilityLabel: String {
         let secondary = profile.secondary.isEmpty ? "" : "; secondary muscles \(profile.secondaryDescription)"
-        return "Front and back muscle map. Primary muscles \(profile.primaryDescription)\(secondary)."
-    }
-
-    private func anatomyLegend(_ title: String, color: Color) -> some View {
-        Label {
-            Text(title)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(Color.liftMuted)
-        } icon: {
-            Circle().fill(color).frame(width: 8, height: 8)
-        }
+        return "Muscles worked. Primary muscles \(profile.primaryDescription)\(secondary)."
     }
 
     private func detailRow(_ title: String, _ value: String) -> some View {

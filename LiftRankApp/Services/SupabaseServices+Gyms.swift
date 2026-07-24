@@ -73,3 +73,90 @@ private struct JoinGymParameters: Encodable {
 
     enum CodingKeys: String, CodingKey { case targetGymID = "target_gym_id", makePrimary = "make_primary" }
 }
+import Foundation
+import Supabase
+
+@MainActor
+final class SupabaseLocationService: LocationService {
+    private let client: SupabaseClient
+
+    init(client: SupabaseClient) {
+        self.client = client
+    }
+
+    func searchCities(countryCode: String, region: String, query: String, limit: Int) async throws -> [LocationCitySuggestion] {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedQuery.count >= 2 else { return [] }
+
+        do {
+            let params = CitySearchParameters(
+                countryCode: countryCode,
+                region: region,
+                query: trimmedQuery,
+                limit: limit
+            )
+            let rows: [LocationCityDTO] = try await client
+                .rpc("search_cities", params: params)
+                .execute()
+                .value
+            return rows.map(\.suggestion)
+        } catch {
+            throw SupabaseServiceErrorMapper.map(error)
+        }
+    }
+}
+
+@MainActor
+final class BundledLocationService: LocationService {
+    func searchCities(countryCode: String, region: String, query: String, limit: Int) async throws -> [LocationCitySuggestion] {
+        LaunchLocationCatalog.citySuggestions(
+            countryCode: countryCode,
+            regionName: region,
+            query: query,
+            limit: limit
+        )
+    }
+}
+
+private struct CitySearchParameters: Encodable {
+    let countryCode: String
+    let region: String
+    let query: String
+    let limit: Int
+
+    enum CodingKeys: String, CodingKey {
+        case countryCode = "country_code_filter"
+        case region = "region_filter"
+        case query = "search_query"
+        case limit = "result_limit"
+    }
+}
+
+private struct LocationCityDTO: Decodable {
+    let id: UUID
+    let city: String
+    let region: String
+    let countryCode: String
+    let countryName: String
+    let population: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case city
+        case region
+        case countryCode = "country_code"
+        case countryName = "country_name"
+        case population
+    }
+
+    var suggestion: LocationCitySuggestion {
+        LocationCitySuggestion(
+            canonicalID: id,
+            city: city,
+            region: region,
+            countryCode: countryCode,
+            countryName: countryName,
+            population: population
+        )
+    }
+}

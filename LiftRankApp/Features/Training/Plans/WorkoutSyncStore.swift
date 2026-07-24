@@ -28,11 +28,16 @@ final class WorkoutSyncStore {
 
     func enqueueCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) {
         guard !repository.pendingCompletedWorkoutUploads.contains(where: { $0.id == snapshot.id }) else { return }
+        repository.deletedCompletedWorkoutIDs.remove(snapshot.id)
         repository.pendingCompletedWorkoutUploads.append(snapshot)
         repository.persistWorkoutSnapshot()
     }
 
     func synchronizeCompletedWorkoutHistory() async {
+        for deletedID in repository.deletedCompletedWorkoutIDs {
+            try? await service.deleteCompletedWorkout(id: deletedID)
+        }
+
         var remaining: [CompletedWorkoutSnapshot] = []
         for snapshot in repository.pendingCompletedWorkoutUploads {
             do { try await service.uploadCompletedWorkout(snapshot) }
@@ -44,10 +49,16 @@ final class WorkoutSyncStore {
             repository.persistWorkoutSnapshot()
             return
         }
-        for snapshot in remote where !repository.completedWorkouts.contains(where: { $0.id == snapshot.id }) {
+        for snapshot in remote where !repository.deletedCompletedWorkoutIDs.contains(snapshot.id)
+            && !repository.completedWorkouts.contains(where: { $0.id == snapshot.id }) {
             guard let workout = try? decoder.decode(CompletedWorkout.self, from: snapshot.payload) else { continue }
             repository.completedWorkouts.append(workout)
         }
+        repository.persistWorkoutSnapshot()
+    }
+
+    func synchronizeDeletedCompletedWorkout(id: UUID) async {
+        try? await service.deleteCompletedWorkout(id: id)
         repository.persistWorkoutSnapshot()
     }
 

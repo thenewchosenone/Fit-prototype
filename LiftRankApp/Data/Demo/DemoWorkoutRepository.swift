@@ -296,6 +296,7 @@ extension DemoRepository {
             sets: logs,
             linkedSubmissionIDs: []
         )
+        deletedCompletedWorkoutIDs.remove(completed.id)
         completedWorkouts.insert(completed, at: 0)
         workoutSetLogs.removeAll { $0.workoutID == workout.id }
         activeWorkout = nil
@@ -305,7 +306,9 @@ extension DemoRepository {
     }
 
     func deleteCompletedWorkout(_ workout: CompletedWorkout) {
+        deletedCompletedWorkoutIDs.insert(workout.id)
         completedWorkouts.removeAll { $0.id == workout.id }
+        pendingCompletedWorkoutUploads.removeAll { $0.id == workout.id }
         pendingWorkoutPRSubmissions.removeAll {
             $0.candidate.completedWorkoutID == workout.id && $0.state != .submitted
         }

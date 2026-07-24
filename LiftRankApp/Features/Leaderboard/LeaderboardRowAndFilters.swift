@@ -2,6 +2,7 @@ import Charts
 import SwiftUI
 
 struct LeaderboardRow: View {
+    @EnvironmentObject private var appState: AppState
     let entry: LeaderboardEntry
     var rankingType: RankingType = .absolute
 
@@ -30,7 +31,7 @@ struct LeaderboardRow: View {
                             Text(entry.profile.username)
                                 .font(.headline)
                                 .lineLimit(1)
-                            if entry.profile.id == MockData.demoUserID {
+                            if entry.profile.id == appState.currentProfile.id {
                                 Text("You")
                                     .font(.caption2.bold())
                                     .padding(.horizontal, 7)
@@ -39,14 +40,16 @@ struct LeaderboardRow: View {
                                     .clipShape(Capsule())
                             }
                         }
-                        Text(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
-                            .lineLimit(1)
+                        if appState.features.gymFeeds {
+                            Text(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                                .lineLimit(1)
+                        }
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 5) {
-                        Text(RankingFormatting.scoreText(for: entry, rankingType: rankingType))
+                        Text(RankingFormatting.leaderboardValueText(for: entry, rankingType: rankingType, preferredUnit: appState.currentProfile.preferredUnit))
                             .font(.headline)
                         Label(entry.rankMovement >= 0 ? "+\(entry.rankMovement)" : "\(entry.rankMovement)", systemImage: entry.rankMovement >= 0 ? "arrow.up" : "arrow.down")
                             .font(.caption.bold())
@@ -56,8 +59,15 @@ struct LeaderboardRow: View {
 
                 HStack(spacing: 8) {
                     Label(entry.lift.exerciseName, systemImage: "dumbbell.fill")
-                    Label(entry.profile.hideBodyweight ? "Hidden BW" : RankingFormatting.bodyweightInLbText(entry.lift.bodyweightAtLift), systemImage: "scalemass.fill")
-                    Label(entry.profile.hideCity ? "Location hidden" : "\(entry.profile.city), \(entry.profile.state)", systemImage: "mappin.and.ellipse")
+                    Label(entry.profile.hideBodyweight ? "Hidden BW" : "\(MeasurementFormatting.formatBodyweightOrDash(entry.lift.bodyweightAtLift, preferredUnit: appState.currentProfile.preferredUnit)) BW", systemImage: "scalemass.fill")
+                    Label(
+                        ProfileDisplayFormatting.location(
+                            city: entry.profile.city,
+                            region: entry.profile.state,
+                            hidden: entry.profile.hideCity
+                        ),
+                        systemImage: "mappin.and.ellipse"
+                    )
                 }
                 .font(.caption)
                 .foregroundStyle(Color.liftMuted)
@@ -213,10 +223,12 @@ struct LeaderboardFiltersView: View {
                                     appState.leaderboardFilters.city = nil
                                     appState.leaderboardFilters.state = nil
                                 }
-                                optionButton("My gym", isActive: appState.leaderboardFilters.gymID == appState.currentProfile.primaryGymID) {
-                                    appState.leaderboardFilters.gymID = appState.currentProfile.primaryGymID
-                                    appState.leaderboardFilters.city = nil
-                                    appState.leaderboardFilters.state = nil
+                                if appState.features.gymFeeds {
+                                    optionButton("My gym", isActive: appState.leaderboardFilters.gymID == appState.currentProfile.primaryGymID) {
+                                        appState.leaderboardFilters.gymID = appState.currentProfile.primaryGymID
+                                        appState.leaderboardFilters.city = nil
+                                        appState.leaderboardFilters.state = nil
+                                    }
                                 }
                                 optionButton("My city", isActive: appState.leaderboardFilters.city == appState.currentProfile.city && appState.leaderboardFilters.state == appState.currentProfile.state) {
                                     appState.leaderboardFilters.city = appState.currentProfile.city
@@ -357,10 +369,12 @@ struct LeaderboardFiltersView: View {
                     quickFilterButton("All lifters", symbol: "globe") {
                         appState.leaderboardFilters = LeaderboardFilters(exerciseID: appState.leaderboardFilters.exerciseID)
                     }
-                    quickFilterButton("My gym", symbol: "building.2.fill") {
-                        appState.leaderboardFilters.gymID = appState.currentProfile.primaryGymID
-                        appState.leaderboardFilters.city = nil
-                        appState.leaderboardFilters.state = nil
+                    if appState.features.gymFeeds {
+                        quickFilterButton("My gym", symbol: "building.2.fill") {
+                            appState.leaderboardFilters.gymID = appState.currentProfile.primaryGymID
+                            appState.leaderboardFilters.city = nil
+                            appState.leaderboardFilters.state = nil
+                        }
                     }
                     quickFilterButton("My city", symbol: "mappin.and.ellipse") {
                         appState.leaderboardFilters.city = appState.currentProfile.city

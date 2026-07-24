@@ -356,9 +356,9 @@ struct WorkoutProgramTemplateDetailView: View {
     }
 
     private func seedTrainingMaxesIfNeeded() {
-        guard trainingMaxInputs.isEmpty else { return }
         let suggestions = appState.suggestedTrainingMaxKilograms(for: template)
         for exerciseID in template.requiredTrainingMaxExerciseIDs {
+            guard trainingMaxInputs[exerciseID, default: ""].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
             guard let kilograms = suggestions[exerciseID] else { continue }
             let displayed = appState.currentProfile.preferredUnit == .pounds
                 ? RankingCalculator.kilogramsToPounds(kilograms)

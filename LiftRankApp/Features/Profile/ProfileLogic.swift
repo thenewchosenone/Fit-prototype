@@ -40,7 +40,7 @@ extension ProfileView {
                     .font(.subheadline)
                     .foregroundStyle(Color.liftMuted)
                     .lineLimit(2)
-                Text("\(profile.hideBodyweight ? "Weight class hidden" : weightClassName) • \(profile.experienceLevel.rawValue)")
+                Text("\(profile.hideBodyweight ? "Weight class hidden" : weightClassName) • \(displayedExperienceLevel.rawValue)")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
                 HStack(spacing: 12) {
@@ -146,7 +146,7 @@ extension ProfileView {
                                 .font(.caption2.weight(.bold))
                                 .tracking(0.8)
                                 .foregroundStyle(Color.liftMuted)
-                            Text("\(Int(RankingCalculator.totalForUser(profile.id, lifts: appState.lifts))) lb")
+                            Text(profileTotalText)
                                 .font(.title2.weight(.bold))
                         }
                         Spacer()
@@ -189,7 +189,7 @@ extension ProfileView {
                     rankingMetric("Global", "Unranked", "Complete verified lifts", .liftGold)
                     rankingMetric("City", profile.hideCity ? "Hidden" : "Unranked", profile.hideCity ? "Location hidden" : profile.city, .liftBlue)
                     rankingMetric("State", profile.hideCity ? "Hidden" : "Unranked", profile.hideCity ? "Location hidden" : profile.state, .liftBlue)
-                    rankingMetric("Age group", profile.hideExactAge ? "Hidden" : "Top 9%", profile.hideExactAge ? "Age hidden" : profile.ageGroup, .liftGreen)
+                    rankingMetric("Age group", profile.hideExactAge ? "Hidden" : "Unranked", profile.hideExactAge ? "Age hidden" : profile.ageGroup, .liftGreen)
                 }
             }
         }
@@ -199,17 +199,28 @@ extension ProfileView {
         VStack(alignment: .leading, spacing: 10) {
             CompactSectionHeader(title: "Progress")
             LiftCard {
-                Chart(chartPoints) { point in
-                    LineMark(x: .value("Month", point.label), y: .value("Max", point.value))
-                        .foregroundStyle(Color.liftBlue)
-                    PointMark(x: .value("Month", point.label), y: .value("Max", point.value))
-                        .foregroundStyle(Color.liftGreen)
-                }
-                .frame(height: 190)
-                HStack {
-                    metric("30 days", "+5 lb")
-                    metric("90 days", "+20 lb")
-                    metric("1 year", "+65 lb")
+                if chartPoints.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("No strength history yet")
+                            .font(.headline.weight(.bold))
+                        Text("Submit verified lifts to build this progress chart.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 190, alignment: .leading)
+                } else {
+                    Chart(chartPoints) { point in
+                        LineMark(x: .value("Month", point.label), y: .value("Max", point.value))
+                            .foregroundStyle(Color.liftBlue)
+                        PointMark(x: .value("Month", point.label), y: .value("Max", point.value))
+                            .foregroundStyle(Color.liftGreen)
+                    }
+                    .frame(height: 190)
+                    HStack {
+                        metric("Lifts", "\(profileLifts.count)")
+                        metric("Best", bestSubmittedLiftText)
+                        metric("Latest", latestSubmittedLiftText)
+                    }
                 }
             }
         }
@@ -290,7 +301,7 @@ extension ProfileView {
             for: profile.bodyweightPounds,
             sexCategory: profile.sexCategory,
             classes: WeightClassCatalog.all
-        ) else { return "Open" }
+        ) else { return "Bodyweight needed" }
         return RankingFormatting.weightClassDisplayName(weightClass, preferredUnit: profile.preferredUnit)
     }
 
@@ -301,9 +312,19 @@ extension ProfileView {
         )
     }
 
+    var profileTotalText: String {
+        let totalPounds = RankingCalculator.totalForUser(profile.id, lifts: appState.lifts)
+        return RankingFormatting.threeLiftTotalText(totalPounds: totalPounds, preferredUnit: profile.preferredUnit)
+    }
+
+    var displayedExperienceLevel: ExperienceLevel {
+        guard isCurrentUser else { return profile.experienceLevel }
+        return appState.earnedExperienceLevel
+    }
+
     func liftValue(_ exerciseID: String) -> String {
         let best = RankingCalculator.bestLift(exerciseID: exerciseID, submissions: profileLifts)?.estimatedOneRepMax ?? 0
-        return "\(Int(best)) lb"
+        return RankingFormatting.threeLiftTotalText(totalPounds: best, preferredUnit: profile.preferredUnit)
     }
 
     func unlocked(_ achievement: Achievement) -> Bool {
@@ -362,13 +383,24 @@ extension ProfileView {
     }
 
     private var chartPoints: [ProfileChartPoint] {
-        [
-            ProfileChartPoint(label: "Jan", value: 405),
-            ProfileChartPoint(label: "Feb", value: 425),
-            ProfileChartPoint(label: "Mar", value: 455),
-            ProfileChartPoint(label: "Apr", value: 475),
-            ProfileChartPoint(label: "May", value: 485),
-            ProfileChartPoint(label: "Jun", value: 495)
-        ]
+        profileLifts
+            .sorted { $0.performedAt < $1.performedAt }
+            .suffix(6)
+            .map {
+                ProfileChartPoint(
+                    label: $0.performedAt.formatted(.dateTime.month(.abbreviated)),
+                    value: MeasurementFormatting.convert($0.estimatedOneRepMax, from: .kilograms, to: profile.preferredUnit)
+                )
+            }
+    }
+
+    private var bestSubmittedLiftText: String {
+        guard let best = profileLifts.max(by: { $0.estimatedOneRepMax < $1.estimatedOneRepMax }) else { return "—" }
+        return MeasurementFormatting.formatDisplayedWeight(best.estimatedOneRepMax, unit: profile.preferredUnit)
+    }
+
+    private var latestSubmittedLiftText: String {
+        guard let latest = profileLifts.max(by: { $0.performedAt < $1.performedAt }) else { return "—" }
+        return MeasurementFormatting.formatDisplayedWeight(latest.estimatedOneRepMax, unit: profile.preferredUnit)
     }
 }

@@ -39,7 +39,7 @@ final class MockProfileService: ProfileService {
             preferredUnit: profile.preferredUnit, birthDate: nil, sexCategory: profile.sexCategory,
             heightCentimeters: profile.heightInches * 2.54,
             bodyweightPounds: profile.bodyweightPounds, city: profile.city,
-            region: profile.state, countryCode: "US", yearsExperience: profile.yearsExperience,
+            region: profile.state, countryCode: "US", cityID: profile.cityID, yearsExperience: profile.yearsExperience,
             experienceLevel: profile.experienceLevel,
             privacy: ProfilePrivacySettings(
                 ageBandAudience: profile.hideExactAge ? .privateProfile : .publicProfile,
@@ -59,6 +59,7 @@ final class MockProfileService: ProfileService {
         profile.bodyweightPounds = draft.bodyweightPounds ?? profile.bodyweightPounds
         profile.city = draft.city
         profile.state = draft.region
+        profile.cityID = draft.cityID
         profile.yearsExperience = draft.yearsExperience ?? profile.yearsExperience
         profile.experienceLevel = draft.experienceLevel ?? profile.experienceLevel
         _ = try await updateProfile(profile)
@@ -85,6 +86,9 @@ final class MockProfileService: ProfileService {
             primaryGymName: profile.hideGym ? nil : profile.primaryGymName
         )
     }
+    func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String { avatarPath }
+    func downloadProfileAvatar(avatarPath: String) async throws -> ProfileAvatarDownload? { nil }
+    func removeProfileAvatar(avatarPath: String?) async throws {}
 }
 
 @MainActor
@@ -432,6 +436,9 @@ final class MockWorkoutSyncService: WorkoutSyncService {
     func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws {
         guard !snapshot.isSeededDemoData else { return }
         if !snapshots.contains(where: { $0.id == snapshot.id }) { snapshots.append(snapshot) }
+    }
+    func deleteCompletedWorkout(id: UUID) async throws {
+        snapshots.removeAll { $0.id == id }
     }
 }
 

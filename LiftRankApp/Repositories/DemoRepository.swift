@@ -32,6 +32,7 @@ final class DemoRepository: ObservableObject {
     @Published var completedWorkouts: [CompletedWorkout]
     @Published var pendingWorkoutPRSubmissions: [PendingWorkoutPRSubmission]
     @Published var pendingCompletedWorkoutUploads: [CompletedWorkoutSnapshot]
+    @Published var deletedCompletedWorkoutIDs: Set<UUID>
     @Published var workoutPlanSyncRevisions: [UUID: Int]
     @Published var workoutPlanLastSyncedPayloads: [UUID: Data]
     @Published var workoutPreferences: WorkoutPreferences
@@ -98,6 +99,7 @@ final class DemoRepository: ObservableObject {
         completedWorkouts = []
         pendingWorkoutPRSubmissions = []
         pendingCompletedWorkoutUploads = []
+        deletedCompletedWorkoutIDs = []
         workoutPlanSyncRevisions = [:]
         workoutPlanLastSyncedPayloads = [:]
         workoutPreferences = WorkoutPreferences()
@@ -160,6 +162,10 @@ final class DemoRepository: ObservableObject {
         activeWorkout = nil
         completedWorkouts = []
         pendingWorkoutPRSubmissions = []
+        pendingCompletedWorkoutUploads = []
+        deletedCompletedWorkoutIDs = []
+        workoutPlanSyncRevisions = [:]
+        workoutPlanLastSyncedPayloads = [:]
         workoutPreferences = WorkoutPreferences()
         workoutPlanProgressionSettings = []
         communityThreads = seededThreads
@@ -193,10 +199,20 @@ final class DemoRepository: ObservableObject {
     }
 
     func clearLocalUserData() {
+        currentProfile = MockData.emptyProfile
+        profiles.removeAll()
+        gyms.removeAll()
+        joinedGymIDs.removeAll()
+        lifts.removeAll()
+        challenges.removeAll()
+        activities.removeAll()
+        activityComments.removeAll()
+        notifications.removeAll()
         activeWorkout = nil
         completedWorkouts.removeAll()
         pendingWorkoutPRSubmissions.removeAll()
         pendingCompletedWorkoutUploads.removeAll()
+        deletedCompletedWorkoutIDs.removeAll()
         workoutPlanSyncRevisions.removeAll()
         workoutPlanLastSyncedPayloads.removeAll()
         workoutPlans.removeAll()
@@ -212,11 +228,24 @@ final class DemoRepository: ObservableObject {
         customTrainingExercises.removeAll()
         communityThreads.removeAll()
         communityThreadReplies.removeAll()
+        likedCommunityThreadIDs.removeAll()
+        communityReports.removeAll()
+        gymRequests.removeAll()
+        friendRequests.removeAll()
         forumPosts.removeAll()
         forumComments.removeAll()
+        forumCommunities.removeAll()
+        forumMemberships.removeAll()
+        forumJoinRequests.removeAll()
+        forumReports.removeAll()
+        forumModerationActions.removeAll()
+        forumNotifications.removeAll()
+        forumGlobalStaffUserIDs.removeAll()
         directMessages.removeAll()
         messageThreads.removeAll()
-        notifications.removeAll()
+        messageReports.removeAll()
+        achievementUnlocks.removeAll()
+        rankingHistory.removeAll()
         workoutPersistenceStore.reset()
         forumPersistenceStore.reset()
         removeForumMedia()
@@ -224,6 +253,10 @@ final class DemoRepository: ObservableObject {
 
     private func bindWorkoutPersistence() {
         let publishers: [AnyPublisher<Void, Never>] = [
+            $currentProfile.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $profiles.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $gyms.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $joinedGymIDs.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutPlans.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutPhases.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutWeeks.dropFirst().map { _ in () }.eraseToAnyPublisher(),
@@ -240,6 +273,7 @@ final class DemoRepository: ObservableObject {
             $completedWorkouts.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $pendingWorkoutPRSubmissions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $pendingCompletedWorkoutUploads.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $deletedCompletedWorkoutIDs.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutPlanSyncRevisions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutPlanLastSyncedPayloads.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutPreferences.dropFirst().map { _ in () }.eraseToAnyPublisher(),
@@ -257,6 +291,10 @@ final class DemoRepository: ObservableObject {
         workoutPersistenceStore.saveSnapshot(
             WorkoutPersistenceSnapshot(
                 schemaVersion: WorkoutPersistenceSnapshot.currentVersion,
+                currentProfile: currentProfile,
+                profiles: profiles,
+                gyms: gyms,
+                joinedGymIDs: joinedGymIDs,
                 plans: workoutPlans,
                 phases: workoutPhases,
                 weeks: workoutWeeks,
@@ -277,6 +315,7 @@ final class DemoRepository: ObservableObject {
                 achievementUnlocks: achievementUnlocks,
                 rankingHistory: rankingHistory,
                 pendingCompletedWorkoutUploads: pendingCompletedWorkoutUploads,
+                deletedCompletedWorkoutIDs: deletedCompletedWorkoutIDs,
                 workoutPlanSyncRevisions: workoutPlanSyncRevisions,
                 workoutPlanLastSyncedPayloads: workoutPlanLastSyncedPayloads
             )
@@ -286,6 +325,18 @@ final class DemoRepository: ObservableObject {
     private func restoreWorkoutSnapshotOrImportLegacy() {
         if let snapshot = workoutPersistenceStore.loadSnapshot() {
             isRestoringWorkoutSnapshot = true
+            if let restoredProfile = snapshot.currentProfile {
+                currentProfile = restoredProfile
+            }
+            if let restoredProfiles = snapshot.profiles, !restoredProfiles.isEmpty {
+                profiles = restoredProfiles
+            }
+            if let restoredGyms = snapshot.gyms {
+                gyms = restoredGyms
+            }
+            if let restoredJoinedGymIDs = snapshot.joinedGymIDs {
+                joinedGymIDs = restoredJoinedGymIDs
+            }
             workoutPlans = snapshot.plans
             workoutPhases = snapshot.phases
             workoutWeeks = snapshot.weeks
@@ -302,6 +353,7 @@ final class DemoRepository: ObservableObject {
             completedWorkouts = snapshot.completedWorkouts
             pendingWorkoutPRSubmissions = snapshot.pendingPRSubmissions
             pendingCompletedWorkoutUploads = snapshot.pendingCompletedWorkoutUploads ?? []
+            deletedCompletedWorkoutIDs = snapshot.deletedCompletedWorkoutIDs ?? []
             workoutPlanSyncRevisions = snapshot.workoutPlanSyncRevisions ?? [:]
             workoutPlanLastSyncedPayloads = snapshot.workoutPlanLastSyncedPayloads ?? [:]
             workoutPreferences = snapshot.preferences
@@ -323,15 +375,16 @@ final class DemoRepository: ObservableObject {
     }
 
     private func purgeSeededWorkoutData() {
-        let seededWorkoutIDs = Set(completedWorkouts.filter {
-            $0.notes.contains(Self.personalWorkoutDemoMarker) ||
-                $0.sourcePlanID == PersonalWorkoutPlanCatalog.planID ||
-                $0.notes == "Imported from previous workout history."
+        let bundledPlanIDs = Set(MockData.workoutPlans.map(\.id)).union([PersonalWorkoutPlanCatalog.planID])
+        let seededPlanIDs = Set(workoutPlans.filter { plan in
+            bundledPlanIDs.contains(plan.id) ||
+                plan.name.localizedCaseInsensitiveContains("Robert") ||
+                plan.name.localizedCaseInsensitiveContains("Hypertrophy")
         }.map(\.id))
-        let seededPlanIDs = Set(workoutPlans.filter {
-            $0.id == PersonalWorkoutPlanCatalog.planID ||
-                $0.name.localizedCaseInsensitiveContains("Robert") ||
-                $0.name.localizedCaseInsensitiveContains("Hypertrophy")
+        let seededWorkoutIDs = Set(completedWorkouts.filter { workout in
+            workout.notes.contains(Self.personalWorkoutDemoMarker) ||
+                workout.sourcePlanID.map { planID in seededPlanIDs.contains(planID) || bundledPlanIDs.contains(planID) } == true ||
+                workout.notes == "Imported from previous workout history."
         }.map(\.id))
         let seededWeekIDs = Set(workoutWeeks.filter { seededPlanIDs.contains($0.planID) }.map(\.id))
         let seededSessionIDs = Set(workoutSessions.filter {
