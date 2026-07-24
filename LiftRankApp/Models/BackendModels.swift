@@ -58,6 +58,7 @@ struct ProfileDraft: Equatable {
     var birthDate: Date?
     var sexCategory: SexCategory?
     var heightCentimeters: Double?
+    var bodyweightPounds: Double?
     var city: String
     var region: String
     var countryCode: String
@@ -78,6 +79,7 @@ struct AuthenticatedProfile: Equatable {
     var birthDate: Date?
     var sexCategory: SexCategory?
     var heightCentimeters: Double?
+    var bodyweightPounds: Double?
     var city: String?
     var region: String?
     var countryCode: String?

@@ -60,6 +60,7 @@ import { leaderboardSeed } from "./data";
 import { workoutProgramTemplates } from "./programTemplates";
 import { exerciseMatchesFilters, searchExercises } from "./exerciseSearch";
 import { BodyRegionGlyph } from "./ExerciseVisual";
+import { webFeatures } from "./featureAvailability";
 import { NotificationButton } from "./NotificationButton";
 import { RouteErrorBoundary } from "./RouteErrorBoundary";
 import { DemoExperience } from "./DemoExperience";
@@ -94,7 +95,7 @@ import type {
   WorkoutWeek
 } from "./types";
 
-const navItems = [
+const allNavItems = [
   { to: "/home", label: "Home", icon: House },
   { to: "/leaderboards", label: "Leaderboards", icon: Trophy },
   { to: "/today", label: "Track", icon: Dumbbell },
@@ -106,6 +107,11 @@ const navItems = [
   { to: "/profile", label: "Profile", icon: UserRound }
 ];
 
+const navItems = allNavItems.filter((item) => {
+  if (item.to === "/community") return webFeatures.community;
+  if (item.to === "/messages") return webFeatures.messaging;
+  return true;
+});
 const mobileNavItems = navItems.filter((item) => ["/home", "/leaderboards", "/today", "/community", "/profile"].includes(item.to));
 
 type LeaderboardColumnKey = "rank" | "athlete" | "exercise" | "gym" | "score" | "verification" | "trend";
@@ -200,13 +206,13 @@ function App() {
       <Route path="/leaderboards" element={<LeaderboardsPage />} />
       <Route path="/gyms" element={<GymsPage />} />
       <Route path="/gyms/:gymId" element={<GymDetailPage />} />
-      <Route path="/community" element={<CommunityPage />} />
-      <Route path="/community/groups/:groupId" element={<CommunityPage />} />
-      <Route path="/community/moderation" element={<ProtectedRoute><CommunityModerationPage /></ProtectedRoute>} />
-      <Route path="/community/:postId" element={<CommunityPostPage />} />
+      <Route path="/community" element={webFeatures.community ? <CommunityPage /> : <Navigate to="/home" replace />} />
+      <Route path="/community/groups/:groupId" element={webFeatures.community ? <CommunityPage /> : <Navigate to="/home" replace />} />
+      <Route path="/community/moderation" element={webFeatures.community ? <ProtectedRoute><CommunityModerationPage /></ProtectedRoute> : <Navigate to="/home" replace />} />
+      <Route path="/community/:postId" element={webFeatures.community ? <CommunityPostPage /> : <Navigate to="/home" replace />} />
       <Route path="/friends" element={<FriendsPage />} />
-      <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
-      <Route path="/messages/:threadId" element={<ProtectedRoute><MessageThreadPage /></ProtectedRoute>} />
+      <Route path="/messages" element={webFeatures.messaging ? <ProtectedRoute><MessagesPage /></ProtectedRoute> : <Navigate to="/home" replace />} />
+      <Route path="/messages/:threadId" element={webFeatures.messaging ? <ProtectedRoute><MessageThreadPage /></ProtectedRoute> : <Navigate to="/home" replace />} />
       <Route path="/profile" element={<PlatformProfilePage />} />
       <Route path="/profile/:userId" element={<PlatformProfilePage />} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
@@ -268,8 +274,8 @@ function TopBar() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const searchIndex = useMemo(() => [
-    ...state.trainingGroups.map((item) => ({ label: item.name, detail: "Training Group", to: `/community/groups/${item.id}`, text: `${item.name} ${item.description}` })),
-    ...state.communityPosts.filter((item) => item.kind !== "Workout").map((item) => ({ label: item.title, detail: item.kind, to: `/community/${item.id}`, text: `${item.title} ${item.body} ${item.trainingDetails?.programName ?? ""}` })),
+    ...(webFeatures.community ? state.trainingGroups.map((item) => ({ label: item.name, detail: "Training Group", to: `/community/groups/${item.id}`, text: `${item.name} ${item.description}` })) : []),
+    ...(webFeatures.community ? state.communityPosts.filter((item) => item.kind !== "Workout").map((item) => ({ label: item.title, detail: item.kind, to: `/community/${item.id}`, text: `${item.title} ${item.body} ${item.trainingDetails?.programName ?? ""}` })) : []),
     ...state.exercises.map((item) => ({ label: item.name, detail: "Exercise", to: `/library/${item.id}`, text: `${item.name} ${(item.searchAliases ?? []).join(" ")}` })),
     ...state.profiles.map((item) => ({ label: item.displayName, detail: item.discipline, to: `/profile/${item.id}`, text: `${item.displayName} ${item.handle} ${item.discipline}` }))
   ], [state.communityPosts, state.exercises, state.profiles, state.trainingGroups]);
@@ -277,7 +283,7 @@ function TopBar() {
   return (
     <header className="topbar">
       <div className="mobile-logo"><Logo /></div>
-      <div className="global-search"><Search size={18} /><input aria-label="Global search" placeholder="Search groups, posts, exercises, and members" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setQuery(""); if (event.key === "Enter" && results[0]) { navigate(results[0].to); setQuery(""); } }} />{results.length > 0 && <div className="global-search-results" role="listbox">{results.map((result) => <button key={`${result.to}-${result.label}`} onMouseDown={() => { navigate(result.to); setQuery(""); }}><strong>{result.label}</strong><small>{result.detail}</small></button>)}</div>}</div>
+      <div className="global-search"><Search size={18} /><input aria-label="Global search" placeholder={webFeatures.community ? "Search groups, posts, exercises, and members" : "Search exercises and athletes"} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setQuery(""); if (event.key === "Enter" && results[0]) { navigate(results[0].to); setQuery(""); } }} />{results.length > 0 && <div className="global-search-results" role="listbox">{results.map((result) => <button key={`${result.to}-${result.label}`} onMouseDown={() => { navigate(result.to); setQuery(""); }}><strong>{result.label}</strong><small>{result.detail}</small></button>)}</div>}</div>
       <div className="topbar-actions">
         {auth.user ? <><NotificationButton />
         <NavLink to="/profile" className="profile-pill" aria-label="Open profile">
@@ -369,7 +375,7 @@ function HomePage() {
       <PageHeader
         eyebrow="Athlete dashboard"
         title={`Welcome back, ${profile.displayName.split(" ")[0]}`}
-        description="Your training, strength, and community at a glance."
+        description="Your training and strength at a glance."
       />
       <section className="today-grid">
         <Card className="scheduled-card">
@@ -409,7 +415,7 @@ function HomePage() {
         <Card><strong>{completedThisWeek}</strong><span>Workouts in the last 7 days</span></Card>
         <Card><strong>{state.completedWorkouts.length}</strong><span>Completed workouts</span></Card>
         <Card><strong>{state.joinedGymIds.length}/3</strong><span>Joined gyms</span></Card>
-        <Card><strong>{state.joinedGroupIds.length}</strong><span>Training Groups followed</span></Card>
+        <Card><strong>{state.liftSubmissions.filter((lift) => lift.userId === state.currentUserId).length}</strong><span>Submitted lifts</span></Card>
       </div>
       <div className="home-dashboard-grid">
         <Card>
@@ -424,7 +430,7 @@ function HomePage() {
             <Link to="/today"><Dumbbell />Track workout</Link>
             <Link to="/submit"><Plus />Submit lift</Link>
             <Link to="/library"><LibraryBig />Exercise library</Link>
-            <Link to="/community"><Users />Community</Link>
+            {webFeatures.community && <Link to="/community"><Users />Community</Link>}
           </div>
         </Card>
         <Card>
@@ -435,10 +441,10 @@ function HomePage() {
           <SectionTitle title="Notifications" />
           {unreadNotifications.length ? <div className="home-highlight"><span className="icon-tile"><Activity /></span><span><strong>{unreadNotifications.length} unread</strong><small>{unreadNotifications[0].title} · {unreadNotifications[0].body}</small></span></div> : <p className="muted">You are caught up.</p>}
         </Card>
-        <Card>
+        {webFeatures.community && <Card>
           <SectionTitle title="Community highlight" action={<Link to="/community">Browse groups</Link>} />
           {communityHighlight ? <Link className="home-highlight" to={`/community/${communityHighlight.id}`}><span className="icon-tile"><Users /></span><span><strong>{communityHighlight.title}</strong><small>{communityHighlight.kind} · {state.comments.filter((comment) => comment.postId === communityHighlight.id).length} comments</small></span></Link> : <p className="muted">Join a Training Group to see discussions here.</p>}
-        </Card>
+        </Card>}
       </div>
     </div>
   );
@@ -1847,7 +1853,7 @@ function FinishDialog({ session, elapsed, onClose, onFinish }: { session: Workou
       {incompleteSets > 0 && <div className="incomplete-warning"><ShieldCheck size={18} /><span><strong>{incompleteSets} incomplete set{incompleteSets === 1 ? "" : "s"}</strong> will be left out of history and volume.</span></div>}
       <ChipField label="Workout difficulty" values={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]} value={effort} onChange={setEffort} />
       <label className="form-field"><span>Workout notes</span><textarea rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional notes about the session" /></label>
-      <label className="toggle-row"><input type="checkbox" checked={shared} onChange={(event) => setShared(event.target.checked)} /><span><strong>Share to Community</strong><small>Create a workout activity after saving.</small></span></label>
+      {webFeatures.community && <label className="toggle-row"><input type="checkbox" checked={shared} onChange={(event) => setShared(event.target.checked)} /><span><strong>Share to Community</strong><small>Create a workout activity after saving.</small></span></label>}
       <button className="primary-button large modal-primary" onClick={() => { dispatch({ type: "SAVE_WORKOUT_FEEDBACK", sessionId: session.id, effort, notes, shared }); onFinish(); }}><Check size={19} /> {incompleteSets ? `Finish with ${incompleteSets} incomplete` : "Save workout"}</button>
     </Modal>
   );

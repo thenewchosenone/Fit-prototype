@@ -15,7 +15,7 @@
 		100000000000000000000006 /* Services/MockServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000006 /* Services/MockServices.swift */; };
 		100000000000000000000007 /* Repositories/DemoRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000007 /* Repositories/DemoRepository.swift */; };
 		100000000000000000000008 /* ViewModels/AppViewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000008 /* ViewModels/AppViewModels.swift */; };
-		100000000000000000000009 /* Components/UIComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000009 /* Components/UIComponents.swift */; };
+		100000000000000000000009 /* Core/Media/MediaComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000009 /* Core/Media/MediaComponents.swift */; };
 		100000000000000000000010 /* Views/MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000010 /* Views/MainTabView.swift */; };
 		100000000000000000000011 /* Views/OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000011 /* Views/OnboardingView.swift */; };
 		100000000000000000000012 /* Views/HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000012 /* Views/HomeView.swift */; };
@@ -33,6 +33,8 @@
 		100000000000000000000024 /* MockData/WorkoutProgramCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000026 /* MockData/WorkoutProgramCatalog.swift */; };
 		100000000000000000000025 /* Models/BackendModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000027 /* Models/BackendModels.swift */; };
 		100000000000000000000026 /* Services/SupabaseServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000028 /* Services/SupabaseServices.swift */; };
+		100000000000000000000201 /* Services/SupabaseServices+Competition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000201 /* Services/SupabaseServices+Competition.swift */; };
+		100000000000000000000202 /* Services/SupabaseServices+Leaderboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000202 /* Services/SupabaseServices+Leaderboard.swift */; };
 		100000000000000000000027 /* Services/AppServiceContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000029 /* Services/AppServiceContainer.swift */; };
 		100000000000000000000028 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000001 /* Supabase */; };
 		100000000000000000000029 /* BackendFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000030 /* BackendFoundationTests.swift */; };
@@ -40,7 +42,131 @@
 		100000000000000000000031 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000032 /* Assets.xcassets */; };
 		100000000000000000000032 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000033 /* PrivacyInfo.xcprivacy */; };
 		100000000000000000000033 /* LiftRankUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000034 /* LiftRankUITests.swift */; };
-/* End PBXBuildFile section */
+		100000000000000000000034 /* Features/Training/Today/TrainingTodayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000037 /* Features/Training/Today/TrainingTodayView.swift */; };
+		100000000000000000000035 /* Features/Training/Plans/TrainingPlansView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000038 /* Features/Training/Plans/TrainingPlansView.swift */; };
+		100000000000000000000036 /* Features/Training/TrainingSharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000039 /* Features/Training/TrainingSharedComponents.swift */; };
+		100000000000000000000037 /* Features/Training/Plans/ProgramSessionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000040 /* Features/Training/Plans/ProgramSessionCard.swift */; };
+		100000000000000000000038 /* Features/Training/Plans/ProgramPlanDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000041 /* Features/Training/Plans/ProgramPlanDetailView.swift */; };
+		100000000000000000000039 /* Features/Training/Progress/WorkoutHistoryCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000042 /* Features/Training/Progress/WorkoutHistoryCalendar.swift */; };
+		100000000000000000000040 /* Features/Training/Progress/TrainingProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000043 /* Features/Training/Progress/TrainingProgressView.swift */; };
+		100000000000000000000041 /* Features/Training/Library/TrainingLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000044 /* Features/Training/Library/TrainingLibraryView.swift */; };
+		100000000000000000000042 /* Features/Training/Summary/WorkoutSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000045 /* Features/Training/Summary/WorkoutSummaryView.swift */; };
+		100000000000000000000043 /* Features/Training/CompletedWorkout/CompletedWorkoutDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000046 /* Features/Training/CompletedWorkout/CompletedWorkoutDetailView.swift */; };
+		100000000000000000000044 /* Features/Training/ActiveWorkout/ActiveWorkoutAddExercisePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000047 /* Features/Training/ActiveWorkout/ActiveWorkoutAddExercisePickerView.swift */; };
+		100000000000000000000045 /* Features/Training/ActiveWorkout/WorkoutSessionRunView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000048 /* Features/Training/ActiveWorkout/WorkoutSessionRunView.swift */; };
+		100000000000000000000046 /* Features/Training/ActiveWorkout/PrescriptionTrackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000049 /* Features/Training/ActiveWorkout/PrescriptionTrackView.swift */; };
+		100000000000000000000047 /* Features/Training/ActiveWorkout/WorkoutSetLogRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000050 /* Features/Training/ActiveWorkout/WorkoutSetLogRow.swift */; };
+		100000000000000000000048 /* Features/Training/ActiveWorkout/ActiveWorkoutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000051 /* Features/Training/ActiveWorkout/ActiveWorkoutStore.swift */; };
+		100000000000000000000049 /* Core/Notifications/WorkoutRestNotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000052 /* Core/Notifications/WorkoutRestNotificationScheduler.swift */; };
+		100000000000000000000050 /* Domain/Workouts/WorkoutPRDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000053 /* Domain/Workouts/WorkoutPRDetector.swift */; };
+		100000000000000000000051 /* Features/Training/Plans/ProgramStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000054 /* Features/Training/Plans/ProgramStore.swift */; };
+		100000000000000000000052 /* Features/Training/Progress/TrainingProgressStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000055 /* Features/Training/Progress/TrainingProgressStore.swift */; };
+		100000000000000000000053 /* Features/Training/Library/ExerciseLibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000056 /* Features/Training/Library/ExerciseLibraryStore.swift */; };
+		100000000000000000000054 /* Data/Supabase/SupabaseProfileMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000057 /* Data/Supabase/SupabaseProfileMapper.swift */; };
+		100000000000000000000055 /* Domain/Competition/WeightClassCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000058 /* Domain/Competition/WeightClassCatalog.swift */; };
+		100000000000000000000260 /* Domain/Competition/LeaderboardDomainModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000260 /* Domain/Competition/LeaderboardDomainModels.swift */; };
+		100000000000000000000320 /* Domain/Workouts/ExerciseDomainModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000317 /* Domain/Workouts/ExerciseDomainModels.swift */; };
+		100000000000000000000321 /* Domain/Workouts/WorkoutHistoryDomainModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000318 /* Domain/Workouts/WorkoutHistoryDomainModels.swift */; };
+		100000000000000000000322 /* Domain/Workouts/WorkoutDateHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000319 /* Domain/Workouts/WorkoutDateHelpers.swift */; };
+		100000000000000000000261 /* Domain/Workouts/TrainingHealthDomainModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000261 /* Domain/Workouts/TrainingHealthDomainModels.swift */; };
+		100000000000000000000262 /* Domain/Community/CommunityFeedDomainModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000262 /* Domain/Community/CommunityFeedDomainModels.swift */; };
+		100000000000000000000263 /* Domain/Workouts/ProgressDomainModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000263 /* Domain/Workouts/ProgressDomainModels.swift */; };
+		100000000000000000000264 /* Domain/Community/CommunityDomainModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000264 /* Domain/Community/CommunityDomainModels.swift */; };
+		100000000000000000000265 /* Domain/Notifications/NotificationDomainModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000265 /* Domain/Notifications/NotificationDomainModels.swift */; };
+		100000000000000000000266 /* Domain/Workouts/WorkoutProgramDomainModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000266 /* Domain/Workouts/WorkoutProgramDomainModels.swift */; };
+		100000000000000000000056 /* Features/Competition/CompetitionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000059 /* Features/Competition/CompetitionStore.swift */; };
+		100000000000000000000057 /* Features/Community/CommunityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000060 /* Features/Community/CommunityStore.swift */; };
+		100000000000000000000058 /* Features/Community/CommunityForumShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000061 /* Features/Community/CommunityForumShellView.swift */; };
+		100000000000000000000059 /* Features/Community/ForumHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000062 /* Features/Community/ForumHomeView.swift */; };
+		100000000000000000000060 /* Features/Community/ForumPostCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000063 /* Features/Community/ForumPostCard.swift */; };
+		100000000000000000000061 /* Features/Community/ForumExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000064 /* Features/Community/ForumExploreView.swift */; };
+		100000000000000000000062 /* Features/Community/ForumCommunityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000065 /* Features/Community/ForumCommunityDetailView.swift */; };
+		100000000000000000000063 /* Features/Community/ForumCollectionsInboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000066 /* Features/Community/ForumCollectionsInboxView.swift */; };
+		100000000000000000000064 /* Features/Community/ForumPostDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000067 /* Features/Community/ForumPostDetailView.swift */; };
+		100000000000000000000065 /* Features/Community/ForumModerationCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000068 /* Features/Community/ForumModerationCenterView.swift */; };
+		100000000000000000000066 /* Features/Community/ForumManagementSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000069 /* Features/Community/ForumManagementSheets.swift */; };
+		100000000000000000000067 /* Features/Community/ForumRichComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000070 /* Features/Community/ForumRichComposerView.swift */; };
+		100000000000000000000068 /* Features/Community/LegacyCommunityGymViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000071 /* Features/Community/LegacyCommunityGymViews.swift */; };
+		100000000000000000000069 /* Features/Community/DirectMessageThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000072 /* Features/Community/DirectMessageThreadView.swift */; };
+		100000000000000000000070 /* Features/Community/LegacyCommunityDetailViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000073 /* Features/Community/LegacyCommunityDetailViews.swift */; };
+		100000000000000000000071 /* Core/DesignSystem/NumericInputControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000074 /* Core/DesignSystem/NumericInputControls.swift */; };
+		100000000000000000000072 /* Core/DesignSystem/LiftButtonsAndEmptyStates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000075 /* Core/DesignSystem/LiftButtonsAndEmptyStates.swift */; };
+		100000000000000000000073 /* Core/DesignSystem/LiftSurfaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000076 /* Core/DesignSystem/LiftSurfaces.swift */; };
+		100000000000000000000074 /* Core/DesignSystem/LiftDesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000077 /* Core/DesignSystem/LiftDesignTokens.swift */; };
+		100000000000000000000108 /* Core/DesignSystem/FloatingTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000111 /* Core/DesignSystem/FloatingTabBar.swift */; };
+		100000000000000000000312 /* Core/DesignSystem/MeasurementFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000312 /* Core/DesignSystem/MeasurementFormatting.swift */; };
+		100000000000000000000313 /* Core/DesignSystem/RankingFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000313 /* Core/DesignSystem/RankingFormatting.swift */; };
+		100000000000000000000314 /* Domain/IdentityDomainModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000314 /* Domain/IdentityDomainModels.swift */; };
+		100000000000000000000075 /* Features/Profile/AppState+ProfileMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000078 /* Features/Profile/AppState+ProfileMedia.swift */; };
+		100000000000000000000076 /* Features/Training/Plans/AppState+TrainingPlans.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000079 /* Features/Training/Plans/AppState+TrainingPlans.swift */; };
+		100000000000000000000077 /* Features/Training/ActiveWorkout/AppState+ActiveWorkout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000080 /* Features/Training/ActiveWorkout/AppState+ActiveWorkout.swift */; };
+		100000000000000000000078 /* Features/Profile/AppState+Profile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000081 /* Features/Profile/AppState+Profile.swift */; };
+		100000000000000000000079 /* Features/Community/AppState+SocialMessaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000082 /* Features/Community/AppState+SocialMessaging.swift */; };
+		100000000000000000000080 /* Features/Community/AppState+Community.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000083 /* Features/Community/AppState+Community.swift */; };
+		100000000000000000000081 /* Features/Competition/AppState+Competition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000084 /* Features/Competition/AppState+Competition.swift */; };
+		100000000000000000000082 /* App/Session/SessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000085 /* App/Session/SessionStore.swift */; };
+		100000000000000000000083 /* Features/Profile/ProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000086 /* Features/Profile/ProfileStore.swift */; };
+		100000000000000000000084 /* App/Routing/NotificationRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000087 /* App/Routing/NotificationRoute.swift */; };
+		100000000000000000000085 /* Features/Notifications/NotificationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000088 /* Features/Notifications/NotificationStore.swift */; };
+		100000000000000000000086 /* App/Routing/AppRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000089 /* App/Routing/AppRouter.swift */; };
+		100000000000000000000087 /* App/Routing/AppState+Routing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000090 /* App/Routing/AppState+Routing.swift */; };
+		100000000000000000000088 /* Data/Local/WorkoutPersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000091 /* Data/Local/WorkoutPersistenceStore.swift */; };
+		100000000000000000000089 /* Data/Local/ForumPersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000092 /* Data/Local/ForumPersistenceStore.swift */; };
+		100000000000000000000090 /* Data/Demo/DemoCommunityRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000093 /* Data/Demo/DemoCommunityRepository.swift */; };
+		100000000000000000000091 /* Data/Demo/DemoCompetitionRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000094 /* Data/Demo/DemoCompetitionRepository.swift */; };
+		100000000000000000000092 /* Data/Demo/DemoProgramRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000095 /* Data/Demo/DemoProgramRepository.swift */; };
+		100000000000000000000093 /* Data/Demo/DemoWorkoutRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000096 /* Data/Demo/DemoWorkoutRepository.swift */; };
+		100000000000000000000094 /* Data/Demo/DemoExerciseRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000097 /* Data/Demo/DemoExerciseRepository.swift */; };
+		100000000000000000000095 /* Data/Demo/DemoTrainingProgressRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000098 /* Data/Demo/DemoTrainingProgressRepository.swift */; };
+		100000000000000000000096 /* Domain/Repositories/RepositoryProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000099 /* Domain/Repositories/RepositoryProtocols.swift */; };
+		100000000000000000000097 /* Data/Demo/DemoRepositoryConformances.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000100 /* Data/Demo/DemoRepositoryConformances.swift */; };
+		100000000000000000000098 /* Features/Community/SocialMessagingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000101 /* Features/Community/SocialMessagingStore.swift */; };
+		100000000000000000000099 /* Features/Training/Plans/WorkoutSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000102 /* Features/Training/Plans/WorkoutSyncStore.swift */; };
+		100000000000000000000100 /* Core/Media/WorkoutVideoStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000103 /* Core/Media/WorkoutVideoStore.swift */; };
+		100000000000000000000101 /* Features/Training/ActiveWorkout/WorkoutPRSubmissionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000104 /* Features/Training/ActiveWorkout/WorkoutPRSubmissionStore.swift */; };
+		100000000000000000000102 /* App/Account/AccountSocialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000105 /* App/Account/AccountSocialStore.swift */; };
+		100000000000000000000103 /* Core/Analytics/AnalyticsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000106 /* Core/Analytics/AnalyticsStore.swift */; };
+		100000000000000000000104 /* Features/Training/Plans/WorkoutProgramTemplateDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000107 /* Features/Training/Plans/WorkoutProgramTemplateDetailView.swift */; };
+		100000000000000000000105 /* Features/Training/Substitutes/SubstituteExerciseListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000108 /* Features/Training/Substitutes/SubstituteExerciseListView.swift */; };
+		100000000000000000000106 /* Features/Training/AppState+TrainingHealth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000109 /* Features/Training/AppState+TrainingHealth.swift */; };
+		100000000000000000000107 /* Features/Training/TrainingHealthEntryEditors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000110 /* Features/Training/TrainingHealthEntryEditors.swift */; };
+		100000000000000000000128 /* Features/Home/HomeOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000267 /* Features/Home/HomeOverlays.swift */; };
+		100000000000000000000129 /* Features/Home/HomeSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000268 /* Features/Home/HomeSections.swift */; };
+		100000000000000000000130 /* Features/Leaderboard/LeaderboardsViewSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000269 /* Features/Leaderboard/LeaderboardsViewSections.swift */; };
+		100000000000000000000131 /* Features/Profile/ProfileViewSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000270 /* Features/Profile/ProfileViewSections.swift */; };
+		100000000000000000000132 /* Features/Community/CommunitySections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000271 /* Features/Community/CommunitySections.swift */; };
+		100000000000000000000133 /* Features/TrainingTracker/TrainingTrackerView+Sections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000272 /* Features/TrainingTracker/TrainingTrackerView+Sections.swift */; };
+		100000000000000000000134 /* Features/TrainingTracker/TrainingTrackerPlateauCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000273 /* Features/TrainingTracker/TrainingTrackerPlateauCard.swift */; };
+		100000000000000000000135 /* Features/TrainingTracker/TrainingTrackerFeatureComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000274 /* Features/TrainingTracker/TrainingTrackerFeatureComponents.swift */; };
+		100000000000000000000136 /* Features/TrainingTracker/TrainingTrackerView+State.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000275 /* Features/TrainingTracker/TrainingTrackerView+State.swift */; };
+		100000000000000000000148 /* Features/TrainingTracker/TrainingTrackerForms.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000292 /* Features/TrainingTracker/TrainingTrackerForms.swift */; };
+		100000000000000000000149 /* Features/Training/Library/ExerciseLibraryPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000293 /* Features/Training/Library/ExerciseLibraryPresentation.swift */; };
+		100000000000000000000150 /* Features/Community/CommunityFeedModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000294 /* Features/Community/CommunityFeedModels.swift */; };
+		100000000000000000000151 /* Features/Home/HomeFeatureComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000295 /* Features/Home/HomeFeatureComponents.swift */; };
+		100000000000000000000152 /* Features/Leaderboard/LeaderboardRowAndFilters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000296 /* Features/Leaderboard/LeaderboardRowAndFilters.swift */; };
+		100000000000000000000153 /* Features/Profile/ProfileContentViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000297 /* Features/Profile/ProfileContentViews.swift */; };
+		100000000000000000000154 /* Features/TrainingTracker/TrainingTrackerLibraryComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000298 /* Features/TrainingTracker/TrainingTrackerLibraryComponents.swift */; };
+		100000000000000000000155 /* Features/Profile/ProfileLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000299 /* Features/Profile/ProfileLogic.swift */; };
+		100000000000000000000156 /* Features/Leaderboard/LeaderboardsLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000300 /* Features/Leaderboard/LeaderboardsLogic.swift */; };
+		100000000000000000000157 /* Features/Training/Library/ExerciseCatalogIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000301 /* Features/Training/Library/ExerciseCatalogIcon.swift */; };
+		100000000000000000000158 /* Features/Training/Library/ExerciseLibraryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000302 /* Features/Training/Library/ExerciseLibraryDetailView.swift */; };
+		100000000000000000000159 /* Features/Training/Library/ExerciseMuscleMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000303 /* Features/Training/Library/ExerciseMuscleMapView.swift */; };
+		100000000000000000000137 /* Services/SupabaseServiceSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000276 /* Services/SupabaseServiceSupport.swift */; };
+		100000000000000000000138 /* Services/SupabaseServices+Accounts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000277 /* Services/SupabaseServices+Accounts.swift */; };
+		100000000000000000000139 /* Services/SupabaseServices+Analytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000278 /* Services/SupabaseServices+Analytics.swift */; };
+		100000000000000000000140 /* Services/SupabaseServices+Community.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000279 /* Services/SupabaseServices+Community.swift */; };
+		100000000000000000000141 /* Services/SupabaseServices+Compliance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000281 /* Services/SupabaseServices+Compliance.swift */; };
+		100000000000000000000142 /* Services/SupabaseServices+MediaUpload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000283 /* Services/SupabaseServices+MediaUpload.swift */; };
+		100000000000000000000143 /* Services/SupabaseServices+Messaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000284 /* Services/SupabaseServices+Messaging.swift */; };
+		100000000000000000000144 /* Services/SupabaseServices+Notifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000285 /* Services/SupabaseServices+Notifications.swift */; };
+		100000000000000000000145 /* Services/SupabaseServices+Social.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000286 /* Services/SupabaseServices+Social.swift */; };
+		100000000000000000000146 /* Services/SupabaseServices+Verification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000287 /* Services/SupabaseServices+Verification.swift */; };
+		100000000000000000000147 /* Services/SupabaseServices+WorkoutSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000288 /* Services/SupabaseServices+WorkoutSync.swift */; };
+		100000000000000000000315 /* Services/SupabaseServices+ExerciseCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000289 /* Services/SupabaseServices+ExerciseCatalog.swift */; };
+		100000000000000000000316 /* Services/SupabaseServices+Gyms.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000290 /* Services/SupabaseServices+Gyms.swift */; };
+		100000000000000000000317 /* Services/SupabaseServices+Relationships.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000291 /* Services/SupabaseServices+Relationships.swift */; };
+		100000000000000000000323 /* WorkoutPresentationFormattingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000311 /* WorkoutPresentationFormattingTests.swift */; };
+		/* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
 		300000000000000000000001 /* PBXContainerItemProxy */ = {
@@ -68,7 +194,7 @@
 		200000000000000000000006 /* Services/MockServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/MockServices.swift; sourceTree = "<group>"; };
 		200000000000000000000007 /* Repositories/DemoRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repositories/DemoRepository.swift; sourceTree = "<group>"; };
 		200000000000000000000008 /* ViewModels/AppViewModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewModels/AppViewModels.swift; sourceTree = "<group>"; };
-		200000000000000000000009 /* Components/UIComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components/UIComponents.swift; sourceTree = "<group>"; };
+		200000000000000000000009 /* Core/Media/MediaComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Media/MediaComponents.swift; sourceTree = "<group>"; };
 		200000000000000000000010 /* Views/MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MainTabView.swift; sourceTree = "<group>"; };
 		200000000000000000000011 /* Views/OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/OnboardingView.swift; sourceTree = "<group>"; };
 		200000000000000000000012 /* Views/HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/HomeView.swift; sourceTree = "<group>"; };
@@ -88,6 +214,22 @@
 		200000000000000000000026 /* MockData/WorkoutProgramCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockData/WorkoutProgramCatalog.swift; sourceTree = "<group>"; };
 		200000000000000000000027 /* Models/BackendModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/BackendModels.swift; sourceTree = "<group>"; };
 		200000000000000000000028 /* Services/SupabaseServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/SupabaseServices.swift; sourceTree = "<group>"; };
+		200000000000000000000201 /* Services/SupabaseServices+Competition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+Competition.swift"; sourceTree = "<group>"; };
+		200000000000000000000202 /* Services/SupabaseServices+Leaderboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+Leaderboard.swift"; sourceTree = "<group>"; };
+		200000000000000000000276 /* Services/SupabaseServiceSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/SupabaseServiceSupport.swift; sourceTree = "<group>"; };
+		200000000000000000000277 /* Services/SupabaseServices+Accounts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+Accounts.swift"; sourceTree = "<group>"; };
+		200000000000000000000278 /* Services/SupabaseServices+Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+Analytics.swift"; sourceTree = "<group>"; };
+		200000000000000000000279 /* Services/SupabaseServices+Community.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+Community.swift"; sourceTree = "<group>"; };
+		200000000000000000000281 /* Services/SupabaseServices+Compliance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+Compliance.swift"; sourceTree = "<group>"; };
+		200000000000000000000283 /* Services/SupabaseServices+MediaUpload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+MediaUpload.swift"; sourceTree = "<group>"; };
+		200000000000000000000284 /* Services/SupabaseServices+Messaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+Messaging.swift"; sourceTree = "<group>"; };
+		200000000000000000000285 /* Services/SupabaseServices+Notifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+Notifications.swift"; sourceTree = "<group>"; };
+		200000000000000000000286 /* Services/SupabaseServices+Social.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+Social.swift"; sourceTree = "<group>"; };
+		200000000000000000000287 /* Services/SupabaseServices+Verification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+Verification.swift"; sourceTree = "<group>"; };
+		200000000000000000000288 /* Services/SupabaseServices+WorkoutSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+WorkoutSync.swift"; sourceTree = "<group>"; };
+		200000000000000000000289 /* Services/SupabaseServices+ExerciseCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+ExerciseCatalog.swift"; sourceTree = "<group>"; };
+		200000000000000000000290 /* Services/SupabaseServices+Gyms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+Gyms.swift"; sourceTree = "<group>"; };
+		200000000000000000000291 /* Services/SupabaseServices+Relationships.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+Relationships.swift"; sourceTree = "<group>"; };
 		200000000000000000000029 /* Services/AppServiceContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppServiceContainer.swift; sourceTree = "<group>"; };
 		200000000000000000000030 /* BackendFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendFoundationTests.swift; sourceTree = "<group>"; };
 		200000000000000000000031 /* Resources/DemoMedia */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Resources/DemoMedia; sourceTree = "<group>"; };
@@ -96,7 +238,117 @@
 		200000000000000000000034 /* LiftRankUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiftRankUITests.swift; sourceTree = "<group>"; };
 		200000000000000000000035 /* LiftRankUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LiftRankUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		200000000000000000000036 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-/* End PBXFileReference section */
+		200000000000000000000037 /* Features/Training/Today/TrainingTodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Today/TrainingTodayView.swift; sourceTree = "<group>"; };
+		200000000000000000000038 /* Features/Training/Plans/TrainingPlansView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Plans/TrainingPlansView.swift; sourceTree = "<group>"; };
+		200000000000000000000039 /* Features/Training/TrainingSharedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/TrainingSharedComponents.swift; sourceTree = "<group>"; };
+		200000000000000000000040 /* Features/Training/Plans/ProgramSessionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Plans/ProgramSessionCard.swift; sourceTree = "<group>"; };
+		200000000000000000000041 /* Features/Training/Plans/ProgramPlanDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Plans/ProgramPlanDetailView.swift; sourceTree = "<group>"; };
+		200000000000000000000042 /* Features/Training/Progress/WorkoutHistoryCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Progress/WorkoutHistoryCalendar.swift; sourceTree = "<group>"; };
+		200000000000000000000043 /* Features/Training/Progress/TrainingProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Progress/TrainingProgressView.swift; sourceTree = "<group>"; };
+		200000000000000000000044 /* Features/Training/Library/TrainingLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Library/TrainingLibraryView.swift; sourceTree = "<group>"; };
+		200000000000000000000045 /* Features/Training/Summary/WorkoutSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Summary/WorkoutSummaryView.swift; sourceTree = "<group>"; };
+		200000000000000000000046 /* Features/Training/CompletedWorkout/CompletedWorkoutDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/CompletedWorkout/CompletedWorkoutDetailView.swift; sourceTree = "<group>"; };
+		200000000000000000000047 /* Features/Training/ActiveWorkout/ActiveWorkoutAddExercisePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/ActiveWorkout/ActiveWorkoutAddExercisePickerView.swift; sourceTree = "<group>"; };
+		200000000000000000000048 /* Features/Training/ActiveWorkout/WorkoutSessionRunView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/ActiveWorkout/WorkoutSessionRunView.swift; sourceTree = "<group>"; };
+		200000000000000000000049 /* Features/Training/ActiveWorkout/PrescriptionTrackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/ActiveWorkout/PrescriptionTrackView.swift; sourceTree = "<group>"; };
+		200000000000000000000050 /* Features/Training/ActiveWorkout/WorkoutSetLogRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/ActiveWorkout/WorkoutSetLogRow.swift; sourceTree = "<group>"; };
+		200000000000000000000051 /* Features/Training/ActiveWorkout/ActiveWorkoutStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/ActiveWorkout/ActiveWorkoutStore.swift; sourceTree = "<group>"; };
+		200000000000000000000052 /* Core/Notifications/WorkoutRestNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Notifications/WorkoutRestNotificationScheduler.swift; sourceTree = "<group>"; };
+		200000000000000000000053 /* Domain/Workouts/WorkoutPRDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/Workouts/WorkoutPRDetector.swift; sourceTree = "<group>"; };
+		200000000000000000000054 /* Features/Training/Plans/ProgramStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Plans/ProgramStore.swift; sourceTree = "<group>"; };
+		200000000000000000000055 /* Features/Training/Progress/TrainingProgressStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Progress/TrainingProgressStore.swift; sourceTree = "<group>"; };
+		200000000000000000000056 /* Features/Training/Library/ExerciseLibraryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Library/ExerciseLibraryStore.swift; sourceTree = "<group>"; };
+		200000000000000000000057 /* Data/Supabase/SupabaseProfileMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Data/Supabase/SupabaseProfileMapper.swift; sourceTree = "<group>"; };
+		200000000000000000000058 /* Domain/Competition/WeightClassCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/Competition/WeightClassCatalog.swift; sourceTree = "<group>"; };
+		200000000000000000000260 /* Domain/Competition/LeaderboardDomainModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/Competition/LeaderboardDomainModels.swift; sourceTree = "<group>"; };
+		200000000000000000000261 /* Domain/Workouts/TrainingHealthDomainModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/Workouts/TrainingHealthDomainModels.swift; sourceTree = "<group>"; };
+		200000000000000000000262 /* Domain/Community/CommunityFeedDomainModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/Community/CommunityFeedDomainModels.swift; sourceTree = "<group>"; };
+		200000000000000000000263 /* Domain/Workouts/ProgressDomainModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/Workouts/ProgressDomainModels.swift; sourceTree = "<group>"; };
+		200000000000000000000317 /* Domain/Workouts/ExerciseDomainModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/Workouts/ExerciseDomainModels.swift; sourceTree = "<group>"; };
+		200000000000000000000318 /* Domain/Workouts/WorkoutHistoryDomainModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/Workouts/WorkoutHistoryDomainModels.swift; sourceTree = "<group>"; };
+		200000000000000000000319 /* Domain/Workouts/WorkoutDateHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/Workouts/WorkoutDateHelpers.swift; sourceTree = "<group>"; };
+		200000000000000000000264 /* Domain/Community/CommunityDomainModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/Community/CommunityDomainModels.swift; sourceTree = "<group>"; };
+		200000000000000000000265 /* Domain/Notifications/NotificationDomainModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/Notifications/NotificationDomainModels.swift; sourceTree = "<group>"; };
+		200000000000000000000266 /* Domain/Workouts/WorkoutProgramDomainModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/Workouts/WorkoutProgramDomainModels.swift; sourceTree = "<group>"; };
+		200000000000000000000267 /* Features/Home/HomeOverlays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Home/HomeOverlays.swift; sourceTree = "<group>"; };
+		200000000000000000000268 /* Features/Home/HomeSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Home/HomeSections.swift; sourceTree = "<group>"; };
+		200000000000000000000269 /* Features/Leaderboard/LeaderboardsViewSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Leaderboard/LeaderboardsViewSections.swift; sourceTree = "<group>"; };
+		200000000000000000000270 /* Features/Profile/ProfileViewSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Profile/ProfileViewSections.swift; sourceTree = "<group>"; };
+		200000000000000000000271 /* Features/Community/CommunitySections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/CommunitySections.swift; sourceTree = "<group>"; };
+		200000000000000000000272 /* Features/TrainingTracker/TrainingTrackerView+Sections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Features/TrainingTracker/TrainingTrackerView+Sections.swift"; sourceTree = "<group>"; };
+		200000000000000000000273 /* Features/TrainingTracker/TrainingTrackerPlateauCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/TrainingTracker/TrainingTrackerPlateauCard.swift; sourceTree = "<group>"; };
+		200000000000000000000274 /* Features/TrainingTracker/TrainingTrackerFeatureComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/TrainingTracker/TrainingTrackerFeatureComponents.swift; sourceTree = "<group>"; };
+		200000000000000000000275 /* Features/TrainingTracker/TrainingTrackerView+State.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Features/TrainingTracker/TrainingTrackerView+State.swift"; sourceTree = "<group>"; };
+		200000000000000000000292 /* Features/TrainingTracker/TrainingTrackerForms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/TrainingTracker/TrainingTrackerForms.swift; sourceTree = "<group>"; };
+		200000000000000000000293 /* Features/Training/Library/ExerciseLibraryPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Library/ExerciseLibraryPresentation.swift; sourceTree = "<group>"; };
+		200000000000000000000294 /* Features/Community/CommunityFeedModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/CommunityFeedModels.swift; sourceTree = "<group>"; };
+		200000000000000000000295 /* Features/Home/HomeFeatureComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Home/HomeFeatureComponents.swift; sourceTree = "<group>"; };
+		200000000000000000000296 /* Features/Leaderboard/LeaderboardRowAndFilters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Leaderboard/LeaderboardRowAndFilters.swift; sourceTree = "<group>"; };
+		200000000000000000000297 /* Features/Profile/ProfileContentViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Profile/ProfileContentViews.swift; sourceTree = "<group>"; };
+		200000000000000000000298 /* Features/TrainingTracker/TrainingTrackerLibraryComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/TrainingTracker/TrainingTrackerLibraryComponents.swift; sourceTree = "<group>"; };
+		200000000000000000000299 /* Features/Profile/ProfileLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Profile/ProfileLogic.swift; sourceTree = "<group>"; };
+		200000000000000000000300 /* Features/Leaderboard/LeaderboardsLogic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Leaderboard/LeaderboardsLogic.swift; sourceTree = "<group>"; };
+		200000000000000000000301 /* Features/Training/Library/ExerciseCatalogIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Library/ExerciseCatalogIcon.swift; sourceTree = "<group>"; };
+		200000000000000000000302 /* Features/Training/Library/ExerciseLibraryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Library/ExerciseLibraryDetailView.swift; sourceTree = "<group>"; };
+		200000000000000000000303 /* Features/Training/Library/ExerciseMuscleMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Library/ExerciseMuscleMapView.swift; sourceTree = "<group>"; };
+		200000000000000000000059 /* Features/Competition/CompetitionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Competition/CompetitionStore.swift; sourceTree = "<group>"; };
+		200000000000000000000060 /* Features/Community/CommunityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/CommunityStore.swift; sourceTree = "<group>"; };
+		200000000000000000000061 /* Features/Community/CommunityForumShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/CommunityForumShellView.swift; sourceTree = "<group>"; };
+		200000000000000000000062 /* Features/Community/ForumHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/ForumHomeView.swift; sourceTree = "<group>"; };
+		200000000000000000000063 /* Features/Community/ForumPostCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/ForumPostCard.swift; sourceTree = "<group>"; };
+		200000000000000000000064 /* Features/Community/ForumExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/ForumExploreView.swift; sourceTree = "<group>"; };
+		200000000000000000000065 /* Features/Community/ForumCommunityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/ForumCommunityDetailView.swift; sourceTree = "<group>"; };
+		200000000000000000000066 /* Features/Community/ForumCollectionsInboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/ForumCollectionsInboxView.swift; sourceTree = "<group>"; };
+		200000000000000000000067 /* Features/Community/ForumPostDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/ForumPostDetailView.swift; sourceTree = "<group>"; };
+		200000000000000000000068 /* Features/Community/ForumModerationCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/ForumModerationCenterView.swift; sourceTree = "<group>"; };
+		200000000000000000000069 /* Features/Community/ForumManagementSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/ForumManagementSheets.swift; sourceTree = "<group>"; };
+		200000000000000000000070 /* Features/Community/ForumRichComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/ForumRichComposerView.swift; sourceTree = "<group>"; };
+		200000000000000000000071 /* Features/Community/LegacyCommunityGymViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/LegacyCommunityGymViews.swift; sourceTree = "<group>"; };
+		200000000000000000000072 /* Features/Community/DirectMessageThreadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/DirectMessageThreadView.swift; sourceTree = "<group>"; };
+		200000000000000000000073 /* Features/Community/LegacyCommunityDetailViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/LegacyCommunityDetailViews.swift; sourceTree = "<group>"; };
+		200000000000000000000074 /* Core/DesignSystem/NumericInputControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DesignSystem/NumericInputControls.swift; sourceTree = "<group>"; };
+		200000000000000000000075 /* Core/DesignSystem/LiftButtonsAndEmptyStates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DesignSystem/LiftButtonsAndEmptyStates.swift; sourceTree = "<group>"; };
+		200000000000000000000076 /* Core/DesignSystem/LiftSurfaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DesignSystem/LiftSurfaces.swift; sourceTree = "<group>"; };
+		200000000000000000000077 /* Core/DesignSystem/LiftDesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DesignSystem/LiftDesignTokens.swift; sourceTree = "<group>"; };
+		200000000000000000000111 /* Core/DesignSystem/FloatingTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DesignSystem/FloatingTabBar.swift; sourceTree = "<group>"; };
+		200000000000000000000078 /* Features/Profile/AppState+ProfileMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Features/Profile/AppState+ProfileMedia.swift"; sourceTree = "<group>"; };
+		200000000000000000000079 /* Features/Training/Plans/AppState+TrainingPlans.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Features/Training/Plans/AppState+TrainingPlans.swift"; sourceTree = "<group>"; };
+		200000000000000000000080 /* Features/Training/ActiveWorkout/AppState+ActiveWorkout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Features/Training/ActiveWorkout/AppState+ActiveWorkout.swift"; sourceTree = "<group>"; };
+		200000000000000000000081 /* Features/Profile/AppState+Profile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Features/Profile/AppState+Profile.swift"; sourceTree = "<group>"; };
+		200000000000000000000082 /* Features/Community/AppState+SocialMessaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Features/Community/AppState+SocialMessaging.swift"; sourceTree = "<group>"; };
+		200000000000000000000083 /* Features/Community/AppState+Community.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Features/Community/AppState+Community.swift"; sourceTree = "<group>"; };
+		200000000000000000000084 /* Features/Competition/AppState+Competition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Features/Competition/AppState+Competition.swift"; sourceTree = "<group>"; };
+		200000000000000000000085 /* App/Session/SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/Session/SessionStore.swift; sourceTree = "<group>"; };
+		200000000000000000000086 /* Features/Profile/ProfileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Profile/ProfileStore.swift; sourceTree = "<group>"; };
+		200000000000000000000087 /* App/Routing/NotificationRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/Routing/NotificationRoute.swift; sourceTree = "<group>"; };
+		200000000000000000000088 /* Features/Notifications/NotificationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Notifications/NotificationStore.swift; sourceTree = "<group>"; };
+		200000000000000000000089 /* App/Routing/AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/Routing/AppRouter.swift; sourceTree = "<group>"; };
+		200000000000000000000090 /* App/Routing/AppState+Routing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/Routing/AppState+Routing.swift"; sourceTree = "<group>"; };
+		200000000000000000000091 /* Data/Local/WorkoutPersistenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Data/Local/WorkoutPersistenceStore.swift; sourceTree = "<group>"; };
+		200000000000000000000092 /* Data/Local/ForumPersistenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Data/Local/ForumPersistenceStore.swift; sourceTree = "<group>"; };
+		200000000000000000000093 /* Data/Demo/DemoCommunityRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Data/Demo/DemoCommunityRepository.swift; sourceTree = "<group>"; };
+		200000000000000000000094 /* Data/Demo/DemoCompetitionRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Data/Demo/DemoCompetitionRepository.swift; sourceTree = "<group>"; };
+		200000000000000000000095 /* Data/Demo/DemoProgramRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Data/Demo/DemoProgramRepository.swift; sourceTree = "<group>"; };
+		200000000000000000000096 /* Data/Demo/DemoWorkoutRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Data/Demo/DemoWorkoutRepository.swift; sourceTree = "<group>"; };
+		200000000000000000000097 /* Data/Demo/DemoExerciseRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Data/Demo/DemoExerciseRepository.swift; sourceTree = "<group>"; };
+		200000000000000000000098 /* Data/Demo/DemoTrainingProgressRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Data/Demo/DemoTrainingProgressRepository.swift; sourceTree = "<group>"; };
+		200000000000000000000099 /* Domain/Repositories/RepositoryProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/Repositories/RepositoryProtocols.swift; sourceTree = "<group>"; };
+		200000000000000000000100 /* Data/Demo/DemoRepositoryConformances.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Data/Demo/DemoRepositoryConformances.swift; sourceTree = "<group>"; };
+		200000000000000000000101 /* Features/Community/SocialMessagingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/SocialMessagingStore.swift; sourceTree = "<group>"; };
+		200000000000000000000102 /* Features/Training/Plans/WorkoutSyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Plans/WorkoutSyncStore.swift; sourceTree = "<group>"; };
+		200000000000000000000103 /* Core/Media/WorkoutVideoStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Media/WorkoutVideoStore.swift; sourceTree = "<group>"; };
+		200000000000000000000104 /* Features/Training/ActiveWorkout/WorkoutPRSubmissionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/ActiveWorkout/WorkoutPRSubmissionStore.swift; sourceTree = "<group>"; };
+		200000000000000000000105 /* App/Account/AccountSocialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/Account/AccountSocialStore.swift; sourceTree = "<group>"; };
+		200000000000000000000106 /* Core/Analytics/AnalyticsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Analytics/AnalyticsStore.swift; sourceTree = "<group>"; };
+		200000000000000000000107 /* Features/Training/Plans/WorkoutProgramTemplateDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Plans/WorkoutProgramTemplateDetailView.swift; sourceTree = "<group>"; };
+		200000000000000000000108 /* Features/Training/Substitutes/SubstituteExerciseListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Substitutes/SubstituteExerciseListView.swift; sourceTree = "<group>"; };
+		200000000000000000000109 /* Features/Training/AppState+TrainingHealth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Features/Training/AppState+TrainingHealth.swift"; sourceTree = "<group>"; };
+		200000000000000000000110 /* Features/Training/TrainingHealthEntryEditors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Features/Training/TrainingHealthEntryEditors.swift"; sourceTree = "<group>"; };
+		200000000000000000000312 /* Core/DesignSystem/MeasurementFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DesignSystem/MeasurementFormatting.swift; sourceTree = "<group>"; };
+		200000000000000000000313 /* Core/DesignSystem/RankingFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DesignSystem/RankingFormatting.swift; sourceTree = "<group>"; };
+		200000000000000000000314 /* Domain/IdentityDomainModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/IdentityDomainModels.swift; sourceTree = "<group>"; };
+		200000000000000000000311 /* WorkoutPresentationFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPresentationFormattingTests.swift; sourceTree = "<group>"; };
+		/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		400000000000000000000001 /* Frameworks */ = {
@@ -142,25 +394,150 @@
 				200000000000000000000027 /* Models/BackendModels.swift */,
 				200000000000000000000003 /* Utilities/RankingCalculator.swift */,
 				200000000000000000000004 /* MockData/MockData.swift */,
-				200000000000000000000005 /* Services/ServiceProtocols.swift */,
-				200000000000000000000006 /* Services/MockServices.swift */,
-				200000000000000000000028 /* Services/SupabaseServices.swift */,
-				200000000000000000000029 /* Services/AppServiceContainer.swift */,
-				200000000000000000000007 /* Repositories/DemoRepository.swift */,
-				200000000000000000000008 /* ViewModels/AppViewModels.swift */,
-				200000000000000000000009 /* Components/UIComponents.swift */,
+					200000000000000000000005 /* Services/ServiceProtocols.swift */,
+					200000000000000000000006 /* Services/MockServices.swift */,
+					200000000000000000000028 /* Services/SupabaseServices.swift */,
+					200000000000000000000201 /* Services/SupabaseServices+Competition.swift */,
+					200000000000000000000202 /* Services/SupabaseServices+Leaderboard.swift */,
+					200000000000000000000276 /* Services/SupabaseServiceSupport.swift */,
+					200000000000000000000277 /* Services/SupabaseServices+Accounts.swift */,
+					200000000000000000000278 /* Services/SupabaseServices+Analytics.swift */,
+					200000000000000000000279 /* Services/SupabaseServices+Community.swift */,
+					200000000000000000000289 /* Services/SupabaseServices+ExerciseCatalog.swift */,
+					200000000000000000000290 /* Services/SupabaseServices+Gyms.swift */,
+					200000000000000000000281 /* Services/SupabaseServices+Compliance.swift */,
+					200000000000000000000291 /* Services/SupabaseServices+Relationships.swift */,
+					200000000000000000000283 /* Services/SupabaseServices+MediaUpload.swift */,
+					200000000000000000000284 /* Services/SupabaseServices+Messaging.swift */,
+					200000000000000000000285 /* Services/SupabaseServices+Notifications.swift */,
+					200000000000000000000286 /* Services/SupabaseServices+Social.swift */,
+					200000000000000000000287 /* Services/SupabaseServices+Verification.swift */,
+					200000000000000000000288 /* Services/SupabaseServices+WorkoutSync.swift */,
+					200000000000000000000029 /* Services/AppServiceContainer.swift */,
+					200000000000000000000007 /* Repositories/DemoRepository.swift */,
+					200000000000000000000008 /* ViewModels/AppViewModels.swift */,
+				200000000000000000000009 /* Core/Media/MediaComponents.swift */,
+				200000000000000000000103 /* Core/Media/WorkoutVideoStore.swift */,
 				200000000000000000000025 /* Components/LeaderboardComponents.swift */,
-				200000000000000000000010 /* Views/MainTabView.swift */,
-				200000000000000000000011 /* Views/OnboardingView.swift */,
-				200000000000000000000012 /* Views/HomeView.swift */,
-				200000000000000000000013 /* Views/SubmitLiftView.swift */,
-				200000000000000000000014 /* Views/LeaderboardsView.swift */,
-				200000000000000000000015 /* Views/CommunityView.swift */,
-				200000000000000000000016 /* Views/ProfileView.swift */,
-				200000000000000000000017 /* Views/ModeratorReviewView.swift */,
-				200000000000000000000018 /* Views/SettingsView.swift */,
-				200000000000000000000022 /* Views/Previews.swift */,
-				200000000000000000000023 /* Views/TrainingTrackerView.swift */,
+					200000000000000000000010 /* Views/MainTabView.swift */,
+					200000000000000000000011 /* Views/OnboardingView.swift */,
+					200000000000000000000012 /* Views/HomeView.swift */,
+					200000000000000000000295 /* Features/Home/HomeFeatureComponents.swift */,
+					200000000000000000000267 /* Features/Home/HomeSections.swift */,
+					200000000000000000000268 /* Features/Home/HomeOverlays.swift */,
+					200000000000000000000013 /* Views/SubmitLiftView.swift */,
+					200000000000000000000014 /* Views/LeaderboardsView.swift */,
+					200000000000000000000269 /* Features/Leaderboard/LeaderboardsViewSections.swift */,
+					200000000000000000000296 /* Features/Leaderboard/LeaderboardRowAndFilters.swift */,
+					200000000000000000000300 /* Features/Leaderboard/LeaderboardsLogic.swift */,
+					200000000000000000000015 /* Views/CommunityView.swift */,
+					200000000000000000000271 /* Features/Community/CommunitySections.swift */,
+					200000000000000000000294 /* Features/Community/CommunityFeedModels.swift */,
+					200000000000000000000016 /* Views/ProfileView.swift */,
+					200000000000000000000270 /* Features/Profile/ProfileViewSections.swift */,
+					200000000000000000000297 /* Features/Profile/ProfileContentViews.swift */,
+					200000000000000000000299 /* Features/Profile/ProfileLogic.swift */,
+					200000000000000000000017 /* Views/ModeratorReviewView.swift */,
+					200000000000000000000018 /* Views/SettingsView.swift */,
+					200000000000000000000022 /* Views/Previews.swift */,
+					200000000000000000000023 /* Views/TrainingTrackerView.swift */,
+					200000000000000000000272 /* Features/TrainingTracker/TrainingTrackerView+Sections.swift */,
+					200000000000000000000273 /* Features/TrainingTracker/TrainingTrackerPlateauCard.swift */,
+					200000000000000000000274 /* Features/TrainingTracker/TrainingTrackerFeatureComponents.swift */,
+					200000000000000000000275 /* Features/TrainingTracker/TrainingTrackerView+State.swift */,
+					200000000000000000000292 /* Features/TrainingTracker/TrainingTrackerForms.swift */,
+					200000000000000000000298 /* Features/TrainingTracker/TrainingTrackerLibraryComponents.swift */,
+				200000000000000000000037 /* Features/Training/Today/TrainingTodayView.swift */,
+				200000000000000000000038 /* Features/Training/Plans/TrainingPlansView.swift */,
+				200000000000000000000039 /* Features/Training/TrainingSharedComponents.swift */,
+				200000000000000000000040 /* Features/Training/Plans/ProgramSessionCard.swift */,
+				200000000000000000000041 /* Features/Training/Plans/ProgramPlanDetailView.swift */,
+				200000000000000000000042 /* Features/Training/Progress/WorkoutHistoryCalendar.swift */,
+				200000000000000000000043 /* Features/Training/Progress/TrainingProgressView.swift */,
+				200000000000000000000044 /* Features/Training/Library/TrainingLibraryView.swift */,
+				200000000000000000000293 /* Features/Training/Library/ExerciseLibraryPresentation.swift */,
+				200000000000000000000301 /* Features/Training/Library/ExerciseCatalogIcon.swift */,
+				200000000000000000000302 /* Features/Training/Library/ExerciseLibraryDetailView.swift */,
+				200000000000000000000303 /* Features/Training/Library/ExerciseMuscleMapView.swift */,
+				200000000000000000000045 /* Features/Training/Summary/WorkoutSummaryView.swift */,
+				200000000000000000000046 /* Features/Training/CompletedWorkout/CompletedWorkoutDetailView.swift */,
+				200000000000000000000047 /* Features/Training/ActiveWorkout/ActiveWorkoutAddExercisePickerView.swift */,
+				200000000000000000000048 /* Features/Training/ActiveWorkout/WorkoutSessionRunView.swift */,
+				200000000000000000000049 /* Features/Training/ActiveWorkout/PrescriptionTrackView.swift */,
+				200000000000000000000050 /* Features/Training/ActiveWorkout/WorkoutSetLogRow.swift */,
+				200000000000000000000051 /* Features/Training/ActiveWorkout/ActiveWorkoutStore.swift */,
+				200000000000000000000104 /* Features/Training/ActiveWorkout/WorkoutPRSubmissionStore.swift */,
+				200000000000000000000052 /* Core/Notifications/WorkoutRestNotificationScheduler.swift */,
+				200000000000000000000053 /* Domain/Workouts/WorkoutPRDetector.swift */,
+				200000000000000000000317 /* Domain/Workouts/ExerciseDomainModels.swift */,
+				200000000000000000000318 /* Domain/Workouts/WorkoutHistoryDomainModels.swift */,
+				200000000000000000000319 /* Domain/Workouts/WorkoutDateHelpers.swift */,
+				200000000000000000000261 /* Domain/Workouts/TrainingHealthDomainModels.swift */,
+				200000000000000000000262 /* Domain/Community/CommunityFeedDomainModels.swift */,
+				200000000000000000000263 /* Domain/Workouts/ProgressDomainModels.swift */,
+				200000000000000000000264 /* Domain/Community/CommunityDomainModels.swift */,
+				200000000000000000000265 /* Domain/Notifications/NotificationDomainModels.swift */,
+				200000000000000000000266 /* Domain/Workouts/WorkoutProgramDomainModels.swift */,
+				200000000000000000000314 /* Domain/IdentityDomainModels.swift */,
+				200000000000000000000054 /* Features/Training/Plans/ProgramStore.swift */,
+				200000000000000000000055 /* Features/Training/Progress/TrainingProgressStore.swift */,
+				200000000000000000000056 /* Features/Training/Library/ExerciseLibraryStore.swift */,
+				200000000000000000000057 /* Data/Supabase/SupabaseProfileMapper.swift */,
+				200000000000000000000058 /* Domain/Competition/WeightClassCatalog.swift */,
+				200000000000000000000260 /* Domain/Competition/LeaderboardDomainModels.swift */,
+				200000000000000000000059 /* Features/Competition/CompetitionStore.swift */,
+				200000000000000000000060 /* Features/Community/CommunityStore.swift */,
+				200000000000000000000061 /* Features/Community/CommunityForumShellView.swift */,
+				200000000000000000000062 /* Features/Community/ForumHomeView.swift */,
+				200000000000000000000063 /* Features/Community/ForumPostCard.swift */,
+				200000000000000000000064 /* Features/Community/ForumExploreView.swift */,
+				200000000000000000000065 /* Features/Community/ForumCommunityDetailView.swift */,
+				200000000000000000000066 /* Features/Community/ForumCollectionsInboxView.swift */,
+				200000000000000000000067 /* Features/Community/ForumPostDetailView.swift */,
+				200000000000000000000068 /* Features/Community/ForumModerationCenterView.swift */,
+				200000000000000000000069 /* Features/Community/ForumManagementSheets.swift */,
+				200000000000000000000070 /* Features/Community/ForumRichComposerView.swift */,
+				200000000000000000000071 /* Features/Community/LegacyCommunityGymViews.swift */,
+				200000000000000000000072 /* Features/Community/DirectMessageThreadView.swift */,
+				200000000000000000000073 /* Features/Community/LegacyCommunityDetailViews.swift */,
+				200000000000000000000074 /* Core/DesignSystem/NumericInputControls.swift */,
+					200000000000000000000075 /* Core/DesignSystem/LiftButtonsAndEmptyStates.swift */,
+					200000000000000000000076 /* Core/DesignSystem/LiftSurfaces.swift */,
+					200000000000000000000077 /* Core/DesignSystem/LiftDesignTokens.swift */,
+					200000000000000000000111 /* Core/DesignSystem/FloatingTabBar.swift */,
+					200000000000000000000312 /* Core/DesignSystem/MeasurementFormatting.swift */,
+					200000000000000000000313 /* Core/DesignSystem/RankingFormatting.swift */,
+					200000000000000000000078 /* Features/Profile/AppState+ProfileMedia.swift */,
+					200000000000000000000109 /* Features/Training/AppState+TrainingHealth.swift */,
+					200000000000000000000079 /* Features/Training/Plans/AppState+TrainingPlans.swift */,
+					200000000000000000000080 /* Features/Training/ActiveWorkout/AppState+ActiveWorkout.swift */,
+					200000000000000000000110 /* Features/Training/TrainingHealthEntryEditors.swift */,
+					200000000000000000000081 /* Features/Profile/AppState+Profile.swift */,
+				200000000000000000000082 /* Features/Community/AppState+SocialMessaging.swift */,
+				200000000000000000000083 /* Features/Community/AppState+Community.swift */,
+				200000000000000000000084 /* Features/Competition/AppState+Competition.swift */,
+				200000000000000000000085 /* App/Session/SessionStore.swift */,
+				200000000000000000000105 /* App/Account/AccountSocialStore.swift */,
+				200000000000000000000106 /* Core/Analytics/AnalyticsStore.swift */,
+				200000000000000000000107 /* Features/Training/Plans/WorkoutProgramTemplateDetailView.swift */,
+				200000000000000000000108 /* Features/Training/Substitutes/SubstituteExerciseListView.swift */,
+				200000000000000000000086 /* Features/Profile/ProfileStore.swift */,
+				200000000000000000000087 /* App/Routing/NotificationRoute.swift */,
+				200000000000000000000088 /* Features/Notifications/NotificationStore.swift */,
+				200000000000000000000089 /* App/Routing/AppRouter.swift */,
+				200000000000000000000090 /* App/Routing/AppState+Routing.swift */,
+				200000000000000000000091 /* Data/Local/WorkoutPersistenceStore.swift */,
+				200000000000000000000092 /* Data/Local/ForumPersistenceStore.swift */,
+				200000000000000000000093 /* Data/Demo/DemoCommunityRepository.swift */,
+				200000000000000000000094 /* Data/Demo/DemoCompetitionRepository.swift */,
+				200000000000000000000095 /* Data/Demo/DemoProgramRepository.swift */,
+				200000000000000000000096 /* Data/Demo/DemoWorkoutRepository.swift */,
+				200000000000000000000097 /* Data/Demo/DemoExerciseRepository.swift */,
+				200000000000000000000098 /* Data/Demo/DemoTrainingProgressRepository.swift */,
+				200000000000000000000099 /* Domain/Repositories/RepositoryProtocols.swift */,
+				200000000000000000000100 /* Data/Demo/DemoRepositoryConformances.swift */,
+				200000000000000000000101 /* Features/Community/SocialMessagingStore.swift */,
+				200000000000000000000102 /* Features/Training/Plans/WorkoutSyncStore.swift */,
 				200000000000000000000024 /* MockData/PopularExerciseCatalog.swift */,
 				200000000000000000000026 /* MockData/WorkoutProgramCatalog.swift */,
 				200000000000000000000031 /* Resources/DemoMedia */,
@@ -174,9 +551,10 @@
 		500000000000000000000003 /* LiftRankTests */ = {
 			isa = PBXGroup;
 			children = (
-				200000000000000000000019 /* RankingCalculatorTests.swift */,
-				200000000000000000000030 /* BackendFoundationTests.swift */,
-			);
+			200000000000000000000019 /* RankingCalculatorTests.swift */,
+			200000000000000000000030 /* BackendFoundationTests.swift */,
+			200000000000000000000311 /* WorkoutPresentationFormattingTests.swift */,
+		);
 			path = LiftRankTests;
 			sourceTree = "<group>";
 		};
@@ -343,23 +721,148 @@
 				100000000000000000000006 /* Services/MockServices.swift in Sources */,
 				100000000000000000000007 /* Repositories/DemoRepository.swift in Sources */,
 				100000000000000000000008 /* ViewModels/AppViewModels.swift in Sources */,
-				100000000000000000000009 /* Components/UIComponents.swift in Sources */,
+				100000000000000000000009 /* Core/Media/MediaComponents.swift in Sources */,
 				100000000000000000000023 /* Components/LeaderboardComponents.swift in Sources */,
-				100000000000000000000024 /* MockData/WorkoutProgramCatalog.swift in Sources */,
-				100000000000000000000025 /* Models/BackendModels.swift in Sources */,
-				100000000000000000000026 /* Services/SupabaseServices.swift in Sources */,
-				100000000000000000000027 /* Services/AppServiceContainer.swift in Sources */,
-				100000000000000000000010 /* Views/MainTabView.swift in Sources */,
-				100000000000000000000011 /* Views/OnboardingView.swift in Sources */,
-				100000000000000000000012 /* Views/HomeView.swift in Sources */,
-				100000000000000000000013 /* Views/SubmitLiftView.swift in Sources */,
-				100000000000000000000014 /* Views/LeaderboardsView.swift in Sources */,
-				100000000000000000000015 /* Views/CommunityView.swift in Sources */,
-				100000000000000000000016 /* Views/ProfileView.swift in Sources */,
-				100000000000000000000017 /* Views/ModeratorReviewView.swift in Sources */,
-				100000000000000000000018 /* Views/SettingsView.swift in Sources */,
-				100000000000000000000020 /* Views/Previews.swift in Sources */,
-				100000000000000000000021 /* Views/TrainingTrackerView.swift in Sources */,
+					100000000000000000000024 /* MockData/WorkoutProgramCatalog.swift in Sources */,
+					100000000000000000000025 /* Models/BackendModels.swift in Sources */,
+					100000000000000000000026 /* Services/SupabaseServices.swift in Sources */,
+					100000000000000000000201 /* Services/SupabaseServices+Competition.swift in Sources */,
+					100000000000000000000202 /* Services/SupabaseServices+Leaderboard.swift in Sources */,
+					100000000000000000000137 /* Services/SupabaseServiceSupport.swift in Sources */,
+					100000000000000000000138 /* Services/SupabaseServices+Accounts.swift in Sources */,
+					100000000000000000000139 /* Services/SupabaseServices+Analytics.swift in Sources */,
+					100000000000000000000140 /* Services/SupabaseServices+Community.swift in Sources */,
+					100000000000000000000315 /* Services/SupabaseServices+ExerciseCatalog.swift in Sources */,
+					100000000000000000000316 /* Services/SupabaseServices+Gyms.swift in Sources */,
+					100000000000000000000141 /* Services/SupabaseServices+Compliance.swift in Sources */,
+					100000000000000000000317 /* Services/SupabaseServices+Relationships.swift in Sources */,
+					100000000000000000000142 /* Services/SupabaseServices+MediaUpload.swift in Sources */,
+					100000000000000000000143 /* Services/SupabaseServices+Messaging.swift in Sources */,
+					100000000000000000000144 /* Services/SupabaseServices+Notifications.swift in Sources */,
+					100000000000000000000145 /* Services/SupabaseServices+Social.swift in Sources */,
+					100000000000000000000146 /* Services/SupabaseServices+Verification.swift in Sources */,
+					100000000000000000000147 /* Services/SupabaseServices+WorkoutSync.swift in Sources */,
+					100000000000000000000027 /* Services/AppServiceContainer.swift in Sources */,
+					100000000000000000000010 /* Views/MainTabView.swift in Sources */,
+					100000000000000000000011 /* Views/OnboardingView.swift in Sources */,
+					100000000000000000000012 /* Views/HomeView.swift in Sources */,
+					100000000000000000000151 /* Features/Home/HomeFeatureComponents.swift in Sources */,
+					100000000000000000000128 /* Features/Home/HomeOverlays.swift in Sources */,
+					100000000000000000000129 /* Features/Home/HomeSections.swift in Sources */,
+					100000000000000000000013 /* Views/SubmitLiftView.swift in Sources */,
+					100000000000000000000014 /* Views/LeaderboardsView.swift in Sources */,
+					100000000000000000000130 /* Features/Leaderboard/LeaderboardsViewSections.swift in Sources */,
+					100000000000000000000152 /* Features/Leaderboard/LeaderboardRowAndFilters.swift in Sources */,
+					100000000000000000000156 /* Features/Leaderboard/LeaderboardsLogic.swift in Sources */,
+					100000000000000000000015 /* Views/CommunityView.swift in Sources */,
+					100000000000000000000132 /* Features/Community/CommunitySections.swift in Sources */,
+					100000000000000000000150 /* Features/Community/CommunityFeedModels.swift in Sources */,
+					100000000000000000000016 /* Views/ProfileView.swift in Sources */,
+					100000000000000000000131 /* Features/Profile/ProfileViewSections.swift in Sources */,
+					100000000000000000000153 /* Features/Profile/ProfileContentViews.swift in Sources */,
+					100000000000000000000155 /* Features/Profile/ProfileLogic.swift in Sources */,
+					100000000000000000000017 /* Views/ModeratorReviewView.swift in Sources */,
+					100000000000000000000018 /* Views/SettingsView.swift in Sources */,
+					100000000000000000000020 /* Views/Previews.swift in Sources */,
+					100000000000000000000021 /* Views/TrainingTrackerView.swift in Sources */,
+					100000000000000000000133 /* Features/TrainingTracker/TrainingTrackerView+Sections.swift in Sources */,
+					100000000000000000000134 /* Features/TrainingTracker/TrainingTrackerPlateauCard.swift in Sources */,
+					100000000000000000000135 /* Features/TrainingTracker/TrainingTrackerFeatureComponents.swift in Sources */,
+					100000000000000000000136 /* Features/TrainingTracker/TrainingTrackerView+State.swift in Sources */,
+					100000000000000000000148 /* Features/TrainingTracker/TrainingTrackerForms.swift in Sources */,
+					100000000000000000000154 /* Features/TrainingTracker/TrainingTrackerLibraryComponents.swift in Sources */,
+					100000000000000000000034 /* Features/Training/Today/TrainingTodayView.swift in Sources */,
+				100000000000000000000035 /* Features/Training/Plans/TrainingPlansView.swift in Sources */,
+				100000000000000000000036 /* Features/Training/TrainingSharedComponents.swift in Sources */,
+				100000000000000000000037 /* Features/Training/Plans/ProgramSessionCard.swift in Sources */,
+				100000000000000000000038 /* Features/Training/Plans/ProgramPlanDetailView.swift in Sources */,
+				100000000000000000000039 /* Features/Training/Progress/WorkoutHistoryCalendar.swift in Sources */,
+				100000000000000000000040 /* Features/Training/Progress/TrainingProgressView.swift in Sources */,
+				100000000000000000000041 /* Features/Training/Library/TrainingLibraryView.swift in Sources */,
+				100000000000000000000149 /* Features/Training/Library/ExerciseLibraryPresentation.swift in Sources */,
+				100000000000000000000157 /* Features/Training/Library/ExerciseCatalogIcon.swift in Sources */,
+				100000000000000000000158 /* Features/Training/Library/ExerciseLibraryDetailView.swift in Sources */,
+				100000000000000000000159 /* Features/Training/Library/ExerciseMuscleMapView.swift in Sources */,
+				100000000000000000000042 /* Features/Training/Summary/WorkoutSummaryView.swift in Sources */,
+				100000000000000000000043 /* Features/Training/CompletedWorkout/CompletedWorkoutDetailView.swift in Sources */,
+				100000000000000000000044 /* Features/Training/ActiveWorkout/ActiveWorkoutAddExercisePickerView.swift in Sources */,
+				100000000000000000000045 /* Features/Training/ActiveWorkout/WorkoutSessionRunView.swift in Sources */,
+				100000000000000000000046 /* Features/Training/ActiveWorkout/PrescriptionTrackView.swift in Sources */,
+				100000000000000000000047 /* Features/Training/ActiveWorkout/WorkoutSetLogRow.swift in Sources */,
+				100000000000000000000048 /* Features/Training/ActiveWorkout/ActiveWorkoutStore.swift in Sources */,
+				100000000000000000000049 /* Core/Notifications/WorkoutRestNotificationScheduler.swift in Sources */,
+				100000000000000000000050 /* Domain/Workouts/WorkoutPRDetector.swift in Sources */,
+				100000000000000000000051 /* Features/Training/Plans/ProgramStore.swift in Sources */,
+				100000000000000000000052 /* Features/Training/Progress/TrainingProgressStore.swift in Sources */,
+				100000000000000000000053 /* Features/Training/Library/ExerciseLibraryStore.swift in Sources */,
+				100000000000000000000054 /* Data/Supabase/SupabaseProfileMapper.swift in Sources */,
+				100000000000000000000055 /* Domain/Competition/WeightClassCatalog.swift in Sources */,
+				100000000000000000000260 /* Domain/Competition/LeaderboardDomainModels.swift in Sources */,
+				100000000000000000000320 /* Domain/Workouts/ExerciseDomainModels.swift in Sources */,
+				100000000000000000000321 /* Domain/Workouts/WorkoutHistoryDomainModels.swift in Sources */,
+				100000000000000000000322 /* Domain/Workouts/WorkoutDateHelpers.swift in Sources */,
+				100000000000000000000261 /* Domain/Workouts/TrainingHealthDomainModels.swift in Sources */,
+				100000000000000000000262 /* Domain/Community/CommunityFeedDomainModels.swift in Sources */,
+				100000000000000000000263 /* Domain/Workouts/ProgressDomainModels.swift in Sources */,
+				100000000000000000000264 /* Domain/Community/CommunityDomainModels.swift in Sources */,
+				100000000000000000000265 /* Domain/Notifications/NotificationDomainModels.swift in Sources */,
+				100000000000000000000266 /* Domain/Workouts/WorkoutProgramDomainModels.swift in Sources */,
+				100000000000000000000314 /* Domain/IdentityDomainModels.swift in Sources */,
+				100000000000000000000056 /* Features/Competition/CompetitionStore.swift in Sources */,
+				100000000000000000000057 /* Features/Community/CommunityStore.swift in Sources */,
+				100000000000000000000058 /* Features/Community/CommunityForumShellView.swift in Sources */,
+				100000000000000000000059 /* Features/Community/ForumHomeView.swift in Sources */,
+				100000000000000000000060 /* Features/Community/ForumPostCard.swift in Sources */,
+				100000000000000000000061 /* Features/Community/ForumExploreView.swift in Sources */,
+				100000000000000000000062 /* Features/Community/ForumCommunityDetailView.swift in Sources */,
+				100000000000000000000063 /* Features/Community/ForumCollectionsInboxView.swift in Sources */,
+				100000000000000000000064 /* Features/Community/ForumPostDetailView.swift in Sources */,
+				100000000000000000000065 /* Features/Community/ForumModerationCenterView.swift in Sources */,
+				100000000000000000000066 /* Features/Community/ForumManagementSheets.swift in Sources */,
+				100000000000000000000067 /* Features/Community/ForumRichComposerView.swift in Sources */,
+				100000000000000000000068 /* Features/Community/LegacyCommunityGymViews.swift in Sources */,
+				100000000000000000000069 /* Features/Community/DirectMessageThreadView.swift in Sources */,
+				100000000000000000000070 /* Features/Community/LegacyCommunityDetailViews.swift in Sources */,
+				100000000000000000000071 /* Core/DesignSystem/NumericInputControls.swift in Sources */,
+					100000000000000000000072 /* Core/DesignSystem/LiftButtonsAndEmptyStates.swift in Sources */,
+					100000000000000000000073 /* Core/DesignSystem/LiftSurfaces.swift in Sources */,
+					100000000000000000000074 /* Core/DesignSystem/LiftDesignTokens.swift in Sources */,
+					100000000000000000000108 /* Core/DesignSystem/FloatingTabBar.swift in Sources */,
+					100000000000000000000312 /* Core/DesignSystem/MeasurementFormatting.swift in Sources */,
+					100000000000000000000313 /* Core/DesignSystem/RankingFormatting.swift in Sources */,
+					100000000000000000000075 /* Features/Profile/AppState+ProfileMedia.swift in Sources */,
+					100000000000000000000076 /* Features/Training/Plans/AppState+TrainingPlans.swift in Sources */,
+					100000000000000000000077 /* Features/Training/ActiveWorkout/AppState+ActiveWorkout.swift in Sources */,
+					100000000000000000000107 /* Features/Training/TrainingHealthEntryEditors.swift in Sources */,
+					100000000000000000000106 /* Features/Training/AppState+TrainingHealth.swift in Sources */,
+					100000000000000000000078 /* Features/Profile/AppState+Profile.swift in Sources */,
+				100000000000000000000079 /* Features/Community/AppState+SocialMessaging.swift in Sources */,
+				100000000000000000000080 /* Features/Community/AppState+Community.swift in Sources */,
+				100000000000000000000081 /* Features/Competition/AppState+Competition.swift in Sources */,
+				100000000000000000000082 /* App/Session/SessionStore.swift in Sources */,
+				100000000000000000000083 /* Features/Profile/ProfileStore.swift in Sources */,
+				100000000000000000000084 /* App/Routing/NotificationRoute.swift in Sources */,
+				100000000000000000000085 /* Features/Notifications/NotificationStore.swift in Sources */,
+				100000000000000000000086 /* App/Routing/AppRouter.swift in Sources */,
+				100000000000000000000087 /* App/Routing/AppState+Routing.swift in Sources */,
+				100000000000000000000088 /* Data/Local/WorkoutPersistenceStore.swift in Sources */,
+				100000000000000000000089 /* Data/Local/ForumPersistenceStore.swift in Sources */,
+				100000000000000000000090 /* Data/Demo/DemoCommunityRepository.swift in Sources */,
+				100000000000000000000091 /* Data/Demo/DemoCompetitionRepository.swift in Sources */,
+				100000000000000000000092 /* Data/Demo/DemoProgramRepository.swift in Sources */,
+				100000000000000000000093 /* Data/Demo/DemoWorkoutRepository.swift in Sources */,
+				100000000000000000000094 /* Data/Demo/DemoExerciseRepository.swift in Sources */,
+				100000000000000000000095 /* Data/Demo/DemoTrainingProgressRepository.swift in Sources */,
+				100000000000000000000096 /* Domain/Repositories/RepositoryProtocols.swift in Sources */,
+				100000000000000000000097 /* Data/Demo/DemoRepositoryConformances.swift in Sources */,
+				100000000000000000000098 /* Features/Community/SocialMessagingStore.swift in Sources */,
+				100000000000000000000099 /* Features/Training/Plans/WorkoutSyncStore.swift in Sources */,
+				100000000000000000000100 /* Core/Media/WorkoutVideoStore.swift in Sources */,
+				100000000000000000000101 /* Features/Training/ActiveWorkout/WorkoutPRSubmissionStore.swift in Sources */,
+				100000000000000000000102 /* App/Account/AccountSocialStore.swift in Sources */,
+				100000000000000000000103 /* Core/Analytics/AnalyticsStore.swift in Sources */,
+				100000000000000000000104 /* Features/Training/Plans/WorkoutProgramTemplateDetailView.swift in Sources */,
+				100000000000000000000105 /* Features/Training/Substitutes/SubstituteExerciseListView.swift in Sources */,
 				100000000000000000000022 /* MockData/PopularExerciseCatalog.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -368,9 +871,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				100000000000000000000019 /* RankingCalculatorTests.swift in Sources */,
-				100000000000000000000029 /* BackendFoundationTests.swift in Sources */,
-			);
+					100000000000000000000019 /* RankingCalculatorTests.swift in Sources */,
+					100000000000000000000029 /* BackendFoundationTests.swift in Sources */,
+					100000000000000000000323 /* WorkoutPresentationFormattingTests.swift in Sources */,
+				);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		600000000000000000000005 /* Sources */ = {
@@ -517,7 +1021,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = LiftRankApp/LiftRank.entitlements;
+				CODE_SIGN_ENTITLEMENTS = LiftRankApp/LiftRankDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -525,6 +1029,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LiftRankApp/Info.plist;
+				APS_ENVIRONMENT = development;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -555,6 +1060,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LiftRankApp/Info.plist;
+				APS_ENVIRONMENT = production;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -564,8 +1070,8 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.liftrank.app;
 				PRODUCT_NAME = LiftRank;
 				LIFTRANK_BACKEND_ENVIRONMENT = production;
-				LIFTRANK_SUPABASE_ANON_KEY = "";
-				LIFTRANK_SUPABASE_URL = "";
+				LIFTRANK_SUPABASE_ANON_KEY = "sb_publishable_YpotEpinEWsC2dI7FIKI";
+				LIFTRANK_SUPABASE_URL = "https://ikjgbsrlriqiusuvezco.supabase.co";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;

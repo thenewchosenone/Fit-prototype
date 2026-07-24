@@ -43,3 +43,36 @@ import SwiftUI
         .environmentObject(AppState())
         .preferredColorScheme(.dark)
 }
+
+#Preview("Anatomy Matrix") {
+    AnatomyPreviewMatrix()
+        .preferredColorScheme(.dark)
+}
+
+private struct AnatomyPreviewMatrix: View {
+    private let profiles: [(String, ExerciseMuscleProfile)] = [
+        ("Chest", .init(primary: [.chest], secondary: [.frontDelts, .triceps], orientation: .front)),
+        ("Back", .init(primary: [.lats, .upperBack], secondary: [.rearDelts, .biceps], orientation: .back)),
+        ("Core", .init(primary: [.abs, .obliques], secondary: [], orientation: .front)),
+        ("Glutes", .init(primary: [.glutes], secondary: [.hamstrings], orientation: .back)),
+        ("Quads", .init(primary: [.quads], secondary: [.glutes, .adductors], orientation: .split)),
+        ("Full body", .init(primary: [.fullBody], secondary: [], orientation: .split))
+    ]
+
+    var body: some View {
+        ScrollView {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                ForEach(profiles, id: \.0) { name, profile in
+                    VStack(spacing: 8) {
+                        ExerciseMuscleMap(profile: profile)
+                            .frame(height: 190)
+                        Text(name)
+                            .font(.caption.weight(.bold))
+                    }
+                }
+            }
+            .padding()
+        }
+        .background(Color.liftBackground)
+    }
+}

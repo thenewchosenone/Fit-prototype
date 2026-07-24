@@ -5,116 +5,117 @@ import SwiftUI
 
 struct MainTabView: View {
     @EnvironmentObject private var appState: AppState
+    @ObservedObject var router: AppRouter
 
     var body: some View {
-        TabView(selection: $appState.selectedTab) {
-            NavigationStack {
-                HomeView()
+        ZStack(alignment: .bottom) {
+            Group {
+                switch router.selectedTab {
+                case .home:
+                    NavigationStack { HomeView() }
+                case .leaderboards:
+                    NavigationStack { LeaderboardsView() }
+                case .track:
+                    TrainingTrackerView(
+                        startOnProgress: appState.trainingTrackerStartOnProgress,
+                        isEmbeddedInTab: true
+                    )
+                case .community:
+                    NavigationStack(path: $router.communityPath) {
+                        CommunityView()
+                    }
+                case .profile:
+                    NavigationStack { MeHubView() }
+                }
             }
-            .tabItem { Label("Home", systemImage: "house.fill") }
-            .tag(0)
-
-            NavigationStack {
-                LeaderboardsView()
+            .ignoresSafeArea(.keyboard)
+            .safeAreaInset(edge: .bottom) {
+                FloatingTabBar(
+                    selection: $router.selectedTab,
+                    items: tabItems,
+                    utilityAction: {
+                        appState.showingSubmitSheet = true
+                    }
+                )
+                .padding(.bottom, 12)
             }
-            .tabItem { Label("Leaderboards", systemImage: "list.number") }
-            .tag(1)
-
-            TrainingTrackerView(
-                startOnProgress: appState.trainingTrackerStartOnProgress,
-                isEmbeddedInTab: true
-            )
-            .tabItem { Label("Track", systemImage: "dumbbell.fill") }
-            .tag(2)
-
-            NavigationStack(path: $appState.communityPath) {
-                CommunityView()
+        }
+        .tint(Color.liftLime)
+        .sheet(item: $router.sheet) { destination in
+            appSheet(destination)
+        }
+        .fullScreenCover(item: $router.cover, onDismiss: {
+            appState.clearForumComposerPreset()
+        }) { destination in
+            switch destination {
+            case .authentication:
+                AuthenticationView().environmentObject(appState)
+            case .forumComposer:
+                if appState.features.forums {
+                    ForumRichComposerView().environmentObject(appState)
+                } else {
+                    EmptyView()
+                }
             }
-            .tabItem { Label("Community", systemImage: "person.3.fill") }
-            .tag(3)
+        }
+    }
 
-            NavigationStack {
-                MeHubView()
+    private var tabItems: [FloatingTabItem] {
+        var items: [FloatingTabItem] = [
+            .init(tab: .home, icon: "house.fill", title: "Home", isUtility: false),
+            .init(tab: .leaderboards, icon: "trophy.fill", title: "Ranks", isUtility: false),
+            .init(tab: .track, icon: "dumbbell.fill", title: "Track", isUtility: false),
+        ]
+
+        if appState.features.communities || appState.features.forums || appState.features.messaging {
+            items.append(.init(tab: .community, icon: "person.3.fill", title: "Community", isUtility: false))
+        }
+
+        items.append(.init(tab: .profile, icon: "person.crop.circle.fill", title: "Me", isUtility: false))
+
+        let middle = items.count / 2
+        items.insert(.init(tab: nil, icon: "plus", title: "Quick log", isUtility: true), at: middle)
+        return items
+    }
+
+    @ViewBuilder
+    private func appSheet(_ destination: AppSheet) -> some View {
+        switch destination {
+        case .submitLift:
+            SubmitLiftView().environmentObject(appState).presentationDetents([.large])
+        case .leaderboardFilters:
+            LeaderboardFiltersView().environmentObject(appState).presentationDetents([.medium, .large])
+        case .editProfile:
+            EditProfileView().environmentObject(appState).presentationDetents([.large])
+        case .moderatorReview:
+            ModeratorReviewView().environmentObject(appState)
+        case .settings:
+            SettingsView().environmentObject(appState)
+        case .createThread:
+            if appState.features.forums {
+                CreateThreadView().environmentObject(appState).presentationDetents([.medium, .large])
             }
-            .tabItem { Label("Me", systemImage: "person.crop.circle.fill") }
-            .tag(4)
-        }
-        .tint(Color.liftBlue)
-        .toolbarBackground(Color.liftCard, for: .tabBar)
-        .toolbarBackground(.visible, for: .tabBar)
-        .sheet(isPresented: $appState.showingSubmitSheet) {
-            SubmitLiftView()
-                .environmentObject(appState)
-                .presentationDetents([.large])
-        }
-        .sheet(isPresented: $appState.showingLeaderboardFilters) {
-            LeaderboardFiltersView()
-                .environmentObject(appState)
-                .presentationDetents([.medium, .large])
-        }
-        .sheet(isPresented: $appState.showingEditProfile) {
-            EditProfileView()
-                .environmentObject(appState)
-                .presentationDetents([.large])
-        }
-        .sheet(isPresented: $appState.showingModeratorReview) {
-            ModeratorReviewView()
-                .environmentObject(appState)
-        }
-        .sheet(isPresented: $appState.showingSettings) {
-            SettingsView()
-                .environmentObject(appState)
-        }
-        .sheet(isPresented: $appState.showingCreateThread) {
-            CreateThreadView()
-                .environmentObject(appState)
-                .presentationDetents([.medium, .large])
-        }
-        .sheet(isPresented: $appState.showingRequestGym) {
-            RequestGymView()
-                .environmentObject(appState)
-                .presentationDetents([.medium])
-        }
-        .sheet(isPresented: $appState.showingReportLift) {
-            ReportLiftView()
-                .presentationDetents([.medium])
-        }
-        .sheet(item: $appState.selectedProfile) { profile in
+        case .requestGym:
+            RequestGymView().environmentObject(appState).presentationDetents([.medium])
+        case .reportLift:
+            ReportLiftView().presentationDetents([.medium])
+        case .profile(let profile):
             NavigationStack {
                 ProfileView(profile: profile, isCurrentUser: profile.id == appState.currentProfile.id)
             }
             .environmentObject(appState)
-        }
-        .sheet(item: $appState.selectedGym) { gym in
-            NavigationStack {
-                GymDetailView(gym: gym)
+        case .gym(let gym):
+            NavigationStack { GymDetailView(gym: gym) }.environmentObject(appState)
+        case .messageThread(let thread):
+            if appState.features.messaging {
+                DirectMessageThreadView(thread: thread).environmentObject(appState).presentationDetents([.large])
             }
-            .environmentObject(appState)
-        }
-        .sheet(item: $appState.selectedMessageThread) { thread in
-            DirectMessageThreadView(thread: thread)
-                .environmentObject(appState)
-                .presentationDetents([.large])
-        }
-        .sheet(item: $appState.selectedCommunityThread) { thread in
-            CommunityThreadDetailView(thread: thread)
-                .environmentObject(appState)
-                .presentationDetents([.large])
-        }
-        .sheet(item: $appState.selectedActivity) { activity in
-            ActivityDetailView(activity: activity)
-                .environmentObject(appState)
-                .presentationDetents([.large])
-        }
-        .fullScreenCover(isPresented: $appState.showingAuthentication) {
-            AuthenticationView()
-                .environmentObject(appState)
-        }
-        .fullScreenCover(isPresented: $appState.showingForumComposer, onDismiss: {
-            appState.clearForumComposerPreset()
-        }) {
-            ForumRichComposerView()
-                .environmentObject(appState)
+        case .communityThread(let thread):
+            if appState.features.forums {
+                CommunityThreadDetailView(thread: thread).environmentObject(appState).presentationDetents([.large])
+            }
+        case .activity(let activity):
+            ActivityDetailView(activity: activity).environmentObject(appState).presentationDetents([.large])
         }
     }
 }
@@ -150,6 +151,8 @@ struct MeHubView: View {
                             .accessibilityLabel("Edit athlete profile")
                         }
                     }
+
+                    ProfileLiftVideosSection(profile: appState.currentProfile, isCurrentUser: true)
 
                     CompactSectionHeader(title: "Your LiftRank")
                     VStack(spacing: 0) {
@@ -214,7 +217,7 @@ struct MeHubView: View {
                 .background(tint.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(.subheadline.weight(.bold)).foregroundStyle(.white)
+                Text(title).font(.subheadline.weight(.bold)).foregroundStyle(Color.liftText)
                 Text(subtitle).font(.caption).foregroundStyle(Color.liftMuted).lineLimit(2)
             }
             Spacer(minLength: 8)
@@ -328,7 +331,7 @@ struct AwardsView: View {
             Image(systemName: achievement.symbolName)
                 .font(.title3.weight(.bold))
                 .foregroundStyle(unlocked ? Color.liftGold : Color.liftMuted)
-            Text(achievement.title).font(.subheadline.weight(.bold)).foregroundStyle(unlocked ? .white : Color.liftMuted).lineLimit(2)
+            Text(achievement.title).font(.subheadline.weight(.bold)).foregroundStyle(unlocked ? Color.liftText : Color.liftMuted).lineLimit(2)
             Text(unlocked ? "Unlocked" : "Keep progressing").font(.caption2.weight(.semibold)).foregroundStyle(Color.liftMuted)
         }
         .padding(14).frame(maxWidth: .infinity, minHeight: 112, alignment: .leading).liftSurface()
@@ -342,6 +345,9 @@ struct AuthenticationView: View {
     @State private var password = ""
     @State private var showingReset = false
     @State private var appleNonce = ""
+    @State private var confirmationEmail: String?
+
+    private let emailConfirmationMessage = "Check your email to confirm your account, then sign in."
 
     var body: some View {
         AppBackground {
@@ -387,7 +393,9 @@ struct AuthenticationView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
 
-                        if let message = appState.accountMessage {
+                        if let confirmationEmail {
+                            emailConfirmationNotice(for: confirmationEmail)
+                        } else if let message = appState.accountMessage {
                             Text(message)
                                 .font(.subheadline)
                                 .foregroundStyle(Color.liftMuted)
@@ -403,11 +411,22 @@ struct AuthenticationView: View {
                                     await appState.signIn(email: email, password: password)
                                 } else {
                                     await appState.signUp(email: email, password: password)
+                                    if appState.accountMessage == emailConfirmationMessage {
+                                        confirmationEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        password = ""
+                                        mode = "Sign In"
+                                    }
                                 }
                             }
                         }
                         .disabled(appState.accountOperationInProgress || email.isEmpty || password.count < 10)
 
+#if DEBUG
+                        Label("Apple sign-in is enabled in the release build", systemImage: "apple.logo")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                            .frame(maxWidth: .infinity)
+#else
                         SignInWithAppleButton(.continue) { request in
                             let nonce = AppleNonce.make()
                             appleNonce = nonce
@@ -428,6 +447,7 @@ struct AuthenticationView: View {
                         .frame(height: 50)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .disabled(appState.accountOperationInProgress)
+#endif
 
                         Button("Forgot password?") { showingReset = true }
                             .font(.subheadline.weight(.semibold))
@@ -479,6 +499,70 @@ struct AuthenticationView: View {
             }
             .presentationDetents([.medium])
         }
+    }
+
+    private func emailConfirmationNotice(for email: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Confirmation email sent", systemImage: "envelope.badge.fill")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(Color.liftBlue)
+
+            Text("We sent a confirmation link to")
+                .font(.subheadline)
+                .foregroundStyle(Color.liftMuted)
+
+            Text(email)
+                .font(.subheadline.weight(.bold))
+                .textSelection(.enabled)
+
+            Text("Open the email, tap the link, then return here to sign in. Check spam if it does not arrive within a few minutes.")
+                .font(.caption)
+                .foregroundStyle(Color.liftMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.liftBlue.opacity(0.14))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.liftBlue.opacity(0.45), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+struct PasswordUpdateView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var password = ""
+    @State private var confirmation = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    SecureField("New password", text: $password)
+                        .textContentType(.newPassword)
+                    SecureField("Confirm password", text: $confirmation)
+                        .textContentType(.newPassword)
+                } footer: {
+                    Text("Use at least 10 characters.")
+                }
+                if let message = appState.accountMessage {
+                    Text(message).foregroundStyle(Color.liftMuted)
+                }
+                Button(appState.accountOperationInProgress ? "Updating…" : "Update password") {
+                    Task { await appState.updatePassword(password) }
+                }
+                .disabled(
+                    appState.accountOperationInProgress ||
+                    password.count < 10 ||
+                    password != confirmation
+                )
+            }
+            .navigationTitle("Choose New Password")
+        }
+        .interactiveDismissDisabled()
     }
 }
 

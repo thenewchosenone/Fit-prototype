@@ -1,8 +1,67 @@
 import Foundation
 import Supabase
 
+struct FeatureAvailability: Equatable, Sendable {
+    let connectionActivity: Bool
+    let pushNotifications: Bool
+    let communities: Bool
+    let forums: Bool
+    let messaging: Bool
+    let gymFeeds: Bool
+    let polls: Bool
+    let savedAndWatchedPosts: Bool
+    let advertising: Bool
+
+    static let focusedProduction = FeatureAvailability(
+        connectionActivity: true,
+        pushNotifications: true,
+        communities: false,
+        forums: false,
+        messaging: false,
+        gymFeeds: false,
+        polls: false,
+        savedAndWatchedPosts: false,
+        advertising: false
+    )
+
+    static let internalFull = FeatureAvailability(
+        connectionActivity: true,
+        pushNotifications: true,
+        communities: true,
+        forums: true,
+        messaging: true,
+        gymFeeds: true,
+        polls: true,
+        savedAndWatchedPosts: true,
+        advertising: false
+    )
+
+    static let deferredFeaturesLaunchArgument = "-enableDeferredFeatures"
+
+    static func resolved(
+        for environment: LiftRankBackendEnvironment?,
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        processEnvironment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> FeatureAvailability {
+        if environment == .production { return .focusedProduction }
+#if DEBUG
+        let environmentOverride = processEnvironment["LIFTRANK_ENABLE_DEFERRED_FEATURES"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let hasEnvironmentOverride = environmentOverride.map {
+            ["1", "true", "yes"].contains($0)
+        } ?? false
+        if arguments.contains(deferredFeaturesLaunchArgument) || hasEnvironmentOverride {
+            return .internalFull
+        }
+#endif
+        return .focusedProduction
+    }
+}
+
 @MainActor
 struct AppServiceContainer {
+    let features: FeatureAvailability
     let authentication: any AuthenticationService
     let profile: any ProfileService
     let gyms: any GymService
@@ -23,6 +82,7 @@ struct AppServiceContainer {
     let accountDeletion: any AccountDeletionService
 
     init(
+        features: FeatureAvailability = .resolved(for: nil),
         authentication: any AuthenticationService,
         profile: any ProfileService,
         gyms: any GymService,
@@ -43,6 +103,7 @@ struct AppServiceContainer {
         accountDeletion: (any AccountDeletionService)? = nil
     ) {
         let unavailable = UnavailableLaunchService()
+        self.features = features
         self.authentication = authentication; self.profile = profile; self.gyms = gyms
         self.gymMemberships = gymMemberships; self.friendships = friendships; self.exercises = exercises
         self.lifts = lifts ?? unavailable; self.leaderboards = leaderboards ?? unavailable
@@ -56,20 +117,24 @@ struct AppServiceContainer {
 
     static func make(repository: DemoRepository) -> AppServiceContainer {
 #if DEBUG
-        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil ||
+            ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil ||
+            NSClassFromString("XCTestCase") != nil {
             return .demo(repository: repository)
         }
 #endif
         guard let configuration = SupabaseConfiguration.load() else {
             let unavailable = UnavailableLaunchService()
             let unavailableMessaging = UnavailableMessagingService()
+            let unavailableAccountData = UnavailableAccountDataService()
             return AppServiceContainer(
+                features: .resolved(for: nil),
                 authentication: UnconfiguredAuthenticationService(repository: repository),
-                profile: MockProfileService(repository: repository),
-                gyms: MockGymService(repository: repository),
-                gymMemberships: MockGymMembershipService(repository: repository),
-                friendships: MockFriendRelationshipService(repository: repository),
-                exercises: MockExerciseCatalogService()
+                profile: unavailableAccountData,
+                gyms: unavailableAccountData,
+                gymMemberships: unavailableAccountData,
+                friendships: unavailableAccountData,
+                exercises: unavailableAccountData
                 , lifts: unavailable, leaderboards: unavailable,
                 social: unavailable, communities: unavailable, messaging: unavailableMessaging,
                 verification: unavailable, media: unavailable, notifications: unavailable,
@@ -77,8 +142,15 @@ struct AppServiceContainer {
             )
         }
 
-        let client = SupabaseClient(supabaseURL: configuration.url, supabaseKey: configuration.publicKey)
+        let client = SupabaseClient(
+            supabaseURL: configuration.url,
+            supabaseKey: configuration.publicKey,
+            options: SupabaseClientOptions(
+                auth: .init(redirectToURL: SupabaseConfiguration.authCallbackURL)
+            )
+        )
         return AppServiceContainer(
+            features: .resolved(for: configuration.environment),
             authentication: SupabaseAuthenticationService(client: client),
             profile: SupabaseProfileService(client: client),
             gyms: SupabaseGymService(client: client),
@@ -94,6 +166,7 @@ struct AppServiceContainer {
 
     static func demo(repository: DemoRepository) -> AppServiceContainer {
         AppServiceContainer(
+            features: .resolved(for: nil),
             authentication: MockAuthenticationService(repository: repository),
             profile: MockProfileService(repository: repository),
             gyms: MockGymService(repository: repository),
@@ -119,6 +192,13 @@ final class UnavailableLaunchService: LiftService, LeaderboardService, SocialSer
     func report(liftID: UUID, reason: LiftReportReason, note: String) async throws { throw error }
     func entries(filters: LeaderboardFilters, verifiedOnly: Bool) async throws -> [LeaderboardEntry] { throw error }
     func feed() async throws -> [ActivityItem] { throw error }
+    func searchProfiles(query: String, limit: Int) async throws -> [PublicProfileCard] { throw error }
+    func comments(activityID: UUID) async throws -> [ActivityComment] { throw error }
+    func setActivityLiked(activityID: UUID, isLiked: Bool) async throws { throw error }
+    func addActivityComment(activityID: UUID, body: String) async throws -> ActivityComment { throw error }
+    func shareWorkout(snapshotID: UUID, title: String, detail: String) async throws -> ActivityItem { throw error }
+    func removeWorkoutShare(activityID: UUID) async throws { throw error }
+    func reportActivity(activityID: UUID, reason: CommunityReportReason, note: String) async throws { throw error }
     func block(userID: UUID) async throws { throw error }
     func unblock(userID: UUID) async throws { throw error }
     func blocks() async throws -> [UserBlockRecord] { throw error }
@@ -163,6 +243,36 @@ final class UnavailableLaunchService: LiftService, LeaderboardService, SocialSer
     func acceptances() async throws -> [LegalAcceptanceRecord] { throw error }
     func accept(documents: [LegalDocument]) async throws { throw error }
     func deleteAccount() async throws { throw error }
+}
+
+/// Keeps an unconfigured build from exposing seeded profile, gym, friendship,
+/// or exercise data through production service boundaries. Demo data is only
+/// installed after an explicit switch to `AppServiceContainer.demo`.
+@MainActor
+final class UnavailableAccountDataService: ProfileService, GymService, GymMembershipService, FriendRelationshipService, ExerciseCatalogService {
+    private var error: LiftRankServiceError { .configurationMissing }
+
+    func currentProfile() async throws -> UserProfile { throw error }
+    func updateProfile(_ profile: UserProfile) async throws -> UserProfile { throw error }
+    func authenticatedProfile() async throws -> AuthenticatedProfile { throw error }
+    func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile { throw error }
+    func claimUsername(_ username: String) async throws -> String { throw error }
+    func profileCard(userID: UUID) async throws -> PublicProfileCard { throw error }
+
+    func gyms() async throws -> [Gym] { throw error }
+    func memberships() async throws -> [GymMembershipRecord] { throw error }
+    func join(_ gym: Gym, maximumMemberships: Int) async throws -> Bool { throw error }
+    func leave(_ gym: Gym) async throws { throw error }
+    func setPrimary(_ gym: Gym) async throws { throw error }
+
+    func relationships() async throws -> [FriendRelationshipRecord] { throw error }
+    func request(userID: UUID) async throws { throw error }
+    func respond(relationshipID: UUID, accept: Bool) async throws { throw error }
+    func cancel(relationshipID: UUID) async throws { throw error }
+    func remove(relationshipID: UUID) async throws { throw error }
+
+    func activeExercises() async throws -> [CatalogExercise] { throw error }
+    func resolve(identifier: String) async throws -> CatalogExercise? { throw error }
 }
 
 @MainActor

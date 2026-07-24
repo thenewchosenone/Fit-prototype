@@ -6,6 +6,7 @@ type NotificationRow = {
   user_id: string;
   title: string;
   body: string;
+  kind: string;
   destination: Record<string, unknown>;
 };
 
@@ -22,13 +23,14 @@ Deno.serve(async (request) => {
   const keyID = Deno.env.get("APNS_KEY_ID");
   const privateKey = Deno.env.get("APNS_PRIVATE_KEY")?.replaceAll("\\n", "\n");
   const topic = Deno.env.get("APNS_BUNDLE_ID");
+  const launchProfile = Deno.env.get("LIFTRANK_LAUNCH_PROFILE") ?? "focused_v1";
   if (!supabaseURL || !serviceKey || !teamID || !keyID || !privateKey || !topic) {
     return new Response("Server configuration missing", { status: 500 });
   }
 
   const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
   const { data: pending, error } = await admin.from("notifications")
-    .select("id,user_id,title,body,destination")
+    .select("id,user_id,title,body,kind,destination")
     .is("push_sent_at", null)
     .order("created_at")
     .limit(100);
@@ -43,6 +45,11 @@ Deno.serve(async (request) => {
   let delivered = 0;
 
   for (const notification of (pending ?? []) as NotificationRow[]) {
+    const deferredKinds = new Set(["message", "forum_reply", "community"]);
+    if (launchProfile === "focused_v1" && deferredKinds.has(notification.kind)) {
+      await admin.from("notifications").update({ push_sent_at: new Date().toISOString() }).eq("id", notification.id);
+      continue;
+    }
     const { data: devices } = await admin.from("device_tokens")
       .select("id,token,environment")
       .eq("user_id", notification.user_id)
@@ -78,4 +85,3 @@ Deno.serve(async (request) => {
 
   return Response.json({ notifications: pending?.length ?? 0, delivered });
 });
-

@@ -60,11 +60,15 @@ struct LiftRankApp: App {
             case .needsLegalAcceptance:
                 LegalAcceptanceView()
             case .authenticated, .demo:
-                MainTabView()
+                MainTabView(router: appState.router)
             }
         }
         .environmentObject(appState)
         .task { await appState.restoreAccount() }
+        .onOpenURL { url in Task { await appState.handleAuthCallback(url) } }
+        .sheet(isPresented: $appState.showingPasswordUpdate) {
+            PasswordUpdateView().environmentObject(appState)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .liftRankDidReceivePushToken)) { notification in
             guard let token = notification.object as? String else { return }
             Task { await appState.registerPushToken(token) }

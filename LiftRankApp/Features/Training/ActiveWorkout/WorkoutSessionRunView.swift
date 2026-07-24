@@ -1,0 +1,551 @@
+import SwiftUI
+
+private enum WorkoutSessionSheet: Identifiable {
+    case summary
+    case addExercise
+    case incompleteFinish(completedSets: Int, plannedSets: Int)
+
+    var id: String {
+        switch self {
+        case .summary:
+            return "summary"
+        case .addExercise:
+            return "addExercise"
+        case .incompleteFinish:
+            return "incompleteFinish"
+        }
+    }
+}
+
+struct WorkoutSessionRunView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    @State private var presentedSheet: WorkoutSessionSheet?
+    @State private var showingCancelConfirmation = false
+    @State private var showingEmptyWorkoutConfirmation = false
+    @State private var isReorderingExercises = false
+    @State private var dismissAfterSummary = false
+    @State private var showSummaryAfterSheetDismiss = false
+
+    private var workout: ActiveWorkoutState? { appState.activeWorkout }
+    private var exercises: [WorkoutExerciseSnapshot] { workout?.exercises.sorted { $0.order < $1.order } ?? [] }
+    private var completedSetCount: Int { appState.activeWorkoutCompletedWorkingSets.count }
+    private var plannedSetCount: Int { exercises.reduce(0) { $0 + $1.targetSets } }
+
+    var body: some View {
+        NavigationStack {
+            AppBackground {
+                if let workout {
+                    VStack(spacing: 0) {
+                        activeHeader(workout)
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 16) {
+                                if exercises.isEmpty {
+                                    emptyCard
+                                } else {
+                                    HStack {
+                                        Text("Exercises")
+                                            .font(.title3.weight(.black))
+                                        Spacer()
+                                        if isReorderingExercises {
+                                            Text("Reorder mode")
+                                                .font(.caption.weight(.bold))
+                                                .foregroundStyle(Color.liftBlue)
+                                        }
+                                        Text("\(completedSetCount)/\(plannedSetCount) working sets")
+                                            .font(.caption.weight(.bold))
+                                            .foregroundStyle(Color.liftMuted)
+                                    }
+
+                                    ForEach(exercises) { exercise in
+                                        SwipeToDeleteRow(actionTitle: "Delete \(exercise.exerciseName)") {
+                                            appState.removeExerciseFromActiveWorkout(exercise)
+                                        } content: {
+                                            NavigationLink {
+                                                PrescriptionTrackView(exercise: exercise)
+                                                    .environmentObject(appState)
+                                            } label: {
+                                                exerciseCard(exercise)
+                                            }
+                                            .buttonStyle(.plain)
+                                            .accessibilityIdentifier("workout.exercise.\(exercise.id.uuidString)")
+                                            .contextMenu {
+                                                Button {
+                                                    _ = appState.moveActiveWorkoutExercise(exercise, direction: -1)
+                                                } label: {
+                                                    Label("Move Up", systemImage: "arrow.up")
+                                                }
+                                                Button {
+                                                    _ = appState.moveActiveWorkoutExercise(exercise, direction: 1)
+                                                } label: {
+                                                    Label("Move Down", systemImage: "arrow.down")
+                                                }
+                                                Button(role: .destructive) {
+                                                    appState.removeExerciseFromActiveWorkout(exercise)
+                                                } label: {
+                                                    Label("Remove from this workout", systemImage: "trash")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 18)
+                            .padding(.top, 18)
+                            .padding(.bottom, 20)
+                        }
+                        .scrollIndicators(.hidden)
+                        workoutControls
+                    }
+                } else {
+                    LiftEmptyState(
+                        title: "Workout saved",
+                        message: "Your active workout is no longer available.",
+                        symbolName: "checkmark.circle.fill",
+                        actionTitle: "Return to Track"
+                    ) { dismiss() }
+                    .padding()
+                }
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .sheet(item: $presentedSheet, onDismiss: {
+                if showSummaryAfterSheetDismiss {
+                    showSummaryAfterSheetDismiss = false
+                    presentedSheet = .summary
+                    return
+                }
+                guard dismissAfterSummary else { return }
+                dismissAfterSummary = false
+                dismiss()
+            }) { sheet in
+                switch sheet {
+                case .summary:
+                    if let summary = appState.activeWorkoutSummary() {
+                        WorkoutSummaryView(
+                            summary: summary,
+                            prCandidates: appState.activeWorkoutPRCandidates(),
+                            automaticSubmissionEnabled: appState.workoutPreferences.automaticallySubmitVideoBackedPRs,
+                            didExplainAutomaticSubmission: appState.workoutPreferences.didExplainAutomaticPRs,
+                            onAutomaticSubmissionChanged: appState.setAutomaticVideoPRSubmission,
+                            onExplanationShown: appState.markAutomaticVideoPRExplanationShown
+                        ) { effort, notes, videos, shareWithConnections in
+                            guard let completed = appState.finishActiveWorkout(effort: effort, notes: notes) else { return }
+                            dismissAfterSummary = true
+                            presentedSheet = nil
+                            Task {
+                                await appState.submitVideoBackedPRs(for: completed, videoURLsBySetID: videos)
+                                if shareWithConnections {
+                                    await appState.shareCompletedWorkout(completed)
+                                }
+                            }
+                        }
+                        .environmentObject(appState)
+                    }
+                case .addExercise:
+                    ActiveWorkoutAddExercisePickerView()
+                        .environmentObject(appState)
+                        .presentationDetents([.large])
+                case let .incompleteFinish(completedSets, plannedSets):
+                    IncompleteWorkoutFinishPrompt(
+                        completedSets: completedSets,
+                        plannedSets: plannedSets,
+                        onReview: {
+                            showSummaryAfterSheetDismiss = true
+                            presentedSheet = nil
+                        },
+                        onKeepTraining: {
+                            presentedSheet = nil
+                        }
+                    )
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackground(Color.liftBackground)
+                }
+            }
+            .confirmationDialog("Discard this workout?", isPresented: $showingCancelConfirmation, titleVisibility: .visible) {
+                Button("Discard Workout", role: .destructive) {
+                    appState.discardActiveWorkout()
+                    dismiss()
+                }
+                Button("Keep Working Out", role: .cancel) {}
+            } message: {
+                Text("All sets in this active workout will be permanently discarded. Your plan is not changed.")
+            }
+            .confirmationDialog(
+                "End this empty workout?",
+                isPresented: $showingEmptyWorkoutConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("End Workout", role: .destructive) {
+                    appState.discardActiveWorkout()
+                    dismiss()
+                }
+                Button("Keep Training", role: .cancel) {}
+            } message: {
+                Text("No working sets have been completed, so this workout will not be added to your history.")
+            }
+        }
+    }
+
+    private func elapsedText(_ workout: ActiveWorkoutState, at date: Date) -> String {
+        return MeasurementFormatting.longClockText(Int(workout.elapsedDuration(at: date)))
+    }
+
+    private func activeHeader(_ workout: ActiveWorkoutState) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Button { dismiss() } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.headline.weight(.bold))
+                        .frame(width: 44, height: 44)
+                        .background(Color.liftCard)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Minimize workout")
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(workout.dayLabel.uppercased())
+                        .font(.caption2.weight(.black))
+                        .tracking(1.2)
+                        .foregroundStyle(Color.liftBlue)
+                    Text(workout.name)
+                        .font(.headline.weight(.black))
+                        .lineLimit(2)
+                }
+
+                Spacer()
+
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(elapsedText(workout, at: context.date))
+                        .font(.subheadline.weight(.black).monospacedDigit())
+                        .foregroundStyle(Color.liftBlue)
+                }
+
+                Menu {
+                    Button {
+                        workout.pausedAt == nil ? appState.pauseActiveWorkout() : appState.resumeActiveWorkout()
+                    } label: {
+                        Label(workout.pausedAt == nil ? "Pause Workout" : "Resume Workout", systemImage: workout.pausedAt == nil ? "pause.fill" : "play.fill")
+                    }
+                    Button {
+                        isReorderingExercises.toggle()
+                    } label: {
+                        Label(isReorderingExercises ? "Done Reordering" : "Reorder Exercises", systemImage: "arrow.up.arrow.down")
+                    }
+                    Button { presentedSheet = .addExercise } label: {
+                        Label("Add Exercise", systemImage: "plus")
+                    }
+                    if workout.sourceSessionID != nil {
+                        Button {
+                            _ = appState.updateSourcePlanFromActiveWorkout()
+                        } label: {
+                            Label("Update Plan from Workout", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                    }
+                    Button(role: .destructive) { showingCancelConfirmation = true } label: {
+                        Label("Discard Workout", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.headline.weight(.bold))
+                        .frame(width: 44, height: 44)
+                        .background(Color.liftCard)
+                        .clipShape(Circle())
+                }
+                .accessibilityLabel("Workout options")
+            }
+
+            if workout.pausedAt != nil {
+                Label("Workout paused", systemImage: "pause.circle.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.liftGold)
+            }
+
+            ProgressView(value: Double(completedSetCount), total: Double(max(1, plannedSetCount)))
+                .tint(Color.liftBlue)
+
+            let summary = appState.activeWorkoutSummary()
+            HStack(spacing: 14) {
+                Label("\(summary?.completedExercises ?? 0)/\(summary?.totalExercises ?? 0) exercises", systemImage: "dumbbell.fill")
+                Label("\(completedSetCount)/\(plannedSetCount) sets", systemImage: "checkmark.circle.fill")
+                Spacer()
+                Text("\(Int(summary?.totalVolume ?? 0)) \(workout.unit.shortLabel)")
+                    .monospacedDigit()
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Color.liftMuted)
+
+            Toggle(isOn: Binding(
+                get: { workout.automaticRestTimerEnabled },
+                set: { appState.setAutomaticRestTimerEnabledForActiveWorkout($0) }
+            )) {
+                Label("Auto rest timer", systemImage: "timer")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.liftMuted)
+            }
+            .tint(Color.liftBlue)
+            .accessibilityHint("Starts the prescribed rest countdown when a working set is completed")
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
+        .background(Color.liftCardRaised)
+        .overlay(alignment: .bottom) { Divider().overlay(Color.white.opacity(0.06)) }
+    }
+
+    private var emptyCard: some View {
+        LiftEmptyState(
+            title: "Build this workout",
+            message: "Add exercises from the library, then log at least one working set.",
+            symbolName: "dumbbell.fill",
+            actionTitle: "Add first exercise"
+        ) { presentedSheet = .addExercise }
+    }
+
+    private func exerciseCard(_ exercise: WorkoutExerciseSnapshot) -> some View {
+        let logs = appState.setLogs(for: exercise)
+        let completed = logs.filter { $0.isComplete && !$0.isWarmup }.count
+        let isComplete = completed >= exercise.targetSets
+
+        return HStack(spacing: 12) {
+            if isReorderingExercises {
+                VStack(spacing: 6) {
+                    Button {
+                        _ = appState.moveActiveWorkoutExercise(exercise, direction: -1)
+                    } label: {
+                        Image(systemName: "chevron.up")
+                            .font(.caption.weight(.black))
+                            .frame(width: 28, height: 20)
+                    }
+                    .buttonStyle(.plain)
+                    Button {
+                        _ = appState.moveActiveWorkoutExercise(exercise, direction: 1)
+                    } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.caption.weight(.black))
+                            .frame(width: 28, height: 20)
+                    }
+                    .buttonStyle(.plain)
+                    Image(systemName: "line.3.horizontal")
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(Color.liftMuted)
+                }
+                .foregroundStyle(Color.liftBlue)
+            }
+            ExerciseCatalogIcon(exercise: catalogExercise(for: exercise))
+                .frame(width: 48, height: 48)
+                .overlay(alignment: .bottomTrailing) {
+                    if isComplete {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 9, weight: .black))
+                            .foregroundStyle(Color.liftBackground)
+                            .frame(width: 18, height: 18)
+                            .background(Color.liftGreen)
+                            .clipShape(Circle())
+                    }
+                }
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(exercise.exerciseName)
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(Color.liftText)
+                Text("\(exercise.targetSets) × \(exercise.targetReps) • \(exercise.restSeconds)s rest")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 5) {
+                Text(isComplete ? "Done" : "\(completed)/\(exercise.targetSets)")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(isComplete ? Color.liftGreen : Color.liftMuted)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.liftMuted)
+            }
+        }
+        .padding(12)
+        .background(isComplete ? Color.liftGreen.opacity(0.08) : Color.liftCard)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(isComplete ? Color.liftGreen.opacity(0.28) : Color.white.opacity(0.06), lineWidth: 1)
+        }
+        .contentShape(Rectangle())
+    }
+
+    private var workoutControls: some View {
+        HStack(spacing: 10) {
+            Button { presentedSheet = .addExercise } label: {
+                Image(systemName: "plus")
+                    .font(.headline.weight(.bold))
+                    .frame(width: 52, height: 52)
+                    .background(Color.liftCard)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.liftBlue)
+            .accessibilityLabel("Add exercise")
+
+            Button {
+                switch appState.activeWorkoutFinishReadiness {
+                case .unavailable, .empty:
+                    showingEmptyWorkoutConfirmation = true
+                case let .incomplete(completedSets, plannedSets):
+                    presentedSheet = .incompleteFinish(
+                        completedSets: completedSets,
+                        plannedSets: plannedSets
+                    )
+                case .ready:
+                    presentedSheet = .summary
+                }
+            } label: {
+                HStack {
+                    Text("Finish workout")
+                        .font(.headline.weight(.black))
+                    Spacer()
+                    Image(systemName: "checkmark.circle.fill")
+                }
+                .foregroundStyle(Color.liftBackground)
+                .padding(.horizontal, 18)
+                .frame(height: 52)
+                .background(Color.liftGreen)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .background(.ultraThinMaterial)
+    }
+
+    private func catalogExercise(for exercise: WorkoutExerciseSnapshot) -> TrainingExerciseCatalogItem {
+        appState.trainingExerciseLibrary.first { $0.id == exercise.exerciseID } ?? TrainingExerciseCatalogItem(
+            id: exercise.exerciseID,
+            name: exercise.exerciseName,
+            bodyPart: exercise.bodyPart,
+            workoutCategory: exercise.bodyPart,
+            defaultSets: exercise.targetSets,
+            defaultReps: exercise.targetReps,
+            symbolName: "figure.strengthtraining.traditional",
+            equipment: exercise.equipment,
+            muscleProfile: exercise.muscleProfile,
+            rankingExerciseID: exercise.rankingExerciseID
+        )
+    }
+}
+
+private struct IncompleteWorkoutFinishPrompt: View {
+    let completedSets: Int
+    let plannedSets: Int
+    let onReview: () -> Void
+    let onKeepTraining: () -> Void
+
+    private var remainingSets: Int {
+        max(0, plannedSets - completedSets)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                HStack(alignment: .top, spacing: 14) {
+                    Image(systemName: "exclamationmark")
+                        .font(.title3.weight(.black))
+                        .foregroundStyle(.white)
+                        .frame(width: 48, height: 48)
+                        .background(Color.liftBlue)
+                        .clipShape(Circle())
+                        .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("You have sets remaining")
+                            .font(.title3.weight(.black))
+                            .foregroundStyle(Color.liftText)
+                        Text("Review what you logged, or keep training to finish the plan.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.liftMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Workout progress")
+                            .font(.subheadline.weight(.bold))
+                        Spacer()
+                        Text("\(remainingSets) left")
+                            .font(.subheadline.weight(.black))
+                            .foregroundStyle(Color.liftBlue)
+                            .monospacedDigit()
+                    }
+
+                    ProgressView(value: Double(completedSets), total: Double(max(1, plannedSets)))
+                        .tint(Color.liftBlue)
+
+                    Text("Completed \(completedSets) of \(plannedSets) working sets")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.liftMuted)
+                        .monospacedDigit()
+                }
+                .padding(16)
+                .background(Color.liftCard)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.liftSeparator, lineWidth: 1)
+                }
+
+                VStack(spacing: 10) {
+                    PrimaryButton(title: "Review workout anyway", symbolName: "doc.text.magnifyingglass") {
+                        onReview()
+                    }
+                    .accessibilityIdentifier("workout.finish.reviewIncomplete")
+
+                    Button("Keep training") {
+                        onKeepTraining()
+                    }
+                    .buttonStyle(LiftSecondaryButtonStyle())
+                    .accessibilityIdentifier("workout.finish.keepTraining")
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
+            .padding(.bottom, 24)
+        }
+        .scrollIndicators(.hidden)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color.liftBackground)
+    }
+}
+
+enum WorkoutSetInputField: String, Hashable {
+    case reps
+    case weight
+}
+
+struct WorkoutSetInputFocus: Hashable {
+    let logID: UUID
+    let field: WorkoutSetInputField
+}
+
+enum WorkoutSetInputNavigator {
+    static func orderedFocuses(for logs: [WorkoutSetLog], trackingKind: ExerciseTrackingKind = .weightReps) -> [WorkoutSetInputFocus] {
+        let sortedLogs = logs.sorted { $0.setNumber < $1.setNumber }
+        return sortedLogs.flatMap { log in
+            if trackingKind.requiresWeight {
+                return [
+                    WorkoutSetInputFocus(logID: log.id, field: .reps),
+                    WorkoutSetInputFocus(logID: log.id, field: .weight)
+                ]
+            }
+            return [WorkoutSetInputFocus(logID: log.id, field: .reps)]
+        }
+    }
+
+    static func next(after current: WorkoutSetInputFocus, in logs: [WorkoutSetLog], trackingKind: ExerciseTrackingKind = .weightReps) -> WorkoutSetInputFocus? {
+        let focuses = orderedFocuses(for: logs, trackingKind: trackingKind)
+        guard let index = focuses.firstIndex(of: current), focuses.indices.contains(index + 1) else {
+            return nil
+        }
+        return focuses[index + 1]
+    }
+}

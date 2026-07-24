@@ -55,12 +55,12 @@ struct LeaderboardMetricStrip: View {
                 divider
                 metric("Ranking", ranking)
                 divider
-                metric("Updates", nextUpdate.formatted(.relative(presentation: .named, unitsStyle: .narrow)), tint: .liftGreen)
+                metric("Updates", LiftTimeFormatter.relative(nextUpdate), tint: .liftGreen)
             }
             .padding(.vertical, 12)
             .liftSurface(radius: 12, raised: true)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Your rank \(rank), \(lifters) lifters, \(ranking), next update \(nextUpdate.formatted(.relative(presentation: .named)))")
+            .accessibilityLabel("Your rank \(rank), \(lifters) lifters, \(ranking), next update \(LiftTimeFormatter.relative(nextUpdate, wide: true))")
         }
     }
 
@@ -136,7 +136,7 @@ struct LeaderboardFilterControl: View {
                     .foregroundStyle(Color.liftBlue)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).font(.caption2).foregroundStyle(Color.liftMuted)
-                    Text(value).font(.caption.weight(.semibold)).foregroundStyle(.white).lineLimit(1)
+                    Text(value).font(.caption.weight(.semibold)).foregroundStyle(Color.liftText).lineLimit(1)
                 }
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.bold))
@@ -148,6 +148,7 @@ struct LeaderboardFilterControl: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(title), \(value)")
+        .accessibilityIdentifier("leaderboard.filter.\(title.lowercased().replacingOccurrences(of: " ", with: "_"))")
     }
 }
 
@@ -223,7 +224,7 @@ struct CompactLeaderboardRow: View {
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text(leaderboardValueText(for: entry, rankingType: rankingType, preferredUnit: preferredUnit))
+            Text(RankingFormatting.leaderboardValueText(for: entry, rankingType: rankingType, preferredUnit: preferredUnit))
                 .font(.subheadline.weight(.semibold))
                 .frame(width: 76, alignment: .trailing)
                 .lineLimit(1)
@@ -236,7 +237,7 @@ struct CompactLeaderboardRow: View {
         .background(isCurrentUser ? Color.liftBlue.opacity(0.09) : Color.clear)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Rank \(entry.rank), \(entry.profile.username), \(leaderboardValueText(for: entry, rankingType: rankingType, preferredUnit: preferredUnit)), \(movementAccessibility)")
+        .accessibilityLabel("Rank \(entry.rank), \(entry.profile.username), \(RankingFormatting.leaderboardValueText(for: entry, rankingType: rankingType, preferredUnit: preferredUnit)), \(movementAccessibility)")
         .accessibilityHint("Opens lifter profile")
     }
 
@@ -275,16 +276,11 @@ struct CompactLeaderboardRow: View {
         if entry.profile.hideBodyweight {
             return "Hidden"
         }
-        if preferredUnit == .kilograms {
-            return "\(RankingCalculator.format(RankingCalculator.poundsToKilograms(entry.lift.bodyweightAtLift))) kg"
-        }
-        return "\(RankingCalculator.format(entry.lift.bodyweightAtLift)) lb"
+        return MeasurementFormatting.compactDisplayedWeight(entry.lift.bodyweightAtLift, unit: preferredUnit)
     }
 
     private func formatted(_ kilograms: Double?) -> String {
-        guard let kilograms else { return "—" }
-        let value = preferredUnit == .kilograms ? kilograms : RankingCalculator.kilogramsToPounds(kilograms)
-        return "\(RankingCalculator.format(value))\(preferredUnit == .kilograms ? "kg" : "lb")"
+        MeasurementFormatting.compactDisplayedWeightOrDash(kilograms, unit: preferredUnit)
     }
 }
 
@@ -297,6 +293,7 @@ struct LeaderboardOptionSheet: View {
     var searchPrompt = "Search gyms"
     var emptyTitle = "No options found"
     var emptyMessage = "Try another search."
+    var dismissOnSelection = true
     let onSelect: (String) -> Void
     @State private var searchText = ""
     @State private var isSearchPresented = true
@@ -326,6 +323,9 @@ struct LeaderboardOptionSheet: View {
                             ForEach(visibleOptions) { option in
                                 Button {
                                     onSelect(option.id)
+                                    if dismissOnSelection {
+                                        dismiss()
+                                    }
                                 } label: {
                                     HStack(spacing: 12) {
                                         if let symbol = option.symbol {
@@ -334,7 +334,7 @@ struct LeaderboardOptionSheet: View {
                                                 .frame(width: 24)
                                         }
                                         VStack(alignment: .leading, spacing: 3) {
-                                            Text(option.title).font(.body.weight(.medium)).foregroundStyle(.white)
+                                            Text(option.title).font(.body.weight(.medium)).foregroundStyle(Color.liftText)
                                             if let subtitle = option.subtitle {
                                                 Text(subtitle).font(.caption).foregroundStyle(Color.liftMuted).lineLimit(1)
                                             }
@@ -351,6 +351,7 @@ struct LeaderboardOptionSheet: View {
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityIdentifier("option.\(option.id)")
                                 .accessibilityAddTraits(option.id == selectedID ? .isSelected : [])
                                 Divider().overlay(Color.white.opacity(0.07)).padding(.leading, 56)
                             }

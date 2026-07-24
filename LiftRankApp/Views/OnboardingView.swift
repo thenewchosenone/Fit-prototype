@@ -1,11 +1,12 @@
 import SwiftUI
 import UIKit
+import MapKit
 
 struct OnboardingView: View {
     @EnvironmentObject private var appState: AppState
     @State private var step = 0
     @State private var goals: Set<String> = ["Get stronger", "Compare with my weight class"]
-    @State private var profile = MockData.demoProfile
+    @State private var profile = MockData.emptyProfile
     @State private var birthDate = Calendar.current.date(byAdding: .year, value: -25, to: .now) ?? .now
     @State private var isSavingProfile = false
     @State private var saveError: String?
@@ -14,6 +15,11 @@ struct OnboardingView: View {
     @State private var deadlift = ""
     @State private var press = ""
     @State private var showingPhotoManager = false
+    @State private var selectedCountryCode = ""
+    @State private var selectedRegionName = ""
+    @State private var selectedCity = ""
+    @State private var cityQuery = ""
+    @StateObject private var citySearch = CitySearchController()
     let complete: () -> Void
 
     private let ageGroups = MockData.standardAgeGroups
@@ -25,29 +31,70 @@ struct OnboardingView: View {
         ("Represent my gym", "building.2.fill", "Climb your local leaderboard"),
         ("Prepare for powerlifting", "figure.strengthtraining.traditional", "Train the competition lifts")
     ]
+    private let launchCountries = LaunchLocationCatalog.countries
+
+    private var selectedCountry: LaunchCountry? {
+        launchCountries.first { $0.code == selectedCountryCode }
+    }
+
+    private var selectedRegion: LaunchRegion? {
+        selectedCountry?.regions.first { $0.name == selectedRegionName }
+    }
+
+    private var onboardingScoreTier: (label: String, tint: Color) {
+        switch appState.overallScore {
+        case 80...:
+            return ("ELITE", .liftGold)
+        case 60..<80:
+            return ("ADVANCED", .liftGreen)
+        case 35..<60:
+            return ("INTERMEDIATE", .liftBlue)
+        case 15..<35:
+            return ("NOVICE", .liftPurple)
+        default:
+            return ("BEGINNER", .liftMuted)
+        }
+    }
 
     var body: some View {
         AppBackground {
-            VStack(spacing: 0) {
+            TabView(selection: $step) {
+                welcome.tag(0)
+                goalsView.tag(1)
+                profileView.tag(2)
+                recordsView.tag(3)
+                ratingView.tag(4)
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .animation(.snappy, value: step)
+            .safeAreaInset(edge: .top, spacing: 0) {
                 topBar
-
-                TabView(selection: $step) {
-                    welcome.tag(0)
-                    goalsView.tag(1)
-                    profileView.tag(2)
-                    recordsView.tag(3)
-                    ratingView.tag(4)
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(.snappy, value: step)
-
+                    .background(Color.liftBackground)
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
                 controls
+            }
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { dismissKeyboard() }
+                }
             }
         }
         .interactiveDismissDisabled()
         .onAppear {
             profile = appState.currentProfile
+            profile.username = ""
+            profile.displayName = ""
+            selectedCountryCode = ""
+            selectedRegionName = ""
+            selectedCity = ""
+            cityQuery = ""
+            profile.city = ""
+            profile.state = ""
+            normalizeSelectedGym()
         }
+        .onChange(of: appState.gyms.map(\.id)) { _, _ in normalizeSelectedGym() }
         .sheet(isPresented: $showingPhotoManager, onDismiss: {
             profile.avatarPath = appState.currentProfile.avatarPath
         }) {
@@ -61,6 +108,7 @@ struct OnboardingView: View {
             HStack {
                 if step > 0 {
                     Button {
+                        dismissKeyboard()
                         withAnimation(.snappy) { step -= 1 }
                     } label: {
                         Image(systemName: "chevron.left")
@@ -104,55 +152,56 @@ struct OnboardingView: View {
         .padding(.horizontal, 20)
         .padding(.top, 10)
         .padding(.bottom, 12)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var welcome: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            Spacer()
-
-            ZStack {
-                Circle()
-                    .fill(Color.liftBlue.opacity(0.13))
-                    .frame(width: 150, height: 150)
-                    .blur(radius: 3)
-                Circle()
-                    .stroke(Color.liftBlue.opacity(0.30), lineWidth: 1)
-                    .frame(width: 126, height: 126)
-                Image(systemName: "dumbbell.fill")
-                    .font(.system(size: 62, weight: .bold))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.white, Color.liftBlue],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                ZStack {
+                    Circle()
+                        .fill(Color.liftBlue.opacity(0.13))
+                        .frame(width: 150, height: 150)
+                        .blur(radius: 3)
+                    Circle()
+                        .stroke(Color.liftBlue.opacity(0.30), lineWidth: 1)
+                        .frame(width: 126, height: 126)
+                    Image(systemName: "dumbbell.fill")
+                        .font(.system(size: 62, weight: .bold))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.white, Color.liftBlue],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-            }
-            .frame(maxWidth: .infinity)
+                }
+                .frame(maxWidth: .infinity)
 
-            VStack(alignment: .leading, spacing: 12) {
-                Text("KNOW YOUR STRENGTH")
-                    .font(.caption.weight(.black))
-                    .tracking(1.8)
-                    .foregroundStyle(Color.liftBlue)
-                Text("Turn every lift into a ranking.")
-                    .font(.system(size: 40, weight: .black, design: .rounded))
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("Track your best lifts, compare with lifters like you, and see exactly what to improve next.")
-                    .font(.title3)
-                    .foregroundStyle(Color.liftMuted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("KNOW YOUR STRENGTH")
+                        .font(.caption.weight(.black))
+                        .tracking(1.8)
+                        .foregroundStyle(Color.liftBlue)
+                    Text("Turn every lift into a ranking.")
+                        .font(.system(size: 40, weight: .black, design: .rounded))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Track your best lifts, compare with lifters like you, and see exactly what to improve next.")
+                        .font(.title3)
+                        .foregroundStyle(Color.liftMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-            HStack(spacing: 10) {
-                onboardingStat("bolt.fill", "Strength score")
-                onboardingStat("trophy.fill", "Real rankings")
-                onboardingStat("chart.bar.fill", "Clear progress")
+                HStack(spacing: 10) {
+                    onboardingStat("bolt.fill", "Strength score")
+                    onboardingStat("trophy.fill", "Real rankings")
+                    onboardingStat("chart.bar.fill", "Clear progress")
+                }
             }
-
-            Spacer()
+            .padding(.horizontal, 20)
+            .padding(.vertical, 24)
         }
-        .padding(.horizontal, 20)
+        .scrollIndicators(.hidden)
     }
 
     private func onboardingStat(_ symbol: String, _ title: String) -> some View {
@@ -170,6 +219,73 @@ struct OnboardingView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        }
+    }
+
+    private var heightSlider: some View {
+        sliderField(
+            title: "Height",
+            value: formattedHeight,
+            symbol: "ruler",
+            rangeLabel: "4'0\" – 7'0\""
+        ) {
+            Slider(value: $profile.heightInches, in: 48...84, step: 1)
+        }
+    }
+
+    private var formattedHeight: String {
+        let totalInches = Int(profile.heightInches.rounded())
+        return "\(totalInches / 12)'\(totalInches % 12)\""
+    }
+
+    private var trainingExperienceSlider: some View {
+        sliderField(
+            title: "Training experience",
+            value: "\(profile.yearsExperience) \(profile.yearsExperience == 1 ? "year" : "years")",
+            symbol: "calendar.badge.clock",
+            rangeLabel: "New – 30 years"
+        ) {
+            Slider(
+                value: Binding(
+                    get: { Double(profile.yearsExperience) },
+                    set: { profile.yearsExperience = Int($0.rounded()) }
+                ),
+                in: 0...30,
+                step: 1
+            )
+        }
+    }
+
+    private func sliderField<Content: View>(
+        title: String,
+        value: String,
+        symbol: String,
+        rangeLabel: String,
+        @ViewBuilder slider: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Image(systemName: symbol)
+                    .foregroundStyle(Color.liftBlue)
+                    .frame(width: 22)
+                Text(title)
+                    .foregroundStyle(Color.liftMuted)
+                Spacer()
+                Text(value)
+                    .font(.subheadline.weight(.bold))
+            }
+            slider()
+                .tint(Color.liftBlue)
+            Text(rangeLabel)
+                .font(.caption2)
+                .foregroundStyle(Color.liftMuted)
+        }
+        .padding(15)
+        .background(Color.liftCard)
+        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
                 .stroke(Color.white.opacity(0.06), lineWidth: 1)
         }
     }
@@ -203,7 +319,7 @@ struct OnboardingView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(goal)
                                     .font(.headline)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(Color.liftText)
                                 Text(subtitle)
                                     .font(.caption)
                                     .foregroundStyle(Color.liftMuted)
@@ -213,7 +329,7 @@ struct OnboardingView: View {
 
                             Image(systemName: goals.contains(goal) ? "checkmark.circle.fill" : "circle")
                                 .font(.title2)
-                                .foregroundStyle(goals.contains(goal) ? Color.liftBlue : Color.white.opacity(0.18))
+                                .foregroundStyle(goals.contains(goal) ? Color.liftBlue : Color.liftMuted.opacity(0.55))
                         }
                         .padding(15)
                         .background(goals.contains(goal) ? Color.liftBlue.opacity(0.10) : Color.liftCard)
@@ -273,7 +389,6 @@ struct OnboardingView: View {
 
                 profileSection("Identity") {
                     field("Username", text: $profile.username, symbol: "at")
-                    field("Display name", text: $profile.displayName, symbol: "person.fill")
                     labeledPicker("Birth date", symbol: "calendar") {
                         DatePicker(
                             "Birth date",
@@ -285,15 +400,17 @@ struct OnboardingView: View {
                     }
                     labeledPicker("Sex category", symbol: "person.2.fill") {
                         Picker("Sex category", selection: $profile.sexCategory) {
-                            ForEach(SexCategory.allCases) { Text($0.rawValue).tag($0) }
+                            ForEach([SexCategory.male, .female]) { category in
+                                Text(category.rawValue).tag(category)
+                            }
                         }
                     }
                 }
 
                 profileSection("Ranking details") {
                     NumericInputField(title: "Bodyweight", value: $profile.bodyweightPounds, unit: "lb", presentation: .inset)
-                    NumericInputField(title: "Height", value: $profile.heightInches, unit: "in", presentation: .inset)
-                    IntegerInputField(title: "Training experience", value: $profile.yearsExperience, unit: "years", presentation: .inset)
+                    heightSlider
+                    trainingExperienceSlider
                     labeledPicker("Preferred unit", symbol: "scalemass.fill") {
                         Picker("Preferred unit", selection: $profile.preferredUnit) {
                             ForEach(UnitSystem.allCases) { Text($0.rawValue.capitalized).tag($0) }
@@ -301,20 +418,62 @@ struct OnboardingView: View {
                     }
                 }
 
-                profileSection("Home gym") {
-                    field("City", text: $profile.city, symbol: "mappin")
-                    field("State", text: $profile.state, symbol: "map")
-                    labeledPicker("Primary gym", symbol: "building.2.fill") {
-                        Picker("Primary gym", selection: $profile.primaryGymName) {
-                            ForEach(MockData.crunchGyms) { gym in
-                                Text("\(gym.name) - \(gym.city), \(gym.state)").tag(gym.name)
+                profileSection("Location") {
+                    labeledPicker("Country", symbol: "globe.americas.fill") {
+                        Picker("Country", selection: $selectedCountryCode) {
+                            Text("Select country").tag("")
+                            ForEach(launchCountries) { country in
+                                Text(country.name).tag(country.code)
                             }
                         }
-                        .onChange(of: profile.primaryGymName) { _, newValue in
-                            if let gym = MockData.gyms.first(where: { $0.name == newValue }) {
-                                profile.primaryGymID = gym.id
-                                profile.city = gym.city
-                                profile.state = gym.state
+                        .pickerStyle(.menu)
+                        .frame(minWidth: 190, alignment: .trailing)
+                        .onChange(of: selectedCountryCode) { _, _ in
+                            selectedRegionName = ""
+                            selectedCity = ""
+                            cityQuery = ""
+                            citySearch.reset()
+                            profile.state = ""
+                            profile.city = ""
+                        }
+                    }
+
+                    labeledPicker("State / province", symbol: "map.fill") {
+                        Picker("State or province", selection: $selectedRegionName) {
+                            Text(selectedCountry == nil ? "Choose country first" : "Select state").tag("")
+                            ForEach(selectedCountry?.regions ?? []) { region in
+                                Text(region.name).tag(region.name)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(minWidth: 190, alignment: .trailing)
+                        .disabled(selectedCountry == nil)
+                        .onChange(of: selectedRegionName) { _, newValue in
+                            selectedCity = ""
+                            cityQuery = ""
+                            citySearch.reset()
+                            profile.state = newValue
+                            profile.city = ""
+                        }
+                    }
+
+                    citySearchField
+                    if !appState.gyms.isEmpty {
+                        labeledPicker("Primary gym (optional)", symbol: "building.2.fill") {
+                            Picker("Primary gym", selection: $profile.primaryGymName) {
+                                Text("Choose later").tag("")
+                                ForEach(appState.gyms) { gym in
+                                    Text("\(gym.name) - \(gym.city), \(gym.state)").tag(gym.name)
+                                }
+                            }
+                            .onChange(of: profile.primaryGymName) { _, newValue in
+                                if let gym = appState.gyms.first(where: { $0.name == newValue }) {
+                                    profile.primaryGymID = gym.id
+                                    selectedCity = gym.city
+                                    cityQuery = gym.city
+                                    profile.city = gym.city
+                                    profile.state = gym.state
+                                }
                             }
                         }
                     }
@@ -335,6 +494,85 @@ struct OnboardingView: View {
                 .tracking(1)
                 .foregroundStyle(Color.liftMuted)
             content()
+        }
+    }
+
+    private var citySearchField: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Image(systemName: "mappin.and.ellipse")
+                    .foregroundStyle(Color.liftBlue)
+                    .frame(width: 22)
+                if selectedRegion == nil {
+                    Text("City")
+                        .foregroundStyle(Color.liftMuted)
+                    Spacer()
+                    Text("Choose state first")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.liftMuted)
+                } else {
+                    TextField("Search city", text: $cityQuery)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
+                        .onChange(of: cityQuery) { _, query in
+                            guard let selectedCountry, let selectedRegion else { return }
+                            let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+                            selectedCity = trimmedQuery
+                            profile.city = trimmedQuery
+                            citySearch.search(
+                                query: query,
+                                region: selectedRegion.name,
+                                country: selectedCountry.name
+                            )
+                        }
+                }
+            }
+            .padding(15)
+            .background(Color.liftCard)
+            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+            }
+
+            if selectedRegion != nil, !citySearch.results.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(citySearch.results) { suggestion in
+                        Button {
+                            selectedCity = suggestion.city
+                            cityQuery = suggestion.city
+                            profile.city = suggestion.city
+                            dismissKeyboard()
+                            citySearch.reset()
+                        } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(suggestion.city)
+                                    .font(.subheadline.weight(.semibold))
+                                Text(suggestion.detail)
+                                    .font(.caption)
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 11)
+                        }
+                        .buttonStyle(.plain)
+
+                        if suggestion.id != citySearch.results.last?.id {
+                            Divider().overlay(Color.white.opacity(0.06))
+                        }
+                    }
+                }
+                .padding(.horizontal, 15)
+                .background(Color.liftCardRaised)
+                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+            }
+
+            if selectedRegion != nil, cityQuery.isEmpty {
+                Text("Search for any city in \(selectedRegionName).")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+                    .padding(.leading, 34)
+            }
         }
     }
 
@@ -426,13 +664,13 @@ struct OnboardingView: View {
                     }
                     .frame(width: 190, height: 190)
 
-                    Text("ADVANCED")
+                    Text(onboardingScoreTier.label)
                         .font(.headline.weight(.black))
                         .tracking(1.4)
-                        .foregroundStyle(Color.liftGreen)
+                        .foregroundStyle(onboardingScoreTier.tint)
                         .padding(.horizontal, 18)
                         .padding(.vertical, 8)
-                        .background(Color.liftGreen.opacity(0.12))
+                        .background(onboardingScoreTier.tint.opacity(0.12))
                         .clipShape(Capsule())
                 }
                 .frame(maxWidth: .infinity)
@@ -451,7 +689,7 @@ struct OnboardingView: View {
                 }
 
                 HStack(spacing: 12) {
-                    resultCard("#4", "Gym rank", "building.2.fill", .liftGold)
+                    resultCard("Unranked", "Global rank", "chart.line.uptrend.xyaxis", .liftGold)
                     resultCard("Top 12%", "Weight class", "person.2.fill", .liftBlue)
                 }
 
@@ -509,14 +747,17 @@ struct OnboardingView: View {
                 symbolName: step == 4 ? "arrow.right" : "chevron.right"
             ) {
                 if step == 4 {
+                    dismissKeyboard()
                     saveOnboardingProfile()
                 } else {
+                    dismissKeyboard()
                     withAnimation(.snappy) { step += 1 }
                 }
             }
 
             if step == 3 {
                 Button("I’ll add my lifts later") {
+                    dismissKeyboard()
                     withAnimation(.snappy) { step += 1 }
                 }
                 .font(.subheadline.weight(.semibold))
@@ -527,11 +768,26 @@ struct OnboardingView: View {
         .padding(.horizontal, 20)
         .padding(.top, 12)
         .padding(.bottom, 10)
-        .background(.ultraThinMaterial)
+        .background(Color.liftBackground)
     }
 
     private func saveOnboardingProfile() {
         guard !isSavingProfile else { return }
+        let username = profile.username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let city = selectedCity.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !username.isEmpty else {
+            saveError = "Choose a username to continue."
+            Haptics.warning()
+            return
+        }
+        guard !selectedCountryCode.isEmpty,
+              !selectedRegionName.isEmpty,
+              !city.isEmpty else {
+            saveError = "Choose your country, state or province, and city to continue."
+            Haptics.warning()
+            return
+        }
+        profile.city = city
         isSavingProfile = true
         saveError = nil
         let privacy = ProfilePrivacySettings(
@@ -541,16 +797,17 @@ struct OnboardingView: View {
             gymAudience: profile.hideGym ? .privateProfile : .publicProfile
         )
         let draft = ProfileDraft(
-            username: profile.username,
-            displayName: profile.displayName,
+            username: username,
+            displayName: username,
             bio: "",
             preferredUnit: profile.preferredUnit,
             birthDate: birthDate,
             sexCategory: profile.sexCategory,
             heightCentimeters: profile.heightInches * 2.54,
+            bodyweightPounds: profile.bodyweightPounds,
             city: profile.city,
             region: profile.state,
-            countryCode: "US",
+            countryCode: selectedCountryCode,
             yearsExperience: profile.yearsExperience,
             experienceLevel: profile.experienceLevel,
             privacy: privacy,
@@ -559,6 +816,9 @@ struct OnboardingView: View {
         Task {
             do {
                 try await appState.saveAuthenticatedProfile(draft)
+                if let primaryGym = appState.gyms.first(where: { $0.id == profile.primaryGymID }) {
+                    try await appState.connectOnboardingPrimaryGym(primaryGym)
+                }
                 Haptics.success()
                 complete()
             } catch {
@@ -567,6 +827,21 @@ struct OnboardingView: View {
             }
             isSavingProfile = false
         }
+    }
+
+    private func normalizeSelectedGym() {
+        guard !profile.primaryGymName.isEmpty,
+              !appState.gyms.contains(where: { $0.id == profile.primaryGymID }) else { return }
+        profile.primaryGymName = ""
+    }
+
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
     }
 
     private var nextButtonTitle: String {
@@ -676,4 +951,163 @@ struct OnboardingView: View {
                 .stroke(Color.white.opacity(0.06), lineWidth: 1)
         }
     }
+}
+
+struct LaunchCountry: Identifiable {
+    let code: String
+    let name: String
+    let regionLabel: String
+    let regions: [LaunchRegion]
+
+    var id: String { code }
+}
+
+struct LaunchRegion: Identifiable {
+    let name: String
+    let cities: [String]
+
+    var id: String { name }
+}
+
+enum LaunchLocationCatalog {
+    static let countries: [LaunchCountry] = [
+        LaunchCountry(code: "US", name: "United States", regionLabel: "State", regions: [
+            LaunchRegion(name: "Alabama", cities: ["Birmingham", "Montgomery", "Mobile"]),
+            LaunchRegion(name: "Alaska", cities: ["Anchorage", "Fairbanks", "Juneau"]),
+            LaunchRegion(name: "Arizona", cities: ["Phoenix", "Tucson", "Mesa"]),
+            LaunchRegion(name: "Arkansas", cities: ["Little Rock", "Fayetteville", "Fort Smith"]),
+            LaunchRegion(name: "California", cities: ["Los Angeles", "San Diego", "San Francisco", "San Jose"]),
+            LaunchRegion(name: "Colorado", cities: ["Denver", "Colorado Springs", "Aurora"]),
+            LaunchRegion(name: "Connecticut", cities: ["Bridgeport", "New Haven", "Hartford"]),
+            LaunchRegion(name: "Delaware", cities: ["Wilmington", "Dover", "Newark"]),
+            LaunchRegion(name: "District of Columbia", cities: ["Washington"]),
+            LaunchRegion(name: "Florida", cities: ["Miami", "Orlando", "Tampa", "Jacksonville"]),
+            LaunchRegion(name: "Georgia", cities: ["Atlanta", "Augusta", "Savannah"]),
+            LaunchRegion(name: "Hawaii", cities: ["Honolulu", "Hilo", "Kailua"]),
+            LaunchRegion(name: "Idaho", cities: ["Boise", "Meridian", "Nampa"]),
+            LaunchRegion(name: "Illinois", cities: ["Chicago", "Aurora", "Naperville"]),
+            LaunchRegion(name: "Indiana", cities: ["Indianapolis", "Fort Wayne", "Evansville"]),
+            LaunchRegion(name: "Iowa", cities: ["Des Moines", "Cedar Rapids", "Davenport"]),
+            LaunchRegion(name: "Kansas", cities: ["Wichita", "Overland Park", "Kansas City"]),
+            LaunchRegion(name: "Kentucky", cities: ["Louisville", "Lexington", "Bowling Green"]),
+            LaunchRegion(name: "Louisiana", cities: ["New Orleans", "Baton Rouge", "Shreveport"]),
+            LaunchRegion(name: "Maine", cities: ["Portland", "Lewiston", "Bangor"]),
+            LaunchRegion(name: "Maryland", cities: ["Baltimore", "Frederick", "Rockville"]),
+            LaunchRegion(name: "Massachusetts", cities: ["Boston", "Worcester", "Springfield"]),
+            LaunchRegion(name: "Michigan", cities: ["Detroit", "Grand Rapids", "Ann Arbor"]),
+            LaunchRegion(name: "Minnesota", cities: ["Minneapolis", "Saint Paul", "Rochester"]),
+            LaunchRegion(name: "Mississippi", cities: ["Jackson", "Gulfport", "Southaven"]),
+            LaunchRegion(name: "Missouri", cities: ["Kansas City", "St. Louis", "Springfield"]),
+            LaunchRegion(name: "Montana", cities: ["Billings", "Missoula", "Bozeman"]),
+            LaunchRegion(name: "Nebraska", cities: ["Omaha", "Lincoln", "Bellevue"]),
+            LaunchRegion(name: "Nevada", cities: ["Las Vegas", "Henderson", "Reno"]),
+            LaunchRegion(name: "New Hampshire", cities: ["Manchester", "Nashua", "Concord"]),
+            LaunchRegion(name: "New Jersey", cities: ["Newark", "Jersey City", "Paterson"]),
+            LaunchRegion(name: "New York", cities: ["New York City", "Buffalo", "Rochester", "Albany"]),
+            LaunchRegion(name: "North Carolina", cities: ["Charlotte", "Raleigh", "Greensboro"]),
+            LaunchRegion(name: "North Dakota", cities: ["Fargo", "Bismarck", "Grand Forks"]),
+            LaunchRegion(name: "Ohio", cities: ["Columbus", "Cleveland", "Cincinnati"]),
+            LaunchRegion(name: "Oklahoma", cities: ["Oklahoma City", "Tulsa", "Norman"]),
+            LaunchRegion(name: "Oregon", cities: ["Portland", "Eugene", "Salem"]),
+            LaunchRegion(name: "Pennsylvania", cities: ["Philadelphia", "Pittsburgh", "Allentown"]),
+            LaunchRegion(name: "Rhode Island", cities: ["Providence", "Warwick", "Cranston"]),
+            LaunchRegion(name: "South Carolina", cities: ["Charleston", "Columbia", "Greenville"]),
+            LaunchRegion(name: "South Dakota", cities: ["Sioux Falls", "Rapid City", "Aberdeen"]),
+            LaunchRegion(name: "Tennessee", cities: ["Nashville", "Memphis", "Knoxville"]),
+            LaunchRegion(name: "Texas", cities: ["Austin", "Dallas", "Houston", "San Antonio"]),
+            LaunchRegion(name: "Utah", cities: ["Salt Lake City", "West Valley City", "Provo"]),
+            LaunchRegion(name: "Vermont", cities: ["Burlington", "South Burlington", "Rutland"]),
+            LaunchRegion(name: "Virginia", cities: ["Virginia Beach", "Richmond", "Norfolk"]),
+            LaunchRegion(name: "Washington", cities: ["Seattle", "Spokane", "Tacoma"]),
+            LaunchRegion(name: "West Virginia", cities: ["Charleston", "Huntington", "Morgantown"]),
+            LaunchRegion(name: "Wisconsin", cities: ["Milwaukee", "Madison", "Green Bay"]),
+            LaunchRegion(name: "Wyoming", cities: ["Cheyenne", "Casper", "Laramie"])
+        ]),
+        LaunchCountry(code: "CA", name: "Canada", regionLabel: "Province", regions: [
+            LaunchRegion(name: "Alberta", cities: ["Calgary", "Edmonton"]),
+            LaunchRegion(name: "British Columbia", cities: ["Vancouver", "Victoria", "Kelowna"]),
+            LaunchRegion(name: "Ontario", cities: ["Toronto", "Ottawa", "Hamilton", "Mississauga"]),
+            LaunchRegion(name: "Quebec", cities: ["Montreal", "Quebec City", "Laval"])
+        ]),
+        LaunchCountry(code: "GB", name: "United Kingdom", regionLabel: "Nation", regions: [
+            LaunchRegion(name: "England", cities: ["London", "Manchester", "Birmingham", "Leeds"]),
+            LaunchRegion(name: "Northern Ireland", cities: ["Belfast", "Derry"]),
+            LaunchRegion(name: "Scotland", cities: ["Glasgow", "Edinburgh", "Aberdeen"]),
+            LaunchRegion(name: "Wales", cities: ["Cardiff", "Swansea", "Newport"])
+        ]),
+        LaunchCountry(code: "IE", name: "Ireland", regionLabel: "Province", regions: [
+            LaunchRegion(name: "Connacht", cities: ["Galway", "Sligo"]),
+            LaunchRegion(name: "Leinster", cities: ["Dublin", "Kilkenny", "Wexford"]),
+            LaunchRegion(name: "Munster", cities: ["Cork", "Limerick", "Waterford"]),
+            LaunchRegion(name: "Ulster", cities: ["Donegal", "Cavan", "Monaghan"])
+        ]),
+        LaunchCountry(code: "AU", name: "Australia", regionLabel: "State or territory", regions: [
+            LaunchRegion(name: "New South Wales", cities: ["Sydney", "Newcastle", "Wollongong"]),
+            LaunchRegion(name: "Queensland", cities: ["Brisbane", "Gold Coast", "Cairns"]),
+            LaunchRegion(name: "Victoria", cities: ["Melbourne", "Geelong"]),
+            LaunchRegion(name: "Western Australia", cities: ["Perth", "Fremantle"])
+        ]),
+        LaunchCountry(code: "NZ", name: "New Zealand", regionLabel: "Region", regions: [
+            LaunchRegion(name: "Auckland", cities: ["Auckland", "Manukau", "North Shore"]),
+            LaunchRegion(name: "Canterbury", cities: ["Christchurch", "Timaru"]),
+            LaunchRegion(name: "Otago", cities: ["Dunedin", "Queenstown"]),
+            LaunchRegion(name: "Wellington", cities: ["Wellington", "Lower Hutt", "Porirua"])
+        ]),
+        LaunchCountry(code: "ZA", name: "South Africa", regionLabel: "Province", regions: [
+            LaunchRegion(name: "Gauteng", cities: ["Johannesburg", "Pretoria", "Soweto"]),
+            LaunchRegion(name: "KwaZulu-Natal", cities: ["Durban", "Pietermaritzburg"]),
+            LaunchRegion(name: "Western Cape", cities: ["Cape Town", "Stellenbosch", "George"])
+        ])
+    ]
+}
+
+private final class CitySearchController: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
+    @Published private(set) var results: [CitySearchSuggestion] = []
+
+    private let completer = MKLocalSearchCompleter()
+    private var expectedRegion = ""
+    private var expectedCountry = ""
+
+    override init() {
+        super.init()
+        completer.delegate = self
+        completer.resultTypes = .address
+    }
+
+    func search(query: String, region: String, country: String) {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        expectedRegion = region
+        expectedCountry = country
+        guard trimmedQuery.count >= 2 else {
+            results = []
+            return
+        }
+        completer.queryFragment = "\(trimmedQuery), \(region), \(country)"
+    }
+
+    func reset() {
+        results = []
+        expectedRegion = ""
+        expectedCountry = ""
+        completer.queryFragment = ""
+    }
+
+    nonisolated func completerDidUpdateResults(_ completer: MKLocalSearchCompleter) {
+        let suggestions = completer.results.compactMap { result -> CitySearchSuggestion? in
+            let detail = result.subtitle
+            guard detail.localizedCaseInsensitiveContains(self.expectedRegion),
+                  detail.localizedCaseInsensitiveContains(self.expectedCountry) else { return nil }
+            return CitySearchSuggestion(city: result.title, detail: detail)
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.results = Array(Dictionary(grouping: suggestions, by: \.id).compactMap { $0.value.first }.prefix(8))
+        }
+    }
+}
+
+private struct CitySearchSuggestion: Identifiable {
+    let city: String
+    let detail: String
+
+    var id: String { "\(city)|\(detail)" }
 }

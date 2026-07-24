@@ -19,7 +19,7 @@ struct ModeratorReviewView: View {
     ]
 
     private var pending: [LiftSubmission] {
-        appState.lifts.filter { $0.verificationStatus == .videoSubmitted || $0.verificationStatus == .selfReported }
+        appState.pendingReviewLifts
     }
 
     var body: some View {
@@ -109,11 +109,11 @@ struct ModeratorReviewView: View {
                     VStack(alignment: .leading) {
                         Text(lift.exerciseName)
                             .font(.headline)
-                        Text("\(RankingCalculator.format(lift.weight)) \(lift.unit.shortLabel) x \(lift.repetitions) - \(RankingCalculator.format(lift.estimatedOneRepMax)) lb max")
+                        Text("\(MeasurementFormatting.liftSetTextWithX(weightKilograms: lift.weight, unit: lift.unit, repetitions: lift.repetitions)) - \(MeasurementFormatting.formatWeight(lift.estimatedOneRepMax)) lb max")
                             .foregroundStyle(Color.liftMuted)
                     }
                     Spacer()
-                    VerificationBadge(status: lift.verificationStatus)
+                    VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus)
                 }
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)

@@ -37,7 +37,8 @@ final class MockProfileService: ProfileService {
             id: profile.id, username: profile.username, displayName: profile.displayName,
             bio: "", avatarPath: profile.avatarPath, onboardingCompleted: true,
             preferredUnit: profile.preferredUnit, birthDate: nil, sexCategory: profile.sexCategory,
-            heightCentimeters: profile.heightInches * 2.54, city: profile.city,
+            heightCentimeters: profile.heightInches * 2.54,
+            bodyweightPounds: profile.bodyweightPounds, city: profile.city,
             region: profile.state, countryCode: "US", yearsExperience: profile.yearsExperience,
             experienceLevel: profile.experienceLevel,
             privacy: ProfilePrivacySettings(
@@ -55,6 +56,7 @@ final class MockProfileService: ProfileService {
         profile.preferredUnit = draft.preferredUnit
         profile.sexCategory = draft.sexCategory ?? .open
         profile.heightInches = (draft.heightCentimeters ?? profile.heightInches * 2.54) / 2.54
+        profile.bodyweightPounds = draft.bodyweightPounds ?? profile.bodyweightPounds
         profile.city = draft.city
         profile.state = draft.region
         profile.yearsExperience = draft.yearsExperience ?? profile.yearsExperience
@@ -146,11 +148,64 @@ final class MockGymService: GymService {
 @MainActor
 final class MockSocialService: SocialService {
     private let repository: DemoRepository
+    private var blockRecords: [UserBlockRecord] = []
     init(repository: DemoRepository) { self.repository = repository }
     func feed() async throws -> [ActivityItem] { repository.activities }
-    func block(userID: UUID) async throws {}
-    func unblock(userID: UUID) async throws {}
-    func blocks() async throws -> [UserBlockRecord] { [] }
+    func searchProfiles(query: String, limit: Int) async throws -> [PublicProfileCard] {
+        let clean = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return repository.profiles.filter {
+            clean.isEmpty || $0.username.lowercased().contains(clean) || $0.displayName.lowercased().contains(clean)
+        }.prefix(max(1, min(limit, 50))).map {
+            PublicProfileCard(
+                id: $0.id, username: $0.username, displayName: $0.displayName,
+                bio: "", avatarPath: $0.avatarPath, ageBand: $0.hideExactAge ? nil : $0.ageGroup,
+                sexCategory: $0.sexCategory, city: $0.hideCity ? nil : $0.city,
+                region: $0.hideCity ? nil : $0.state, countryCode: nil,
+                primaryGymID: $0.hideGym ? nil : $0.primaryGymID,
+                primaryGymName: $0.hideGym ? nil : $0.primaryGymName
+            )
+        }
+    }
+    func comments(activityID: UUID) async throws -> [ActivityComment] {
+        repository.activityComments.filter { $0.activityID == activityID }
+    }
+    func setActivityLiked(activityID: UUID, isLiked: Bool) async throws {
+        guard let activity = repository.activities.first(where: { $0.id == activityID }), activity.isLiked != isLiked else { return }
+        repository.toggleActivityLike(activity)
+    }
+    func addActivityComment(activityID: UUID, body: String) async throws -> ActivityComment {
+        guard let activity = repository.activities.first(where: { $0.id == activityID }) else {
+            throw LiftRankServiceError.invalidInput("Shared workout not found.")
+        }
+        repository.addComment(to: activity, body: body)
+        guard let comment = repository.activityComments.last(where: { $0.activityID == activityID }) else {
+            throw LiftRankServiceError.server("Comment could not be saved.")
+        }
+        return comment
+    }
+    func shareWorkout(snapshotID: UUID, title: String, detail: String) async throws -> ActivityItem {
+        let item = ActivityItem(
+            id: UUID(), profile: repository.currentProfile, title: title, detail: detail,
+            workoutID: snapshotID, createdAt: .now, isLiked: false, isSaved: false
+        )
+        repository.activities.insert(item, at: 0)
+        return item
+    }
+    func removeWorkoutShare(activityID: UUID) async throws { repository.activities.removeAll { $0.id == activityID } }
+    func reportActivity(activityID: UUID, reason: CommunityReportReason, note: String) async throws {}
+    func block(userID: UUID) async throws {
+        guard userID != repository.currentProfile.id,
+              !blockRecords.contains(where: { $0.blockedID == userID }) else { return }
+        blockRecords.append(UserBlockRecord(
+            blockerID: repository.currentProfile.id,
+            blockedID: userID,
+            createdAt: .now
+        ))
+    }
+    func unblock(userID: UUID) async throws {
+        blockRecords.removeAll { $0.blockedID == userID }
+    }
+    func blocks() async throws -> [UserBlockRecord] { blockRecords }
 }
 
 @MainActor

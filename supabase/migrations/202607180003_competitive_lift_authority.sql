@@ -63,7 +63,8 @@ before insert or update on public.lift_submissions
 for each row execute function public.enforce_competitive_lift_authority();
 
 create or replace function public.complete_lift_media_upload(
-  asset_id uuid, lift_id uuid, storage_path text, content_type text, byte_count bigint
+  target_asset_id uuid, target_lift_id uuid, uploaded_storage_path text,
+  uploaded_content_type text, uploaded_byte_count bigint
 )
 returns table(id uuid, owner_id uuid, storage_path text, content_type text, byte_count bigint, created_at timestamptz)
 language plpgsql
@@ -73,23 +74,23 @@ as $$
 declare caller uuid := auth.uid(); prior public.lift_moderation_status;
 begin
   if caller is null then raise exception 'Authentication required'; end if;
-  select l.moderation_status into prior from public.lift_submissions l where l.id = lift_id and l.user_id = caller for update;
+  select l.moderation_status into prior from public.lift_submissions l where l.id = target_lift_id and l.user_id = caller for update;
   if prior is null then raise exception 'Lift not found'; end if;
-  if storage_path !~ ('^' || caller::text || '/' || lift_id::text || '/')
-     or not exists (select 1 from storage.objects o where o.bucket_id = 'lift-videos' and o.name = storage_path and o.owner_id = caller::text)
+  if uploaded_storage_path !~ ('^' || caller::text || '/' || target_lift_id::text || '/')
+     or not exists (select 1 from storage.objects o where o.bucket_id = 'lift-videos' and o.name = uploaded_storage_path and o.owner_id = caller::text)
   then raise exception 'Completed upload not found'; end if;
 
   insert into public.lift_media_assets(id, owner_id, lift_id, storage_path, content_type, byte_count)
-  values(asset_id, caller, lift_id, storage_path, content_type, byte_count);
+  values(target_asset_id, caller, target_lift_id, uploaded_storage_path, uploaded_content_type, uploaded_byte_count);
   update public.lift_submissions l set
-    video_asset_id = asset_id,
+    video_asset_id = target_asset_id,
     evidence_status = 'video_backed',
     verification = 'Video Verified',
     moderation_status = case when prior = 'replacement_requested' then 'under_review' else prior end,
     updated_at = statement_timestamp()
-  where l.id = lift_id;
+  where l.id = target_lift_id;
   return query select a.id,a.owner_id,a.storage_path,a.content_type,a.byte_count,a.created_at
-    from public.lift_media_assets a where a.id = asset_id;
+    from public.lift_media_assets a where a.id = target_asset_id;
 end;
 $$;
 

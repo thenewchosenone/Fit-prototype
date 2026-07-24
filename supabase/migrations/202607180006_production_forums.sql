@@ -81,7 +81,7 @@ revoke all on function public.join_forum_community(uuid,text) from public;revoke
 grant execute on function public.join_forum_community(uuid,text) to authenticated;grant execute on function public.leave_forum_community(uuid) to authenticated;grant execute on function public.moderate_forum_post(uuid,text,text) to authenticated;
 
 create or replace function public.can_view_profile(target_user_id uuid)
-returns boolean language sql stable security definer set search_path=public as $$
+returns boolean language sql stable security definer set search_path=pg_catalog as $$
 select auth.uid() is not null and not public.is_blocked_pair(target_user_id,auth.uid()) and coalesce(public.can_view_profile_field(
 target_user_id,(select pp.profile_audience from public.profile_privacy pp where pp.user_id=target_user_id)),false);$$;
 

@@ -93,14 +93,14 @@ run_reset() {
     local staged="$WORK/$(basename "$test_file")"
     sed '/create extension if not exists pgtap/d' "$test_file" > "$staged"
     psql_local -f "$staged" | tee "$staged.$db.log"
-    if grep -q '^not ok' "$staged.$db.log"; then exit 1; fi
+    if grep -Eq '^[[:space:]]*not ok' "$staged.$db.log"; then exit 1; fi
   done
   local concurrency="$WORK/concurrency.sql"
   sed -e '/create extension if not exists pgtap/d' \
       -e "s#'dbname=' || current_database()#'host=$SOCKET port=$PORT dbname=' || current_database()#g" \
       "$ROOT/supabase/tests/202607140002_gym_membership_concurrency.test.sql" > "$concurrency"
   psql_local -f "$concurrency" | tee "$concurrency.$db.log"
-  if grep -q '^not ok' "$concurrency.$db.log"; then exit 1; fi
+  if grep -Eq '^[[:space:]]*not ok' "$concurrency.$db.log"; then exit 1; fi
 }
 
 run_reset liftrank_foundation_1

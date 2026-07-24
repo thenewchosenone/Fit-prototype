@@ -40,10 +40,7 @@ struct SettingsView: View {
                         ))
                         Toggle("Start rest timer after completed sets", isOn: Binding(
                             get: { appState.workoutPreferences.defaultRestTimerEnabled },
-                            set: {
-                                appState.repository.workoutPreferences.defaultRestTimerEnabled = $0
-                                appState.repository.persistWorkoutSnapshot()
-                            }
+                            set: { appState.setDefaultRestTimerEnabled($0) }
                         ))
                         if appState.pendingWorkoutPRSubmissions.contains(where: { $0.state == .failed }) {
                             Button("Retry failed PR uploads") {
@@ -74,13 +71,26 @@ struct SettingsView: View {
                     Section("Developer") {
                         if appState.isDemoMode {
                             Button("Reset Demo Data", role: .destructive) {
-                                Haptics.warning()
-                                appState.profilePhotoStore.removeNamespace(.demo)
-                                appState.repository.reset()
+                                appState.resetDemoData()
                             }
                         } else {
                             Text("Authenticated profile and social data are stored by Supabase. Workout data remains local in this beta.")
                                 .font(.caption)
+                        }
+                    }
+                    if appState.accountOperationInProgress || appState.accountMessage != nil {
+                        Section {
+                            if appState.accountOperationInProgress {
+                                HStack(spacing: 10) {
+                                    ProgressView()
+                                    Text("Deleting account...")
+                                        .foregroundStyle(Color.liftMuted)
+                                }
+                            } else if let message = appState.accountMessage {
+                                Text(message)
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.liftRed)
+                            }
                         }
                     }
                     Section {
@@ -88,8 +98,13 @@ struct SettingsView: View {
                             dismiss()
                             Task { await appState.signOutAccount() }
                         }
+                        .disabled(appState.accountOperationInProgress)
                         if appState.isAuthenticated && !appState.isDemoMode {
-                            Button("Delete Account", role: .destructive) { confirmingDeletion = true }
+                            Button("Delete Account", role: .destructive) {
+                                appState.accountMessage = nil
+                                confirmingDeletion = true
+                            }
+                            .disabled(appState.accountOperationInProgress)
                         }
                     }
                 }
@@ -117,12 +132,13 @@ struct SettingsView: View {
                     .presentationDetents([.medium, .large])
             }
             .confirmationDialog("Permanently delete your LiftRank account?", isPresented: $confirmingDeletion, titleVisibility: .visible) {
-                Button("Delete Account and Local Data", role: .destructive) {
+                Button(appState.accountOperationInProgress ? "Deleting..." : "Delete Account and Local Data", role: .destructive) {
                     Task {
                         await appState.deleteAuthenticatedAccount()
                         if !appState.isAuthenticated { dismiss() }
                     }
                 }
+                .disabled(appState.accountOperationInProgress)
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("For security, the server requires a recently authenticated session. Your account data, workout backup, and local training data will be removed. This cannot be undone.")

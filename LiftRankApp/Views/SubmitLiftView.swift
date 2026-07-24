@@ -27,9 +27,9 @@ struct SubmitLiftView: View {
     @State private var unit: UnitSystem = .pounds
     @State private var repetitions = 1
     @State private var isActualOneRepMax = true
-    @State private var bodyweight = MockData.demoProfile.bodyweightPounds
+    @State private var bodyweight = 0.0
     @State private var performedAt = Date()
-    @State private var gymID = MockData.demoGymID
+    @State private var gymID = UUID()
     @State private var equipment = EquipmentType.raw
     @State private var caption = ""
     @State private var visibility = LiftVisibility.publicLift
@@ -37,6 +37,10 @@ struct SubmitLiftView: View {
     @State private var confirmsMatchedDumbbells = true
     @State private var pickerItem: PhotosPickerItem?
     @State private var selectedVideoURL: URL?
+    @State private var isPreparingVideo = false
+    @State private var videoError: String?
+    @State private var submissionError: String?
+    @State private var gymSelectionError: String?
     @State private var showingVideoReview = false
     @State private var showingResult = false
     @State private var plateLoads: [EditablePlateLoad] = []
@@ -70,11 +74,19 @@ struct SubmitLiftView: View {
                                 await appState.submitLift(exercise: exercise, weight: weight, unit: unit, reps: repetitions, isActual: isActualOneRepMax, bodyweight: bodyweight, date: performedAt, gymID: gymID, equipment: equipment, visibility: visibility, videoURL: selectedVideoURL, caption: caption, requestVerification: requestVerification)
                                 if let lift = appState.lastSubmissionResult {
                                     modelContext.insert(PersistentLiftRecord(id: lift.id, exerciseID: lift.exerciseID, exerciseName: lift.exerciseName, weight: lift.weight, repetitions: lift.repetitions, performedAt: lift.performedAt))
+                                    showingResult = true
+                                } else {
+                                    submissionError = appState.accountMessage ?? "The lift could not be submitted."
                                 }
-                                showingResult = true
                             }
                         }
-                        .disabled(selectedMovement == .dumbbellBenchPress && !confirmsMatchedDumbbells)
+                        .accessibilityIdentifier("lift.submit")
+                        .disabled(
+                            isPreparingVideo ||
+                            selectedGym == nil ||
+                            !appState.isGymJoined(gymID) ||
+                            (selectedMovement == .dumbbellBenchPress && !confirmsMatchedDumbbells)
+                        )
                     }
                     .padding(.horizontal, LiftDesign.screenHorizontalPadding)
                     .padding(.top, 12)
@@ -101,10 +113,14 @@ struct SubmitLiftView: View {
                     title: selector.title,
                     options: options(for: selector),
                     selectedID: selectedID(for: selector),
-                    isSearchable: selector == .exercise || selector == .gym
+                    isSearchable: selector == .exercise || selector == .gym,
+                    dismissOnSelection: selector != .gym
                 ) { id in
-                    select(id, for: selector)
-                    activeSelector = nil
+                    if selector == .gym {
+                        Task { await selectGym(id) }
+                    } else {
+                        select(id, for: selector)
+                    }
                 }
                 .presentationDetents([.medium, .large])
             }
@@ -114,11 +130,31 @@ struct SubmitLiftView: View {
                 }
             }
             .onChange(of: pickerItem) { _, _ in
-                selectedVideoURL = URL(fileURLWithPath: "/tmp/liftrank-demo-video.mov")
-                appState.uploadProgress = 0
+                prepareSelectedVideo()
+            }
+            .alert("Gym unavailable", isPresented: Binding(
+                get: { gymSelectionError != nil },
+                set: { if !$0 { gymSelectionError = nil } }
+            )) {
+                Button("OK", role: .cancel) { gymSelectionError = nil }
+            } message: {
+                Text(gymSelectionError ?? "Choose another gym.")
             }
             .onAppear {
+                bodyweight = appState.currentProfile.bodyweightPounds
+                unit = appState.currentProfile.preferredUnit
+                gymID = appState.gyms.first(where: {
+                    $0.id == appState.currentProfile.primaryGymID && appState.isGymJoined($0)
+                })?.id ?? appState.gyms.first(where: { appState.isGymJoined($0) })?.id ?? UUID()
                 resetPlateLoadingFromWeight()
+            }
+            .alert("Lift not submitted", isPresented: Binding(
+                get: { submissionError != nil },
+                set: { if !$0 { submissionError = nil } }
+            )) {
+                Button("OK", role: .cancel) { submissionError = nil }
+            } message: {
+                Text(submissionError ?? "Try again.")
             }
             .onChange(of: unit) { _, _ in
                 resetPlateLoadingFromWeight()
@@ -223,7 +259,13 @@ struct SubmitLiftView: View {
     }
 
     private var estimateCard: some View {
-        MetricCard(title: "Estimated max", value: "\(RankingCalculator.format(estimate)) \(unit.shortLabel)", subtitle: "\(RankingCalculator.format(weight)) x \(repetitions) estimates a \(RankingCalculator.format(estimate)) \(unit.shortLabel) one-rep max.", symbolName: "function", tint: .liftGreen)
+        MetricCard(
+            title: "Estimated max",
+            value: "\(RankingCalculator.format(estimate)) \(unit.shortLabel)",
+            subtitle: "\(MeasurementFormatting.liftSetTextWithX(weightKilograms: weight, unit: unit, repetitions: repetitions)) estimates a \(RankingCalculator.format(estimate)) \(unit.shortLabel) one-rep max.",
+            symbolName: "function",
+            tint: .liftGreen
+        )
     }
 
     private var plateCard: some View {
@@ -321,7 +363,16 @@ struct SubmitLiftView: View {
         case .exercise:
             return MockData.exercises.map { LeaderboardOption(id: $0.id, title: $0.name, subtitle: $0.isPowerlift ? "Powerlift" : "Exercise", symbol: $0.symbolName) }
         case .gym:
-            return appState.joinedGyms.map { LeaderboardOption(id: $0.id.uuidString, title: $0.name, subtitle: "\($0.city), \($0.state)", symbol: "building.2") }
+            return appState.gyms.map { gym in
+                let location = [gym.city, gym.state].filter { !$0.isEmpty }.joined(separator: ", ")
+                let membership = appState.isGymJoined(gym) ? "Joined" : "Tap to join"
+                return LeaderboardOption(
+                    id: gym.id.uuidString,
+                    title: gym.name,
+                    subtitle: location.isEmpty ? membership : "\(location) • \(membership)",
+                    symbol: "building.2"
+                )
+            }
         case .equipment:
             return EquipmentType.allCases.map { LeaderboardOption(id: $0.rawValue, title: $0.rawValue, symbol: "dumbbell") }
         case .visibility:
@@ -350,11 +401,52 @@ struct SubmitLiftView: View {
         case .exercise:
             if let option = MockData.exercises.first(where: { $0.id == id }) { exercise = option }
         case .gym:
-            if let option = appState.joinedGyms.first(where: { $0.id.uuidString == id }) { gymID = option.id }
+            break
         case .equipment:
             if let option = EquipmentType.allCases.first(where: { $0.rawValue == id }) { equipment = option }
         case .visibility:
             if let option = LiftVisibility.allCases.first(where: { $0.rawValue == id }) { visibility = option }
+        }
+    }
+
+    @MainActor
+    private func selectGym(_ id: String) async {
+        guard let gym = appState.gyms.first(where: { $0.id.uuidString == id }) else { return }
+        guard await appState.joinGymForLift(gym) else {
+            gymSelectionError = appState.accountMessage ?? "This gym could not be joined. You can join up to three gyms."
+            return
+        }
+        gymID = gym.id
+        activeSelector = nil
+    }
+
+    private func prepareSelectedVideo() {
+        guard let pickerItem else { return }
+        isPreparingVideo = true
+        videoError = nil
+        Task {
+            do {
+                guard let data = try await pickerItem.loadTransferable(type: Data.self) else {
+                    throw CocoaError(.fileReadUnknown)
+                }
+                let fileExtension = pickerItem.supportedContentTypes.first?.preferredFilenameExtension ?? "mov"
+                let url = try await MainActor.run {
+                    try appState.persistWorkoutVideo(data, fileExtension: fileExtension)
+                }
+                await MainActor.run {
+                    selectedVideoURL = url
+                    appState.uploadProgress = 0
+                    isPreparingVideo = false
+                    self.pickerItem = nil
+                }
+            } catch {
+                await MainActor.run {
+                    selectedVideoURL = nil
+                    isPreparingVideo = false
+                    videoError = "That video could not be prepared. Choose it again."
+                    self.pickerItem = nil
+                }
+            }
         }
     }
 
@@ -389,7 +481,7 @@ struct SubmitLiftView: View {
                         .font(.headline)
                     Spacer()
                     if selectedVideoURL != nil {
-                        VerificationBadge(status: .videoSubmitted)
+                        VerificationBadge(evidenceStatus: .videoBacked)
                     }
                 }
                 if selectedVideoURL != nil {
@@ -399,8 +491,7 @@ struct SubmitLiftView: View {
                         Label("Review selected video", systemImage: "play.rectangle.fill")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color.liftBlue)
+                    .buttonStyle(LiftCompactProminentButtonStyle())
                     if appState.uploadProgress > 0 {
                         ProgressView(value: appState.uploadProgress)
                             .tint(Color.liftGreen)
@@ -413,11 +504,21 @@ struct SubmitLiftView: View {
                     }
                 } else {
                     PhotosPicker(selection: $pickerItem, matching: .videos) {
-                        Label("Select lift video", systemImage: "video.badge.plus")
+                        if isPreparingVideo {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Label("Select lift video", systemImage: "video.badge.plus")
                             .frame(maxWidth: .infinity)
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color.liftBlue)
+                    .buttonStyle(LiftCompactProminentButtonStyle())
+                    .disabled(isPreparingVideo)
+                }
+                if let videoError {
+                    Text(videoError)
+                        .font(.caption)
+                        .foregroundStyle(Color.liftRed)
                 }
             }
         }
@@ -481,20 +582,29 @@ struct LiftSubmissionResultView: View {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Lift submitted")
                     .font(.largeTitle.bold())
+                    .accessibilityIdentifier("lift.submissionResult")
                 MetricCard(title: "New max", value: "\(RankingCalculator.format(lift.estimatedOneRepMax)) lb", subtitle: lift.isActualOneRepMax ? "Actual one-rep max" : "Estimated one-rep max", symbolName: "bolt.fill", tint: .liftGreen)
-                MetricCard(title: "Improvement", value: "+20 lb", subtitle: "Previous best: \(RankingCalculator.format(max(0, lift.estimatedOneRepMax - 20))) lb", symbolName: "arrow.up.right", tint: .liftGold)
+                MetricCard(
+                    title: "Evidence",
+                    value: lift.resolvedEvidenceStatus.evidenceMetricValue,
+                    subtitle: lift.resolvedEvidenceStatus.evidenceMetricSubtitle,
+                    symbolName: lift.resolvedEvidenceStatus.evidenceMetricSymbol,
+                    tint: lift.resolvedEvidenceStatus.evidenceMetricTint
+                )
                 MetricCard(title: "Ranking update", value: "Tomorrow", subtitle: "Leaderboards refresh once daily at midnight.", symbolName: "clock.arrow.circlepath", tint: .liftBlue)
-                MetricCard(title: "Achievement", value: "First Lift Logged", subtitle: "Share your result with the community.", symbolName: "medal.fill", tint: .liftGold)
-                PrimaryButton(title: "Share to Community", symbolName: "person.3.fill") {
-                    done()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        appState.beginForumComposer(liftID: lift.id)
+                if appState.features.forums {
+                    PrimaryButton(title: "Share to Community", symbolName: "person.3.fill") {
+                        done()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            appState.beginForumComposer(liftID: lift.id)
+                        }
                     }
                 }
                 Button("Done", action: done)
                     .buttonStyle(.bordered)
                     .tint(Color.liftBlue)
                     .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("lift.submissionDone")
                 Spacer()
             }
             .padding()

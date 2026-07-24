@@ -8,6 +8,8 @@ protocol AuthenticationService {
     func signUp(email: String, password: String) async throws -> AccountSession
     func signIn(email: String, password: String) async throws -> AccountSession
     func requestPasswordReset(email: String) async throws
+    func handleAuthCallback(_ url: URL) async throws -> AccountSession
+    func updatePassword(_ password: String) async throws
     func signInWithApple(identityToken: String, nonce: String) async throws -> AccountSession
     func signInDemo() async throws -> UserProfile
     func signOut() async throws
@@ -45,6 +47,13 @@ protocol GymService {
 @MainActor
 protocol SocialService {
     func feed() async throws -> [ActivityItem]
+    func searchProfiles(query: String, limit: Int) async throws -> [PublicProfileCard]
+    func comments(activityID: UUID) async throws -> [ActivityComment]
+    func setActivityLiked(activityID: UUID, isLiked: Bool) async throws
+    func addActivityComment(activityID: UUID, body: String) async throws -> ActivityComment
+    func shareWorkout(snapshotID: UUID, title: String, detail: String) async throws -> ActivityItem
+    func removeWorkoutShare(activityID: UUID) async throws
+    func reportActivity(activityID: UUID, reason: CommunityReportReason, note: String) async throws
     func block(userID: UUID) async throws
     func unblock(userID: UUID) async throws
     func blocks() async throws -> [UserBlockRecord]
@@ -163,6 +172,8 @@ protocol AccountDeletionService {
 // Additive defaults keep lightweight previews and focused test doubles source
 // compatible while production implementations override every launch method.
 extension AuthenticationService {
+    func handleAuthCallback(_ url: URL) async throws -> AccountSession { throw LiftRankServiceError.configurationMissing }
+    func updatePassword(_ password: String) async throws { throw LiftRankServiceError.configurationMissing }
     func signInWithApple(identityToken: String, nonce: String) async throws -> AccountSession { throw LiftRankServiceError.configurationMissing }
 }
 extension LiftService {

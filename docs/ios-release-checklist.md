@@ -8,15 +8,22 @@
 
 ## Required release gate
 
+Run the unified gate orchestrator when preparing publication:
+
+`./scripts/release-gates.sh`
+
+This is the preferred command before any App Store archive activity.
+
 Before creating an App Store archive:
 
 1. Resolve the committed Swift package lock without updating dependencies.
-2. Run all unit and UI tests on the oldest supported iOS release and the current iOS release.
-3. Test on a small and a large physical iPhone.
-4. Build an unsigned Release configuration and inspect it for credentials, debug/demo entry points, and unintended URLs.
-5. Run the Supabase SQL security tests against an isolated local or staging database. Never apply migrations to production as part of this gate.
-6. Confirm signup, confirmation, login, restoration, logout, password reset, and account deletion against staging.
-7. Archive with production signing and validate the archive in Xcode Organizer before TestFlight upload.
+2. Run `./scripts/check_publish_readiness_services.sh` and capture Step #1 evidence.
+3. Run all unit and UI tests on the oldest supported iOS release and the current iOS release.
+4. Test on a small and a large physical iPhone.
+5. Build an unsigned Release configuration and inspect it for credentials, debug/demo entry points, and unintended URLs.
+6. Run the Supabase SQL security tests against an isolated local or staging database. Never apply migrations to production as part of this gate.
+7. Confirm signup, confirmation, login, restoration, logout, password reset, and account deletion against staging.
+8. Archive with production signing and validate the archive in Xcode Organizer before TestFlight upload.
 
 ## Promotion criteria
 
