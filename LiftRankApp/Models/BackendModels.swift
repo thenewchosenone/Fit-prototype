@@ -181,7 +181,7 @@ enum LiftRankServiceError: LocalizedError, Equatable {
         case .gymLimitReached: "You can belong to no more than three active gyms."
         case .primaryGymRequired: "Choose another primary gym before leaving this one."
         case .duplicateRelationship: "A friendship or request already exists."
-        case .networkUnavailable: "LiftRank couldn't reach the server. Check your connection and try again."
+        case .networkUnavailable: "Lift Rivals couldn't reach the server. Check your connection and try again."
         case .server(let message): message
         }
     }

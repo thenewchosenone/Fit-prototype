@@ -266,7 +266,7 @@ export function GymsPage() {
           const joined = state.joinedGymIds.includes(gym.id);
           const primary = profile.primaryGymId === gym.id;
           const hasDemoMetrics = gym.memberCount !== undefined && gym.verifiedLiftCount !== undefined;
-          return <Card key={gym.id} className="object-row"><span className="icon-tile blue"><Building2 /></span><div className="object-copy"><Link to={`/gyms/${gym.id}`}>{gym.name}</Link><p className="gym-brand">{gym.brand}</p><p><MapPin size={14} /> {gym.address}, {gym.city}, {gym.state} {gym.postalCode}</p><small>{hasDemoMetrics ? `LiftRank demo: ${gym.memberCount} members · ${gym.verifiedLiftCount} verified lifts` : "No LiftRank activity yet"}</small></div><button className={joined ? "quiet-button" : "primary-button compact"} disabled={primary || (!joined && state.joinedGymIds.length >= 3)} onClick={() => dispatch({ type: joined ? "LEAVE_GYM" : "JOIN_GYM", gymId: gym.id })}>{primary ? "Primary" : joined ? "Leave" : "Join"}</button></Card>;
+          return <Card key={gym.id} className="object-row"><span className="icon-tile blue"><Building2 /></span><div className="object-copy"><Link to={`/gyms/${gym.id}`}>{gym.name}</Link><p className="gym-brand">{gym.brand}</p><p><MapPin size={14} /> {gym.address}, {gym.city}, {gym.state} {gym.postalCode}</p><small>{hasDemoMetrics ? `Lift Rivals demo: ${gym.memberCount} members · ${gym.verifiedLiftCount} verified lifts` : "No Lift Rivals activity yet"}</small></div><button className={joined ? "quiet-button" : "primary-button compact"} disabled={primary || (!joined && state.joinedGymIds.length >= 3)} onClick={() => dispatch({ type: joined ? "LEAVE_GYM" : "JOIN_GYM", gymId: gym.id })}>{primary ? "Primary" : joined ? "Leave" : "Join"}</button></Card>;
         })}
         {!filtered.length && <Card className="empty-state"><h2>No gyms found</h2><p>Try another brand, state, or search phrase.</p></Card>}
       </div>
@@ -294,7 +294,7 @@ export function GymDetailPage() {
         action={<button className={joined ? "quiet-button" : "primary-button"} disabled={profile.primaryGymId === gym.id || (!joined && state.joinedGymIds.length >= 3)} onClick={() => dispatch({ type: joined ? "LEAVE_GYM" : "JOIN_GYM", gymId: gym.id })}>{profile.primaryGymId === gym.id ? "Primary gym" : joined ? "Leave gym" : "Join gym"}</button>}
       />
       <div className="stat-grid compact-stats">
-        <Card><strong>{gym.memberCount ?? "—"}</strong><span>{gym.memberCount === undefined ? "No member data" : "LiftRank demo members"}</span></Card>
+        <Card><strong>{gym.memberCount ?? "—"}</strong><span>{gym.memberCount === undefined ? "No member data" : "Lift Rivals demo members"}</span></Card>
         <Card><strong>{gym.verifiedLiftCount ?? "—"}</strong><span>{gym.verifiedLiftCount === undefined ? "No lift data" : "Demo verified lifts"}</span></Card>
         <Card><strong>{entries.length}</strong><span>Ranked lifters</span></Card>
       </div>
@@ -545,7 +545,7 @@ export function OnboardingPage() {
 
   return (
     <div className="page narrow-page onboarding-page">
-      <PageHeader eyebrow="Optional setup" title="Build your LiftRank profile" description="Set up the browser-local demo around your training. You can change everything later." />
+      <PageHeader eyebrow="Optional setup" title="Build your Lift Rivals profile" description="Set up the browser-local demo around your training. You can change everything later." />
       <DemoDataNotice>Profile answers and starting lifts remain only in this browser.</DemoDataNotice>
       <ol className="onboarding-steps" aria-label="Profile setup progress">{steps.map((label, index) => <li key={label} className={index === step ? "active" : index < step ? "complete" : ""}><span>{index < step ? <Check size={14} /> : index + 1}</span><small>{label}</small></li>)}</ol>
       <Card className="onboarding-card">

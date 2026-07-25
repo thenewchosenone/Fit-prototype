@@ -1,7 +1,7 @@
 # Codex continuation note for July 28, 2026
 
 ## Active goal
-Continue the Product Consistency Bug-Finding Plan for LiftRank. Do not mark the goal complete until the full requirement-by-requirement audit proves every pass and acceptance criterion.
+Continue the Product Consistency Bug-Finding Plan for Lift Rivals. Do not mark the goal complete until the full requirement-by-requirement audit proves every pass and acceptance criterion.
 
 ## Current status
 The latest completed implementation slice added swipe-left actions for active workout exercises:
@@ -11,7 +11,7 @@ The latest completed implementation slice added swipe-left actions for active wo
 - Already-active exercises are disabled in the substitute list.
 - Context menu also includes `Find Substitute`.
 - Simulator build passed with:
-  `xcodebuild -project LiftRank.xcodeproj -scheme LiftRank -destination 'platform=iOS Simulator,name=iPhone 17' build-for-testing`
+  `xcodebuild -project Lift Rivals.xcodeproj -scheme Lift Rivals -destination 'platform=iOS Simulator,name=iPhone 17' build-for-testing`
 
 ## Last validated build result
 `TEST BUILD SUCCEEDED`
@@ -21,9 +21,9 @@ Started a training/home presentation consistency audit. No code changes were mad
 
 Files inspected in this pass:
 
-- `LiftRankApp/Features/Home/HomeOverlays.swift`
-- `LiftRankApp/Core/DesignSystem/MeasurementFormatting.swift`
-- `LiftRankTests/WorkoutPresentationFormattingTests.swift`
+- `Lift RivalsApp/Features/Home/HomeOverlays.swift`
+- `Lift RivalsApp/Core/DesignSystem/MeasurementFormatting.swift`
+- `Lift RivalsTests/WorkoutPresentationFormattingTests.swift`
 
 Potential next bug to fix:
 

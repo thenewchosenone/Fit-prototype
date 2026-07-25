@@ -130,7 +130,7 @@ struct WorkoutProgramTemplateDetailView: View {
             Text("Training maxes")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(Color.liftMuted)
-            Text("Suggested values use 90% of your best LiftRank 1RM or estimated 1RM. Review them before starting.")
+            Text("Suggested values use 90% of your best Lift Rivals 1RM or estimated 1RM. Review them before starting.")
                 .font(.caption2)
                 .foregroundStyle(Color.liftMuted)
             ForEach(template.requiredTrainingMaxExerciseIDs, id: \.self) { exerciseID in

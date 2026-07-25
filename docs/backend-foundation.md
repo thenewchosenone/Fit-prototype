@@ -1,4 +1,4 @@
-# LiftRank Backend Foundation
+# Lift Rivals Backend Foundation
 
 ## Architecture
 
@@ -28,7 +28,7 @@ Each of two clean resets runs 64 identity/social assertions, 20 exercise asserti
 
 ## iOS configuration
 
-Never commit private credentials. Supply these environment variables to the LiftRank Run scheme or as protected CI build settings:
+Never commit private credentials. Supply these environment variables to the Lift Rivals Run scheme or as protected CI build settings:
 
 - `LIFTRANK_BACKEND_ENVIRONMENT` (`local`, `staging`, or `production`)
 - `LIFTRANK_SUPABASE_URL`

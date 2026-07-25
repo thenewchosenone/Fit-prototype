@@ -1,4 +1,4 @@
-# LiftRank release readiness
+# Lift Rivals release readiness
 
 ## Active publish plan
 
@@ -96,7 +96,7 @@ This document records evidence for the 11-phase public-launch plan. A phase is c
 
 ## Production Supabase provisioning — July 20, 2026
 
-- Created the distinct free-tier `LiftRank Production` project in `thenewchosenone's Org`: project ID `ikjgbsrlriqiusuvezco`, URL `https://ikjgbsrlriqiusuvezco.supabase.co`, region `us-east-1` (North Virginia). The database password was rotated after provisioning and successfully reconnected; it and the notification delivery secret are stored in macOS Keychain and are not present in the repository.
+- Created the distinct free-tier `Lift Rivals Production` project in `thenewchosenone's Org`: project ID `ikjgbsrlriqiusuvezco`, URL `https://ikjgbsrlriqiusuvezco.supabase.co`, region `us-east-1` (North Virginia). The database password was rotated after provisioning and successfully reconnected; it and the notification delivery secret are stored in macOS Keychain and are not present in the repository.
 - Applied the exact 13-file forward-only migration chain through `202607200001`; the remote migration ledger matches every local version. No staging accounts, workouts, lifts, or media were copied.
 - Ran 166 transactional pgTAP/RLS assertions against production with zero failures. Re-ran the gym membership race through two independent hosted connections; exactly one competing third-gym join succeeded and cleanup removed all fixtures.
 - Verified zero Auth users, profiles, lifts, and completed workouts; all public tables have RLS enabled; the `lift-videos` Storage bucket exists and is private.

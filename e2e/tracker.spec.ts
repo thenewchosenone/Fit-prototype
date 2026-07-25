@@ -27,7 +27,7 @@ test("loads every primary route without console errors or horizontal overflow", 
     ["messages", "Messages"],
     ["profile", "Robert J."],
     ["settings", "Profile and settings"],
-    ["onboarding", "Build your LiftRank profile"],
+    ["onboarding", "Build your Lift Rivals profile"],
     ["library/back-squat", "Back Squat"]
   ] as const;
 

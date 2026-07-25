@@ -1,4 +1,4 @@
-# LiftRank App Store launch metadata
+# Lift Rivals App Store launch metadata
 
 This file is a release-owner handoff. Replace each `REQUIRED` value with a live
 production URL or App Store Connect value before submission. Do not submit the
@@ -6,9 +6,9 @@ repository or these placeholders as final metadata.
 
 ## Required URLs
 
-- Privacy Policy: `REQUIRED_LIVE_PRIVACY_URL`
-- Terms of Use: `REQUIRED_LIVE_TERMS_URL`
-- Support: `REQUIRED_LIVE_SUPPORT_URL`
+- Privacy Policy: `https://liftrivals.com/privacy-notice/`
+- Terms of Use: `https://liftrivals.com/terms-of-use/`
+- Support: `https://liftrivals.com/support/`
 
 The native app requires the same current legal wording shown by
 `LegalDocument.current` in `LiftRankApp/Domain/IdentityDomainModels.swift`.

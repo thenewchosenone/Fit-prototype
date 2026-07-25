@@ -36,7 +36,7 @@ extension AppState {
             }
             guard let avatarPath = profile.avatarPath,
                   let fileURLs = profilePhotoStore.fileURLs(for: avatarPath) else {
-                accountMessage = "LiftRank couldn't prepare that profile photo for upload."
+                accountMessage = "Lift Rivals couldn't prepare that profile photo for upload."
                 Haptics.warning()
                 return
             }
@@ -65,7 +65,7 @@ extension AppState {
             }
             Haptics.success()
         } catch {
-            accountMessage = "LiftRank couldn't save that profile photo."
+            accountMessage = "Lift Rivals couldn't save that profile photo."
         }
     }
 

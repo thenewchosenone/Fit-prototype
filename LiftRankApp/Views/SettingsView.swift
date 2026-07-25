@@ -53,7 +53,7 @@ struct SettingsView: View {
                             .foregroundStyle(Color.liftMuted)
                     }
                     Section("Legal and Safety") {
-                        Button("About LiftRank") { settingsInfo = .about }
+                        Button("About Lift Rivals") { settingsInfo = .about }
                         Button("Privacy notice") { settingsInfo = .privacy }
                         Button("Terms of use") { settingsInfo = .terms }
                         Button("Community rules") { settingsInfo = .communityRules }
@@ -135,7 +135,7 @@ struct SettingsView: View {
                 SettingsInfoView(page: page)
                     .presentationDetents([.medium, .large])
             }
-            .confirmationDialog("Permanently delete your LiftRank account?", isPresented: $confirmingDeletion, titleVisibility: .visible) {
+            .confirmationDialog("Permanently delete your Lift Rivals account?", isPresented: $confirmingDeletion, titleVisibility: .visible) {
                 Button(appState.accountOperationInProgress ? "Deleting..." : "Delete Account and Local Data", role: .destructive) {
                     Task {
                         await appState.deleteAuthenticatedAccount()
@@ -191,7 +191,7 @@ enum SettingsInfoPage: String, Identifiable {
 
     var title: String {
         switch self {
-        case .about: return "About LiftRank"
+        case .about: return "About Lift Rivals"
         case .privacy: return "Privacy notice"
         case .terms: return "Terms of use"
         case .communityRules: return "Community rules"
@@ -203,8 +203,8 @@ enum SettingsInfoPage: String, Identifiable {
         switch self {
         case .about:
             return [
-                ("LiftRank", "LiftRank is a competitive strength platform for tracking workouts, recording true one-rep PRs, and comparing eligible lifts."),
-                ("Evidence labels", "Video-backed means a lift has attached video evidence. It does not mean LiftRank approved the athlete’s technique."),
+                ("Lift Rivals", "Lift Rivals is a competitive strength platform for tracking workouts, recording true one-rep PRs, and comparing eligible lifts."),
+                ("Evidence labels", "Video-backed means a lift has attached video evidence. It does not mean Lift Rivals approved the athlete’s technique."),
                 ("Feedback", "Report bugs, confusing flows, and missing gym or exercise data through the feedback link in Settings.")
             ]
         case .privacy: return documentSections(.privacy)

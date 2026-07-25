@@ -1,6 +1,6 @@
-# LiftRank public demo release
+# Lift Rivals public demo release
 
-This environment is an interactive sandbox. It must never be configured with Supabase credentials or presented as the production LiftRank account system.
+This environment is an interactive sandbox. It must never be configured with Supabase credentials or presented as the production Lift Rivals account system.
 
 ## Local release gate
 
@@ -19,7 +19,7 @@ Every build removes the previous `dist` first. If environment validation or comp
 ## Cloudflare Pages settings
 
 - Git repository: `thenewchosenone/Fit-prototype`
-- Project name: `liftrank-demo`
+- Project name: `LiftRivals-demo`
 - Production branch: `codex/public-demo`
 - Framework preset: React (Vite), or no preset with the same values below
 - Build command: `pnpm build`

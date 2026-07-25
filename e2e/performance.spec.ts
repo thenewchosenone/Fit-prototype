@@ -24,7 +24,7 @@ test("primary-route production budgets", async ({ browser }, testInfo) => {
     const page = await context.newPage();
     await page.addInitScript(() => {
       const metrics = { lcp: 0, cls: 0, longestTask: 0 };
-      Object.assign(window, { __liftrankMetrics: metrics });
+      Object.assign(window, { __LiftRivalsMetrics: metrics });
       new PerformanceObserver((list) => { for (const entry of list.getEntries()) metrics.lcp = entry.startTime; }).observe({ type: "largest-contentful-paint", buffered: true });
       new PerformanceObserver((list) => { for (const entry of list.getEntries()) { const shift = entry as PerformanceEntry & { value: number; hadRecentInput: boolean }; if (!shift.hadRecentInput) metrics.cls += shift.value; } }).observe({ type: "layout-shift", buffered: true });
       new PerformanceObserver((list) => { for (const entry of list.getEntries()) metrics.longestTask = Math.max(metrics.longestTask, entry.duration); }).observe({ type: "longtask", buffered: true });
@@ -35,7 +35,7 @@ test("primary-route production budgets", async ({ browser }, testInfo) => {
       const resources = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
       const entryScript = resources.find((resource) => /\/assets\/index-[^/]+\.js$/.test(new URL(resource.name).pathname));
       const images = resources.filter((resource) => resource.initiatorType === "img" || /\.(?:avif|png)(?:$|\?)/.test(resource.name));
-      const observed = (window as unknown as { __liftrankMetrics: { lcp: number; cls: number; longestTask: number } }).__liftrankMetrics;
+      const observed = (window as unknown as { __LiftRivalsMetrics: { lcp: number; cls: number; longestTask: number } }).__LiftRivalsMetrics;
       return {
         route: routeName,
         transferBytes: resources.reduce((total, resource) => total + resource.transferSize, 0),

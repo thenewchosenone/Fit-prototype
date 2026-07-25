@@ -260,9 +260,9 @@ function AppShell() {
 
 function Logo() {
   return (
-    <div className="logo" aria-label="LiftRank">
+    <div className="logo" aria-label="Lift Rivals">
       <span className="logo-mark">LR</span>
-      <span>LIFTRANK</span>
+      <span>LIFT RIVALS</span>
     </div>
   );
 }

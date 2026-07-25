@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 type GateMode = "production" | "demo";
-const gateMode = (process.env.LIFTRANK_RELEASE_WEB_MODE ?? "production") as GateMode;
+const gateMode = (process.env.LIFT RIVALS_RELEASE_WEB_MODE ?? "production") as GateMode;
 
 const expectProtectedRouteRedirect = async (page: Page, path: string) => {
   await page.goto(`/#${path}`);

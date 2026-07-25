@@ -1,4 +1,4 @@
-# LiftRank production performance
+# Lift Rivals production performance
 
 ## Reproduce the local production check
 

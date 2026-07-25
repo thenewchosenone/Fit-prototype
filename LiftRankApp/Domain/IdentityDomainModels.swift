@@ -180,14 +180,14 @@ struct LegalDocument: Identifiable, Hashable {
 
     static let currentVersion = "2026-07-18"
     static let current: [LegalDocument] = [
-        LegalDocument(kind: .privacy, version: currentVersion, title: "Privacy Notice", summary: "How LiftRank stores and shares account, training, location, and video data.", sections: [
-            .init(title: "Data we use", body: "LiftRank stores account identity, training history, competitive records, privacy choices, gym and location selections, community content, messages, reports, and videos you choose to upload."),
+        LegalDocument(kind: .privacy, version: currentVersion, title: "Privacy Notice", summary: "How Lift Rivals stores and shares account, training, location, and video data.", sections: [
+            .init(title: "Data we use", body: "Lift Rivals stores account identity, training history, competitive records, privacy choices, gym and location selections, community content, messages, reports, and videos you choose to upload."),
             .init(title: "Visibility", body: "Profile fields can be public, friends-only, gym-only, or private. A public ratio or weight-class ranking may indirectly reveal information about your bodyweight."),
-            .init(title: "No advertising tracking", body: "Launch analytics measure signup, activation, workouts, PR submissions, sharing, and return activity. LiftRank does not use advertising identifiers or cross-app tracking.")
+            .init(title: "No advertising tracking", body: "Launch analytics measure signup, activation, workouts, PR submissions, sharing, and return activity. Lift Rivals does not use advertising identifiers or cross-app tracking.")
         ]),
-        LegalDocument(kind: .terms, version: currentVersion, title: "Terms of Use", summary: "The rules for using LiftRank and keeping an account in good standing.", sections: [
+        LegalDocument(kind: .terms, version: currentVersion, title: "Terms of Use", summary: "The rules for using Lift Rivals and keeping an account in good standing.", sections: [
             .init(title: "Account responsibility", body: "Provide accurate eligibility and lift information, protect your credentials, and use only an account you are authorized to control."),
-            .init(title: "Competitive records", body: "Video-backed means a video is attached; it does not mean LiftRank approved technique. Attempts can be reported, reviewed, or removed from rankings."),
+            .init(title: "Competitive records", body: "Video-backed means a video is attached; it does not mean Lift Rivals approved technique. Attempts can be reported, reviewed, or removed from rankings."),
             .init(title: "Account action", body: "Content or accounts may be restricted for abuse, manipulation, unlawful conduct, or repeated violations of the community rules.")
         ]),
         LegalDocument(kind: .communityRules, version: currentVersion, title: "Community Rules", summary: "Standards for posts, messages, reports, and competitive conduct.", sections: [
@@ -195,9 +195,9 @@ struct LegalDocument: Identifiable, Hashable {
             .init(title: "Keep competition honest", body: "Do not falsify weight, identity, exercise, video, or eligibility information. Use reports for genuine concerns, not retaliation."),
             .init(title: "Keep content safe", body: "No spam, illegal content, dangerous medical claims, or content that violates another person’s privacy or intellectual property.")
         ]),
-        LegalDocument(kind: .fitnessDisclaimer, version: currentVersion, title: "Fitness Disclaimer", summary: "Strength training carries risk and LiftRank does not provide medical advice.", sections: [
+        LegalDocument(kind: .fitnessDisclaimer, version: currentVersion, title: "Fitness Disclaimer", summary: "Strength training carries risk and Lift Rivals does not provide medical advice.", sections: [
             .init(title: "Training risk", body: "Strength training and maximal attempts can cause serious injury. Use appropriate equipment, spotters, progression, and qualified coaching."),
-            .init(title: "Not medical advice", body: "LiftRank content and community activity are general information, not diagnosis, treatment, or individualized medical guidance."),
+            .init(title: "Not medical advice", body: "Lift Rivals content and community activity are general information, not diagnosis, treatment, or individualized medical guidance."),
             .init(title: "Stop when unsafe", body: "Consult a qualified professional before training when health, injury, pregnancy, medication, or other conditions may affect safety.")
         ])
     ]

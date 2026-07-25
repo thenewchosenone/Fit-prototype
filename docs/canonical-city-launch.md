@@ -1,6 +1,6 @@
 # Canonical city launch data
 
-LiftRank should save a canonical city, not free-form city text. The iOS app now searches `public.search_cities(...)` while the user types and saves `city_id` when a backend result is selected.
+Lift Rivals should save a canonical city, not free-form city text. The iOS app now searches `public.search_cities(...)` while the user types and saves `city_id` when a backend result is selected.
 
 ## Generate GeoNames import files
 

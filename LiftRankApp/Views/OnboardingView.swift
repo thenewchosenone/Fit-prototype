@@ -364,7 +364,7 @@ struct OnboardingView: View {
                 screenHeader(
                     eyebrow: "YOUR TRAINING",
                     title: "What are you working toward?",
-                    subtitle: "Choose as many as you want. We’ll shape your LiftRank experience around them."
+                    subtitle: "Choose as many as you want. We’ll shape your Lift Rivals experience around them."
                 )
 
                 ForEach(goalOptions, id: \.0) { goal, symbol, subtitle in
@@ -766,7 +766,7 @@ struct OnboardingView: View {
         ScrollView {
             VStack(spacing: 18) {
                 VStack(spacing: 9) {
-                    Text("YOUR LIFTRANK")
+                    Text("YOUR LIFT RIVALS")
                         .font(.caption.weight(.black))
                         .tracking(1.8)
                         .foregroundStyle(Color.liftBlue)
@@ -882,7 +882,7 @@ struct OnboardingView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             PrimaryButton(
-                title: step == 4 ? (isSavingProfile ? "Saving…" : "Enter LiftRank") : nextButtonTitle,
+                title: step == 4 ? (isSavingProfile ? "Saving…" : "Enter Lift Rivals") : nextButtonTitle,
                 symbolName: step == 4 ? "arrow.right" : "chevron.right"
             ) {
                 if step == 4 {
@@ -997,7 +997,7 @@ struct OnboardingView: View {
 
     private var nextButtonTitle: String {
         switch step {
-        case 0: return "Build My LiftRank"
+        case 0: return "Build My Lift Rivals"
         case 1: return "Continue"
         case 2: return "Save Profile"
         case 3: return "Calculate My Rank"

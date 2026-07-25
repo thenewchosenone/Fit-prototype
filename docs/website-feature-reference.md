@@ -1,8 +1,8 @@
-# LiftRank Website Feature Reference
+# Lift Rivals Website Feature Reference
 
 Last audited: 2026-07-16
 
-This roadmap uses the LiftRank iOS app only as product inspiration for the website. The website remains an independent browser-local prototype. It does not synchronize accounts, workouts, messages, memberships, votes, settings, or any other data with the app.
+This roadmap uses the Lift Rivals iOS app only as product inspiration for the website. The website remains an independent browser-local prototype. It does not synchronize accounts, workouts, messages, memberships, votes, settings, or any other data with the app.
 
 Out of scope for this roadmap:
 

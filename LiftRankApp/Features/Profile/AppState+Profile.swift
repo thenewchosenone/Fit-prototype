@@ -50,6 +50,12 @@ extension AppState {
                 throw LiftRankServiceError.gymLimitReached
             }
 
+            if isAuthenticated && !isDemoMode {
+                updatedProfile.avatarPath = try await uploadProfilePhotoIfNeeded(
+                    avatarPath: updatedProfile.avatarPath
+                )
+            }
+
             _ = try await profileStore.saveEditedProfile(
                 updatedProfile,
                 primaryGym: primaryGym,

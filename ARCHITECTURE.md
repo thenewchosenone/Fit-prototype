@@ -1,20 +1,20 @@
-# LiftRank Architecture (Refactor-then-Condense)
+# Lift Rivals Architecture (Refactor-then-Condense)
 
 ## Ownership rules
 
-- `LiftRankApp/Features/*`
+- `Lift RivalsApp/Features/*`
   - Owns feature UI, feature-local orchestration, and feature-specific state adapters.
   - Feature files may call store/view-model APIs, but must not perform network calls directly.
-- `LiftRankApp/Services/*`
+- `Lift RivalsApp/Services/*`
   - Owns orchestration of networking, authentication, session coordination, and DTO↔domain mapping.
   - `ServiceProtocols` and `AppServiceContainer` are stable boundaries and should not change unless all call sites are migrated intentionally.
-- `LiftRankApp/Domain/*`
+- `Lift RivalsApp/Domain/*`
   - Owns pure business rules, calculations, ranking/formatting/domain logic, and shared model semantics.
   - Types should be grouped by concept (competition, community, workouts, identity/session, notifications).
-- `LiftRankApp/Data/*`
+- `Lift RivalsApp/Data/*`
   - Owns repository implementations (Demo + Supabase).
   - Repositories map transport payloads into domain models.
-- `LiftRankApp/ViewModels/*`
+- `Lift RivalsApp/ViewModels/*`
   - Owns lightweight selection/orchestration state between features, app screens, and repositories.
 
 ## "Where this belongs" checklist

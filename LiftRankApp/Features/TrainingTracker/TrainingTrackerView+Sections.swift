@@ -137,7 +137,7 @@ extension TrainingTrackerView {
                 }
                 Button("Cancel", role: .cancel) { clearPendingStart() }
             } message: {
-                Text("LiftRank keeps one active workout at a time so sets and timers cannot be mixed between sessions.")
+                Text("Lift Rivals keeps one active workout at a time so sets and timers cannot be mixed between sessions.")
             }
         }
     }

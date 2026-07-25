@@ -33,12 +33,26 @@ struct SupabaseConfiguration: Equatable {
               let backendEnvironment = LiftRankBackendEnvironment(rawValue: environmentName.lowercased()) else {
             return nil
         }
+        guard backendEnvironment == .local || !isServiceRoleKey(key) else { return nil }
         if backendEnvironment == .local {
             guard ["127.0.0.1", "localhost"].contains(host), ["http", "https"].contains(scheme) else { return nil }
         } else {
             guard scheme == "https", !["127.0.0.1", "localhost"].contains(host) else { return nil }
         }
         return SupabaseConfiguration(url: url, publicKey: key, environment: backendEnvironment)
+    }
+
+    private static func isServiceRoleKey(_ key: String) -> Bool {
+        let parts = key.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 3 else { return false }
+        var payload = String(parts[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        payload += String(repeating: "=", count: (4 - payload.count % 4) % 4)
+        guard let data = Data(base64Encoded: payload),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let role = object["role"] as? String else { return false }
+        return role == "service_role"
     }
 }
 
@@ -53,6 +67,6 @@ enum SupabaseServiceErrorMapper {
         if message.contains("friendship or pending request") || message.contains("duplicate") { return .duplicateRelationship }
         if message.contains("permission denied") || message.contains("42501") { return .permissionDenied }
         if message.contains("network") || message.contains("offline") || message.contains("timed out") { return .networkUnavailable }
-        return .server("LiftRank couldn't complete that request. Please try again.")
+        return .server("Lift Rivals couldn't complete that request. Please try again.")
     }
 }

@@ -26,12 +26,13 @@ struct LiftRankApp: App {
             let forumStore = SwiftDataForumPersistenceStore(context: container.mainContext)
             _appState = StateObject(wrappedValue: AppState(repository: DemoRepository(
                 workoutPersistenceStore: workoutStore,
-                forumPersistenceStore: forumStore
+                forumPersistenceStore: forumStore,
+                seedDemoData: false
             )))
         } catch {
             modelContainer = nil
             localDataError = error.localizedDescription
-            _appState = StateObject(wrappedValue: AppState(repository: DemoRepository()))
+            _appState = StateObject(wrappedValue: AppState(repository: DemoRepository(seedDemoData: false)))
         }
     }
 
@@ -112,7 +113,7 @@ private struct LocalDataRecoveryView: View {
                     .foregroundStyle(Color.liftGold)
                 Text("Local data is unavailable")
                     .font(.title2.bold())
-                Text("LiftRank could not safely open its on-device database. Close and reopen the app. If the problem continues, contact support before reinstalling so your local training history is not erased.")
+                Text("Lift Rivals could not safely open its on-device database. Close and reopen the app. If the problem continues, contact support before reinstalling so your local training history is not erased.")
                     .foregroundStyle(Color.liftMuted)
                     .multilineTextAlignment(.center)
                 if let details {
@@ -133,7 +134,7 @@ private struct AccountLoadingView: View {
         AppBackground {
             VStack(spacing: 16) {
                 ProgressView().tint(Color.liftBlue)
-                Text("Restoring your LiftRank account…").foregroundStyle(Color.liftMuted)
+                Text("Restoring your Lift Rivals account…").foregroundStyle(Color.liftMuted)
             }
         }
     }

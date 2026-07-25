@@ -1,4 +1,4 @@
-# LiftRank Repository Rules
+# Lift Rivals Repository Rules
 
 - Preserve unrelated and uncommitted work. Never reset, stash, reformat, or include it without explicit instruction.
 - Never apply a database migration to a remote project without explicit instruction and environment confirmation.

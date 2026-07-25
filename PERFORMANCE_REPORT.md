@@ -1,4 +1,4 @@
-# LiftRank client performance report
+# Lift Rivals client performance report
 
 Measured July 13, 2026 against the local Vite production preview. Transfer values are encoded response bytes; local Playwright timings are regression diagnostics and Lighthouse uses its standard simulated mobile environment.
 

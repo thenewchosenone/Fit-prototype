@@ -1,4 +1,4 @@
-# LiftRank Publish Readiness Runbook
+# Lift Rivals Publish Readiness Runbook
 
 _Last updated: July 23, 2026_
 

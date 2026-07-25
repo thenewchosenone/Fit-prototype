@@ -1,6 +1,6 @@
 # Product Consistency Checklist
 
-LiftRank should show the same product concept with the same source of truth everywhere. If two screens disagree, the bug is usually duplicated formatting, duplicated derivation, or asymmetric save/load mapping.
+Lift Rivals should show the same product concept with the same source of truth everywhere. If two screens disagree, the bug is usually duplicated formatting, duplicated derivation, or asymmetric save/load mapping.
 
 ## Profile identity
 

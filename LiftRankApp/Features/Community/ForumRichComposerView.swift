@@ -56,7 +56,7 @@ struct ForumRichComposerView: View {
                         contentSection
                         typeSpecificSection
                         if let mediaError { Text(mediaError).font(.caption).foregroundStyle(Color.liftRed) }
-                        Text("Forum posts are explicit. LiftRank never publishes a lift or workout here automatically.")
+                        Text("Forum posts are explicit. Lift Rivals never publishes a lift or workout here automatically.")
                             .font(.caption).foregroundStyle(Color.liftMuted)
                         Color.clear.frame(height: 30)
                     }

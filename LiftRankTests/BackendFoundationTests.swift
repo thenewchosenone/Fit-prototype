@@ -69,6 +69,28 @@ private final class TestAnalyticsCaptureService: AnalyticsService {
 
 @MainActor
 final class BackendFoundationTests: XCTestCase {
+    func testProductionConfigurationRejectsServiceRoleKey() {
+        let serviceRoleKey = "eyJhbGciOiJub25lIn0.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature"
+        let environment = [
+            "LIFTRANK_SUPABASE_URL": "https://example.supabase.co",
+            "LIFTRANK_SUPABASE_ANON_KEY": serviceRoleKey,
+            "LIFTRANK_BACKEND_ENVIRONMENT": "production"
+        ]
+
+        XCTAssertNil(SupabaseConfiguration.load(environment: environment))
+    }
+
+    func testProductionConfigurationAcceptsAnonKey() {
+        let anonKey = "eyJhbGciOiJub25lIn0.eyJyb2xlIjoiYW5vbiJ9.signature"
+        let environment = [
+            "LIFTRANK_SUPABASE_URL": "https://example.supabase.co",
+            "LIFTRANK_SUPABASE_ANON_KEY": anonKey,
+            "LIFTRANK_BACKEND_ENVIRONMENT": "production"
+        ]
+
+        XCTAssertNotNil(SupabaseConfiguration.load(environment: environment))
+    }
+
     func testFocusedProductionDefersBroadCommunityFeatures() {
         let features = FeatureAvailability.resolved(for: .production)
 

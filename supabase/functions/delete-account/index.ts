@@ -31,6 +31,13 @@ Deno.serve(async (request) => {
   // media first because Storage objects are not covered by database cascades.
   const { data: assets } = await admin.from("lift_media_assets").select("storage_path").eq("owner_id", user.id);
   if (assets?.length) await admin.storage.from("lift-videos").remove(assets.map((asset) => asset.storage_path));
+  const { data: profile } = await admin.from("profiles").select("avatar_path").eq("id", user.id).maybeSingle();
+  if (profile?.avatar_path) {
+    await admin.storage.from("profile-avatars").remove([
+      `${profile.avatar_path}/avatar-full.jpg`,
+      `${profile.avatar_path}/avatar-thumb.jpg`,
+    ]);
+  }
   const { error: deletionError } = await admin.auth.admin.deleteUser(user.id, false);
   if (deletionError) return new Response("Deletion failed", { status: 500 });
   return new Response(null, { status: 204 });

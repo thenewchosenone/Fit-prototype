@@ -330,7 +330,13 @@ final class AppState: ObservableObject {
         repository.seedPersonalWorkoutDemoHistory()
         selectedWorkoutPlanID = PersonalWorkoutPlanCatalog.planID
         installServiceContainer(.demo(repository: repository))
-        try? await sessionStore.enterDemoAuthentication()
+        do {
+            try await sessionStore.enterDemoAuthentication()
+            accountStatus = .demo
+        } catch {
+            accountMessage = userMessage(error)
+            accountStatus = sessionStore.isAuthenticationConfigured ? .signedOut : .configurationRequired
+        }
     }
 
     func signOutAccount() async {
@@ -576,7 +582,7 @@ final class AppState: ObservableObject {
     }
 
     func userMessage(_ error: Error) -> String {
-        (error as? LocalizedError)?.errorDescription ?? "LiftRank couldn't complete that request."
+        (error as? LocalizedError)?.errorDescription ?? "Lift Rivals couldn't complete that request."
     }
 
     var currentProfile: UserProfile { profileStore.currentProfile }

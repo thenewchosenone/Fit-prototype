@@ -154,7 +154,7 @@ struct MeHubView: View {
 
                     ProfileLiftVideosSection(profile: appState.currentProfile, isCurrentUser: true)
 
-                    CompactSectionHeader(title: "Your LiftRank")
+                    CompactSectionHeader(title: "Your Lift Rivals")
                     VStack(spacing: 0) {
                         NavigationLink {
                             AwardsView()
@@ -247,7 +247,7 @@ struct AwardsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("LIFTRANK AWARDS")
+                        Text("LIFT RIVALS AWARDS")
                             .font(.caption.weight(.black)).tracking(1.4)
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text("\(unlockedAchievements.count)")
@@ -355,7 +355,7 @@ struct AuthenticationView: View {
                     Image(systemName: "lock.shield.fill")
                         .font(.system(size: 54, weight: .bold))
                         .foregroundStyle(Color.liftBlue)
-                    Text("LiftRank").font(.largeTitle.bold())
+                    Text("Lift Rivals").font(.largeTitle.bold())
                     Text("Your training can stay local. Your profile, gyms, and friendships use your secured account.")
                         .foregroundStyle(Color.liftMuted)
                         .multilineTextAlignment(.center)
@@ -480,7 +480,7 @@ struct AuthenticationView: View {
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
-                    Text("For privacy, LiftRank gives the same response whether or not an account exists.")
+                    Text("For privacy, Lift Rivals gives the same response whether or not an account exists.")
                         .font(.caption)
                     Button("Send reset instructions") {
                         Task {

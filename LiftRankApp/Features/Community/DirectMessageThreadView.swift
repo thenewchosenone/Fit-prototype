@@ -110,7 +110,7 @@ struct DirectMessageThreadView: View {
                     Circle()
                         .fill(Color.liftGreen)
                         .frame(width: 7, height: 7)
-                    Text(participant.map { "@\($0.username)" } ?? "LiftRank member")
+                    Text(participant.map { "@\($0.username)" } ?? "Lift Rivals member")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }

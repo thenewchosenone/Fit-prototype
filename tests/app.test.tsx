@@ -67,14 +67,14 @@ function getLeaderboardHeaderLabels(container: HTMLElement) {
     .map((header) => header.textContent?.trim());
 }
 
-describe("LiftRank platform UI", () => {
+describe("Lift Rivals platform UI", () => {
   it("logs out, protects submission routes, and restores the local demo session", async () => {
     const user = userEvent.setup();
     renderApp("/leaderboards");
     await user.click(screen.getByRole("button", { name: "Log out" }));
     await user.click(screen.getAllByRole("link", { name: "Submit" })[0]);
     expect(screen.getByRole("heading", { name: "Welcome back" })).toBeVisible();
-    await user.type(screen.getByLabelText("Email"), "demo@liftrank.local");
+    await user.type(screen.getByLabelText("Email"), "demo@LiftRivals.local");
     await user.type(screen.getByLabelText(/Password/), "demo-password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
     expect(await screen.findByRole("heading", { name: "Submit a lift" })).toBeVisible();
@@ -165,7 +165,7 @@ describe("LiftRank platform UI", () => {
     await user.selectOptions(screen.getByLabelText("State"), "Florida");
     await user.type(screen.getByLabelText("Search gyms"), "33326");
     expect(screen.getByText("YouFit Gyms - Weston")).toBeVisible();
-    expect(screen.getByText("No LiftRank activity yet")).toBeVisible();
+    expect(screen.getByText("No Lift Rivals activity yet")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(screen.getByLabelText("Brand")).toHaveValue("All");
     expect(screen.getByLabelText("State")).toHaveValue("All");
@@ -288,7 +288,7 @@ describe("LiftRank platform UI", () => {
     const user = userEvent.setup();
     renderApp("/onboarding");
 
-    expect(await screen.findByRole("heading", { name: "Build your LiftRank profile" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Build your Lift Rivals profile" })).toBeVisible();
     await user.selectOptions(screen.getByLabelText("Training goal"), "Prepare for competition");
     await user.selectOptions(screen.getByLabelText("Discipline"), "Olympic Weightlifting");
     await user.click(screen.getByRole("button", { name: /Continue/ }));

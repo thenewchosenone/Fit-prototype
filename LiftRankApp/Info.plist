@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>LiftRank</string>
+	<string>Lift Rivals</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -42,9 +42,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>LiftRank can record lift videos for verification.</string>
+	<string>Lift Rivals can record lift videos for verification.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>LiftRank lets you choose lift videos for verification.</string>
+	<string>Lift Rivals lets you choose lift videos for verification.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchScreen</key>
