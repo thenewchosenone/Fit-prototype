@@ -192,6 +192,22 @@ final class AppState: ObservableObject {
             accountStatus = .signedOut
             return
         }
+        if ProcessInfo.processInfo.arguments.contains("-uiTestingAuthenticatedAccount") {
+            installServiceContainer(.demo(repository: repository))
+            var profile = MockData.demoProfile
+            profile.username = "deletion_test"
+            profile.displayName = "Deletion Test"
+            repository.currentProfile = profile
+            repository.profiles = [profile]
+            profileStore.saveProfile(profile)
+            accountSession = AccountSession(
+                userID: profile.id,
+                email: "deletion@example.test",
+                expiresAt: .now.addingTimeInterval(3_600)
+            )
+            accountStatus = .authenticated
+            return
+        }
         if ProcessInfo.processInfo.arguments.contains("-uiTestingDemoMode") {
             await enterDemoMode()
             if ProcessInfo.processInfo.arguments.contains("-uiTestingGymFixture"),

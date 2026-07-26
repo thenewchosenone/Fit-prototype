@@ -466,6 +466,34 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Report Lift"].waitForNonExistence(timeout: 5))
     }
 
+    func testAuthenticatedAccountDeletionReturnsToSignIn() {
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTestingAuthenticatedAccount"]
+        app.launch()
+
+        XCTAssertTrue(tab("profile", in: app).waitForExistence(timeout: 8))
+        tab("profile", in: app).tap()
+        let settings = app.buttons["Open settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        settings.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+
+        let deleteAccount = app.buttons["Delete Account"]
+        var attempts = 0
+        while !deleteAccount.isHittable && attempts < 8 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(deleteAccount.waitForExistence(timeout: 5))
+        deleteAccount.tap()
+
+        let confirm = app.buttons["Delete Account and Local Data"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.tap()
+        XCTAssertTrue(app.staticTexts["Lift Rivals"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["Sign In"].exists)
+    }
+
     func testUnauthenticatedRoutingDoesNotExposeDemoEntryInReleaseContract() {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTestingAuthentication"]
