@@ -201,6 +201,52 @@ final class AppState: ObservableObject {
                 repository.currentProfile.primaryGymID = gym.id
                 repository.currentProfile.primaryGymName = gym.name
             }
+            if ProcessInfo.processInfo.arguments.contains("-uiTestingCompetitionFixture"),
+               let gym = MockData.gyms.first {
+                var athlete = MockData.demoProfile
+                athlete.id = UUID(uuidString: "A0000000-0000-0000-0000-000000000001")!
+                athlete.username = "launch_lifter"
+                athlete.displayName = "Launch Lifter"
+                athlete.bodyweightPounds = 180
+                athlete.city = gym.city
+                athlete.state = gym.state
+                athlete.primaryGymID = gym.id
+                athlete.primaryGymName = gym.name
+                repository.profiles = [athlete]
+                repository.gyms = [gym]
+                let athleteLift = LiftSubmission(
+                    id: UUID(uuidString: "A0000000-0000-0000-0000-000000000002")!,
+                    userID: athlete.id,
+                    exerciseID: "bench",
+                    exerciseName: "Barbell bench press",
+                    weight: 315,
+                    unit: .pounds,
+                    normalizedWeightKilograms: RankingCalculator.poundsToKilograms(315),
+                    repetitions: 1,
+                    isActualOneRepMax: true,
+                    estimatedOneRepMax: 315,
+                    bodyweightAtLift: 180,
+                    bodyweightMultiple: 1.75,
+                    equipmentType: .raw,
+                    variation: "Competition",
+                    gymID: gym.id,
+                    performedAt: .now,
+                    demoMediaID: "demo-leaderboard-bench",
+                    caption: "Focused launch fixture",
+                    verificationStatus: .videoVerified,
+                    visibility: .publicLift,
+                    createdAt: .now,
+                    updatedAt: .now,
+                    competitiveMovement: .barbellBenchPress,
+                    evidenceStatus: .videoBacked,
+                    moderationStatus: .clear
+                )
+                var currentUserLift = athleteLift
+                currentUserLift.id = UUID(uuidString: "A0000000-0000-0000-0000-000000000003")!
+                currentUserLift.userID = repository.currentProfile.id
+                currentUserLift.caption = "Current athlete media fixture"
+                repository.lifts = [athleteLift, currentUserLift]
+            }
             if ProcessInfo.processInfo.arguments.contains("-uiTestingNoActiveWorkout") {
                 repository.discardActiveWorkout()
             }
