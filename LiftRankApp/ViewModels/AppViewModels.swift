@@ -208,6 +208,18 @@ final class AppState: ObservableObject {
             accountStatus = .authenticated
             return
         }
+        if ProcessInfo.processInfo.arguments.contains("-uiTestingOnboarding") {
+            installServiceContainer(.demo(repository: repository))
+            repository.currentProfile = MockData.demoProfile
+            profileStore.saveProfile(repository.currentProfile)
+            accountSession = AccountSession(
+                userID: repository.currentProfile.id,
+                email: "onboarding@example.test",
+                expiresAt: .now.addingTimeInterval(3_600)
+            )
+            accountStatus = .needsOnboarding
+            return
+        }
         if ProcessInfo.processInfo.arguments.contains("-uiTestingDemoMode") {
             await enterDemoMode()
             if ProcessInfo.processInfo.arguments.contains("-uiTestingGymFixture"),

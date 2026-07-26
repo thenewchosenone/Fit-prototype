@@ -494,6 +494,27 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Sign In"].exists)
     }
 
+    func testOnboardingSavesProfileAndAdvancesToLegalAcceptance() {
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTestingOnboarding", "-uiTestingPrefilledOnboarding"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Turn every lift into a ranking."].waitForExistence(timeout: 8))
+        app.buttons["Build My Lift Rivals"].tap()
+        XCTAssertTrue(app.staticTexts["What are you working toward?"].waitForExistence(timeout: 5))
+        app.buttons["Continue"].tap()
+
+        XCTAssertTrue(app.staticTexts["Build your lifter profile."].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.textFields["Username"].value as? String, "launch_lifter")
+        app.buttons["Save Profile"].tap()
+        XCTAssertTrue(app.staticTexts["What are your best lifts?"].waitForExistence(timeout: 5))
+        app.buttons["I’ll add my lifts later"].tap()
+
+        XCTAssertTrue(app.staticTexts["You’re ready to compete."].waitForExistence(timeout: 5))
+        app.buttons["Enter Lift Rivals"].tap()
+        XCTAssertTrue(app.staticTexts["Before you compete"].waitForExistence(timeout: 8))
+    }
+
     func testUnauthenticatedRoutingDoesNotExposeDemoEntryInReleaseContract() {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTestingAuthentication"]

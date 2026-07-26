@@ -98,6 +98,21 @@ struct OnboardingView: View {
             profile.city = ""
             profile.state = ""
             normalizeSelectedGym()
+#if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-uiTestingPrefilledOnboarding") {
+                profile.username = "launch_lifter"
+                profile.displayName = "Launch Lifter"
+                profile.bodyweightPounds = 180
+                profile.heightInches = 70
+                profile.sexCategory = .male
+                selectedCountryCode = "US"
+                selectedRegionName = "Florida"
+                selectedCity = "Miami"
+                cityQuery = "Miami"
+                profile.city = "Miami"
+                profile.state = "Florida"
+            }
+#endif
         }
         .onChange(of: appState.gyms.map(\.id)) { _, _ in normalizeSelectedGym() }
         .sheet(isPresented: $showingPhotoManager, onDismiss: {
