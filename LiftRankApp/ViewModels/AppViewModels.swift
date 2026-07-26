@@ -194,6 +194,13 @@ final class AppState: ObservableObject {
         }
         if ProcessInfo.processInfo.arguments.contains("-uiTestingDemoMode") {
             await enterDemoMode()
+            if ProcessInfo.processInfo.arguments.contains("-uiTestingGymFixture"),
+               let gym = MockData.gyms.first {
+                repository.gyms = MockData.gyms
+                repository.joinedGymIDs = [gym.id]
+                repository.currentProfile.primaryGymID = gym.id
+                repository.currentProfile.primaryGymName = gym.name
+            }
             if ProcessInfo.processInfo.arguments.contains("-uiTestingNoActiveWorkout") {
                 repository.discardActiveWorkout()
             }

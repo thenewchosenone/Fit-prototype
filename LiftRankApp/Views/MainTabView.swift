@@ -51,7 +51,7 @@ struct MainTabView: View {
     private var tabItems: [FloatingTabItem] {
         var items: [FloatingTabItem] = [
             .init(tab: .home, icon: "house.fill", title: "Home", isUtility: false),
-            .init(tab: .leaderboards, icon: "trophy.fill", title: "Ranks", isUtility: false),
+            .init(tab: .leaderboards, icon: "trophy.fill", title: "Leaderboards", isUtility: false),
             .init(tab: .track, icon: "dumbbell.fill", title: "Track", isUtility: false),
         ]
 

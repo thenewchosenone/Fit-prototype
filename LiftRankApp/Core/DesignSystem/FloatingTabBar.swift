@@ -55,6 +55,8 @@ struct FloatingTabBar: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(item.title)
+                    .accessibilityIdentifier("mainTab.\(item.tab.map { String(describing: $0) } ?? "unknown")")
                     .accessibilityValue(item.tab == selection ? "selected" : "not selected")
                 }
             }

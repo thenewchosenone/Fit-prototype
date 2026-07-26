@@ -1,6 +1,10 @@
 import XCTest
 
 final class LiftRankUITests: XCTestCase {
+    private func tab(_ name: String, in app: XCUIApplication) -> XCUIElement {
+        app.buttons["mainTab.\(name)"]
+    }
+
     private func launchDemo(arguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTestingDemoMode"] + arguments
@@ -31,7 +35,7 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(endWorkout.waitForExistence(timeout: 5))
         endWorkout.tap()
 
-        XCTAssertTrue(app.tabBars.buttons["Home"].waitForExistence(timeout: 5))
+        XCTAssertTrue(tab("home", in: app).waitForExistence(timeout: 5))
         XCTAssertFalse(finish.exists)
     }
 
@@ -44,8 +48,9 @@ final class LiftRankUITests: XCTestCase {
         let finish = app.buttons["Finish workout"]
         XCTAssertTrue(finish.waitForExistence(timeout: 5))
         finish.tap()
-        XCTAssertTrue(app.buttons["Review & Finish"].waitForExistence(timeout: 5))
-        app.buttons["Review & Finish"].tap()
+        let review = app.buttons["workout.finish.reviewIncomplete"]
+        XCTAssertTrue(review.waitForExistence(timeout: 5))
+        review.tap()
 
         XCTAssertTrue(app.staticTexts["Workout complete"].waitForExistence(timeout: 5))
         if app.alerts.firstMatch.waitForExistence(timeout: 1) {
@@ -61,15 +66,15 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(save.waitForExistence(timeout: 5))
         save.tap()
 
-        XCTAssertTrue(app.tabBars.buttons["Home"].waitForExistence(timeout: 5))
+        XCTAssertTrue(tab("home", in: app).waitForExistence(timeout: 5))
         XCTAssertTrue(finish.waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Workout complete"].waitForNonExistence(timeout: 5))
     }
 
     func testTrackerTodayPrioritizesActiveWorkout() {
         let app = launchDemo(arguments: ["-uiTestingActiveWorkout"])
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
-        app.tabBars.buttons["Track"].tap()
+        XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
+        tab("track", in: app).tap()
 
         XCTAssertTrue(app.staticTexts["ACTIVE WORKOUT"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["NEXT WORKOUT"].exists)
@@ -118,8 +123,8 @@ final class LiftRankUITests: XCTestCase {
 
     func testTrackerScheduledWorkoutUsesStartCopyUntilSessionBegins() {
         let app = launchDemo(arguments: ["-uiTestingNoActiveWorkout"])
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
-        app.tabBars.buttons["Track"].tap()
+        XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
+        tab("track", in: app).tap()
 
         let start = app.buttons["training.today.startScheduledWorkout"]
         XCTAssertTrue(start.waitForExistence(timeout: 5))
@@ -129,8 +134,8 @@ final class LiftRankUITests: XCTestCase {
 
     func testTrackerPlansCanSelectAnotherPlan() {
         let app = launchDemo()
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
-        app.tabBars.buttons["Track"].tap()
+        XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
+        tab("track", in: app).tap()
         app.buttons["Plans"].tap()
 
         XCTAssertTrue(app.buttons["training.programLibrary.toggle"].waitForExistence(timeout: 5))
@@ -154,8 +159,8 @@ final class LiftRankUITests: XCTestCase {
 
     func testProgramLibraryOpensExtractedProgramPreview() {
         let app = launchDemo()
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
-        app.tabBars.buttons["Track"].tap()
+        XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
+        tab("track", in: app).tap()
         app.buttons["Plans"].tap()
 
         let library = app.buttons["training.programLibrary.toggle"]
@@ -183,28 +188,27 @@ final class LiftRankUITests: XCTestCase {
     func testLaunchesIntoAuthenticatedDemoWorkspace() {
         let app = launchDemo()
 
-        XCTAssertTrue(app.tabBars.buttons["Home"].waitForExistence(timeout: 8))
+        XCTAssertTrue(tab("home", in: app).waitForExistence(timeout: 8))
         XCTAssertFalse(app.buttons["Enter Explicit Demo Mode"].exists)
     }
 
     func testPrimaryNavigationTabsAreReachable() {
         let app = launchDemo()
-        let tabBar = app.tabBars.firstMatch
-        XCTAssertTrue(tabBar.waitForExistence(timeout: 8))
+        XCTAssertTrue(tab("home", in: app).waitForExistence(timeout: 8))
 
-        for title in ["Leaderboards", "Track", "Me", "Home"] {
-            let tab = tabBar.buttons[title]
-            XCTAssertTrue(tab.exists, "Missing \(title) tab")
-            tab.tap()
-            XCTAssertTrue(tab.isSelected, "\(title) tab did not become selected")
+        for (name, title) in [("leaderboards", "Leaderboards"), ("track", "Track"), ("profile", "Me"), ("home", "Home")] {
+            let item = tab(name, in: app)
+            XCTAssertTrue(item.exists, "Missing \(title) tab")
+            item.tap()
+            XCTAssertEqual(item.value as? String, "selected", "\(title) tab did not become selected")
         }
-        XCTAssertFalse(tabBar.buttons["Community"].exists)
+        XCTAssertFalse(app.buttons["mainTab.community"].exists)
     }
 
     func testMeHubOpensAwardsAndPublicProfileEntryPoints() {
         let app = launchDemo()
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
-        let meTab = app.tabBars.buttons["Me"]
+        XCTAssertTrue(tab("profile", in: app).waitForExistence(timeout: 8))
+        let meTab = tab("profile", in: app)
         XCTAssertTrue(meTab.waitForExistence(timeout: 5))
         meTab.tap()
         XCTAssertTrue(app.navigationBars["Me"].waitForExistence(timeout: 5))
@@ -222,8 +226,8 @@ final class LiftRankUITests: XCTestCase {
 
     func testMeHubShowsLiftVideosAndOpensSelectedVideo() {
         let app = launchDemo()
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
-        app.tabBars.buttons["Me"].tap()
+        XCTAssertTrue(tab("profile", in: app).waitForExistence(timeout: 8))
+        tab("profile", in: app).tap()
 
         let videoLibrary = app.descendants(matching: .any)["profile.liftVideos"]
         var attempts = 0
@@ -244,16 +248,16 @@ final class LiftRankUITests: XCTestCase {
     }
 
     func testEditProfileUsesSearchableLocationAndGymPickers() {
-        let app = launchDemo()
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
-        app.tabBars.buttons["Me"].tap()
+        let app = launchDemo(arguments: ["-uiTestingGymFixture"])
+        XCTAssertTrue(tab("profile", in: app).waitForExistence(timeout: 8))
+        tab("profile", in: app).tap()
 
         let editProfile = app.buttons["Edit athlete profile"]
         XCTAssertTrue(editProfile.waitForExistence(timeout: 5))
         editProfile.tap()
 
         XCTAssertTrue(app.navigationBars["Edit Profile"].waitForExistence(timeout: 5))
-        let location = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "City and state")).firstMatch
+        let location = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Location")).firstMatch
         XCTAssertTrue(location.waitForExistence(timeout: 5))
         var attempts = 0
         while !location.isHittable && attempts < 5 {
@@ -308,8 +312,8 @@ final class LiftRankUITests: XCTestCase {
 
     func testFindSubstituteOpensRecommendationsAndExerciseDetails() {
         let app = launchDemo()
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
-        app.tabBars.buttons["Track"].tap()
+        XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
+        tab("track", in: app).tap()
         app.buttons["Library"].tap()
 
         let bench = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Barbell Bench Press")).firstMatch
@@ -335,9 +339,8 @@ final class LiftRankUITests: XCTestCase {
 
     func testExerciseLibrarySupportsSearchCreationAndFocusedDetails() {
         let app = launchDemo()
-        let tabBar = app.tabBars.firstMatch
-        XCTAssertTrue(tabBar.waitForExistence(timeout: 8))
-        tabBar.buttons["Track"].tap()
+        XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
+        tab("track", in: app).tap()
 
         let library = app.buttons["Library"]
         XCTAssertTrue(library.waitForExistence(timeout: 5))
@@ -357,8 +360,8 @@ final class LiftRankUITests: XCTestCase {
 
     func testLeaderboardFiltersAndOpensAnotherAthleteProfile() {
         let app = launchDemo()
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
-        app.tabBars.buttons["Leaderboards"].tap()
+        XCTAssertTrue(tab("leaderboards", in: app).waitForExistence(timeout: 8))
+        tab("leaderboards", in: app).tap()
         XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 5))
 
         let exerciseFilter = app.buttons["leaderboard.filter.exercise"]
@@ -378,9 +381,9 @@ final class LiftRankUITests: XCTestCase {
     }
 
     func testSubmitLiftProducesSubmissionResult() {
-        let app = launchDemo()
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
-        app.tabBars.buttons["Leaderboards"].tap()
+        let app = launchDemo(arguments: ["-uiTestingGymFixture"])
+        XCTAssertTrue(tab("leaderboards", in: app).waitForExistence(timeout: 8))
+        tab("leaderboards", in: app).tap()
 
         let openSubmission = app.buttons["leaderboard.submitLift"]
         XCTAssertTrue(openSubmission.waitForExistence(timeout: 5))
@@ -403,8 +406,8 @@ final class LiftRankUITests: XCTestCase {
 
     func testSubmitLiftGymPickerSearchesFullDirectory() {
         let app = launchDemo()
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
-        app.tabBars.buttons["Leaderboards"].tap()
+        XCTAssertTrue(tab("leaderboards", in: app).waitForExistence(timeout: 8))
+        tab("leaderboards", in: app).tap()
         app.buttons["leaderboard.submitLift"].tap()
         XCTAssertTrue(app.navigationBars["Submit Lift"].waitForExistence(timeout: 5))
 
@@ -431,8 +434,8 @@ final class LiftRankUITests: XCTestCase {
 
     func testBlockingAnotherAthleteChangesTheProfileAction() {
         let app = launchDemo()
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8))
-        app.tabBars.buttons["Leaderboards"].tap()
+        XCTAssertTrue(tab("leaderboards", in: app).waitForExistence(timeout: 8))
+        tab("leaderboards", in: app).tap()
 
         let otherAthlete = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH %@ AND value == %@", "leaderboard.athlete.", "Other athlete")
@@ -459,7 +462,7 @@ final class LiftRankUITests: XCTestCase {
         app.launchArguments += ["-uiTestingAuthentication"]
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["LiftRank"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Lift Rivals"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.textFields["Email"].exists)
         XCTAssertTrue(app.secureTextFields["Password"].exists)
         XCTAssertTrue(app.buttons["Sign In"].exists)
