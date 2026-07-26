@@ -729,7 +729,7 @@ final class AppState: ObservableObject {
     }
 
     func openNotification(_ notification: NotificationItem) {
-        switch notificationStore.open(notification, fallbackGymID: currentProfile.primaryGymID) {
+        switch notificationStore.open(notification) {
         case .leaderboard(let filters):
             competitionStore.requestFocus(filters: filters)
             selectedTab = 1

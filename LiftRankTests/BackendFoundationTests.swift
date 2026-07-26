@@ -583,13 +583,13 @@ final class BackendFoundationTests: XCTestCase {
         )
         store.replaceNotifications([notification])
 
-        let route = store.open(notification, fallbackGymID: UUID())
+        let route = store.open(notification)
 
         guard case .leaderboard(let filters) = route else {
             return XCTFail("Expected a typed leaderboard route")
         }
         XCTAssertEqual(filters.exerciseID, "deadlift")
-        XCTAssertEqual(filters.gymID, gymID)
+        XCTAssertNil(filters.gymID)
         XCTAssertEqual(filters.rankingType, .poundForPound)
         XCTAssertEqual(store.unreadCount, 0)
         XCTAssertTrue(try XCTUnwrap(store.notifications.first).isRead)
@@ -606,7 +606,7 @@ final class BackendFoundationTests: XCTestCase {
         )
         store.replaceNotifications([notification])
 
-        let route = store.open(notification, fallbackGymID: repository.currentProfile.primaryGymID)
+        let route = store.open(notification)
 
         guard case .profile(let profileID) = route else {
             return XCTFail("Expected lift notification to open a profile")

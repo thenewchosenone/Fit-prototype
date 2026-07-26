@@ -742,7 +742,7 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
-    func testRankingNotificationOpensCurrentUsersGymLeaderboard() {
+    func testRankingNotificationOpensFocusedLeaderboardWithoutGymScope() {
         let appState = AppState()
         guard let notification = appState.notifications.first(where: {
             $0.kind.localizedCaseInsensitiveContains("ranking")
@@ -755,7 +755,7 @@ final class RankingCalculatorTests: XCTestCase {
 
         XCTAssertEqual(appState.selectedTab, 1)
         XCTAssertEqual(appState.leaderboardFilters.exerciseID, "deadlift")
-        XCTAssertEqual(appState.leaderboardFilters.gymID, appState.currentProfile.primaryGymID)
+        XCTAssertNil(appState.leaderboardFilters.gymID)
         XCTAssertEqual(appState.leaderboardFilters.rankingType, .absolute)
         XCTAssertTrue(appState.verifiedOnly)
         XCTAssertNotNil(appState.leaderboardFocusRequestID)

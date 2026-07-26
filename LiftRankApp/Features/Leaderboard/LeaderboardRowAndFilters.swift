@@ -75,23 +75,10 @@ struct LeaderboardRow: View {
 struct LeaderboardFiltersView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
-    @State private var gymSearch = ""
     @State private var customRepText = ""
 
     private var ageGroups: [String] {
         LeaderboardAgeGroupPresentation.groups(from: appState.profiles)
-    }
-
-    private var filteredGyms: [Gym] {
-        let query = gymSearch.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !query.isEmpty else { return appState.gyms.sorted { $0.name < $1.name } }
-        return appState.gyms
-            .filter { gym in
-                gym.name.lowercased().contains(query) ||
-                gym.city.lowercased().contains(query) ||
-                gym.state.lowercased().contains(query)
-            }
-            .sorted { $0.name < $1.name }
     }
 
     private var bodyweightClass: WeightClass? {
@@ -219,11 +206,6 @@ struct LeaderboardFiltersView: View {
                                     appState.leaderboardFilters.city = nil
                                     appState.leaderboardFilters.state = nil
                                 }
-                                optionButton("My gym", isActive: appState.leaderboardFilters.gymID == appState.currentProfile.primaryGymID) {
-                                    appState.leaderboardFilters.gymID = appState.currentProfile.primaryGymID
-                                    appState.leaderboardFilters.city = nil
-                                    appState.leaderboardFilters.state = nil
-                                }
                                 optionButton("My city", isActive: appState.leaderboardFilters.city == appState.currentProfile.city && appState.leaderboardFilters.state == appState.currentProfile.state) {
                                     appState.leaderboardFilters.city = appState.currentProfile.city
                                     appState.leaderboardFilters.state = appState.currentProfile.state
@@ -255,33 +237,6 @@ struct LeaderboardFiltersView: View {
                             .background(Color.liftBackground)
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
-                            HStack(spacing: 10) {
-                                Image(systemName: "magnifyingglass")
-                                    .foregroundStyle(Color.liftMuted)
-                                TextField("Search gyms", text: $gymSearch)
-                                    .textInputAutocapitalization(.words)
-                                    .autocorrectionDisabled()
-                                if !gymSearch.isEmpty {
-                                    Button {
-                                        gymSearch = ""
-                                        Haptics.light()
-                                    } label: {
-                                        Image(systemName: "xmark.circle.fill")
-                                    }
-                                    .foregroundStyle(Color.liftMuted)
-                                    .accessibilityLabel("Clear gym search")
-                                }
-                            }
-                            .padding(12)
-                            .background(Color.liftBackground)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-                            VStack(spacing: 8) {
-                                gymButton(nil)
-                                ForEach(filteredGyms.prefix(10)) { gym in
-                                    gymButton(gym)
-                                }
-                            }
                         }
 
                         filterGroup("Evidence and time", symbol: "video.fill") {
@@ -317,7 +272,6 @@ struct LeaderboardFiltersView: View {
                     Button("Reset") {
                         appState.leaderboardFilters = LeaderboardFilters(exerciseID: nil)
                         appState.verifiedOnly = true
-                        gymSearch = ""
                         Haptics.light()
                     }
                 }
@@ -345,7 +299,6 @@ struct LeaderboardFiltersView: View {
                 Button("Reset") {
                     appState.leaderboardFilters = LeaderboardFilters(exerciseID: nil)
                     appState.verifiedOnly = true
-                    gymSearch = ""
                     Haptics.light()
                 }
                 .font(.caption.weight(.bold))
@@ -362,11 +315,6 @@ struct LeaderboardFiltersView: View {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                     quickFilterButton("All lifters", symbol: "globe") {
                         appState.leaderboardFilters = LeaderboardFilters(exerciseID: appState.leaderboardFilters.exerciseID)
-                    }
-                    quickFilterButton("My gym", symbol: "building.2.fill") {
-                        appState.leaderboardFilters.gymID = appState.currentProfile.primaryGymID
-                        appState.leaderboardFilters.city = nil
-                        appState.leaderboardFilters.state = nil
                     }
                     quickFilterButton("My city", symbol: "mappin.and.ellipse") {
                         appState.leaderboardFilters.city = appState.currentProfile.city
@@ -417,37 +365,6 @@ struct LeaderboardFiltersView: View {
                 .background(isActive ? Color.liftBlue : Color.liftBlue.opacity(0.10))
                 .foregroundStyle(isActive ? Color.white : Color.liftBlue)
                 .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func gymButton(_ gym: Gym?) -> some View {
-        let isActive = appState.leaderboardFilters.gymID == gym?.id
-        return Button {
-            Haptics.light()
-            appState.leaderboardFilters.gymID = gym?.id
-            if gym != nil {
-                appState.leaderboardFilters.city = nil
-                appState.leaderboardFilters.state = nil
-            }
-        } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(gym?.name ?? "All gyms")
-                        .font(.subheadline.weight(.semibold))
-                    if let gym {
-                        Text("\(gym.city), \(gym.state)")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
-                    }
-                }
-                Spacer()
-                Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isActive ? Color.liftBlue : Color.liftMuted)
-            }
-            .padding(12)
-            .background(isActive ? Color.liftBlue.opacity(0.14) : Color.liftBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
     }

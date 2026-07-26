@@ -210,10 +210,6 @@ extension LeaderboardsView {
     }
 
     var scopeLabel: String {
-        if let gymID = appState.leaderboardFilters.gymID {
-            if gymID == appState.currentProfile.primaryGymID { return "My gym" }
-            return appState.gyms.first(where: { $0.id == gymID })?.name ?? "Gym"
-        }
         if appState.leaderboardFilters.city == appState.currentProfile.city { return "My city" }
         if appState.leaderboardFilters.weightClassID == bodyweightClass?.id { return "My class" }
         return isGlobalScope ? "Global" : "Custom"
@@ -236,11 +232,7 @@ extension LeaderboardsView {
                 .init(id: "city", title: "My city", subtitle: "\(appState.currentProfile.city), \(appState.currentProfile.state)", symbol: "mappin.and.ellipse"),
                 .init(id: "class", title: "My weight class", subtitle: bodyweightClass.map { RankingFormatting.weightClassDisplayName($0, preferredUnit: appState.currentProfile.preferredUnit) }, symbol: "person.crop.rectangle.stack")
             ]
-            return broadScopes + [
-                .init(id: "gym", title: "My gym", subtitle: appState.currentProfile.primaryGymName, symbol: "building.2.fill")
-            ] + appState.gyms.sorted(by: { $0.name < $1.name }).map {
-                .init(id: "gym:\($0.id.uuidString)", title: $0.name, subtitle: "\($0.city), \($0.state)", symbol: "building.2")
-            }
+            return broadScopes
         case .exercise:
             return [.init(id: "all", title: "All exercises", symbol: "dumbbell.fill")] + MockData.exercises.map {
                 .init(id: $0.id, title: $0.name, symbol: $0.symbolName)
@@ -276,10 +268,8 @@ extension LeaderboardsView {
     func selectedOptionID(for selector: LeaderboardSelector) -> String {
         switch selector {
         case .scope:
-            if appState.leaderboardFilters.gymID == appState.currentProfile.primaryGymID { return "gym" }
             if appState.leaderboardFilters.city == appState.currentProfile.city { return "city" }
             if appState.leaderboardFilters.weightClassID == bodyweightClass?.id { return "class" }
-            if let gymID = appState.leaderboardFilters.gymID { return "gym:\(gymID.uuidString)" }
             return "global"
         case .exercise: return appState.leaderboardFilters.exerciseID ?? "all"
         case .repetitions: return appState.leaderboardFilters.repetitionCount.map(String.init) ?? "all"
@@ -301,17 +291,12 @@ extension LeaderboardsView {
             appState.leaderboardFilters.city = nil
             appState.leaderboardFilters.state = nil
             appState.leaderboardFilters.weightClassID = nil
-            if optionID == "gym" {
-                appState.leaderboardFilters.gymID = appState.currentProfile.primaryGymID
-            } else if optionID == "city" {
+            if optionID == "city" {
                 appState.leaderboardFilters.city = appState.currentProfile.city
                 appState.leaderboardFilters.state = appState.currentProfile.state
             } else if optionID == "class" {
                 appState.leaderboardFilters.sexCategory = appState.currentProfile.sexCategory
                 appState.leaderboardFilters.weightClassID = bodyweightClass?.id
-            } else if optionID.hasPrefix("gym:"),
-                      let gymID = UUID(uuidString: String(optionID.dropFirst(4))) {
-                appState.leaderboardFilters.gymID = gymID
             }
         case .exercise:
             appState.selectLeaderboardExercise(optionID == "all" ? nil : optionID)

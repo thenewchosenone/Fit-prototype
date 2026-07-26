@@ -102,7 +102,7 @@ final class NotificationStore: ObservableObject {
         }
     }
 
-    func open(_ notification: NotificationItem, fallbackGymID: UUID) -> NotificationRoute {
+    func open(_ notification: NotificationItem) -> NotificationRoute {
         markRead(notification.id)
         let destination = notification.destination
 
@@ -112,7 +112,6 @@ final class NotificationStore: ObservableObject {
         case .leaderboard:
             var filters = LeaderboardFilters(exerciseID: destination.exerciseID)
             filters.rankingType = destination.rankingType ?? .absolute
-            filters.gymID = destination.gymID ?? fallbackGymID
             return .leaderboard(filters)
         case .lift:
             return .profile(repository.currentProfile.id)
