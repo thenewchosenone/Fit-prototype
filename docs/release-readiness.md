@@ -42,7 +42,7 @@ This document records evidence for the 11-phase public-launch plan. A phase is c
 4. **Workout sync and programs:** active sessions remain local; versioned plans, immutable completed snapshots, offline retries, conflict copies, and cables/free-weight templates are implemented.
 5. **Competitive authority:** the seven canonical movements, true-one-rep eligibility, per-hand dumbbell rules, private uploads, server evidence state, review thresholds, moderation actions, and immutable audits are implemented in forward-only migrations.
 6. **Rankings and profiles:** verified-first rankings, comparison modes and filters, expandable top-three rows, visible personal placement, public best-lift records, and clickable PR details are implemented.
-7. **Social safety:** production forums, followed-first feed, direct messages, blocking, reports, moderation, saves, watches, polls, and membership rules are implemented behind RLS/server functions.
+7. **Focused safety:** lift reporting, athlete blocking, and moderation service boundaries remain available. Community, forums, direct messages, gym feeds, polls, saves/watches, and other broad social surfaces are deferred and are not part of the focused production app.
 8. **Notifications:** in-app notifications, event-generated notification records, per-install APNs token registration/revocation, and a credential-isolated APNs Edge Function are implemented. Live pushes remain gated on Apple membership, entitlements, credentials, and scheduling the sender.
 9. **Design and exercise details:** floating navigation, vertical program previews, volume summaries, semantic system/light/dark surfaces, Reduce Motion media behavior, anatomy fallback, exercise history/records/charts, and five substitutes are implemented. Original/licensed media still requires a rights review before release.
 10. **Security and release tooling:** RPC-to-migration coverage was audited, the local database harness now executes every pgTAP file, and production remains fail-closed rather than falling back to mocks.
@@ -106,12 +106,12 @@ This document records evidence for the 11-phase public-launch plan. A phase is c
 
 ## Focused-launch stabilization verification — July 25, 2026
 
-- The focused native app and all native test targets compile with `xcodebuild ... build-for-testing` for the generic iOS Simulator destination.
-- The unsigned Release simulator build passed for arm64 and x86_64 after the focused leaderboard cleanup.
+- The focused native app compiles and launches with Home, Leaderboards, Track, and Me. The complete serial iOS unit target passed 230 tests with zero failures, and the complete serial UI target passed 23 tests with zero failures on an iPhone simulator.
+- The unsigned Release simulator build passed for arm64 and x86_64 from the stabilized current source.
 - Product-consistency batches were completed for recorded workout/PR weights, normalized kilogram presentation, preferred-unit bodyweight editing, leaderboard identity and location privacy, deferred gym leaderboard scopes, and failed video-upload state.
 - Failed evidence uploads now remain self-reported, clear temporary media references, and invalidate late progress callbacks. The focused regression test compiles in the unit-test target.
-- Native simulator test execution is not a passing gate. Xcode repeatedly launches a clone worker and then hangs while materializing/finalizing the test session. A media regression run executed before the final callback-race correction and failed; later runs after the correction did not execute assertions before the same worker hang. Re-run native unit and UI suites after repairing CoreSimulator/Xcode.
-- Focused native UI coverage exists and compiles for workout logging, workout completion, profile editing, PR submission, leaderboard/profile navigation, and blocking. Unit coverage exists and compiles for authenticated routing/onboarding, profile persistence, reporting/service boundaries, ranking, media state, and account deletion. This compiled coverage does not replace a successful runtime pass.
+- Focused UI runtime coverage passed for signed-out/create-account routing, five-step onboarding through profile persistence and legal acceptance, profile editing, workout logging and completion, PR submission, leaderboard/profile navigation, media presentation, service-backed lift reporting, athlete blocking, and confirmed account deletion back to sign-in.
+- UI-only launch fixtures are explicit DEBUG arguments. Production continues to start with no seeded athletes, gyms, lifts, media, or deferred social data.
 - Web unit/component tests passed: 95 of 95. Gym-source parser tests passed: 10 of 10. The production web build passed.
 - Production release-route smoke passed on desktop and mobile: 6 of 6. Demo-mode release-route smoke rebuilt the demo bundle and passed on desktop and mobile: 6 of 6. Deferred Community and Messages routes resolve through focused Home and then to Login when unauthenticated in production.
 - `check_publish_readiness_services.sh` and `check_launch_metadata.sh` passed their local source/configuration checks. The services check still warns that production APNs secrets, notification-delivery runtime evidence, and production SMTP evidence are unavailable locally.
@@ -120,6 +120,6 @@ This document records evidence for the 11-phase public-launch plan. A phase is c
 
 - Connect and load-test production SMTP for signup and recovery.
 - Complete the two-unrelated-account staging rehearsal for signup/onboarding, profile edit, workout sync/logging/detail, PR plus signed media playback, ranking, reporting, blocking, and account deletion.
-- Complete physical-device testing and a clean native unit/UI runtime pass.
+- Complete physical-device testing, including camera/photo selection, video upload/playback, keyboard behavior, background/foreground recovery, and account linking/deletion.
 - Verify Apple Developer capabilities and distribution signing, Sign in with Apple account linking, APNs credentials and live delivery, and TestFlight installation.
 - Complete legal, App Store privacy disclosure, accessibility, support/moderation workflow, and original/licensed media-rights reviews.
