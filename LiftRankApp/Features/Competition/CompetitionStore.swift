@@ -25,6 +25,7 @@ final class CompetitionStore: ObservableObject {
     private var hasLoadedProductionData = false
     private var productionUserID: UUID?
     private var leaderboardRequestID: UUID?
+    private var activeUploadID: UUID?
 
     init(
         repository: any CompetitionRepository,
@@ -401,12 +402,17 @@ final class CompetitionStore: ObservableObject {
         submission.localVideoURL = videoURL
 
         if let videoURL, let mediaUploadService {
+            let uploadID = UUID()
+            activeUploadID = uploadID
             do {
                 let asset = try await mediaUploadService.uploadLiftVideo(
                     localURL: videoURL,
                     liftID: submission.id,
                     progress: { [weak self] value in
-                        Task { @MainActor in self?.uploadProgress = value }
+                        Task { @MainActor in
+                            guard self?.activeUploadID == uploadID else { return }
+                            self?.uploadProgress = value
+                        }
                     }
                 )
                 submission.videoAssetID = asset.id
@@ -414,16 +420,22 @@ final class CompetitionStore: ObservableObject {
                 submission.verificationStatus = .videoVerified
                 submission.remoteVideoURL = try? await mediaUploadService.signedPlaybackURL(assetID: asset.id)
                 guard repository.currentProfile.id == userID else {
+                    activeUploadID = nil
                     resetProductionDataIfNeeded()
                     return nil
                 }
+                activeUploadID = nil
+                uploadProgress = 1
                 await track(.videoBackedPRSubmitted, userID: userID, properties: ["movement": movementName])
             } catch {
                 // The lift remains submitted as self-reported when evidence upload fails.
+                activeUploadID = nil
                 submission.evidenceStatus = .selfReported
                 submission.verificationStatus = .selfReported
                 submission.videoAssetID = nil
+                submission.localVideoURL = nil
                 submission.remoteVideoURL = nil
+                uploadProgress = 0
             }
         }
 

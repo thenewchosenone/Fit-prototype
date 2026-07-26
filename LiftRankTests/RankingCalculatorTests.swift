@@ -235,6 +235,23 @@ private final class GatedPlaybackMediaService: MediaUploadService {
     }
 }
 
+private struct FailingMediaUploadService: MediaUploadService {
+    func upload(localURL: URL?) async throws -> URL? { nil }
+
+    func uploadLiftVideo(
+        localURL: URL,
+        liftID: UUID,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> LiftMediaAsset {
+        progress(0.5)
+        throw LiftRankServiceError.networkUnavailable
+    }
+
+    func signedPlaybackURL(assetID: UUID) async throws -> URL {
+        throw LiftRankServiceError.configurationMissing
+    }
+}
+
 @MainActor
 private final class WorkoutSyncServiceStub: WorkoutSyncService {
     var shouldFailDeletion = false
@@ -782,6 +799,48 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(stored.localVideoURL, localURL)
         let playbackURL = await store.playbackURL(for: stored)
         XCTAssertEqual(playbackURL, localURL)
+    }
+
+    @MainActor
+    func testFailedVideoUploadLeavesSelfReportedLiftWithoutMediaReference() async throws {
+        let repository = DemoRepository()
+        let store = CompetitionStore(
+            repository: repository,
+            liftService: MockLiftService(repository: repository),
+            mediaUploadService: FailingMediaUploadService()
+        )
+        let localURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("liftrank-failed-video-\(UUID().uuidString).mov")
+        try Data([0x00]).write(to: localURL)
+        defer { try? FileManager.default.removeItem(at: localURL) }
+
+        let lift = await store.submitLift(
+            exercise: MockData.exercises[2],
+            weight: 585,
+            unit: .pounds,
+            reps: 1,
+            isActual: true,
+            bodyweight: repository.currentProfile.bodyweightPounds,
+            date: .now,
+            gymID: repository.currentProfile.primaryGymID,
+            equipment: .raw,
+            visibility: .publicLift,
+            videoURL: localURL,
+            caption: "Failed upload regression",
+            requestVerification: true
+        )
+
+        let submitted = try XCTUnwrap(lift)
+        XCTAssertEqual(submitted.evidenceStatus, .selfReported)
+        XCTAssertEqual(submitted.verificationStatus, .selfReported)
+        XCTAssertNil(submitted.videoAssetID)
+        XCTAssertNil(submitted.localVideoURL)
+        XCTAssertNil(submitted.remoteVideoURL)
+        XCTAssertFalse(repository.lifts.contains {
+            $0.id == submitted.id &&
+                ($0.videoAssetID != nil || $0.localVideoURL != nil || $0.remoteVideoURL != nil)
+        })
+        XCTAssertEqual(store.uploadProgress, 0)
     }
 
     func testRemoteEstimatedLiftReconstructsOneRepMaxFromRepetitions() throws {
