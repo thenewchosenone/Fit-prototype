@@ -22,14 +22,6 @@ import SwiftUI
         .preferredColorScheme(.dark)
 }
 
-#Preview("Community") {
-    NavigationStack {
-        CommunityView()
-    }
-    .environmentObject(AppState())
-    .preferredColorScheme(.dark)
-}
-
 #Preview("Profile") {
     NavigationStack {
         ProfileView(profile: MockData.demoProfile, isCurrentUser: true)

@@ -7,12 +7,7 @@ struct LeaderboardRow: View {
     var rankingType: RankingType = .absolute
 
     private var rankColor: Color {
-        switch entry.rank {
-        case 1: return .liftGold
-        case 2: return .liftSilver
-        case 3: return .liftBronze
-        default: return .liftMuted
-        }
+        LeaderboardRankPresentation.color(for: entry.rank)
     }
 
     var body: some View {
@@ -40,12 +35,10 @@ struct LeaderboardRow: View {
                                     .clipShape(Capsule())
                             }
                         }
-                        if appState.features.gymFeeds {
-                            Text(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)
-                                .font(.caption)
-                                .foregroundStyle(Color.liftMuted)
-                                .lineLimit(1)
-                        }
+                        Text(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                            .lineLimit(1)
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 5) {
@@ -86,8 +79,7 @@ struct LeaderboardFiltersView: View {
     @State private var customRepText = ""
 
     private var ageGroups: [String] {
-        let legacy = Set(appState.profiles.map(\.ageGroup)).subtracting(MockData.standardAgeGroups)
-        return MockData.standardAgeGroups + legacy.sorted()
+        LeaderboardAgeGroupPresentation.groups(from: appState.profiles)
     }
 
     private var filteredGyms: [Gym] {
@@ -223,12 +215,10 @@ struct LeaderboardFiltersView: View {
                                     appState.leaderboardFilters.city = nil
                                     appState.leaderboardFilters.state = nil
                                 }
-                                if appState.features.gymFeeds {
-                                    optionButton("My gym", isActive: appState.leaderboardFilters.gymID == appState.currentProfile.primaryGymID) {
-                                        appState.leaderboardFilters.gymID = appState.currentProfile.primaryGymID
-                                        appState.leaderboardFilters.city = nil
-                                        appState.leaderboardFilters.state = nil
-                                    }
+                                optionButton("My gym", isActive: appState.leaderboardFilters.gymID == appState.currentProfile.primaryGymID) {
+                                    appState.leaderboardFilters.gymID = appState.currentProfile.primaryGymID
+                                    appState.leaderboardFilters.city = nil
+                                    appState.leaderboardFilters.state = nil
                                 }
                                 optionButton("My city", isActive: appState.leaderboardFilters.city == appState.currentProfile.city && appState.leaderboardFilters.state == appState.currentProfile.state) {
                                     appState.leaderboardFilters.city = appState.currentProfile.city
@@ -369,12 +359,10 @@ struct LeaderboardFiltersView: View {
                     quickFilterButton("All lifters", symbol: "globe") {
                         appState.leaderboardFilters = LeaderboardFilters(exerciseID: appState.leaderboardFilters.exerciseID)
                     }
-                    if appState.features.gymFeeds {
-                        quickFilterButton("My gym", symbol: "building.2.fill") {
-                            appState.leaderboardFilters.gymID = appState.currentProfile.primaryGymID
-                            appState.leaderboardFilters.city = nil
-                            appState.leaderboardFilters.state = nil
-                        }
+                    quickFilterButton("My gym", symbol: "building.2.fill") {
+                        appState.leaderboardFilters.gymID = appState.currentProfile.primaryGymID
+                        appState.leaderboardFilters.city = nil
+                        appState.leaderboardFilters.state = nil
                     }
                     quickFilterButton("My city", symbol: "mappin.and.ellipse") {
                         appState.leaderboardFilters.city = appState.currentProfile.city

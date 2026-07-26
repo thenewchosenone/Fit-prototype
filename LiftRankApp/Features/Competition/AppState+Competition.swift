@@ -52,6 +52,9 @@ extension AppState {
             filters.ageGroup ?? "",
             filters.sexCategory?.rawValue ?? "",
             filters.weightClassID ?? "",
+            filters.repetitionCount.map(String.init) ?? "",
+            filters.experienceLevel?.rawValue ?? "",
+            filters.verificationLevel?.rawValue ?? "",
             filters.timeRange,
             verifiedOnly ? "verified" : "all"
         ].joined(separator: "|")
@@ -68,9 +71,6 @@ extension AppState {
 
     func normalizeLeaderboardFilters() {
         competitionStore.normalizeFilters()
-        if !features.gymFeeds {
-            competitionStore.filters.gymID = nil
-        }
     }
 
     func submitLift(exercise: Exercise, weight: Double, unit: UnitSystem, reps: Int, isActual: Bool, bodyweight: Double, date: Date, gymID: UUID, equipment: EquipmentType, visibility: LiftVisibility, videoURL: URL?, caption: String, requestVerification: Bool) async {

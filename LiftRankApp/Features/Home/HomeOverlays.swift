@@ -7,72 +7,6 @@ extension View {
     }
 }
 
-struct ConnectionActivityListView: View {
-    @EnvironmentObject private var appState: AppState
-    @Environment(\.dismiss) private var dismiss
-    @State private var selectedActivity: ActivityItem?
-
-    var body: some View {
-        NavigationStack {
-            AppBackground {
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        if appState.activities.isEmpty {
-                            LiftEmptyState(
-                                title: "No shared workouts yet",
-                                message: "Connect with athletes to see workouts they share.",
-                                symbolName: "person.2.fill"
-                            )
-                            .padding(.top, 48)
-                        } else {
-                            ForEach(appState.activities) { activity in
-                                Button {
-                                    selectedActivity = activity
-                                } label: {
-                                    LiftCard {
-                                        HStack(spacing: 12) {
-                                            ProfileAvatar(profile: activity.profile, size: 46)
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text(activity.profile.displayName)
-                                                    .font(.headline)
-                                                    .foregroundStyle(Color.liftText)
-                                                Text(activity.title)
-                                                    .font(.subheadline.weight(.semibold))
-                                                    .foregroundStyle(Color.liftText)
-                                                Text(activity.detail)
-                                                    .font(.caption)
-                                                    .foregroundStyle(Color.liftMuted)
-                                                    .lineLimit(2)
-                                            }
-                                            Spacer(minLength: 8)
-                                            Image(systemName: "chevron.right")
-                                                .foregroundStyle(Color.liftMuted)
-                                        }
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                    .padding(16)
-                }
-            }
-            .navigationTitle("Connection Activity")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .sheet(item: $selectedActivity) { activity in
-                ActivityDetailView(activity: activity)
-                    .environmentObject(appState)
-                    .presentationDetents([.large])
-            }
-        }
-    }
-}
-
 struct RecentPRSetContext {
     let workout: CompletedWorkout
     let exercise: WorkoutExerciseSnapshot
@@ -448,8 +382,8 @@ struct HomeNotificationCenterView: View {
     private func accessibilityHint(for notification: NotificationItem) -> String {
         let kind = notification.kind.lowercased()
         if kind.contains("ranking") { return "Opens your position on the leaderboard" }
-        if kind.contains("friend") || kind.contains("message") { return "Opens Community messages" }
-        if kind.contains("gym") { return "Opens Community gyms" }
+        if kind.contains("friend") { return "Opens your profile" }
+        if kind.contains("gym") { return "Opens your gym details" }
         if kind.contains("lift") || kind.contains("approved") || kind.contains("rejected") || kind.contains("achievement") {
             return "Opens your profile"
         }

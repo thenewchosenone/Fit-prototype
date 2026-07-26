@@ -51,7 +51,7 @@ extension LeaderboardsView {
                                                     isCurrentUser: entry.profile.id == appState.currentProfile.id,
                                                     preferredUnit: appState.currentProfile.preferredUnit,
                                                     isExerciseLeaderboard: appState.leaderboardFilters.exerciseID != nil,
-                                                    showsGym: appState.features.gymFeeds
+                                                    showsGym: true
                                                 )
                                             }
                                             .buttonStyle(.plain)

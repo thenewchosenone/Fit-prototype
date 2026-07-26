@@ -11,7 +11,7 @@ extension LeaderboardsView {
         return allEntries.filter { entry in
             entry.profile.username.lowercased().contains(query) ||
             entry.profile.displayName.lowercased().contains(query) ||
-            (appState.features.gymFeeds && entry.profile.primaryGymName.lowercased().contains(query)) ||
+            (entry.profile.primaryGymName.lowercased().contains(query)) ||
             entry.profile.city.lowercased().contains(query) ||
             entry.lift.exerciseName.lowercased().contains(query)
         }
@@ -155,7 +155,7 @@ extension LeaderboardsView {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(Color.liftMuted)
-            TextField(appState.features.gymFeeds ? "Search lifters, gyms, exercises" : "Search lifters or exercises", text: $searchText)
+            TextField("Search lifters, gyms, exercises", text: $searchText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
             if !searchText.isEmpty {
@@ -211,7 +211,6 @@ extension LeaderboardsView {
 
     var scopeLabel: String {
         if let gymID = appState.leaderboardFilters.gymID {
-            guard appState.features.gymFeeds else { return "Global" }
             if gymID == appState.currentProfile.primaryGymID { return "My gym" }
             return appState.gyms.first(where: { $0.id == gymID })?.name ?? "Gym"
         }
@@ -237,7 +236,6 @@ extension LeaderboardsView {
                 .init(id: "city", title: "My city", subtitle: "\(appState.currentProfile.city), \(appState.currentProfile.state)", symbol: "mappin.and.ellipse"),
                 .init(id: "class", title: "My weight class", subtitle: bodyweightClass.map { RankingFormatting.weightClassDisplayName($0, preferredUnit: appState.currentProfile.preferredUnit) }, symbol: "person.crop.rectangle.stack")
             ]
-            guard appState.features.gymFeeds else { return broadScopes }
             return broadScopes + [
                 .init(id: "gym", title: "My gym", subtitle: appState.currentProfile.primaryGymName, symbol: "building.2.fill")
             ] + appState.gyms.sorted(by: { $0.name < $1.name }).map {
@@ -258,10 +256,9 @@ extension LeaderboardsView {
                 .init(id: "custom", title: "Custom rep count", symbol: "number.square")
             ]
         case .age:
-            let legacy = Set(appState.profiles.map(\.ageGroup)).subtracting(MockData.standardAgeGroups)
             return [.init(id: "all", title: "All ages", symbol: "person.2")] +
-                (MockData.standardAgeGroups + legacy.sorted()).map {
-                .init(id: $0, title: $0, subtitle: MockData.legacyAgeGroups.contains($0) ? "Legacy profile range" : nil, symbol: "person")
+                LeaderboardAgeGroupPresentation.groups(from: appState.profiles).map {
+                .init(id: $0, title: $0, subtitle: LeaderboardAgeGroupPresentation.subtitle(for: $0), symbol: "person")
             }
         case .timeRange:
             return ["All time", "This year", "Last 90 days", "This month", "This week"].map {
@@ -282,7 +279,7 @@ extension LeaderboardsView {
             if appState.leaderboardFilters.gymID == appState.currentProfile.primaryGymID { return "gym" }
             if appState.leaderboardFilters.city == appState.currentProfile.city { return "city" }
             if appState.leaderboardFilters.weightClassID == bodyweightClass?.id { return "class" }
-            if appState.features.gymFeeds, let gymID = appState.leaderboardFilters.gymID { return "gym:\(gymID.uuidString)" }
+            if let gymID = appState.leaderboardFilters.gymID { return "gym:\(gymID.uuidString)" }
             return "global"
         case .exercise: return appState.leaderboardFilters.exerciseID ?? "all"
         case .repetitions: return appState.leaderboardFilters.repetitionCount.map(String.init) ?? "all"

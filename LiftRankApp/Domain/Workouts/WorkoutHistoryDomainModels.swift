@@ -141,23 +141,3 @@ final class PersistentWorkoutState {
         self.payload = payload
     }
 }
-
-@Model
-final class PersistentForumState {
-    var id: UUID
-    var schemaVersion: Int
-    var updatedAt: Date
-    var payload: Data
-
-    init(
-        id: UUID = UUID(uuidString: "A9000000-0000-0000-0000-000000000002")!,
-        schemaVersion: Int,
-        updatedAt: Date = .now,
-        payload: Data
-    ) {
-        self.id = id
-        self.schemaVersion = schemaVersion
-        self.updatedAt = updatedAt
-        self.payload = payload
-    }
-}

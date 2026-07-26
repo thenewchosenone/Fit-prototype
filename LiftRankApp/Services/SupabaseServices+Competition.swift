@@ -59,7 +59,7 @@ final class SupabaseLiftService: LiftService {
         catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
-    func vote(liftID: UUID, vote: CommunityVote?) async throws {
+    func vote(liftID: UUID, vote: LiftVoteValue?) async throws {
         do {
             try await client.rpc("vote_on_lift", params: LiftVoteParameters(liftID: liftID, voteValue: vote?.rawValue)).execute()
         }
@@ -113,7 +113,7 @@ private struct CompetitiveLiftInsertDTO: Encodable {
         unit = submission.unit.shortLabel
         reps = submission.repetitions
         bodyweight = submission.bodyweightAtLift
-        visibility = submission.visibility == .followers ? "Friends" : submission.visibility.rawValue
+        visibility = submission.visibility.rawValue
         verification = "Self Reported"
         caption = submission.caption
         performedAt = submission.performedAt
@@ -123,7 +123,7 @@ private struct CompetitiveLiftInsertDTO: Encodable {
     }
 }
 
-private struct CompetitiveLiftDTO: Decodable {
+struct CompetitiveLiftDTO: Decodable {
     let id: UUID
     let userID: UUID
     let exerciseID: String
@@ -170,6 +170,9 @@ private struct CompetitiveLiftDTO: Decodable {
         let liftUnit: UnitSystem = unit == "kg" ? .kilograms : .pounds
         let bodyweight = bodyweight ?? 0
         let weightPounds = liftUnit == .pounds ? weight : RankingCalculator.kilogramsToPounds(weight)
+        let estimatedOneRepMax = isActualOneRepMax
+            ? weightPounds
+            : RankingCalculator.epleyOneRepMax(weight: weightPounds, repetitions: repetitions)
 
         return LiftSubmission(
             id: id,
@@ -181,7 +184,7 @@ private struct CompetitiveLiftDTO: Decodable {
             normalizedWeightKilograms: liftUnit == .kilograms ? weight : RankingCalculator.poundsToKilograms(weight),
             repetitions: repetitions,
             isActualOneRepMax: isActualOneRepMax,
-            estimatedOneRepMax: weightPounds,
+            estimatedOneRepMax: estimatedOneRepMax,
             bodyweightAtLift: bodyweight,
             bodyweightMultiple: bodyweight > 0 ? weightPounds / bodyweight : 0,
             equipmentType: .raw,
@@ -192,7 +195,7 @@ private struct CompetitiveLiftDTO: Decodable {
             remoteVideoURL: nil,
             caption: caption,
             verificationStatus: VerificationStatus(rawValue: verification) ?? (evidenceStatus == "video_backed" ? .videoVerified : .selfReported),
-            visibility: visibility == "Public" ? .publicLift : visibility == "Private" ? .privateLift : .followers,
+            visibility: visibility == "Private" ? .privateLift : .publicLift,
             leaderboardEligibleAt: leaderboardEligibleAt ?? .distantFuture,
             createdAt: createdAt,
             updatedAt: updatedAt,

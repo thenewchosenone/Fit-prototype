@@ -16,8 +16,10 @@ enum ExerciseProgressSeries {
         Dictionary(grouping: points) { calendar.startOfDay(for: $0.date) }
             .compactMap { day, dailyPoints in
                 guard let best = dailyPoints.max(by: { lhs, rhs in
-                    if lhs.weight == rhs.weight { return lhs.reps < rhs.reps }
-                    return lhs.weight < rhs.weight
+                    let lhsKilograms = MeasurementFormatting.normalizeToKilograms(lhs.weight, unit: lhs.unit)
+                    let rhsKilograms = MeasurementFormatting.normalizeToKilograms(rhs.weight, unit: rhs.unit)
+                    if lhsKilograms == rhsKilograms { return lhs.reps < rhs.reps }
+                    return lhsKilograms < rhsKilograms
                 }) else { return nil }
                 return ExerciseProgressPoint(
                     id: best.id,
@@ -36,6 +38,7 @@ enum ExerciseProgressSeries {
 final class TrainingProgressStore {
     private let repository: any TrainingProgressRepository
     private let calendar: Calendar
+    private var cachedUserID: UUID
 
     init(
         repository: any TrainingProgressRepository,
@@ -43,37 +46,64 @@ final class TrainingProgressStore {
     ) {
         self.repository = repository
         self.calendar = calendar
+        self.cachedUserID = repository.currentProfile.id
     }
 
     var completedWorkouts: [CompletedWorkout] { repository.completedWorkouts }
-    var bodyweightEntries: [BodyweightEntry] { repository.bodyweightEntries }
-    var strainEntries: [StrainEntry] { repository.strainEntries }
-    var injuryEntries: [InjuryEntry] { repository.injuryEntries }
+    var bodyweightEntries: [BodyweightEntry] {
+        resetAccountScopedEntriesIfNeeded()
+        return repository.bodyweightEntries
+    }
+    var strainEntries: [StrainEntry] {
+        resetAccountScopedEntriesIfNeeded()
+        return repository.strainEntries
+    }
+    var injuryEntries: [InjuryEntry] {
+        resetAccountScopedEntriesIfNeeded()
+        return repository.injuryEntries
+    }
 
     func updateBodyweight(_ entry: BodyweightEntry) {
+        resetAccountScopedEntriesIfNeeded()
         repository.updateBodyweight(entry)
     }
 
     func updateStrainEntry(_ entry: StrainEntry) {
+        resetAccountScopedEntriesIfNeeded()
         repository.updateStrainEntry(entry)
     }
 
     func removeStrainEntry(_ entryID: UUID) {
+        resetAccountScopedEntriesIfNeeded()
         repository.deleteStrainEntry(entryID)
     }
 
     func updateInjuryEntry(_ entry: InjuryEntry) {
+        resetAccountScopedEntriesIfNeeded()
         repository.updateInjuryEntry(entry)
     }
 
     func removeInjuryEntry(_ entryID: UUID) {
+        resetAccountScopedEntriesIfNeeded()
         repository.deleteInjuryEntry(entryID)
+    }
+
+    private func resetAccountScopedEntriesIfNeeded() {
+        guard cachedUserID != repository.currentProfile.id else { return }
+        cachedUserID = repository.currentProfile.id
+        repository.clearTrainingHealthEntries()
+    }
+
+    private func trackingKind(for exerciseID: String) -> ExerciseTrackingKind {
+        ExerciseTrackingKind(
+            repository.trainingExerciseCatalog.first { $0.id == exerciseID }?.trackingType ?? "Weight + Reps"
+        )
     }
 
     func completedPrescriptionCount(for session: WorkoutSession) -> Int {
         let prescriptions = prescriptions(for: session)
         let completedIDs = Set(repository.workoutSetLogs.filter { log in
-            log.isComplete && prescriptions.contains { $0.id == log.prescriptionID }
+            log.isComplete && !log.isWarmup && prescriptions.contains { $0.id == log.prescriptionID }
         }.map(\.prescriptionID))
         return completedIDs.count
     }
@@ -82,7 +112,7 @@ final class TrainingProgressStore {
         let plannedPrescriptions = sessions(for: week).flatMap { prescriptions(for: $0) }
         guard !plannedPrescriptions.isEmpty else { return 0 }
         let completedIDs = Set(repository.workoutSetLogs.filter { log in
-            log.isComplete && plannedPrescriptions.contains { $0.id == log.prescriptionID }
+            log.isComplete && !log.isWarmup && plannedPrescriptions.contains { $0.id == log.prescriptionID }
         }.map(\.prescriptionID))
         return Double(completedIDs.count) / Double(plannedPrescriptions.count)
     }
@@ -144,6 +174,7 @@ final class TrainingProgressStore {
         var totals: [String: Double] = [:]
         for workout in workouts {
             for exercise in workout.exercises {
+                guard trackingKind(for: exercise.exerciseID) == .weightReps else { continue }
                 let volume = workout.sets
                     .filter { $0.prescriptionID == exercise.id && $0.isComplete && !$0.isWarmup }
                     .reduce(0) { total, set in
@@ -204,7 +235,7 @@ final class TrainingProgressStore {
     }
 
     func exerciseHistory(for exerciseID: String) -> [ExerciseHistoryEntry] {
-        let trackingKind = ExerciseTrackingKind(MockData.trainingExerciseLibrary.first { $0.id == exerciseID }?.trackingType ?? "Weight + Reps")
+        let trackingKind = trackingKind(for: exerciseID)
         return repository.completedWorkouts.compactMap { workout -> ExerciseHistoryEntry? in
             let snapshotIDs = Set(workout.exercises.filter { $0.exerciseID == exerciseID }.map(\.id))
             let sets = workout.sets.filter {
@@ -239,7 +270,7 @@ final class TrainingProgressStore {
     }
 
     func exerciseRecords(for exerciseID: String) -> ExerciseRecords {
-        let trackingKind = ExerciseTrackingKind(MockData.trainingExerciseLibrary.first { $0.id == exerciseID }?.trackingType ?? "Weight + Reps")
+        let trackingKind = trackingKind(for: exerciseID)
         let history = exerciseHistory(for: exerciseID)
         let normalizedSets = history.flatMap(\.sets).compactMap { set -> (weight: Double, reps: Int)? in
             guard trackingKind == .weightReps else { return nil }
@@ -266,6 +297,7 @@ final class TrainingProgressStore {
 
         for workout in repository.completedWorkouts.sorted(by: { $0.completedAt > $1.completedAt }) {
             for exercise in workout.exercises {
+                guard trackingKind(for: exercise.exerciseID) == .weightReps else { continue }
                 let sets = workout.sets.filter {
                     $0.prescriptionID == exercise.id && $0.isComplete && !$0.isWarmup
                 }

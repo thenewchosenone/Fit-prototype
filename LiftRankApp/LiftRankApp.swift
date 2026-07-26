@@ -17,16 +17,13 @@ struct LiftRankApp: App {
                 for: PersistentLiftRecord.self,
                 PersistentSettings.self,
                 PersistentWorkoutRecord.self,
-                PersistentWorkoutState.self,
-                PersistentForumState.self
+                PersistentWorkoutState.self
             )
             modelContainer = container
             localDataError = nil
             let workoutStore = SwiftDataWorkoutPersistenceStore(context: container.mainContext)
-            let forumStore = SwiftDataForumPersistenceStore(context: container.mainContext)
             _appState = StateObject(wrappedValue: AppState(repository: DemoRepository(
                 workoutPersistenceStore: workoutStore,
-                forumPersistenceStore: forumStore,
                 seedDemoData: false
             )))
         } catch {

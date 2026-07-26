@@ -562,7 +562,7 @@ struct TodayWorkoutLaunchCard: View {
                     Image(systemName: "arrow.right")
                         .font(.subheadline.weight(.bold))
                 }
-                .foregroundStyle(Color.liftBackground)
+                .foregroundStyle(Color.liftOnAccent)
                 .padding(.horizontal, 14)
                 .frame(minHeight: 44)
                 .background(Color.liftBlue)
@@ -593,7 +593,7 @@ struct ActiveWorkoutResumeCard: View {
                 HStack(spacing: 12) {
                     Image(systemName: workout.pausedAt == nil ? "waveform.path.ecg" : "pause.fill")
                         .font(.headline.weight(.bold))
-                        .foregroundStyle(Color.liftBackground)
+                        .foregroundStyle(Color.liftOnAccent)
                         .frame(width: 44, height: 44)
                         .background(Color.liftGreen)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))

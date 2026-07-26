@@ -4,23 +4,21 @@ import Foundation
 @MainActor
 final class AccountSocialStore: ObservableObject {
     @Published private(set) var gymMemberships: [GymMembershipRecord] = []
-    @Published private(set) var friendRelationships: [FriendRelationshipRecord] = []
     @Published private(set) var blocks: [UserBlockRecord] = []
 
     private let repository: any AccountSocialRepository
     private let profileStore: ProfileStore
     private var gymService: any GymService
     private var gymMembershipService: any GymMembershipService
-    private var friendRelationshipService: any FriendRelationshipService
     private var profileService: any ProfileService
     private var socialService: any SocialService
+    private var cachedUserID: UUID
 
     init(
         repository: any AccountSocialRepository,
         profileStore: ProfileStore,
         gymService: any GymService,
         gymMembershipService: any GymMembershipService,
-        friendRelationshipService: any FriendRelationshipService,
         profileService: any ProfileService,
         socialService: any SocialService
     ) {
@@ -28,61 +26,52 @@ final class AccountSocialStore: ObservableObject {
         self.profileStore = profileStore
         self.gymService = gymService
         self.gymMembershipService = gymMembershipService
-        self.friendRelationshipService = friendRelationshipService
         self.profileService = profileService
         self.socialService = socialService
+        self.cachedUserID = repository.currentProfile.id
     }
 
     func updateServices(
         gymService: any GymService,
         gymMembershipService: any GymMembershipService,
-        friendRelationshipService: any FriendRelationshipService,
         profileService: any ProfileService,
         socialService: any SocialService
     ) {
         self.gymService = gymService
         self.gymMembershipService = gymMembershipService
-        self.friendRelationshipService = friendRelationshipService
         self.profileService = profileService
         self.socialService = socialService
     }
 
     func refreshDirectoryAndRelationships() async throws {
+        let userID = repository.currentProfile.id
+        resetAccountScopedCacheIfNeeded()
         async let gyms = gymService.gyms()
         async let memberships = gymService.memberships()
-        async let relationships = friendRelationshipService.relationships()
-        let (directory, joined, friends) = try await (gyms, memberships, relationships)
+        let (directory, joined) = try await (gyms, memberships)
 
+        guard repository.currentProfile.id == userID else {
+            resetAccountScopedCacheIfNeeded()
+            return
+        }
         profileStore.replaceGymDirectory(directory, memberships: joined)
         gymMemberships = joined
-        friendRelationships = friends
-        repository.friendRequests = friends.compactMap(Self.friendRequest)
-
-        let relatedUserIDs = Set(friends.flatMap { [$0.userLowID, $0.userHighID] })
-            .subtracting([repository.currentProfile.id])
-        for userID in relatedUserIDs {
-            guard let card = try? await profileService.profileCard(userID: userID) else { continue }
-            profileStore.mergePublicProfileCard(card)
-        }
     }
 
     func refreshBlocks() async {
-        blocks = (try? await socialService.blocks()) ?? []
-    }
-
-    func requestFriend(userID: UUID) async throws {
-        try await friendRelationshipService.request(userID: userID)
-        try await refreshDirectoryAndRelationships()
-    }
-
-    func cancelFriendRequest(relationshipID: UUID) async throws {
-        try await friendRelationshipService.cancel(relationshipID: relationshipID)
-        try await refreshDirectoryAndRelationships()
-    }
-
-    func respondToFriendRequest(relationshipID: UUID, accept: Bool) async throws {
-        try await friendRelationshipService.respond(relationshipID: relationshipID, accept: accept)
-        try await refreshDirectoryAndRelationships()
+        let userID = repository.currentProfile.id
+        resetAccountScopedCacheIfNeeded()
+        guard let refreshed = try? await socialService.blocks() else {
+            if repository.currentProfile.id != userID {
+                resetAccountScopedCacheIfNeeded()
+            }
+            return
+        }
+        guard repository.currentProfile.id == userID else {
+            resetAccountScopedCacheIfNeeded()
+            return
+        }
+        blocks = refreshed
     }
 
     func ensureGymJoined(
@@ -125,40 +114,41 @@ final class AccountSocialStore: ObservableObject {
     }
 
     func setBlocked(_ userID: UUID, blocked: Bool) async throws {
-        guard userID != repository.currentProfile.id else { return }
+        let ownerID = repository.currentProfile.id
+        resetAccountScopedCacheIfNeeded()
+        guard userID != ownerID else { return }
         if blocked {
             try await socialService.block(userID: userID)
         } else {
             try await socialService.unblock(userID: userID)
         }
-        blocks = (try? await socialService.blocks()) ?? []
-        guard blocked else { return }
-
-        repository.activities.removeAll { $0.profile.id == userID }
-        repository.forumPosts.removeAll { $0.authorID == userID }
-        repository.forumComments.removeAll { $0.authorID == userID }
-        repository.messageThreads.removeAll { $0.participantIDs.contains(userID) }
+        guard repository.currentProfile.id == ownerID else {
+            resetAccountScopedCacheIfNeeded()
+            return
+        }
+        if let refreshed = try? await socialService.blocks() {
+            guard repository.currentProfile.id == ownerID else {
+                resetAccountScopedCacheIfNeeded()
+                return
+            }
+            blocks = refreshed
+        }
     }
 
     func clear() {
         gymMemberships = []
-        friendRelationships = []
         blocks = []
+        repository.gymRequests = []
+        cachedUserID = repository.currentProfile.id
+        profileStore.clearGymDirectory()
     }
 
-    private static func friendRequest(_ relationship: FriendRelationshipRecord) -> FriendRequest? {
-        guard relationship.status != .cancelled else { return nil }
-        return FriendRequest(
-            id: relationship.id,
-            fromUserID: relationship.requestedBy,
-            toUserID: relationship.requestedBy == relationship.userLowID
-                ? relationship.userHighID
-                : relationship.userLowID,
-            status: relationship.status == .accepted
-                ? .accepted
-                : relationship.status == .declined ? .declined : .pending,
-            createdAt: relationship.createdAt,
-            respondedAt: relationship.respondedAt
-        )
+    private func resetAccountScopedCacheIfNeeded() {
+        guard cachedUserID != repository.currentProfile.id else { return }
+        cachedUserID = repository.currentProfile.id
+        gymMemberships = []
+        blocks = []
+        repository.gymRequests = []
+        profileStore.clearGymDirectory()
     }
 }

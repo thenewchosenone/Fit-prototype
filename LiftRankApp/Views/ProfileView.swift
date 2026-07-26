@@ -6,7 +6,6 @@ struct ProfileView: View {
     let isCurrentUser: Bool
     @State var showingPhotoManager = false
     @State var showingAthleteDetails = false
-    @State var showingCancelFriendRequest = false
 
     var body: some View { featureBody }
 }

@@ -12,6 +12,7 @@ extension TrainingTrackerView {
                 if $0.value == $1.value { return $0.bodyPart < $1.bodyPart }
                 return $0.value > $1.value
             }
+        let bodyweightEntries = recentBodyweightEntries
 
         return VStack(alignment: .leading, spacing: 14) {
             Text("Progress")
@@ -139,59 +140,7 @@ extension TrainingTrackerView {
                 .accessibilityLabel("Log bodyweight")
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                if recentBodyweightEntries.contains(where: { $0.actual != nil }) {
-                    Chart(recentBodyweightEntries) { row in
-                        if let actual = row.actual {
-                            let displayValue = MeasurementFormatting.displayBodyweightValue(
-                                actual,
-                                preferredUnit: appState.currentProfile.preferredUnit
-                            )
-                            LineMark(x: .value("Week", row.week), y: .value("Bodyweight", displayValue))
-                                .foregroundStyle(Color.liftBlue)
-                            PointMark(x: .value("Week", row.week), y: .value("Bodyweight", displayValue))
-                                .foregroundStyle(Color.liftGreen)
-                        }
-                    }
-                    .frame(height: 150)
-                    .chartYAxis {
-                        AxisMarks(position: .trailing) {
-                            AxisGridLine().foregroundStyle(Color.liftSeparator)
-                            AxisValueLabel().foregroundStyle(Color.liftMuted)
-                        }
-                    }
-                    .chartXAxis {
-                        AxisMarks {
-                            AxisValueLabel().foregroundStyle(Color.liftMuted)
-                        }
-                    }
-                } else {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Image(systemName: "scalemass.fill")
-                            .font(.title2.weight(.black))
-                            .foregroundStyle(Color.liftBlue)
-                        Text("No bodyweight logged yet")
-                            .font(.headline.weight(.bold))
-                        Text("Add today’s bodyweight to start seeing your trend here.")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
-                        Button {
-                            logBodyweightEntry()
-                        } label: {
-                            Text("Log bodyweight")
-                                .font(.subheadline.weight(.black))
-                                .foregroundStyle(Color.black)
-                                .padding(.horizontal, 16)
-                                .frame(height: 40)
-                                .background(Color.liftBlue)
-                                .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.top, 4)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 150, alignment: .leading)
-                }
-            }
+            bodyweightChart(entries: bodyweightEntries)
             .padding(12)
             .background(Color.liftCard)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -200,15 +149,14 @@ extension TrainingTrackerView {
                     .stroke(Color.white.opacity(0.06), lineWidth: 1)
             }
 
-            bodyweightTable
+            bodyweightTable(entries: bodyweightEntries)
         }
         .onAppear {
-            if selectedProgressExerciseID == nil {
-                selectedProgressExerciseID = progressExerciseOptions.first?.id
-            }
+            syncProgressExerciseSelection()
             syncWorkoutHistorySelection()
         }
         .onChange(of: appState.completedWorkouts.count) {
+            syncProgressExerciseSelection()
             syncWorkoutHistorySelection()
         }
     }
@@ -476,13 +424,14 @@ extension TrainingTrackerView {
                 .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
             }
 
-            if activeInjuryEntries.isEmpty {
+            let activeInjuries = appState.activeInjuries
+            if activeInjuries.isEmpty {
                 Text("No active injuries tracked.")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
             } else {
                 VStack(spacing: 8) {
-                    ForEach(activeInjuryEntries) { injury in
+                    ForEach(activeInjuries) { injury in
                         HStack(spacing: 10) {
                             Image(systemName: "exclamationmark.circle")
                                 .foregroundStyle(Color.liftGold)
@@ -518,7 +467,9 @@ extension TrainingTrackerView {
 
     private var progressExerciseOptions: [TrainingExerciseCatalogItem] {
         let IDs = Set(completedTrainingHistoryWorkouts.flatMap { $0.exercises.map(\.exerciseID) })
-        return appState.trainingExerciseLibrary.filter { IDs.contains($0.id) }.sorted { $0.name < $1.name }
+        return appState.trainingExerciseLibrary
+            .filter { IDs.contains($0.id) && ExerciseTrackingKind($0.trackingType) == .weightReps }
+            .sorted { $0.name < $1.name }
     }
 
     private func exerciseProgressPoints(for exerciseID: String) -> [ExerciseProgressPoint] {
@@ -541,8 +492,75 @@ extension TrainingTrackerView {
         }
     }
 
-    private var bodyweightTable: some View {
-        VStack(spacing: 0) {
+    private func syncProgressExerciseSelection() {
+        let optionIDs = Set(progressExerciseOptions.map(\.id))
+        guard let selectedProgressExerciseID else {
+            self.selectedProgressExerciseID = progressExerciseOptions.first?.id
+            return
+        }
+        if !optionIDs.contains(selectedProgressExerciseID) {
+            self.selectedProgressExerciseID = progressExerciseOptions.first?.id
+        }
+    }
+
+    private func bodyweightChart(entries: [BodyweightEntry]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if entries.contains(where: { $0.actual != nil }) {
+                Chart(entries) { row in
+                    if let actual = row.actual {
+                        let displayValue = MeasurementFormatting.displayBodyweightValue(
+                            actual,
+                            preferredUnit: appState.currentProfile.preferredUnit
+                        )
+                        LineMark(x: .value("Week", row.week), y: .value("Bodyweight", displayValue))
+                            .foregroundStyle(Color.liftBlue)
+                        PointMark(x: .value("Week", row.week), y: .value("Bodyweight", displayValue))
+                            .foregroundStyle(Color.liftGreen)
+                    }
+                }
+                .frame(height: 150)
+                .chartYAxis {
+                    AxisMarks(position: .trailing) {
+                        AxisGridLine().foregroundStyle(Color.liftSeparator)
+                        AxisValueLabel().foregroundStyle(Color.liftMuted)
+                    }
+                }
+                .chartXAxis {
+                    AxisMarks {
+                        AxisValueLabel().foregroundStyle(Color.liftMuted)
+                    }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    Image(systemName: "scalemass.fill")
+                        .font(.title2.weight(.black))
+                        .foregroundStyle(Color.liftBlue)
+                    Text("No bodyweight logged yet")
+                        .font(.headline.weight(.bold))
+                    Text("Add today’s bodyweight to start seeing your trend here.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                    Button {
+                        logBodyweightEntry()
+                    } label: {
+                        Text("Log bodyweight")
+                            .font(.subheadline.weight(.black))
+                            .foregroundStyle(Color.black)
+                            .padding(.horizontal, 16)
+                            .frame(height: 40)
+                            .background(Color.liftBlue)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
+                }
+                .frame(maxWidth: .infinity, minHeight: 150, alignment: .leading)
+            }
+        }
+    }
+
+    private func bodyweightTable(entries: [BodyweightEntry]) -> some View {
+        return VStack(spacing: 0) {
             HStack {
                 Text("Week").frame(width: 48, alignment: .leading)
                 Text("Date").frame(maxWidth: .infinity, alignment: .leading)
@@ -556,7 +574,12 @@ extension TrainingTrackerView {
             .frame(height: 34)
             .background(Color.liftCardRaised.opacity(0.7))
 
-            ForEach(Array(recentBodyweightEntries.enumerated()), id: \.offset) { index, row in
+            ForEach(Array(entries.enumerated()), id: \.offset) { index, row in
+                let formattedBodyweight = MeasurementFormatting.formatBodyweightOrDash(
+                    row.actual,
+                    preferredUnit: appState.currentProfile.preferredUnit
+                )
+
                 Button {
                     selectedBodyweightEntry = row
                 } label: {
@@ -573,7 +596,7 @@ extension TrainingTrackerView {
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                Text(MeasurementFormatting.formatBodyweightOrDash(row.actual, preferredUnit: appState.currentProfile.preferredUnit))
+                        Text(formattedBodyweight)
                             .font(.subheadline.weight(.semibold).monospacedDigit())
                             .frame(width: 76, alignment: .trailing)
                         Image(systemName: "chevron.right")
@@ -588,9 +611,9 @@ extension TrainingTrackerView {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Week \(row.week), \(MeasurementFormatting.formatBodyweightOrDash(row.actual, preferredUnit: appState.currentProfile.preferredUnit)), edit")
+                .accessibilityLabel("Week \(row.week), \(formattedBodyweight), edit")
 
-                if index < recentBodyweightEntries.count - 1 {
+                if index < entries.count - 1 {
                     Divider()
                         .overlay(Color.white.opacity(0.07))
                         .padding(.leading, 68)
@@ -619,12 +642,6 @@ extension TrainingTrackerView {
             entries: appState.bodyweightEntries,
             currentBodyweightPounds: appState.currentProfile.bodyweightPounds
         )
-    }
-
-    private var activeInjuryEntries: [InjuryEntry] {
-        appState.injuryEntries
-            .filter { $0.status != .resolved }
-            .sorted { $0.occurredAt > $1.occurredAt }
     }
 
     private var recentStrainEntries: [StrainEntry] {

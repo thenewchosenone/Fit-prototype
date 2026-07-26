@@ -3,6 +3,7 @@ import Foundation
 
 @MainActor
 protocol ActiveWorkoutRepository: AnyObject {
+    var currentProfile: UserProfile { get }
     var activeWorkout: ActiveWorkoutState? { get }
     var workoutSetLogs: [WorkoutSetLog] { get }
     var completedWorkouts: [CompletedWorkout] { get }
@@ -29,9 +30,11 @@ protocol ActiveWorkoutRepository: AnyObject {
 
     func pauseActiveWorkout(at date: Date)
     func resumeActiveWorkout(at date: Date)
+    func clearActiveWorkoutDraft()
     func updateActiveRestTimer(endsAt: Date?, exerciseID: UUID?)
     func discardActiveWorkout()
     func deleteCompletedWorkout(_ workout: CompletedWorkout)
+    func updateCompletedWorkout(_ workout: CompletedWorkout)
     func removeExerciseFromActiveWorkout(_ exercise: WorkoutExerciseSnapshot)
     func setAutomaticRestTimerEnabledForActiveWorkout(_ enabled: Bool)
     func updateWorkoutSetLog(_ log: WorkoutSetLog)
@@ -124,6 +127,8 @@ protocol ProgramRepository: AnyObject {
 
 @MainActor
 protocol TrainingProgressRepository: AnyObject {
+    var currentProfile: UserProfile { get }
+    var trainingExerciseCatalog: [TrainingExerciseCatalogItem] { get }
     var workoutWeeks: [WorkoutWeek] { get }
     var workoutSessions: [WorkoutSession] { get }
     var workoutPrescriptions: [WorkoutExercisePrescription] { get }
@@ -139,13 +144,16 @@ protocol TrainingProgressRepository: AnyObject {
     func deleteStrainEntry(_ entryID: UUID)
     func updateInjuryEntry(_ entry: InjuryEntry)
     func deleteInjuryEntry(_ entryID: UUID)
+    func clearTrainingHealthEntries()
 }
 
 @MainActor
 protocol ExerciseRepository: AnyObject {
+    var currentProfile: UserProfile { get }
     var customTrainingExercises: [TrainingExerciseCatalogItem] { get }
 
     func addCustomTrainingExercise(_ exercise: TrainingExerciseCatalogItem)
+    func clearCustomTrainingExercises()
 }
 
 @MainActor
@@ -154,79 +162,9 @@ protocol CompetitionRepository: AnyObject {
     var profiles: [UserProfile] { get }
     var currentProfile: UserProfile { get }
     var joinedGymIDs: Set<UUID> { get }
+    var achievementUnlocks: [AchievementUnlock] { get set }
+    var rankingHistory: [RankingHistorySnapshot] { get set }
     func refreshAchievementUnlocks(now: Date)
-}
-
-@MainActor
-protocol CommunityRepository: AnyObject {
-    var currentProfile: UserProfile { get }
-    var activities: [ActivityItem] { get set }
-    var activityComments: [ActivityComment] { get }
-    var communityThreads: [CommunityThread] { get }
-    var communityThreadReplies: [CommunityThreadReply] { get }
-    var communityReports: [CommunityReport] { get }
-    var forumCommunities: [ForumCommunity] { get set }
-    var forumMemberships: [ForumMembership] { get set }
-    var forumPosts: [ForumPost] { get set }
-    var forumComments: [ForumComment] { get set }
-    var forumJoinRequests: [ForumJoinRequest] { get }
-    var forumReports: [ForumReport] { get }
-    var forumModerationActions: [ForumModerationAction] { get }
-    var forumNotifications: [ForumNotification] { get }
-
-    func replaceActivityComments(for activityID: UUID, with comments: [ActivityComment])
-    func appendActivityComment(_ comment: ActivityComment)
-    func visibleForumCommunities(for userID: UUID?) -> [ForumCommunity]
-    func forumMembership(communityID: UUID, userID: UUID?) -> ForumMembership?
-    func isForumStaff(_ userID: UUID?) -> Bool
-    func canReadForumCommunity(_ communityID: UUID, userID: UUID?) -> Bool
-    func canContributeToForumCommunity(_ communityID: UUID, userID: UUID?) -> Bool
-    func canModerateForumCommunity(_ communityID: UUID, userID: UUID?) -> Bool
-    func setForumCommunityArchived(_ communityID: UUID, archived: Bool)
-    func joinForumCommunity(_ communityID: UUID, note: String) -> ForumMembershipStatus?
-    func leaveForumCommunity(_ communityID: UUID)
-    func setForumNotificationLevel(_ level: ForumNotificationLevel, communityID: UUID)
-    func createForumPost(_ post: ForumPost) -> Bool
-    func voteForumPost(_ postID: UUID, vote: CommunityVote?)
-    func toggleForumPostSaved(_ postID: UUID)
-    func toggleForumPostWatched(_ postID: UUID)
-    func voteInForumPoll(postID: UUID, optionID: UUID)
-    func addForumComment(postID: UUID, parentCommentID: UUID?, body: String) -> ForumComment?
-    func voteForumComment(_ commentID: UUID, vote: CommunityVote?)
-    func softDeleteForumPost(_ postID: UUID)
-    func updateForumPost(_ post: ForumPost)
-    func softDeleteForumComment(_ commentID: UUID)
-    func reportForumContent(
-        targetType: ForumReportTargetType,
-        targetID: UUID,
-        communityID: UUID?,
-        reason: CommunityReportReason,
-        note: String
-    ) -> Bool
-    func moderateForumPost(_ postID: UUID, action: ForumModerationActionKind, reason: String)
-    func moderateForumComment(_ commentID: UUID, action: ForumModerationActionKind, reason: String)
-    func resolveForumReport(_ reportID: UUID, dismiss: Bool)
-    func resolveForumJoinRequest(_ requestID: UUID, approved: Bool)
-    func markForumNotificationRead(_ notificationID: UUID)
-}
-
-@MainActor
-protocol SocialMessagingRepository: AnyObject {
-    var currentProfile: UserProfile { get }
-    var profiles: [UserProfile] { get }
-    var friendRequests: [FriendRequest] { get }
-    var messageThreads: [DirectMessageThread] { get set }
-    var directMessages: [DirectMessage] { get set }
-    var socialMessagingChanges: AnyPublisher<Void, Never> { get }
-
-    func sendFriendRequest(to profile: UserProfile)
-    func cancelFriendRequest(_ request: FriendRequest)
-    func respondToFriendRequest(_ request: FriendRequest, status: FriendRequestStatus)
-    func messageThread(with profile: UserProfile) -> DirectMessageThread
-    func addMessage(to thread: DirectMessageThread, body: String)
-    func deleteMessage(_ message: DirectMessage)
-    func deleteMessageThread(_ thread: DirectMessageThread)
-    func reportMessage(_ message: DirectMessage, reason: MessageReportReason, note: String)
 }
 
 @MainActor
@@ -244,9 +182,8 @@ protocol ProfileRepository: AnyObject {
 
 @MainActor
 protocol NotificationRepository: AnyObject {
+    var currentProfile: UserProfile { get }
     var notifications: [NotificationItem] { get set }
-    var forumPosts: [ForumPost] { get }
-    var communityThreads: [CommunityThread] { get }
     var notificationChanges: AnyPublisher<Void, Never> { get }
 }
 
@@ -267,7 +204,9 @@ protocol WorkoutSyncRepository: AnyObject {
     var workoutPlanProgressionSettings: [WorkoutPlanProgressionSettings] { get set }
     var workoutPlanSyncRevisions: [UUID: Int] { get set }
     var workoutPlanLastSyncedPayloads: [UUID: Data] { get set }
+    var pendingRemoteWorkoutPlanDeletions: Set<UUID> { get set }
 
+    func clearAccountScopedWorkoutHistory()
     func persistWorkoutSnapshot()
 }
 
@@ -279,6 +218,7 @@ protocol WorkoutPRSubmissionRepository: AnyObject {
     var workoutPreferences: WorkoutPreferences { get set }
 
     func upsertPendingPRSubmission(_ pending: PendingWorkoutPRSubmission)
+    func clearPendingPRSubmissions()
     func linkSubmission(_ submissionID: UUID, to workoutID: UUID)
     func persistWorkoutSnapshot()
 }
@@ -286,9 +226,5 @@ protocol WorkoutPRSubmissionRepository: AnyObject {
 @MainActor
 protocol AccountSocialRepository: AnyObject {
     var currentProfile: UserProfile { get }
-    var friendRequests: [FriendRequest] { get set }
-    var activities: [ActivityItem] { get set }
-    var forumPosts: [ForumPost] { get set }
-    var forumComments: [ForumComment] { get set }
-    var messageThreads: [DirectMessageThread] { get set }
+    var gymRequests: [GymRequest] { get set }
 }

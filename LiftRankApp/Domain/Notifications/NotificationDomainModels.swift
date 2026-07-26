@@ -4,15 +4,9 @@ enum NotificationDestinationKind: String, Codable, CaseIterable, Identifiable {
     case home
     case leaderboard
     case lift
-    case messageThread
-    case friendRequests
     case gym
     case workoutTracker
-    case workoutShare
     case profile
-    case communityThread
-    case forumCommunity
-    case forumPost
 
     var id: String { rawValue }
 }

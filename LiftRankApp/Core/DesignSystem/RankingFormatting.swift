@@ -42,10 +42,6 @@ enum RankingFormatting {
         String(format: "%.2fx", value)
     }
 
-    static func scoreText(for entry: LeaderboardEntry, rankingType: RankingType) -> String {
-        leaderboardValueText(for: entry, rankingType: rankingType, preferredUnit: .pounds)
-    }
-
     static func weightClassDisplayName(_ weightClass: WeightClass, preferredUnit: UnitSystem) -> String {
         guard preferredUnit == .pounds else { return weightClass.name }
         if let maximum = weightClass.maxKilograms {

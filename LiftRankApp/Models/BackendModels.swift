@@ -24,7 +24,6 @@ enum AccountStatus: Equatable {
 
 enum PrivacyAudience: String, Codable, CaseIterable, Identifiable {
     case publicProfile = "public"
-    case friends
     case gym
     case privateProfile = "private"
 
@@ -33,7 +32,6 @@ enum PrivacyAudience: String, Codable, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .publicProfile: return "Public"
-        case .friends: return "Friends"
         case .gym: return "Gym"
         case .privateProfile: return "Private"
         }
@@ -45,9 +43,8 @@ struct ProfilePrivacySettings: Codable, Equatable {
     var ageBandAudience: PrivacyAudience = .publicProfile
     var divisionAudience: PrivacyAudience = .publicProfile
     var bodyweightAudience: PrivacyAudience = .privateProfile
-    var locationAudience: PrivacyAudience = .friends
+    var locationAudience: PrivacyAudience = .privateProfile
     var gymAudience: PrivacyAudience = .publicProfile
-    var friendListAudience: PrivacyAudience = .friends
 }
 
 struct ProfileDraft: Equatable {
@@ -132,23 +129,6 @@ struct GymMembershipRecord: Equatable, Identifiable {
     let leftAt: Date?
 }
 
-enum FriendRelationshipState: String, Codable {
-    case pending
-    case accepted
-    case declined
-    case cancelled
-}
-
-struct FriendRelationshipRecord: Equatable, Identifiable {
-    let id: UUID
-    let userLowID: UUID
-    let userHighID: UUID
-    let requestedBy: UUID
-    let status: FriendRelationshipState
-    let createdAt: Date
-    let respondedAt: Date?
-}
-
 struct CatalogExercise: Equatable, Identifiable {
     let id: String
     let displayName: String
@@ -166,7 +146,6 @@ enum LiftRankServiceError: LocalizedError, Equatable {
     case permissionDenied
     case gymLimitReached
     case primaryGymRequired
-    case duplicateRelationship
     case networkUnavailable
     case server(String)
 
@@ -180,7 +159,6 @@ enum LiftRankServiceError: LocalizedError, Equatable {
         case .permissionDenied: "You don't have permission to do that."
         case .gymLimitReached: "You can belong to no more than three active gyms."
         case .primaryGymRequired: "Choose another primary gym before leaving this one."
-        case .duplicateRelationship: "A friendship or request already exists."
         case .networkUnavailable: "Lift Rivals couldn't reach the server. Check your connection and try again."
         case .server(let message): message
         }

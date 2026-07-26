@@ -19,6 +19,7 @@ final class WorkoutPRSubmissionStore {
     private let exercise: (String) -> Exercise?
     private let now: () -> Date
     private let makeID: () -> UUID
+    private var cachedUserID: UUID
 
     init(
         repository: any WorkoutPRSubmissionRepository,
@@ -34,14 +35,17 @@ final class WorkoutPRSubmissionStore {
         self.exercise = exercise
         self.now = now
         self.makeID = makeID
+        self.cachedUserID = repository.currentProfile.id
     }
 
     var pendingSubmissions: [PendingWorkoutPRSubmission] {
-        repository.pendingWorkoutPRSubmissions
+        resetAccountScopedQueueIfNeeded()
+        return repository.pendingWorkoutPRSubmissions
     }
 
     var preferences: WorkoutPreferences {
-        repository.workoutPreferences
+        resetAccountScopedQueueIfNeeded()
+        return repository.workoutPreferences
     }
 
     func setAutomaticSubmissionEnabled(_ enabled: Bool) {
@@ -100,8 +104,11 @@ final class WorkoutPRSubmissionStore {
         workout: CompletedWorkout,
         videoURL: URL
     ) async {
+        resetAccountScopedQueueIfNeeded()
+        let userID = repository.currentProfile.id
         if pendingSubmissions.contains(where: {
-            $0.candidate.setID == candidate.setID && $0.state == .submitted
+            $0.candidate.setID == candidate.setID &&
+                ($0.state == .submitted || $0.state == .uploading)
         }) {
             return
         }
@@ -131,13 +138,18 @@ final class WorkoutPRSubmissionStore {
             return
         }
 
-        if let submission = await liftSubmitter.submitWorkoutPR(
+        let submission = await liftSubmitter.submitWorkoutPR(
             candidate: candidate,
             exercise: rankingExercise,
             workout: workout,
             profile: repository.currentProfile,
             videoURL: videoURL
-        ) {
+        )
+        guard repository.currentProfile.id == userID else {
+            resetAccountScopedQueueIfNeeded()
+            return
+        }
+        if let submission {
             pending.state = .submitted
             pending.submissionID = submission.id
             pending.lastError = nil
@@ -148,5 +160,13 @@ final class WorkoutPRSubmissionStore {
         }
         pending.updatedAt = now()
         repository.upsertPendingPRSubmission(pending)
+    }
+
+    private func resetAccountScopedQueueIfNeeded() {
+        guard cachedUserID != repository.currentProfile.id else { return }
+        cachedUserID = repository.currentProfile.id
+        repository.clearPendingPRSubmissions()
+        repository.workoutPreferences = WorkoutPreferences()
+        repository.persistWorkoutSnapshot()
     }
 }

@@ -34,7 +34,6 @@ struct OnboardingView: View {
             ("Compare with my weight class", "person.2.fill", "Rank against similar lifters"),
             ("Prepare for powerlifting", "figure.strengthtraining.traditional", "Train the competition lifts")
         ]
-        guard appState.features.gymFeeds else { return base }
         return base + [("Represent my gym", "building.2.fill", "Climb your local leaderboard")]
     }
     private let launchCountries = LaunchLocationCatalog.countries
@@ -535,7 +534,7 @@ struct OnboardingView: View {
                     }
 
                     citySearchField
-                    if appState.features.gymFeeds && !appState.gyms.isEmpty {
+                    if !appState.gyms.isEmpty {
                         labeledPicker("Primary gym (optional)", symbol: "building.2.fill") {
                             Picker("Primary gym", selection: $profile.primaryGymName) {
                                 Text("Choose later").tag("")
@@ -722,9 +721,7 @@ struct OnboardingView: View {
                 Toggle("Hide exact age", isOn: $profile.hideExactAge)
                 Toggle("Hide exact bodyweight", isOn: $profile.hideBodyweight)
                 Toggle("Hide city", isOn: $profile.hideCity)
-                if appState.features.gymFeeds {
-                    Toggle("Hide gym", isOn: $profile.hideGym)
-                }
+                Toggle("Hide gym", isOn: $profile.hideGym)
                 Toggle("Hide lift videos", isOn: $profile.hideLiftVideos)
             }
             .tint(Color.liftBlue)
@@ -1066,7 +1063,7 @@ struct OnboardingView: View {
                     .multilineTextAlignment(.trailing)
                     .font(.title2.weight(.bold))
                     .frame(width: 72)
-                Text("lb")
+                Text(profile.preferredUnit.shortLabel)
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.liftMuted)
             }

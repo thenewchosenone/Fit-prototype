@@ -105,6 +105,7 @@ final class ExerciseLibraryStore {
     private let repository: any ExerciseRepository
     private let bundledExercises: [TrainingExerciseCatalogItem]
     private let makeID: () -> UUID
+    private var cachedUserID: UUID
 
     init(
         repository: any ExerciseRepository,
@@ -114,14 +115,17 @@ final class ExerciseLibraryStore {
         self.repository = repository
         self.bundledExercises = bundledExercises
         self.makeID = makeID
+        self.cachedUserID = repository.currentProfile.id
     }
 
     var customExercises: [TrainingExerciseCatalogItem] {
-        repository.customTrainingExercises
+        resetAccountScopedExercisesIfNeeded()
+        return repository.customTrainingExercises
     }
 
     var exercises: [TrainingExerciseCatalogItem] {
-        bundledExercises + repository.customTrainingExercises
+        resetAccountScopedExercisesIfNeeded()
+        return bundledExercises + repository.customTrainingExercises
     }
 
     func search(
@@ -193,6 +197,7 @@ final class ExerciseLibraryStore {
         primaryMuscles: [ExerciseMuscleRegion] = [],
         secondaryMuscles: [ExerciseMuscleRegion] = []
     ) -> TrainingExerciseCatalogItem? {
+        resetAccountScopedExercisesIfNeeded()
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanName.isEmpty else { return nil }
 
@@ -225,6 +230,12 @@ final class ExerciseLibraryStore {
         )
         repository.addCustomTrainingExercise(exercise)
         return exercise
+    }
+
+    private func resetAccountScopedExercisesIfNeeded() {
+        guard cachedUserID != repository.currentProfile.id else { return }
+        cachedUserID = repository.currentProfile.id
+        repository.clearCustomTrainingExercises()
     }
 
     private func overlapScore<T: Hashable>(_ lhs: [T], _ rhs: [T]) -> Double {
@@ -261,8 +272,10 @@ final class ExerciseLibraryStore {
         switch clean.lowercased() {
         case "weight", "weighted", "weight and reps", "weight + reps":
             return "Weight + Reps"
-        case "bodyweight", "bodyweight reps", "reps only":
+        case "bodyweight", "bodyweight reps":
             return "Bodyweight Reps"
+        case "reps only":
+            return "Reps Only"
         case "assisted", "assisted bodyweight":
             return "Assisted Bodyweight"
         case "duration", "time":

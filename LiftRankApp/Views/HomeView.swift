@@ -9,7 +9,6 @@ struct HomeView: View {
     @State var showingAwards = false
     @State var selectedBodyweightEntry: BodyweightEntry?
     @State var selectedRecentPR: LiftSubmission?
-    @State var showingAllConnectionActivity = false
     @State var homeContentWidth: CGFloat = 0
 
     var body: some View { featureBody }

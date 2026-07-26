@@ -45,7 +45,14 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
     }
 
     func deletePlan(id: UUID) async throws {
-        do { try await client.from("workout_plan_documents").delete().eq("id", value: id).execute() }
+        do {
+            let userID = try await client.auth.session.user.id
+            try await client.from("workout_plan_documents")
+                .delete()
+                .eq("owner_id", value: userID)
+                .eq("id", value: id)
+                .execute()
+        }
         catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
@@ -63,7 +70,7 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
         do {
             let userID = try await client.auth.session.user.id
             let row = CompletedWorkoutSnapshotDTO(snapshot: snapshot, ownerID: userID)
-            try await client.from("completed_workout_snapshots").upsert(row, onConflict: "owner_id,id", ignoreDuplicates: true).execute()
+            try await client.from("completed_workout_snapshots").upsert(row, onConflict: "owner_id,id").execute()
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 

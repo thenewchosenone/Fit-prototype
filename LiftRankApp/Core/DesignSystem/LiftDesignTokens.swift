@@ -1,21 +1,33 @@
 import SwiftUI
 
 extension Color {
-    static let liftSurfaceBackground = Color(red: 0x11 / 255, green: 0x11 / 255, blue: 0x13 / 255)
-    static let liftSurfaceElevated = Color(red: 0x1C / 255, green: 0x1D / 255, blue: 0x20 / 255)
-    static let liftSurfaceSecondary = Color(red: 0x24 / 255, green: 0x25 / 255, blue: 0x2A / 255)
-    static let liftSurfaceBorder = Color.white.opacity(0.12)
-
     static let liftLime = Color(red: 0xC7 / 255, green: 0xFF / 255, blue: 0x00 / 255)
     static let liftOrange = Color(red: 0xFF / 255, green: 0x6B / 255, blue: 0x22 / 255)
-
-    static let liftTextPrimary = Color(red: 0xF5 / 255, green: 0xF5 / 255, blue: 0xF7 / 255)
-    static let liftTextSecondary = Color(red: 0xA4 / 255, green: 0xA5 / 255, blue: 0xAD / 255)
-    static let liftTextDisabled = Color(red: 0x66 / 255, green: 0x68 / 255, blue: 0x70 / 255)
+    static let liftOnAccent = Color(red: 0x08 / 255, green: 0x0A / 255, blue: 0x0D / 255)
 
     private static func semantic(light: UIColor, dark: UIColor) -> Color {
         Color(uiColor: UIColor { traits in traits.userInterfaceStyle == .dark ? dark : light })
     }
+
+    static let liftSurfaceBackground = semantic(
+        light: UIColor(red: 0xF7 / 255, green: 0xF8 / 255, blue: 0xFB / 255, alpha: 1),
+        dark: UIColor(red: 0x11 / 255, green: 0x11 / 255, blue: 0x13 / 255, alpha: 1)
+    )
+
+    static let liftSurfaceElevated = semantic(
+        light: .white,
+        dark: UIColor(red: 0x1C / 255, green: 0x1D / 255, blue: 0x20 / 255, alpha: 1)
+    )
+
+    static let liftSurfaceSecondary = semantic(
+        light: UIColor(red: 0xE8 / 255, green: 0xEA / 255, blue: 0xEE / 255, alpha: 1),
+        dark: UIColor(red: 0x24 / 255, green: 0x25 / 255, blue: 0x2A / 255, alpha: 1)
+    )
+
+    static let liftSurfaceBorder = semantic(
+        light: UIColor.black.withAlphaComponent(0.09),
+        dark: UIColor.white.withAlphaComponent(0.12)
+    )
 
     static let liftBackground = semantic(
         light: .white,
@@ -40,6 +52,13 @@ extension Color {
     static let liftMuted = semantic(
         light: UIColor(red: 0x5A / 255, green: 0x63 / 255, blue: 0x73 / 255, alpha: 1),
         dark: UIColor(red: 0xA4 / 255, green: 0xA5 / 255, blue: 0xAD / 255, alpha: 1)
+    )
+
+    static let liftTextPrimary = liftText
+    static let liftTextSecondary = liftMuted
+    static let liftTextDisabled = semantic(
+        light: UIColor(red: 0xA8 / 255, green: 0xAE / 255, blue: 0xBA / 255, alpha: 1),
+        dark: UIColor(red: 0x66 / 255, green: 0x68 / 255, blue: 0x70 / 255, alpha: 1)
     )
 
     static let liftBlue = liftLime

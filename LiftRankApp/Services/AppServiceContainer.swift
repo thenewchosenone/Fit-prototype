@@ -2,37 +2,16 @@ import Foundation
 import Supabase
 
 struct FeatureAvailability: Equatable, Sendable {
-    let connectionActivity: Bool
     let pushNotifications: Bool
-    let communities: Bool
-    let forums: Bool
-    let messaging: Bool
-    let gymFeeds: Bool
-    let polls: Bool
-    let savedAndWatchedPosts: Bool
     let advertising: Bool
 
     static let focusedProduction = FeatureAvailability(
-        connectionActivity: true,
         pushNotifications: true,
-        communities: false,
-        forums: false,
-        messaging: false,
-        gymFeeds: false,
-        polls: false,
-        savedAndWatchedPosts: false,
         advertising: false
     )
 
     static let internalFull = FeatureAvailability(
-        connectionActivity: true,
         pushNotifications: true,
-        communities: true,
-        forums: true,
-        messaging: true,
-        gymFeeds: true,
-        polls: true,
-        savedAndWatchedPosts: true,
         advertising: false
     )
 
@@ -67,13 +46,10 @@ struct AppServiceContainer {
     let locations: any LocationService
     let gyms: any GymService
     let gymMemberships: any GymMembershipService
-    let friendships: any FriendRelationshipService
     let exercises: any ExerciseCatalogService
     let lifts: any LiftService
     let leaderboards: any LeaderboardService
     let social: any SocialService
-    let communities: any CommunityService
-    let messaging: any MessagingService
     let verification: any VerificationService
     let media: any MediaUploadService
     let notifications: any NotificationService
@@ -89,13 +65,10 @@ struct AppServiceContainer {
         locations: (any LocationService)? = nil,
         gyms: any GymService,
         gymMemberships: any GymMembershipService,
-        friendships: any FriendRelationshipService,
         exercises: any ExerciseCatalogService,
         lifts: (any LiftService)? = nil,
         leaderboards: (any LeaderboardService)? = nil,
         social: (any SocialService)? = nil,
-        communities: (any CommunityService)? = nil,
-        messaging: (any MessagingService)? = nil,
         verification: (any VerificationService)? = nil,
         media: (any MediaUploadService)? = nil,
         notifications: (any NotificationService)? = nil,
@@ -109,10 +82,9 @@ struct AppServiceContainer {
         self.authentication = authentication; self.profile = profile
         self.locations = locations ?? BundledLocationService()
         self.gyms = gyms
-        self.gymMemberships = gymMemberships; self.friendships = friendships; self.exercises = exercises
+        self.gymMemberships = gymMemberships; self.exercises = exercises
         self.lifts = lifts ?? unavailable; self.leaderboards = leaderboards ?? unavailable
-        self.social = social ?? unavailable; self.communities = communities ?? unavailable
-        self.messaging = messaging ?? UnavailableMessagingService(); self.verification = verification ?? unavailable
+        self.social = social ?? unavailable; self.verification = verification ?? unavailable
         self.media = media ?? unavailable; self.notifications = notifications ?? unavailable
         self.workoutSync = workoutSync ?? unavailable; self.analytics = analytics ?? unavailable
         self.legalAcceptances = legalAcceptances ?? unavailable
@@ -129,7 +101,6 @@ struct AppServiceContainer {
 #endif
         guard let configuration = SupabaseConfiguration.load() else {
             let unavailable = UnavailableLaunchService()
-            let unavailableMessaging = UnavailableMessagingService()
             let unavailableAccountData = UnavailableAccountDataService()
             return AppServiceContainer(
                 features: .resolved(for: nil),
@@ -138,10 +109,9 @@ struct AppServiceContainer {
                 locations: BundledLocationService(),
                 gyms: unavailableAccountData,
                 gymMemberships: unavailableAccountData,
-                friendships: unavailableAccountData,
                 exercises: unavailableAccountData
                 , lifts: unavailable, leaderboards: unavailable,
-                social: unavailable, communities: unavailable, messaging: unavailableMessaging,
+                social: unavailable,
                 verification: unavailable, media: unavailable, notifications: unavailable,
                 workoutSync: unavailable, analytics: unavailable, legalAcceptances: unavailable, accountDeletion: unavailable
             )
@@ -161,10 +131,9 @@ struct AppServiceContainer {
             locations: SupabaseLocationService(client: client),
             gyms: SupabaseGymService(client: client),
             gymMemberships: SupabaseGymMembershipService(client: client),
-            friendships: SupabaseFriendRelationshipService(client: client),
             exercises: SupabaseExerciseCatalogService(client: client)
             , lifts: SupabaseLiftService(client: client), leaderboards: SupabaseLeaderboardService(client: client),
-            social: SupabaseSocialService(client: client), communities: SupabaseCommunityService(client: client), messaging: SupabaseMessagingService(client: client),
+            social: SupabaseSocialService(client: client),
             verification: SupabaseVerificationService(client: client), media: SupabaseMediaUploadService(client: client), notifications: SupabaseNotificationService(client: client),
             workoutSync: SupabaseWorkoutSyncService(client: client), analytics: SupabaseAnalyticsService(client: client), legalAcceptances: SupabaseLegalAcceptanceService(client: client), accountDeletion: SupabaseAccountDeletionService(client: client)
         )
@@ -178,10 +147,9 @@ struct AppServiceContainer {
             locations: BundledLocationService(),
             gyms: MockGymService(repository: repository),
             gymMemberships: MockGymMembershipService(repository: repository),
-            friendships: MockFriendRelationshipService(repository: repository),
             exercises: MockExerciseCatalogService()
             , lifts: MockLiftService(repository: repository), leaderboards: MockLeaderboardService(repository: repository),
-            social: MockSocialService(repository: repository), communities: MockCommunityService(repository: repository), messaging: MockMessagingService(repository: repository),
+            social: MockSocialService(repository: repository),
             verification: MockVerificationService(repository: repository), media: MockMediaUploadService(), notifications: MockNotificationService(repository: repository),
             workoutSync: MockWorkoutSyncService(), analytics: MockAnalyticsService(), legalAcceptances: MockLegalAcceptanceService(), accountDeletion: MockAccountDeletionService()
         )
@@ -189,48 +157,19 @@ struct AppServiceContainer {
 }
 
 /// Production features fail explicitly when configuration is absent. This keeps
-/// release builds from silently presenting seeded users, rankings, or messages.
+/// release builds from silently presenting seeded users or rankings.
 @MainActor
-final class UnavailableLaunchService: LiftService, LeaderboardService, SocialService, CommunityService, VerificationService, MediaUploadService, NotificationService, WorkoutSyncService, AnalyticsService, LegalAcceptanceService, AccountDeletionService {
+final class UnavailableLaunchService: LiftService, LeaderboardService, SocialService, VerificationService, MediaUploadService, NotificationService, WorkoutSyncService, AnalyticsService, LegalAcceptanceService, AccountDeletionService {
     private var error: LiftRankServiceError { .configurationMissing }
     func submissions() async throws -> [LiftSubmission] { throw error }
     func submit(_ submission: LiftSubmission) async throws -> LiftSubmission { throw error }
-    func vote(liftID: UUID, vote: CommunityVote?) async throws { throw error }
+    func vote(liftID: UUID, vote: LiftVoteValue?) async throws { throw error }
     func report(liftID: UUID, reason: LiftReportReason, note: String) async throws { throw error }
     func entries(filters: LeaderboardFilters, verifiedOnly: Bool) async throws -> [LeaderboardEntry] { throw error }
-    func feed() async throws -> [ActivityItem] { throw error }
     func searchProfiles(query: String, limit: Int) async throws -> [PublicProfileCard] { throw error }
-    func comments(activityID: UUID) async throws -> [ActivityComment] { throw error }
-    func setActivityLiked(activityID: UUID, isLiked: Bool) async throws { throw error }
-    func addActivityComment(activityID: UUID, body: String) async throws -> ActivityComment { throw error }
-    func shareWorkout(snapshotID: UUID, title: String, detail: String) async throws -> ActivityItem { throw error }
-    func removeWorkoutShare(activityID: UUID) async throws { throw error }
-    func reportActivity(activityID: UUID, reason: CommunityReportReason, note: String) async throws { throw error }
     func block(userID: UUID) async throws { throw error }
     func unblock(userID: UUID) async throws { throw error }
     func blocks() async throws -> [UserBlockRecord] { throw error }
-    func communities() async throws -> [ForumCommunity] { throw error }
-    func posts(in destination: ForumDestination?) async throws -> [ForumPost] { throw error }
-    func comments(for post: ForumPost) async throws -> [ForumComment] { throw error }
-    func join(community: ForumCommunity, note: String) async throws -> ForumMembershipStatus? { throw error }
-    func leave(community: ForumCommunity) async throws { throw error }
-    func createPost(_ post: ForumPost) async throws -> Bool { throw error }
-    func addComment(to post: ForumPost, parentCommentID: UUID?, body: String) async throws -> ForumComment? { throw error }
-    func vote(post: ForumPost, vote: CommunityVote?) async throws { throw error }
-    func vote(comment: ForumComment, vote: CommunityVote?) async throws { throw error }
-    func toggleSaved(post: ForumPost) async throws { throw error }
-    func toggleWatched(post: ForumPost) async throws { throw error }
-    func vote(pollPost: ForumPost, optionID: UUID) async throws { throw error }
-    func report(targetType: ForumReportTargetType, targetID: UUID, communityID: UUID?, reason: CommunityReportReason, note: String) async throws -> Bool { throw error }
-    func moderate(post: ForumPost, action: ForumModerationActionKind, reason: String) async throws { throw error }
-    func threads() async throws -> [CommunityThread] { throw error }
-    func replies(for thread: CommunityThread) async throws -> [CommunityThreadReply] { throw error }
-    func createThread(_ thread: CommunityThread) async throws -> CommunityThread { throw error }
-    func addReply(to thread: CommunityThread, body: String) async throws -> CommunityThreadReply? { throw error }
-    func voteThread(_ thread: CommunityThread, vote: CommunityVote?) async throws { throw error }
-    func voteReply(_ reply: CommunityThreadReply, vote: CommunityVote?) async throws { throw error }
-    func report(targetType: CommunityReportTargetType, targetID: UUID, reason: CommunityReportReason, note: String) async throws { throw error }
-    func moderate(_ thread: CommunityThread, operation: CommunityModerationOperation, reason: String?) async throws { throw error }
     func pendingSubmissions() async throws -> [LiftSubmission] { throw error }
     func updateVerification(for lift: LiftSubmission, status: VerificationStatus, note: String?) async throws -> LiftSubmission { throw error }
     func moderate(liftID: UUID, decision: LiftModeratorDecision, note: String) async throws -> LiftSubmission { throw error }
@@ -252,11 +191,11 @@ final class UnavailableLaunchService: LiftService, LeaderboardService, SocialSer
     func deleteAccount() async throws { throw error }
 }
 
-/// Keeps an unconfigured build from exposing seeded profile, gym, friendship,
-/// or exercise data through production service boundaries. Demo data is only
+/// Keeps an unconfigured build from exposing seeded profile, gym, or exercise
+/// data through production service boundaries. Demo data is only
 /// installed after an explicit switch to `AppServiceContainer.demo`.
 @MainActor
-final class UnavailableAccountDataService: ProfileService, GymService, GymMembershipService, FriendRelationshipService, ExerciseCatalogService {
+final class UnavailableAccountDataService: ProfileService, GymService, GymMembershipService, ExerciseCatalogService {
     private var error: LiftRankServiceError { .configurationMissing }
 
     func currentProfile() async throws -> UserProfile { throw error }
@@ -275,26 +214,8 @@ final class UnavailableAccountDataService: ProfileService, GymService, GymMember
     func leave(_ gym: Gym) async throws { throw error }
     func setPrimary(_ gym: Gym) async throws { throw error }
 
-    func relationships() async throws -> [FriendRelationshipRecord] { throw error }
-    func request(userID: UUID) async throws { throw error }
-    func respond(relationshipID: UUID, accept: Bool) async throws { throw error }
-    func cancel(relationshipID: UUID) async throws { throw error }
-    func remove(relationshipID: UUID) async throws { throw error }
-
     func activeExercises() async throws -> [CatalogExercise] { throw error }
     func resolve(identifier: String) async throws -> CatalogExercise? { throw error }
-}
-
-@MainActor
-final class UnavailableMessagingService: MessagingService {
-    private var error: LiftRankServiceError { .configurationMissing }
-    func createOrGetThread(with userID: UUID) async throws -> DirectMessageThread { throw error }
-    func threads() async throws -> [DirectMessageThread] { throw error }
-    func messages(for thread: DirectMessageThread) async throws -> [DirectMessage] { throw error }
-    func sendMessage(in thread: DirectMessageThread, body: String) async throws -> DirectMessage? { throw error }
-    func deleteMessage(_ message: DirectMessage) async throws { throw error }
-    func deleteThread(_ thread: DirectMessageThread) async throws { throw error }
-    func reportMessage(_ message: DirectMessage, reason: MessageReportReason, note: String) async throws { throw error }
 }
 
 @MainActor

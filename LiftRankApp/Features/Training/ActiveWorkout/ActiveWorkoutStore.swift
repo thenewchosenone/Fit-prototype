@@ -13,11 +13,21 @@ enum ActiveWorkoutFinishReadiness: Equatable {
     }
 }
 
+struct ActiveWorkoutExerciseProgress: Equatable {
+    let completedWorkingSets: Int
+    let plannedWorkingSets: Int
+
+    var isComplete: Bool {
+        plannedWorkingSets > 0 && completedWorkingSets >= plannedWorkingSets
+    }
+}
+
 @MainActor
 final class ActiveWorkoutStore {
     private let repository: any ActiveWorkoutRepository
     private let now: () -> Date
     private let restNotificationScheduler: any WorkoutRestNotificationScheduling
+    private var cachedUserID: UUID
 
     init(
         repository: any ActiveWorkoutRepository,
@@ -27,10 +37,12 @@ final class ActiveWorkoutStore {
         self.repository = repository
         self.now = now
         self.restNotificationScheduler = restNotificationScheduler
+        self.cachedUserID = repository.currentProfile.id
     }
 
     var workout: ActiveWorkoutState? {
-        repository.activeWorkout
+        resetAccountScopedDraftIfNeeded()
+        return repository.activeWorkout
     }
 
     @discardableResult
@@ -136,11 +148,28 @@ final class ActiveWorkoutStore {
         }
     }
 
+    var plannedWorkingSetCount: Int {
+        guard let workout else { return 0 }
+        return workout.exercises.reduce(0) { total, exercise in
+            total + exerciseProgress(for: exercise).plannedWorkingSets
+        }
+    }
+
+    func exerciseProgress(for exercise: WorkoutExerciseSnapshot) -> ActiveWorkoutExerciseProgress {
+        let workingLogs = setLogs(for: exercise).filter { !$0.isWarmup }
+        let plannedSets = workingLogs.isEmpty ? exercise.targetSets : workingLogs.count
+        let completedSets = workingLogs.filter(\.isComplete).count
+        return ActiveWorkoutExerciseProgress(
+            completedWorkingSets: completedSets,
+            plannedWorkingSets: plannedSets
+        )
+    }
+
     var finishReadiness: ActiveWorkoutFinishReadiness {
-        guard let workout else { return .unavailable }
+        guard workout != nil else { return .unavailable }
         let completedSets = completedWorkingSets.count
         guard completedSets > 0 else { return .empty }
-        let plannedSets = workout.exercises.reduce(0) { $0 + $1.targetSets }
+        let plannedSets = plannedWorkingSetCount
         guard completedSets >= plannedSets else {
             return .incomplete(completedSets: completedSets, plannedSets: plannedSets)
         }
@@ -169,6 +198,10 @@ final class ActiveWorkoutStore {
 
     func deleteCompletedWorkout(_ workout: CompletedWorkout) {
         repository.deleteCompletedWorkout(workout)
+    }
+
+    func updateCompletedWorkout(_ workout: CompletedWorkout) {
+        repository.updateCompletedWorkout(workout)
     }
 
     func removeExercise(_ exercise: WorkoutExerciseSnapshot) {
@@ -214,7 +247,7 @@ final class ActiveWorkoutStore {
             $0.workoutID == workout.id && $0.isComplete
         }
         let workingSets = logs.filter { !$0.isWarmup }
-        let completedExerciseIDs = Set(logs.map(\.prescriptionID))
+        let completedExerciseIDs = Set(workingSets.map(\.prescriptionID))
 
         return WorkoutSummary(
             id: workout.id,
@@ -222,22 +255,27 @@ final class ActiveWorkoutStore {
             workoutName: workout.name,
             completedExercises: completedExerciseIDs.count,
             totalExercises: workout.exercises.count,
-            totalSets: logs.count,
+            totalSets: workingSets.count,
             totalVolume: workingSets.reduce(0) { $0 + trackingAwareVolume(for: $1, workout: workout) },
             bestSet: workingSets.filter { trackingKind(for: $0, workout: workout) == .weightReps }.max { ($0.weight ?? 0) < ($1.weight ?? 0) }
         )
     }
 
     private func trackingKind(for set: WorkoutSetLog, workout: ActiveWorkoutState) -> ExerciseTrackingKind {
-        guard let exercise = workout.exercises.first(where: { $0.id == set.prescriptionID }),
-              let catalog = MockData.trainingExerciseLibrary.first(where: { $0.id == exercise.exerciseID }) else {
-            return .weightReps
-        }
-        return ExerciseTrackingKind(catalog.trackingType)
+        guard let exercise = workout.exercises.first(where: { $0.id == set.prescriptionID }) else { return .weightReps }
+        let rawTrackingType = exercise.trackingType ??
+            MockData.trainingExerciseLibrary.first(where: { $0.id == exercise.exerciseID })?.trackingType
+        return ExerciseTrackingKind(rawTrackingType ?? "Weight + Reps")
     }
 
     private func trackingAwareVolume(for set: WorkoutSetLog, workout: ActiveWorkoutState) -> Double {
-        trackingKind(for: set, workout: workout) == .weightReps ? set.volume : 0
+        trackingKind(for: set, workout: workout) == .weightReps ? set.volume(in: workout.unit) : 0
+    }
+
+    private func resetAccountScopedDraftIfNeeded() {
+        guard cachedUserID != repository.currentProfile.id else { return }
+        cachedUserID = repository.currentProfile.id
+        repository.clearActiveWorkoutDraft()
     }
 
     @discardableResult
@@ -247,6 +285,7 @@ final class ActiveWorkoutStore {
         source: WorkoutSetCompletionSource
     ) -> Bool {
         let shouldTriggerTimer = isComplete && !log.hasTriggeredRestTimer
+        repository.updateWorkoutSetLog(log)
         _ = repository.applyWorkoutSetCompletion(
             logID: log.id,
             isComplete: isComplete,

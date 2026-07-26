@@ -12,6 +12,7 @@ final class AppState: ObservableObject {
     @Published var selectedWorkoutPlanID = MockData.defaultWorkoutPlanID
     @Published var showingPasswordUpdate = false
     private var cancellables = Set<AnyCancellable>()
+    var profilePhotoMutation = 0
     let router: AppRouter
     let sessionStore: SessionStore
     let profileStore: ProfileStore
@@ -23,8 +24,6 @@ final class AppState: ObservableObject {
     let trainingProgressStore: TrainingProgressStore
     let exerciseLibraryStore: ExerciseLibraryStore
     let competitionStore: CompetitionStore
-    let communityStore: CommunityStore
-    let socialMessagingStore: SocialMessagingStore
     let notificationStore: NotificationStore
     let analyticsStore: AnalyticsStore
     let features: FeatureAvailability
@@ -50,7 +49,6 @@ final class AppState: ObservableObject {
     }
 
     var remoteGymMemberships: [GymMembershipRecord] { accountSocialStore.gymMemberships }
-    var remoteFriendRelationships: [FriendRelationshipRecord] { accountSocialStore.friendRelationships }
     var remoteBlocks: [UserBlockRecord] { accountSocialStore.blocks }
 
     private(set) var outstandingLegalDocuments: [LegalDocument] {
@@ -85,7 +83,6 @@ final class AppState: ObservableObject {
             profileStore: resolvedProfileStore,
             gymService: resolvedServiceContainer.gyms,
             gymMembershipService: resolvedServiceContainer.gymMemberships,
-            friendRelationshipService: resolvedServiceContainer.friendships,
             profileService: resolvedServiceContainer.profile,
             socialService: resolvedServiceContainer.social
         )
@@ -113,19 +110,9 @@ final class AppState: ObservableObject {
                 MockData.exercises.first { $0.id == exerciseID }
             }
         )
-        self.communityStore = CommunityStore(
-            repository: resolvedRepository,
-            socialService: resolvedServiceContainer.social,
-            communityService: resolvedServiceContainer.communities
-        )
-        self.socialMessagingStore = SocialMessagingStore(
-            repository: resolvedRepository,
-            messagingService: resolvedServiceContainer.messaging
-        )
         self.notificationStore = NotificationStore(
             repository: resolvedRepository,
-            notificationService: resolvedServiceContainer.notifications,
-            features: resolvedServiceContainer.features
+            notificationService: resolvedServiceContainer.notifications
         )
         self.analyticsStore = AnalyticsStore(service: resolvedServiceContainer.analytics)
         self.serviceContainer = resolvedServiceContainer
@@ -252,6 +239,9 @@ final class AppState: ObservableObject {
             try await loadAuthenticatedAccount()
         } catch {
             accountMessage = userMessage(error)
+            sessionStore.clearRemoteAccountState()
+            accountSocialStore.clear()
+            profilePhotoStore.clearMemoryCache()
             accountStatus = .signedOut
         }
     }
@@ -331,7 +321,10 @@ final class AppState: ObservableObject {
         selectedWorkoutPlanID = PersonalWorkoutPlanCatalog.planID
         installServiceContainer(.demo(repository: repository))
         do {
-            try await sessionStore.enterDemoAuthentication()
+            let profile = try await sessionStore.enterDemoAuthentication()
+            profileStore.saveProfile(profile)
+            await synchronizeCompletedWorkoutHistory()
+            await synchronizeWorkoutPlans()
             accountStatus = .demo
         } catch {
             accountMessage = userMessage(error)
@@ -346,6 +339,8 @@ final class AppState: ObservableObject {
         if wasDemoMode { installServiceContainer(launchServiceContainer) }
         sessionStore.clearRemoteAccountState()
         accountSocialStore.clear()
+        notificationStore.clear()
+        repository.clearLocalUserData()
         profilePhotoStore.clearMemoryCache()
         accountStatus = sessionStore.isAuthenticationConfigured ? .signedOut : .configurationRequired
     }
@@ -368,15 +363,9 @@ final class AppState: ObservableObject {
         accountSocialStore.updateServices(
             gymService: container.gyms,
             gymMembershipService: container.gymMemberships,
-            friendRelationshipService: container.friendships,
             profileService: container.profile,
             socialService: container.social
         )
-        communityStore.updateServices(
-            socialService: container.social,
-            communityService: container.communities
-        )
-        socialMessagingStore.updateService(container.messaging)
         notificationStore.updateService(container.notifications)
         analyticsStore.updateService(container.analytics)
     }
@@ -446,6 +435,9 @@ final class AppState: ObservableObject {
     }
 
     private func loadAuthenticatedAccount() async throws {
+        if let userID = accountSession?.userID, repository.currentProfile.id != userID {
+            repository.clearLocalUserData()
+        }
         let profile = try await profileStore.loadAuthenticatedProfile(
             retainingDemoProfiles: sessionStore.usesDemoAuthenticationService
         )
@@ -473,6 +465,10 @@ final class AppState: ObservableObject {
 
     func track(_ name: AnalyticsEventName, properties: [String: String] = [:]) async {
         await analyticsStore.track(name, userID: accountSession?.userID, properties: properties)
+    }
+
+    func track(_ name: AnalyticsEventName, userID: UUID, properties: [String: String] = [:]) async {
+        await analyticsStore.track(name, userID: userID, properties: properties)
     }
 
     func requestPushRegistrationIfNeeded() async {
@@ -524,15 +520,6 @@ final class AppState: ObservableObject {
     func refreshProductionLaunchData() async {
         guard isAuthenticated, !isDemoMode else { return }
         await competitionStore.refreshProductionData()
-        if features.connectionActivity || features.communities || features.forums {
-            await communityStore.refreshProductionData(
-                loadActivity: features.connectionActivity,
-                loadCommunities: features.communities || features.forums
-            )
-        }
-        if features.messaging {
-            await socialMessagingStore.refreshProductionData()
-        }
         await notificationStore.refreshProductionData()
         await accountSocialStore.refreshBlocks()
     }
@@ -542,8 +529,10 @@ final class AppState: ObservableObject {
     func searchAthletes(_ query: String, limit: Int = 20) async -> [UserProfile] {
         let clean = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard clean.count >= 2 else { return [] }
+        let userID = currentProfile.id
         do {
             let cards = try await serviceContainer.social.searchProfiles(query: clean, limit: limit)
+            guard currentProfile.id == userID else { return [] }
             for card in cards { profileStore.mergePublicProfileCard(card) }
             return cards.compactMap { profileStore.profile(id: $0.id) }
                 .filter { $0.id != currentProfile.id && !isBlocked($0.id) }
@@ -593,14 +582,13 @@ final class AppState: ObservableObject {
     var canJoinAnotherGym: Bool { profileStore.canJoinAnotherGym(maximumMemberships: Self.maximumJoinedGyms) }
     var lifts: [LiftSubmission] { competitionStore.lifts }
     var pendingReviewLifts: [LiftSubmission] { competitionStore.pendingReviewLifts }
-    var activities: [ActivityItem] { repository.activities }
     var challenges: [Challenge] { repository.challenges }
     var achievements: [Achievement] {
-        repository.achievements.filter { shouldShowAchievement(title: $0.title) }
+        achievementCatalog
     }
 
     var achievementUnlocks: [AchievementUnlock] {
-        repository.achievementUnlocks.filter { shouldShowAchievement(title: $0.title) }
+        repository.achievementUnlocks
     }
     var competitiveStatistics: CompetitiveStatistics { repository.computedStatistics() }
     var notifications: [NotificationItem] { notificationStore.notifications }
@@ -617,8 +605,8 @@ final class AppState: ObservableObject {
     var workoutEntries: [WorkoutExerciseEntry] { repository.workoutEntries }
     var bodyweightEntries: [BodyweightEntry] { trainingProgressStore.bodyweightEntries }
 
-    private func shouldShowAchievement(title: String) -> Bool {
-        features.gymFeeds || !title.localizedCaseInsensitiveContains("gym")
+    private var achievementCatalog: [Achievement] {
+        repository.achievements.isEmpty ? MockData.achievements : repository.achievements
     }
     var strainEntries: [StrainEntry] { trainingProgressStore.strainEntries }
     var injuryEntries: [InjuryEntry] { trainingProgressStore.injuryEntries }
@@ -628,26 +616,20 @@ final class AppState: ObservableObject {
     var workoutPreferences: WorkoutPreferences { workoutPRSubmissionStore.preferences }
     var workoutProgramTemplates: [WorkoutProgramTemplate] { WorkoutProgramCatalog.templates }
     var workoutPlanProgressionSettings: [WorkoutPlanProgressionSettings] { repository.workoutPlanProgressionSettings }
-    var communityThreads: [CommunityThread] { communityStore.threads }
-    var communityThreadReplies: [CommunityThreadReply] { communityStore.threadReplies }
-    var communityReports: [CommunityReport] { communityStore.reports }
     var gymRequests: [GymRequest] { repository.gymRequests }
-    var friendRequests: [FriendRequest] { socialMessagingStore.friendRequests }
-    var messageThreads: [DirectMessageThread] { socialMessagingStore.messageThreads }
-    var directMessages: [DirectMessage] { socialMessagingStore.directMessages }
-    var messageReports: [MessageReport] { repository.messageReports }
-    var activityComments: [ActivityComment] { communityStore.activityComments }
-    var forumCommunities: [ForumCommunity] { communityStore.communities }
-    var forumMemberships: [ForumMembership] { communityStore.memberships }
-    var forumPosts: [ForumPost] { communityStore.posts }
-    var forumComments: [ForumComment] { communityStore.comments }
-    var forumJoinRequests: [ForumJoinRequest] { communityStore.joinRequests }
-    var forumReports: [ForumReport] { communityStore.forumReports }
-    var forumModerationActions: [ForumModerationAction] { communityStore.moderationActions }
-    var forumNotifications: [ForumNotification] { communityStore.notifications }
-    var unreadForumNotificationCount: Int { communityStore.unreadNotificationCount }
-    var isForumStaff: Bool { communityStore.isStaff }
-    var joinedForumCommunities: [ForumCommunity] { communityStore.joinedCommunities }
+
+    func requestGym(name: String, city: String, state: String, note: String) {
+        repository.gymRequests.append(GymRequest(
+            id: UUID(),
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            city: city.trimmingCharacters(in: .whitespacesAndNewlines),
+            state: state.trimmingCharacters(in: .whitespacesAndNewlines),
+            createdBy: currentProfile.id,
+            status: note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Pending" : "Pending: \(note.trimmingCharacters(in: .whitespacesAndNewlines))",
+            createdAt: .now
+        ))
+        repository.persistWorkoutSnapshot()
+    }
 
     func isGymJoined(_ gym: Gym) -> Bool {
         profileStore.isGymJoined(gym.id)
@@ -756,52 +738,17 @@ final class AppState: ObservableObject {
                let profile = profileStore.profile(id: targetID) {
                 selectedProfile = profile
             }
-            selectedTab = 4
-        case .messageThread(let targetID):
-            guard features.messaging else { router.selectedTab = .home; break }
+            selectedTab = 3
+        case .gym(let targetID):
             if let targetID,
-               let thread = repository.messageThreads.first(where: { $0.id == targetID }) {
-                selectedMessageThread = thread
+               let gym = gyms.first(where: { $0.id == targetID }) {
+                selectedGym = gym
             }
-            selectedCommunitySegment = "Inbox"
-            selectedTab = 3
-        case .friendRequests:
             router.selectedTab = .home
-        case .gym(let gymID):
-            guard features.gymFeeds else { router.selectedTab = .home; break }
-            if let gymID,
-               profileStore.containsGym(id: gymID) {
-                communityPath = [.gyms, .gym(gymID)]
-            }
-            selectedCommunitySegment = "Explore"
-            selectedTab = 3
         case .tracker(let section):
             trainingTrackerStartOnProgress = section == .progress
             requestedTrackerSegment = section.rawValue
             selectedTab = 2
-        case .workoutShare(let activityID):
-            if features.connectionActivity,
-               let activity = repository.activities.first(where: { $0.id == activityID }) {
-                selectedActivity = activity
-            }
-            router.selectedTab = .home
-        case .communityThread(let targetID):
-            guard features.forums else { router.selectedTab = .home; break }
-            selectedCommunityThread = repository.communityThreads.first { $0.id == targetID }
-            selectedCommunitySegment = "Home"
-            selectedTab = 3
-        case .communityHome:
-            router.selectedTab = features.communities ? .community : .home
-        case .forumCommunity(let communityID):
-            guard features.communities else { router.selectedTab = .home; break }
-            communityPath = [.community(communityID)]
-            selectedCommunitySegment = "Explore"
-            selectedTab = 3
-        case .forumPost(let postID):
-            guard features.forums else { router.selectedTab = .home; break }
-            communityPath = [.post(postID)]
-            selectedCommunitySegment = "Home"
-            selectedTab = 3
         case .home:
             selectedTab = 0
         }
@@ -830,27 +777,6 @@ final class AppState: ObservableObject {
 
     var currentSelectedProgramWeek: WorkoutWeek? {
         programStore.currentWeek(planID: selectedWorkoutPlanID)
-    }
-
-    var incomingFriendRequests: [FriendRequest] {
-        repository.friendRequests
-            .filter { $0.toUserID == currentProfile.id && $0.status == .pending }
-            .sorted { $0.createdAt > $1.createdAt }
-    }
-
-    var outgoingFriendRequests: [FriendRequest] {
-        repository.friendRequests
-            .filter { $0.fromUserID == currentProfile.id && $0.status == .pending }
-            .sorted { $0.createdAt > $1.createdAt }
-    }
-
-    var friends: [UserProfile] {
-        repository.friendRequests
-            .filter { $0.status == .accepted && ($0.fromUserID == currentProfile.id || $0.toUserID == currentProfile.id) }
-            .compactMap { request in
-                profile(id: request.fromUserID == currentProfile.id ? request.toUserID : request.fromUserID)
-            }
-            .sorted { $0.displayName < $1.displayName }
     }
 
 }

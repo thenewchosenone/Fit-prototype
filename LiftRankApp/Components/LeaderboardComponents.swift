@@ -16,6 +16,28 @@ enum LeaderboardMovementPresentation: Equatable {
     }
 }
 
+enum LeaderboardRankPresentation {
+    static func color(for rank: Int) -> Color {
+        switch rank {
+        case 1: return .liftGold
+        case 2: return .liftSilver
+        case 3: return .liftBronze
+        default: return .liftMuted
+        }
+    }
+}
+
+enum LeaderboardAgeGroupPresentation {
+    static func groups(from profiles: [UserProfile]) -> [String] {
+        let legacy = Set(profiles.map(\.ageGroup)).subtracting(MockData.standardAgeGroups)
+        return MockData.standardAgeGroups + legacy.sorted()
+    }
+
+    static func subtitle(for group: String) -> String? {
+        MockData.legacyAgeGroups.contains(group) ? "Legacy profile range" : nil
+    }
+}
+
 struct LeaderboardOption: Identifiable {
     let id: String
     let title: String
@@ -184,12 +206,7 @@ struct CompactLeaderboardRow: View {
     var showsGym = false
 
     private var rankColor: Color {
-        switch entry.rank {
-        case 1: return .liftGold
-        case 2: return .liftSilver
-        case 3: return .liftBronze
-        default: return .liftMuted
-        }
+        LeaderboardRankPresentation.color(for: entry.rank)
     }
 
     var body: some View {

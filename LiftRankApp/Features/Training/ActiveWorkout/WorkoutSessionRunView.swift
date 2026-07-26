@@ -33,7 +33,7 @@ struct WorkoutSessionRunView: View {
     private var workout: ActiveWorkoutState? { appState.activeWorkout }
     private var exercises: [WorkoutExerciseSnapshot] { workout?.exercises.sorted { $0.order < $1.order } ?? [] }
     private var completedSetCount: Int { appState.activeWorkoutCompletedWorkingSets.count }
-    private var plannedSetCount: Int { exercises.reduce(0) { $0 + $1.targetSets } }
+    private var plannedSetCount: Int { appState.activeWorkoutPlannedWorkingSetCount }
 
     var body: some View {
         NavigationStack {
@@ -61,7 +61,10 @@ struct WorkoutSessionRunView: View {
                                     }
 
                                     ForEach(exercises) { exercise in
+                                        let progress = appState.activeWorkoutExerciseProgress(for: exercise)
                                         ExerciseSwipeActionRow(
+                                            isEnabled: true,
+                                            showsSubstituteAction: !progress.isComplete,
                                             substituteAction: {
                                                 presentedSheet = .substitute(exercise)
                                             },
@@ -73,17 +76,19 @@ struct WorkoutSessionRunView: View {
                                                 PrescriptionTrackView(exercise: exercise)
                                                     .environmentObject(appState)
                                             } label: {
-                                                exerciseCard(exercise)
+                                                exerciseCard(exercise, progress: progress)
                                             }
                                             .buttonStyle(.plain)
                                             .accessibilityIdentifier("workout.exercise.\(exercise.id.uuidString)")
                                         }
                                         .contextMenu {
                                             Button {
+                                                guard !progress.isComplete else { return }
                                                 presentedSheet = .substitute(exercise)
                                             } label: {
                                                 Label("Find Substitute", systemImage: "arrow.triangle.2.circlepath")
                                             }
+                                            .disabled(progress.isComplete)
                                             Button {
                                                 _ = appState.moveActiveWorkoutExercise(exercise, direction: -1)
                                             } label: {
@@ -97,7 +102,7 @@ struct WorkoutSessionRunView: View {
                                             Button(role: .destructive) {
                                                 appState.removeExerciseFromActiveWorkout(exercise)
                                             } label: {
-                                                Label("Remove from this workout", systemImage: "trash")
+                                                Label(progress.isComplete ? "Delete from this workout" : "Remove from this workout", systemImage: "trash")
                                             }
                                         }
                                     }
@@ -141,15 +146,12 @@ struct WorkoutSessionRunView: View {
                             didExplainAutomaticSubmission: appState.workoutPreferences.didExplainAutomaticPRs,
                             onAutomaticSubmissionChanged: appState.setAutomaticVideoPRSubmission,
                             onExplanationShown: appState.markAutomaticVideoPRExplanationShown
-                        ) { effort, notes, videos, shareWithConnections in
+                        ) { effort, notes, videos, _ in
                             guard let completed = appState.finishActiveWorkout(effort: effort, notes: notes) else { return }
                             dismissAfterSummary = true
                             presentedSheet = nil
                             Task {
                                 await appState.submitVideoBackedPRs(for: completed, videoURLsBySetID: videos)
-                                if shareWithConnections {
-                                    await appState.shareCompletedWorkout(completed)
-                                }
                             }
                         }
                         .environmentObject(appState)
@@ -319,12 +321,11 @@ struct WorkoutSessionRunView: View {
         ) { presentedSheet = .addExercise }
     }
 
-    private func exerciseCard(_ exercise: WorkoutExerciseSnapshot) -> some View {
-        let logs = appState.setLogs(for: exercise)
-        let completed = logs.filter { $0.isComplete && !$0.isWarmup }.count
-        let isComplete = completed >= exercise.targetSets
-
-        return HStack(spacing: 12) {
+    private func exerciseCard(
+        _ exercise: WorkoutExerciseSnapshot,
+        progress: ActiveWorkoutExerciseProgress
+    ) -> some View {
+        HStack(spacing: 12) {
             if isReorderingExercises {
                 VStack(spacing: 6) {
                     Button {
@@ -352,10 +353,10 @@ struct WorkoutSessionRunView: View {
             ExerciseCatalogIcon(exercise: catalogExercise(for: exercise))
                 .frame(width: 48, height: 48)
                 .overlay(alignment: .bottomTrailing) {
-                    if isComplete {
+                    if progress.isComplete {
                         Image(systemName: "checkmark")
                             .font(.system(size: 9, weight: .black))
-                            .foregroundStyle(Color.liftBackground)
+                            .foregroundStyle(Color.liftOnAccent)
                             .frame(width: 18, height: 18)
                             .background(Color.liftGreen)
                             .clipShape(Circle())
@@ -366,26 +367,26 @@ struct WorkoutSessionRunView: View {
                 Text(exercise.exerciseName)
                     .font(.headline.weight(.bold))
                     .foregroundStyle(Color.liftText)
-                Text("\(exercise.targetSets) × \(exercise.targetReps) • \(exercise.restSeconds)s rest")
+                Text("\(progress.plannedWorkingSets) × \(exercise.targetReps) • \(exercise.restSeconds)s rest")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 5) {
-                Text(isComplete ? "Done" : "\(completed)/\(exercise.targetSets)")
+                Text(progress.isComplete ? "Done" : "\(progress.completedWorkingSets)/\(progress.plannedWorkingSets)")
                     .font(.caption.weight(.black))
-                    .foregroundStyle(isComplete ? Color.liftGreen : Color.liftMuted)
+                    .foregroundStyle(progress.isComplete ? Color.liftGreen : Color.liftMuted)
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.liftMuted)
             }
         }
         .padding(12)
-        .background(isComplete ? Color.liftGreen.opacity(0.08) : Color.liftCard)
+        .background(progress.isComplete ? Color.liftGreen.opacity(0.08) : Color.liftCard)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(isComplete ? Color.liftGreen.opacity(0.28) : Color.white.opacity(0.06), lineWidth: 1)
+                .stroke(progress.isComplete ? Color.liftGreen.opacity(0.28) : Color.white.opacity(0.06), lineWidth: 1)
         }
         .contentShape(Rectangle())
     }
@@ -422,7 +423,7 @@ struct WorkoutSessionRunView: View {
                     Spacer()
                     Image(systemName: "checkmark.circle.fill")
                 }
-                .foregroundStyle(Color.liftBackground)
+                .foregroundStyle(Color.liftOnAccent)
                 .padding(.horizontal, 18)
                 .frame(height: 52)
                 .background(Color.liftGreen)
@@ -455,6 +456,8 @@ private struct ExerciseSwipeActionRow<Content: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isOpen = false
     @State private var dragOffset: CGFloat = 0
+    let isEnabled: Bool
+    let showsSubstituteAction: Bool
     let substituteAction: () -> Void
     let removeAction: () -> Void
     @ViewBuilder let content: () -> Content
@@ -462,27 +465,29 @@ private struct ExerciseSwipeActionRow<Content: View>: View {
     private let substituteWidth: CGFloat = 104
     private let removeWidth: CGFloat = 88
 
-    private var actionWidth: CGFloat { substituteWidth + removeWidth }
+    private var actionWidth: CGFloat { (showsSubstituteAction ? substituteWidth : 0) + removeWidth }
 
     var body: some View {
         ZStack(alignment: .trailing) {
             HStack(spacing: 0) {
-                Button {
-                    close()
-                    substituteAction()
-                } label: {
-                    VStack(spacing: 5) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                        Text("Substitute")
-                            .font(.caption2.weight(.bold))
+                if showsSubstituteAction {
+                    Button {
+                        close()
+                        substituteAction()
+                    } label: {
+                        VStack(spacing: 5) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                            Text("Substitute")
+                                .font(.caption2.weight(.bold))
+                        }
+                        .foregroundStyle(Color.liftOnAccent)
+                        .frame(width: substituteWidth)
+                        .frame(maxHeight: .infinity)
+                        .background(Color.liftBlue)
                     }
-                    .foregroundStyle(Color.liftBackground)
-                    .frame(width: substituteWidth)
-                    .frame(maxHeight: .infinity)
-                    .background(Color.liftBlue)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Find a substitute")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Find a substitute")
 
                 Button(role: .destructive) {
                     close()
@@ -490,7 +495,7 @@ private struct ExerciseSwipeActionRow<Content: View>: View {
                 } label: {
                     VStack(spacing: 5) {
                         Image(systemName: "trash.fill")
-                        Text("Remove")
+                        Text(showsSubstituteAction ? "Remove" : "Delete")
                             .font(.caption2.weight(.bold))
                     }
                     .foregroundStyle(.white)
@@ -499,30 +504,55 @@ private struct ExerciseSwipeActionRow<Content: View>: View {
                     .background(Color.liftRed)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Remove exercise")
+                .accessibilityLabel(showsSubstituteAction ? "Remove exercise" : "Delete finished exercise")
             }
+            .opacity(actionsAreVisible ? 1 : 0)
+            .allowsHitTesting(actionsAreVisible)
 
             content()
+                .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
                 .offset(x: displayedOffset)
                 .simultaneousGesture(swipeGesture)
         }
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .accessibilityAction(named: "Find substitute", substituteAction)
-        .accessibilityAction(named: "Remove exercise", removeAction)
+        .onAppear {
+            if !isEnabled { close() }
+        }
+        .onChange(of: isEnabled) { _, enabled in
+            if !enabled { close() }
+        }
+        .accessibilityAction(named: "Find substitute") {
+            guard isEnabled, showsSubstituteAction else { return }
+            substituteAction()
+        }
+        .accessibilityAction(named: showsSubstituteAction ? "Remove exercise" : "Delete finished exercise") {
+            guard isEnabled else { return }
+            removeAction()
+        }
     }
 
     private var displayedOffset: CGFloat {
-        min(0, max(-actionWidth, (isOpen ? -actionWidth : 0) + dragOffset))
+        guard isEnabled else { return 0 }
+        return min(0, max(-actionWidth, (isOpen ? -actionWidth : 0) + dragOffset))
+    }
+
+    private var actionsAreVisible: Bool {
+        displayedOffset < -1
     }
 
     private var swipeGesture: some Gesture {
         DragGesture(minimumDistance: 14)
             .onChanged { value in
+                guard isEnabled else { return }
                 guard abs(value.translation.width) > abs(value.translation.height) else { return }
                 dragOffset = value.translation.width
             }
             .onEnded { value in
+                guard isEnabled else {
+                    close()
+                    return
+                }
                 guard abs(value.translation.width) > abs(value.translation.height) else {
                     dragOffset = 0
                     return

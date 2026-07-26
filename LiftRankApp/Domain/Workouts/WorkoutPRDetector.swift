@@ -17,6 +17,7 @@ enum WorkoutPRDetector {
                   let repetitions = log.reps,
                   repetitions > 0,
                   let exercise = exerciseByID[log.prescriptionID],
+                  trackingKind(for: exercise) == .weightReps,
                   let rankingExerciseID = exercise.rankingExerciseID else {
                 return nil
             }
@@ -79,7 +80,9 @@ enum WorkoutPRDetector {
                     .map(\.id)
             )
             values += workout.sets.compactMap { log in
-                guard exerciseIDs.contains(log.prescriptionID),
+                guard let exercise = workout.exercises.first(where: { $0.id == log.prescriptionID }),
+                      trackingKind(for: exercise) == .weightReps,
+                      exerciseIDs.contains(log.prescriptionID),
                       log.isComplete,
                       !log.isWarmup,
                       log.reps == repetitions,
@@ -90,6 +93,14 @@ enum WorkoutPRDetector {
             }
         }
         return values.max()
+    }
+
+    private static func trackingKind(for exercise: WorkoutExerciseSnapshot) -> ExerciseTrackingKind {
+        ExerciseTrackingKind(
+            exercise.trackingType ??
+                MockData.trainingExerciseLibrary.first { $0.id == exercise.exerciseID }?.trackingType ??
+                "Weight + Reps"
+        )
     }
 
     private static func normalizedKilograms(weight: Double, unit: UnitSystem) -> Double {
@@ -117,7 +128,12 @@ enum WorkoutProgressPresentation {
         preferredUnit: UnitSystem
     ) -> [ExerciseProgressPoint] {
         completedWorkouts.flatMap { workout -> [ExerciseProgressPoint] in
-            let matchingIDs = Set(workout.exercises.filter { $0.exerciseID == exerciseID }.map(\.id))
+            let matchingIDs = Set(workout.exercises.compactMap { exercise -> UUID? in
+                guard exercise.exerciseID == exerciseID else { return nil }
+                let rawTrackingType = exercise.trackingType ??
+                    MockData.trainingExerciseLibrary.first { $0.id == exercise.exerciseID }?.trackingType
+                return ExerciseTrackingKind(rawTrackingType ?? "Weight + Reps") == .weightReps ? exercise.id : nil
+            })
             return workout.sets.compactMap { set in
                 guard matchingIDs.contains(set.prescriptionID),
                       set.isComplete,

@@ -5,8 +5,6 @@ import Supabase
 // - SupabaseServices+Competition.swift
 // - SupabaseServices+Leaderboard.swift
 // - SupabaseServices+Accounts.swift
-// - SupabaseServices+Community.swift
-// - SupabaseServices+Messaging.swift
 // - SupabaseServices+Notifications.swift
 // - SupabaseServices+Social.swift
 // - SupabaseServices+Verification.swift

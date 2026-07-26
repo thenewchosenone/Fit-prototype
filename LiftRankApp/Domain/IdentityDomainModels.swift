@@ -26,8 +26,6 @@ struct UserProfile: Identifiable, Codable, Hashable {
     var experienceLevel: ExperienceLevel
     var profileImageName: String
     var avatarPath: String? = nil
-    var followers: Int
-    var following: Int
     var hideExactAge: Bool
     var hideBodyweight: Bool
     var hideCity: Bool
@@ -42,6 +40,16 @@ struct Gym: Identifiable, Codable, Hashable {
     var state: String
     var memberCount: Int
     var verifiedLiftCount: Int
+}
+
+struct GymRequest: Identifiable, Codable, Hashable {
+    let id: UUID
+    var name: String
+    var city: String
+    var state: String
+    var createdBy: UUID
+    var status: String
+    var createdAt: Date
 }
 
 struct LiftSubmission: Identifiable, Codable, Hashable {
@@ -118,7 +126,7 @@ struct LiftVoteRecord: Identifiable, Codable, Hashable {
     var id: String { "\(liftID.uuidString):\(voterID.uuidString)" }
     var liftID: UUID
     var voterID: UUID
-    var value: CommunityVote
+    var value: LiftVoteValue
     var createdAt: Date
 }
 
@@ -158,7 +166,6 @@ struct LegalAcceptanceRecord: Identifiable, Codable, Hashable {
 enum LegalDocumentKind: String, Codable, CaseIterable, Identifiable {
     case privacy
     case terms
-    case communityRules = "community_rules"
     case fitnessDisclaimer = "fitness_disclaimer"
 
     var id: String { rawValue }
@@ -181,23 +188,18 @@ struct LegalDocument: Identifiable, Hashable {
     static let currentVersion = "2026-07-18"
     static let current: [LegalDocument] = [
         LegalDocument(kind: .privacy, version: currentVersion, title: "Privacy Notice", summary: "How Lift Rivals stores and shares account, training, location, and video data.", sections: [
-            .init(title: "Data we use", body: "Lift Rivals stores account identity, training history, competitive records, privacy choices, gym and location selections, community content, messages, reports, and videos you choose to upload."),
+            .init(title: "Data we use", body: "Lift Rivals stores account identity, training history, competitive records, privacy choices, gym and location selections, reports, and videos you choose to upload."),
             .init(title: "Visibility", body: "Profile fields can be public, friends-only, gym-only, or private. A public ratio or weight-class ranking may indirectly reveal information about your bodyweight."),
             .init(title: "No advertising tracking", body: "Launch analytics measure signup, activation, workouts, PR submissions, sharing, and return activity. Lift Rivals does not use advertising identifiers or cross-app tracking.")
         ]),
         LegalDocument(kind: .terms, version: currentVersion, title: "Terms of Use", summary: "The rules for using Lift Rivals and keeping an account in good standing.", sections: [
             .init(title: "Account responsibility", body: "Provide accurate eligibility and lift information, protect your credentials, and use only an account you are authorized to control."),
             .init(title: "Competitive records", body: "Video-backed means a video is attached; it does not mean Lift Rivals approved technique. Attempts can be reported, reviewed, or removed from rankings."),
-            .init(title: "Account action", body: "Content or accounts may be restricted for abuse, manipulation, unlawful conduct, or repeated violations of the community rules.")
-        ]),
-        LegalDocument(kind: .communityRules, version: currentVersion, title: "Community Rules", summary: "Standards for posts, messages, reports, and competitive conduct.", sections: [
-            .init(title: "Respect athletes", body: "No harassment, threats, hate, sexual exploitation, impersonation, doxxing, or targeted abuse."),
-            .init(title: "Keep competition honest", body: "Do not falsify weight, identity, exercise, video, or eligibility information. Use reports for genuine concerns, not retaliation."),
-            .init(title: "Keep content safe", body: "No spam, illegal content, dangerous medical claims, or content that violates another person’s privacy or intellectual property.")
+            .init(title: "Account action", body: "Content or accounts may be restricted for abuse, manipulation, unlawful conduct, or repeated violations of the terms.")
         ]),
         LegalDocument(kind: .fitnessDisclaimer, version: currentVersion, title: "Fitness Disclaimer", summary: "Strength training carries risk and Lift Rivals does not provide medical advice.", sections: [
             .init(title: "Training risk", body: "Strength training and maximal attempts can cause serious injury. Use appropriate equipment, spotters, progression, and qualified coaching."),
-            .init(title: "Not medical advice", body: "Lift Rivals content and community activity are general information, not diagnosis, treatment, or individualized medical guidance."),
+            .init(title: "Not medical advice", body: "Lift Rivals content is general information, not diagnosis, treatment, or individualized medical guidance."),
             .init(title: "Stop when unsafe", body: "Consult a qualified professional before training when health, injury, pregnancy, medication, or other conditions may affect safety.")
         ])
     ]
@@ -210,7 +212,6 @@ enum AnalyticsEventName: String, Codable, CaseIterable, Identifiable {
     case workoutCompleted = "workout_completed"
     case prSubmitted = "pr_submitted"
     case videoBackedPRSubmitted = "video_backed_pr_submitted"
-    case workoutShared = "workout_shared"
     case weeklyReturn = "weekly_return"
     var id: String { rawValue }
 }

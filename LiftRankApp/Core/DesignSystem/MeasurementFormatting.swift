@@ -30,12 +30,6 @@ enum MeasurementFormatting {
         convert(kilograms, from: .kilograms, to: unit)
     }
 
-    static func displayWeightOrDash(_ kilograms: Double?, unit: UnitSystem, format: (Double) -> String) -> String {
-        guard let kilograms, kilograms > 0 else { return "—" }
-        let value = displayWeight(kilograms, unit: unit)
-        return "\(format(value)) \(unit == .kilograms ? "kg" : "lb")"
-    }
-
     static func convert(_ value: Double, from source: UnitSystem, to target: UnitSystem) -> Double {
         guard source != target else { return value }
         return target == .kilograms ? RankingCalculator.poundsToKilograms(value) : RankingCalculator.kilogramsToPounds(value)
@@ -70,24 +64,9 @@ enum MeasurementFormatting {
         "\(format(displayWeight(kilograms, unit: unit)))\(unit.shortLabel)"
     }
 
-    static func formatDisplayedWeightOrDash(_ kilograms: Double?, unit: UnitSystem, format: (Double) -> String = RankingCalculator.format) -> String {
-        guard let kilograms else { return "—" }
-        return formatDisplayedWeight(kilograms, unit: unit, format: format)
-    }
-
     static func compactDisplayedWeightOrDash(_ kilograms: Double?, unit: UnitSystem, format: (Double) -> String = RankingCalculator.format) -> String {
         guard let kilograms else { return "—" }
         return compactDisplayedWeight(kilograms, unit: unit, format: format)
-    }
-
-    static func formatPoundsOrDash(_ pounds: Double?) -> String {
-        guard let pounds else { return "—" }
-        return "\(RankingCalculator.format(pounds)) lb"
-    }
-
-    static func formatPoundsOrMissing(_ pounds: Double?) -> String {
-        guard let pounds else { return "no bodyweight" }
-        return "\(RankingCalculator.format(pounds)) pounds"
     }
 
     static func formatBodyweight(_ pounds: Double, preferredUnit: UnitSystem, format: (Double) -> String = RankingCalculator.format) -> String {

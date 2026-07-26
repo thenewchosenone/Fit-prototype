@@ -21,7 +21,6 @@ private enum SubmitLiftSelector: String, Identifiable {
 struct SubmitLiftView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
     @State private var exercise = MockData.exercises[2]
     @State private var weight = 315.0
     @State private var unit: UnitSystem = .pounds
@@ -53,6 +52,17 @@ struct SubmitLiftView: View {
         isActualOneRepMax ? weight : RankingCalculator.epleyOneRepMax(weight: weight, repetitions: repetitions)
     }
 
+    private var bodyweightDisplayValue: Binding<Double> {
+        Binding(
+            get: {
+                MeasurementFormatting.convert(bodyweight, from: .pounds, to: unit)
+            },
+            set: { newValue in
+                bodyweight = MeasurementFormatting.convert(newValue, from: unit, to: .pounds)
+            }
+        )
+    }
+
     private var selectedGym: Gym? {
         appState.gyms.first { $0.id == gymID }
     }
@@ -72,8 +82,7 @@ struct SubmitLiftView: View {
                         PrimaryButton(title: "Submit lift", symbolName: "paperplane.fill") {
                             Task {
                                 await appState.submitLift(exercise: exercise, weight: weight, unit: unit, reps: repetitions, isActual: isActualOneRepMax, bodyweight: bodyweight, date: performedAt, gymID: gymID, equipment: equipment, visibility: visibility, videoURL: selectedVideoURL, caption: caption, requestVerification: requestVerification)
-                                if let lift = appState.lastSubmissionResult {
-                                    modelContext.insert(PersistentLiftRecord(id: lift.id, exerciseID: lift.exerciseID, exerciseName: lift.exerciseName, weight: lift.weight, repetitions: lift.repetitions, performedAt: lift.performedAt))
+                                if appState.lastSubmissionResult != nil {
                                     showingResult = true
                                 } else {
                                     submissionError = appState.accountMessage ?? "The lift could not be submitted."
@@ -156,7 +165,8 @@ struct SubmitLiftView: View {
             } message: {
                 Text(submissionError ?? "Try again.")
             }
-            .onChange(of: unit) { _, _ in
+            .onChange(of: unit) { oldUnit, newUnit in
+                weight = MeasurementFormatting.convert(weight, from: oldUnit, to: newUnit)
                 resetPlateLoadingFromWeight()
             }
             .onChange(of: weight) { _, _ in
@@ -221,7 +231,13 @@ struct SubmitLiftView: View {
             LiftCard {
                 VStack(alignment: .leading, spacing: 14) {
                     CompactSectionHeader(title: "Training context")
-                    NumericInputField(title: "Bodyweight", value: $bodyweight, unit: "lb", precision: 0...2, presentation: .inset)
+                    NumericInputField(
+                        title: "Bodyweight",
+                        value: bodyweightDisplayValue,
+                        unit: unit.shortLabel,
+                        precision: 0...2,
+                        presentation: .inset
+                    )
                     DatePicker("Date performed", selection: $performedAt, displayedComponents: .date)
                         .frame(minHeight: LiftDesign.minimumTouchTarget)
                     Divider().overlay(Color.liftSeparator)
@@ -342,7 +358,6 @@ struct SubmitLiftView: View {
     private var visibilitySymbol: String {
         switch visibility {
         case .publicLift: return "globe"
-        case .followers: return "person.2"
         case .privateLift: return "lock"
         }
     }
@@ -350,11 +365,9 @@ struct SubmitLiftView: View {
     private var submissionConsequence: String {
         switch visibility {
         case .publicLift:
-            return "Public lifts appear on your profile and can be shared to a community explicitly. Eligible verified results enter the next daily leaderboard update."
-        case .followers:
-            return "Only followers can see this lift. Ranking eligibility still follows verification rules."
+            return "Public lifts appear on your profile. Eligible verified results enter the next daily leaderboard update."
         case .privateLift:
-            return "Private lifts stay on your profile and are excluded from Community and public leaderboards."
+            return "Private lifts stay on your profile and are excluded from public leaderboards."
         }
     }
 
@@ -380,8 +393,8 @@ struct SubmitLiftView: View {
                 LeaderboardOption(
                     id: option.rawValue,
                     title: option.rawValue,
-                    subtitle: option == .publicLift ? "Community and eligible daily rankings" : (option == .followers ? "Followers only" : "Visible only to you"),
-                    symbol: option == .publicLift ? "globe" : (option == .followers ? "person.2" : "lock")
+                    subtitle: option == .publicLift ? "Eligible daily rankings" : "Visible only to you",
+                    symbol: option == .publicLift ? "globe" : "lock"
                 )
             }
         }
@@ -592,14 +605,6 @@ struct LiftSubmissionResultView: View {
                     tint: lift.resolvedEvidenceStatus.evidenceMetricTint
                 )
                 MetricCard(title: "Ranking update", value: "Tomorrow", subtitle: "Leaderboards refresh once daily at midnight.", symbolName: "clock.arrow.circlepath", tint: .liftBlue)
-                if appState.features.forums {
-                    PrimaryButton(title: "Share to Community", symbolName: "person.3.fill") {
-                        done()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                            appState.beginForumComposer(liftID: lift.id)
-                        }
-                    }
-                }
                 Button("Done", action: done)
                     .buttonStyle(.bordered)
                     .tint(Color.liftBlue)

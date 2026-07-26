@@ -27,12 +27,11 @@ enum VerificationStatus: String, Codable, CaseIterable, Identifiable {
     case selfReported = "Self Reported"
     case videoSubmitted = "Video Submitted"
     case videoVerified = "Video Verified"
-    case communityVerified = "Community Verified"
     case competitionVerified = "Competition Verified"
     case rejected = "Rejected"
     var id: String { rawValue }
     var isDefaultLeaderboardEligible: Bool {
-        self == .videoVerified || self == .communityVerified || self == .competitionVerified
+        self == .videoVerified || self == .competitionVerified
     }
 
     init(from decoder: Decoder) throws {
@@ -59,6 +58,33 @@ enum VerificationStatus: String, Codable, CaseIterable, Identifiable {
         var container = encoder.singleValueContainer()
         try container.encode(rawValue)
     }
+}
+
+enum LiftVoteValue: Int, Codable, CaseIterable, Identifiable {
+    case down = -1
+    case up = 1
+
+    var id: Int { rawValue }
+}
+
+struct Challenge: Identifiable, Codable, Hashable {
+    var id: UUID
+    var title: String
+    var description: String
+    var startDate: Date
+    var endDate: Date
+    var goal: String
+    var eligibility: String
+    var participantCount: Int
+    var progress: Double
+    var isJoined: Bool
+}
+
+struct ChallengeParticipant: Identifiable, Codable, Hashable {
+    let id: UUID
+    let userID: UUID
+    let challengeID: UUID
+    var progress: Double
 }
 
 enum CompetitiveMovement: String, Codable, CaseIterable, Identifiable {
@@ -153,7 +179,6 @@ enum LiftModeratorDecision: String, Codable, CaseIterable, Identifiable {
 
 enum LiftVisibility: String, Codable, CaseIterable, Identifiable {
     case publicLift = "Public"
-    case followers = "Followers"
     case privateLift = "Private"
     var id: String { rawValue }
 }

@@ -100,12 +100,14 @@ final class SessionStore: ObservableObject {
         try await authenticationService.updatePassword(password)
     }
 
-    func enterDemoAuthentication() async throws {
+    @discardableResult
+    func enterDemoAuthentication() async throws -> UserProfile {
         guard let authenticationService else { throw LiftRankServiceError.configurationMissing }
-        _ = try await authenticationService.signInDemo()
+        let profile = try await authenticationService.signInDemo()
         session = nil
         message = nil
         status = .demo
+        return profile
     }
 
     func signOut() async throws {
@@ -117,12 +119,17 @@ final class SessionStore: ObservableObject {
         guard isAuthenticated, !isDemoMode else { throw LiftRankServiceError.permissionDenied }
         guard let accountDeletionService else { throw LiftRankServiceError.configurationMissing }
         try await accountDeletionService.deleteAccount()
+        if let authenticationService {
+            try? await authenticationService.signOut()
+        }
     }
 
     @discardableResult
     func refreshLegalAcceptanceStatus() async throws -> [LegalDocument] {
         guard let legalAcceptanceService else { throw LiftRankServiceError.configurationMissing }
+        guard let userID = session?.userID else { throw LiftRankServiceError.sessionExpired }
         let accepted = try await legalAcceptanceService.acceptances()
+        guard session?.userID == userID else { throw LiftRankServiceError.sessionExpired }
         let acceptedKeys = Set(accepted.map { "\($0.documentKind):\($0.documentVersion)" })
         let outstanding = LegalDocument.current.filter {
             !acceptedKeys.contains("\($0.kind.rawValue):\($0.version)")

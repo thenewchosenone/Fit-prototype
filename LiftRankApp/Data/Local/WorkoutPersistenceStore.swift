@@ -73,8 +73,14 @@ final class SwiftDataWorkoutPersistenceStore: WorkoutPersistenceStore {
     }
 
     func reset() {
-        let records = (try? context.fetch(FetchDescriptor<PersistentWorkoutState>())) ?? []
-        records.forEach(context.delete)
+        let liftRecords = (try? context.fetch(FetchDescriptor<PersistentLiftRecord>())) ?? []
+        liftRecords.forEach(context.delete)
+        let settings = (try? context.fetch(FetchDescriptor<PersistentSettings>())) ?? []
+        settings.forEach(context.delete)
+        let snapshots = (try? context.fetch(FetchDescriptor<PersistentWorkoutState>())) ?? []
+        snapshots.forEach(context.delete)
+        let legacyRecords = (try? context.fetch(FetchDescriptor<PersistentWorkoutRecord>())) ?? []
+        legacyRecords.forEach(context.delete)
         try? context.save()
     }
 }

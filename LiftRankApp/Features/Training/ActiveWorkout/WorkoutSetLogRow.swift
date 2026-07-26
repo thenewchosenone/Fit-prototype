@@ -125,7 +125,7 @@ struct WorkoutSetLogRow: View {
             HStack(spacing: 8) {
                 Text("\(draft.setNumber)")
                     .font(.subheadline.weight(.black).monospacedDigit())
-                    .foregroundStyle(draft.isComplete ? Color.liftBackground : Color.liftText)
+                    .foregroundStyle(draft.isComplete ? Color.liftOnAccent : Color.liftText)
                     .frame(width: 34, height: 38)
                     .background(draft.isComplete ? Color.liftGreen : Color.liftCardRaised)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -166,7 +166,7 @@ struct WorkoutSetLogRow: View {
                 } label: {
                     Image(systemName: draft.isComplete ? "checkmark" : "circle")
                         .font(.subheadline.weight(.black))
-                        .foregroundStyle(draft.isComplete ? Color.liftBackground : Color.liftBlue)
+                        .foregroundStyle(draft.isComplete ? Color.liftOnAccent : Color.liftBlue)
                         .frame(width: 38, height: 38)
                         .background(draft.isComplete ? Color.liftGreen : Color.liftBlue.opacity(0.12))
                         .clipShape(Circle())
@@ -204,8 +204,7 @@ struct WorkoutSetLogRow: View {
 
                     Button(role: .destructive) {
                         isDeleting = true
-                        pendingPersistTask?.cancel()
-                        pendingPersistTask = nil
+                        cancelPendingPersist()
                         appState.deleteSetLog(draft)
                     } label: {
                         Label("Delete", systemImage: "trash")
@@ -222,15 +221,14 @@ struct WorkoutSetLogRow: View {
                         .frame(width: 34, alignment: .leading)
                     ForEach([6, 7, 8, 9, 10], id: \.self) { value in
                         Button {
-                            pendingPersistTask?.cancel()
-                            pendingPersistTask = nil
+                            cancelPendingPersist()
                             draft.rpe = draft.rpe == value ? nil : value
                             appState.updateSetLog(draft)
                             Haptics.light()
                         } label: {
                             Text("\(value)")
                                 .font(.caption.weight(.black).monospacedDigit())
-                                .foregroundStyle(draft.rpe == value ? Color.liftBackground : rpeTint(value))
+                                .foregroundStyle(draft.rpe == value ? Color.liftOnAccent : rpeTint(value))
                                 .frame(width: 30, height: 28)
                                 .background(draft.rpe == value ? rpeTint(value) : rpeTint(value).opacity(0.12))
                                 .clipShape(Circle())
@@ -273,8 +271,7 @@ struct WorkoutSetLogRow: View {
                 Label(showingDetails ? "Hide RPE" : "Add RPE", systemImage: "slider.horizontal.3")
             }
             Button {
-                pendingPersistTask?.cancel()
-                pendingPersistTask = nil
+                cancelPendingPersist()
                 draft.isWarmup.toggle()
                 appState.updateSetLog(draft)
             } label: {
@@ -282,8 +279,7 @@ struct WorkoutSetLogRow: View {
             }
             Button(role: .destructive) {
                 isDeleting = true
-                pendingPersistTask?.cancel()
-                pendingPersistTask = nil
+                cancelPendingPersist()
                 appState.deleteSetLog(draft)
             } label: {
                 Label("Delete Set", systemImage: "trash")
@@ -338,8 +334,7 @@ struct WorkoutSetLogRow: View {
     }
 
     private func usePreviousValues() {
-        pendingPersistTask?.cancel()
-        pendingPersistTask = nil
+        cancelPendingPersist()
         guard let previousLog else { return }
         if let reps = previousLog.reps {
             repsText = String(reps)
@@ -354,8 +349,7 @@ struct WorkoutSetLogRow: View {
     }
 
     private func toggleCompletion() {
-        pendingPersistTask?.cancel()
-        pendingPersistTask = nil
+        cancelPendingPersist()
         guard draft.isComplete || hasRequiredInputs else {
             showValidation = true
             return
@@ -373,7 +367,7 @@ struct WorkoutSetLogRow: View {
     }
 
     private func schedulePersist() {
-        pendingPersistTask?.cancel()
+        cancelPendingPersist()
         let snapshot = draft
         pendingPersistTask = Task {
             try? await Task.sleep(for: .milliseconds(550))
@@ -395,9 +389,13 @@ struct WorkoutSetLogRow: View {
     }
 
     private func persistImmediately() {
+        cancelPendingPersist()
+        persistDraft()
+    }
+
+    private func cancelPendingPersist() {
         pendingPersistTask?.cancel()
         pendingPersistTask = nil
-        persistDraft()
     }
 
     private func persistDraft() {

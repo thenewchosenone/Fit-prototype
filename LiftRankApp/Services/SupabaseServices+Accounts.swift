@@ -202,8 +202,7 @@ final class SupabaseProfileService: ProfileService {
                 divisionAudience: existing.privacy.divisionAudience,
                 bodyweightAudience: profile.hideBodyweight ? .privateProfile : .publicProfile,
                 locationAudience: profile.hideCity ? .privateProfile : .publicProfile,
-                gymAudience: profile.hideGym ? .privateProfile : .publicProfile,
-                friendListAudience: existing.privacy.friendListAudience
+                gymAudience: profile.hideGym ? .privateProfile : .publicProfile
             ),
             completesOnboarding: existing.onboardingCompleted
         )
@@ -313,9 +312,8 @@ final class SupabaseProfileService: ProfileService {
                 ageBandAudience: PrivacyAudience(rawValue: privacy.ageBandAudience) ?? .publicProfile,
                 divisionAudience: PrivacyAudience(rawValue: privacy.divisionAudience) ?? .publicProfile,
                 bodyweightAudience: PrivacyAudience(rawValue: privacy.bodyweightAudience) ?? .privateProfile,
-                locationAudience: PrivacyAudience(rawValue: privacy.locationAudience) ?? .friends,
-                gymAudience: PrivacyAudience(rawValue: privacy.gymAudience) ?? .publicProfile,
-                friendListAudience: PrivacyAudience(rawValue: privacy.friendListAudience) ?? .friends
+                locationAudience: PrivacyAudience(rawValue: privacy.locationAudience) ?? .privateProfile,
+                gymAudience: PrivacyAudience(rawValue: privacy.gymAudience) ?? .publicProfile
             )
         )
     }
@@ -396,7 +394,7 @@ private struct SaveProfileParameters: Encodable {
         newDivisionAudience = draft.privacy.divisionAudience.rawValue
         newLocationAudience = draft.privacy.locationAudience.rawValue
         newGymAudience = draft.privacy.gymAudience.rawValue
-        newFriendListAudience = draft.privacy.friendListAudience.rawValue
+        newFriendListAudience = PrivacyAudience.privateProfile.rawValue
         completeOnboarding = draft.completesOnboarding
     }
 }

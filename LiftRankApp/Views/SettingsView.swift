@@ -56,7 +56,6 @@ struct SettingsView: View {
                         Button("About Lift Rivals") { settingsInfo = .about }
                         Button("Privacy notice") { settingsInfo = .privacy }
                         Button("Terms of use") { settingsInfo = .terms }
-                        Button("Community rules") { settingsInfo = .communityRules }
                         Button("Fitness disclaimer") { settingsInfo = .fitnessDisclaimer }
                         Link("Send feedback", destination: URL(string: "https://github.com/thenewchosenone/Fit-prototype/issues/new")!)
                         LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Prototype")
@@ -148,6 +147,7 @@ struct SettingsView: View {
                 Text("For security, the server requires a recently authenticated session. Your account data, workout backup, and local training data will be removed. This cannot be undone.")
             }
         }
+        .preferredColorScheme(LiftAppearance(rawValue: appearance)?.colorScheme)
     }
 
     private func persistProfileSettings() async {
@@ -184,7 +184,6 @@ enum SettingsInfoPage: String, Identifiable {
     case about
     case privacy
     case terms
-    case communityRules
     case fitnessDisclaimer
 
     var id: String { rawValue }
@@ -194,7 +193,6 @@ enum SettingsInfoPage: String, Identifiable {
         case .about: return "About Lift Rivals"
         case .privacy: return "Privacy notice"
         case .terms: return "Terms of use"
-        case .communityRules: return "Community rules"
         case .fitnessDisclaimer: return "Fitness disclaimer"
         }
     }
@@ -209,7 +207,6 @@ enum SettingsInfoPage: String, Identifiable {
             ]
         case .privacy: return documentSections(.privacy)
         case .terms: return documentSections(.terms)
-        case .communityRules: return documentSections(.communityRules)
         case .fitnessDisclaimer: return documentSections(.fitnessDisclaimer)
         }
     }

@@ -24,7 +24,7 @@ struct FloatingTabBar: View {
                     } label: {
                         Image(systemName: item.icon)
                             .font(.system(size: 18, weight: .bold))
-                            .foregroundStyle(Color.liftBackground)
+                            .foregroundStyle(Color.liftOnAccent)
                             .frame(width: 48, height: 48)
                             .background(Color.liftLime)
                             .clipShape(Circle())

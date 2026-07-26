@@ -93,7 +93,8 @@ extension DemoRepository {
                 notes: "",
                 rankingExerciseID: exercise.rankingExerciseID,
                 muscleProfile: exercise.resolvedMuscleProfile,
-                demonstrationMediaID: exercise.demonstrationMediaID
+                demonstrationMediaID: exercise.demonstrationMediaID,
+                trackingType: exercise.trackingType
             )
             workout.exercises.append(snapshot)
             for setNumber in 1...max(1, snapshot.targetSets) {
@@ -271,6 +272,10 @@ extension DemoRepository {
         persistWorkoutSnapshot()
     }
 
+    func clearActiveWorkoutDraft() {
+        discardActiveWorkout()
+    }
+
     @discardableResult
     func finishActiveWorkout(effort: Int, notes: String, at completedAt: Date = .now) -> CompletedWorkout? {
         guard let workout = activeWorkout else { return nil }
@@ -315,6 +320,15 @@ extension DemoRepository {
         persistWorkoutSnapshot()
     }
 
+    func updateCompletedWorkout(_ workout: CompletedWorkout) {
+        guard let index = completedWorkouts.firstIndex(where: { $0.id == workout.id }) else { return }
+        deletedCompletedWorkoutIDs.remove(workout.id)
+        completedWorkouts[index] = workout
+        completedWorkouts.sort { $0.completedAt > $1.completedAt }
+        refreshAchievementUnlocks()
+        persistWorkoutSnapshot()
+    }
+
     func linkSubmission(_ submissionID: UUID, to workoutID: UUID) {
         guard let index = completedWorkouts.firstIndex(where: { $0.id == workoutID }) else { return }
         if !completedWorkouts[index].linkedSubmissionIDs.contains(submissionID) {
@@ -330,6 +344,11 @@ extension DemoRepository {
         } else {
             pendingWorkoutPRSubmissions.append(pending)
         }
+        persistWorkoutSnapshot()
+    }
+
+    func clearPendingPRSubmissions() {
+        pendingWorkoutPRSubmissions.removeAll()
         persistWorkoutSnapshot()
     }
 
@@ -352,7 +371,8 @@ extension DemoRepository {
             targetRIR: prescription.targetRIR,
             trainingMaxPercentage: prescription.trainingMaxPercentage,
             targetLoadKilograms: prescription.targetLoadKilograms,
-            demonstrationMediaID: catalog?.demonstrationMediaID
+            demonstrationMediaID: catalog?.demonstrationMediaID,
+            trackingType: catalog?.trackingType
         )
     }
 
@@ -443,12 +463,15 @@ extension DemoRepository {
         let completedLogs = workoutSetLogs.filter { log in
             prescriptionIDs.contains(log.prescriptionID) &&
             log.isComplete &&
+            !log.isWarmup &&
             Calendar.current.isDateInToday(log.performedAt)
         }
         let completedExerciseIDs = Set(completedLogs.map(\.prescriptionID))
-        let best = completedLogs.max { lhs, rhs in
+        let weightRepsLogs = completedLogs.filter { trackingKind(for: $0, prescriptions: prescriptions) == .weightReps }
+        let best = weightRepsLogs.max { lhs, rhs in
             (lhs.weight ?? 0) < (rhs.weight ?? 0)
         }
+        let summaryUnit = activeWorkout?.unit ?? currentProfile.preferredUnit
         return WorkoutSummary(
             id: UUID(),
             sessionID: session.id,
@@ -456,9 +479,18 @@ extension DemoRepository {
             completedExercises: completedExerciseIDs.count,
             totalExercises: prescriptions.count,
             totalSets: completedLogs.count,
-            totalVolume: completedLogs.reduce(0) { $0 + $1.volume },
+            totalVolume: weightRepsLogs.reduce(0) { $0 + $1.volume(in: summaryUnit) },
             bestSet: best
         )
+    }
+
+    private func trackingKind(
+        for log: WorkoutSetLog,
+        prescriptions: [WorkoutExercisePrescription]
+    ) -> ExerciseTrackingKind {
+        guard let prescription = prescriptions.first(where: { $0.id == log.prescriptionID }) else { return .weightReps }
+        let rawTrackingType = trainingExerciseCatalog.first(where: { $0.id == prescription.exerciseID })?.trackingType
+        return ExerciseTrackingKind(rawTrackingType ?? "Weight + Reps")
     }
 
     func saveWorkoutFeedback(sessionID: UUID, effort: Int, notes: String) {
@@ -507,7 +539,8 @@ extension DemoRepository {
             targetLoadKilograms: current.targetLoadKilograms,
             substitutedFromExerciseID: current.exerciseID,
             substitutedFromExerciseName: current.exerciseName,
-            demonstrationMediaID: substitute.demonstrationMediaID
+            demonstrationMediaID: substitute.demonstrationMediaID,
+            trackingType: substitute.trackingType
         )
     }
 

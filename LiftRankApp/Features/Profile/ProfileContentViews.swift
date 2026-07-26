@@ -305,13 +305,11 @@ struct EditProfileView: View {
                             value: draft.city.isEmpty ? "Choose a location" : "\(draft.city), \(draft.state)",
                             symbol: "mappin.and.ellipse"
                         ) { activeSelector = .location }
-                        if appState.features.gymFeeds {
-                            profileSelectionRow(
-                                title: "Primary gym",
-                                value: selectedGym?.name ?? "Choose a gym",
-                                symbol: "building.2.fill"
-                            ) { activeSelector = .gym }
-                        }
+                        profileSelectionRow(
+                            title: "Primary gym",
+                            value: selectedGym?.name ?? "Choose a gym",
+                            symbol: "building.2.fill"
+                        ) { activeSelector = .gym }
                     }
                     Section("Privacy") {
                         audiencePicker("Profile", selection: $privacy.profileAudience)
@@ -319,10 +317,7 @@ struct EditProfileView: View {
                         audiencePicker("Division", selection: $privacy.divisionAudience)
                         audiencePicker("Bodyweight", selection: $privacy.bodyweightAudience)
                         audiencePicker("Location", selection: $privacy.locationAudience)
-                        if appState.features.gymFeeds {
-                            audiencePicker("Gym", selection: $privacy.gymAudience)
-                        }
-                        audiencePicker("Friend list", selection: $privacy.friendListAudience)
+                        audiencePicker("Gym", selection: $privacy.gymAudience)
                         Toggle("Hide lift videos", isOn: $draft.hideLiftVideos)
                         Text("Ratio and weight-class rankings may indirectly reveal bodyweight even when the bodyweight field is private.")
                             .font(.caption)
@@ -376,7 +371,7 @@ struct EditProfileView: View {
                             }
                         }
                     }
-                    .disabled((appState.features.gymFeeds && selectedGym == nil) || appState.accountOperationInProgress)
+                    .disabled(selectedGym == nil || appState.accountOperationInProgress)
                 }
             }
         }
@@ -789,6 +784,121 @@ private extension UIImage {
         format.opaque = false
         return UIGraphicsImageRenderer(size: outputSize, format: format).image { _ in
             draw(in: CGRect(origin: .zero, size: outputSize))
+        }
+    }
+}
+
+struct GymDetailView: View {
+    @EnvironmentObject private var appState: AppState
+    let gym: Gym
+    @State private var showingMembershipLimit = false
+
+    private var joined: Bool {
+        appState.isGymJoined(gym)
+    }
+
+    private var isPrimaryGym: Bool {
+        appState.isPrimaryGym(gym)
+    }
+
+    var body: some View {
+        AppBackground {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(gym.name)
+                        .font(.largeTitle.bold())
+                    Text("\(gym.city), \(gym.state)")
+                        .foregroundStyle(Color.liftMuted)
+                    PrimaryButton(
+                        title: isPrimaryGym ? "Primary Gym" : (joined ? "Leave Gym" : "Join Gym"),
+                        symbolName: isPrimaryGym ? "star.fill" : (joined ? "minus.circle" : "plus.circle")
+                    ) {
+                        if isPrimaryGym {
+                            Haptics.light()
+                        } else if joined {
+                            appState.leaveGym(gym)
+                        } else if !appState.joinGym(gym) {
+                            showingMembershipLimit = true
+                        }
+                    }
+                    .disabled(isPrimaryGym)
+                    if joined && !isPrimaryGym {
+                        Button {
+                            appState.setPrimaryGym(gym)
+                        } label: {
+                            Label("Make Primary Gym", systemImage: "star")
+                                .frame(maxWidth: .infinity)
+                                .frame(minHeight: 44)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(Color.liftBlue)
+                    }
+                    Text("You can belong to up to \(AppState.maximumJoinedGyms) gyms. Your primary gym counts toward this limit.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        MetricCard(title: "Members", value: "\(gym.memberCount)", subtitle: "Local lifters")
+                        MetricCard(title: "Verified lifts", value: "\(gym.verifiedLiftCount)", subtitle: "Approved submissions", tint: .liftGreen)
+                    }
+                    SectionHeader(title: "Top lifters")
+                    ForEach(appState.leaderboardEntries().prefix(5)) { entry in
+                        LeaderboardRow(entry: entry)
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Gym")
+            .navigationBarTitleDisplayMode(.inline)
+            .alert("Gym limit reached", isPresented: $showingMembershipLimit) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Leave one of your secondary gyms before joining another. Members can belong to a maximum of \(AppState.maximumJoinedGyms) gyms.")
+            }
+        }
+    }
+}
+
+struct RequestGymView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var city = ""
+    @State private var state = ""
+    @State private var note = ""
+
+    private var canSubmit: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !state.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        NavigationStack {
+            AppBackground {
+                Form {
+                    Section("Gym") {
+                        TextField("Gym name", text: $name)
+                        TextField("City", text: $city)
+                        TextField("State", text: $state)
+                        TextField("Why should this gym be added?", text: $note, axis: .vertical)
+                            .lineLimit(3...5)
+                    }
+                }
+                .scrollContentBackground(.hidden)
+            }
+            .navigationTitle("Request Gym")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Submit") {
+                        appState.requestGym(name: name, city: city, state: state, note: note)
+                        dismiss()
+                    }
+                    .disabled(!canSubmit)
+                }
+            }
         }
     }
 }

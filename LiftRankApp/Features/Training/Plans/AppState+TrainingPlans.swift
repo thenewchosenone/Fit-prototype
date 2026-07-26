@@ -8,17 +8,6 @@ extension AppState {
             .sorted { $0.setNumber < $1.setNumber }
     }
 
-    func previousSetLog(for prescription: WorkoutExercisePrescription, setNumber: Int) -> WorkoutSetLog? {
-        setLogs(for: prescription)
-            .filter { log in
-                !Calendar.current.isDateInToday(log.performedAt) &&
-                log.setNumber == setNumber &&
-                (log.weight != nil || log.reps != nil)
-            }
-            .sorted { $0.performedAt > $1.performedAt }
-            .first
-    }
-
     func completedPrescriptionCount(for session: WorkoutSession) -> Int {
         trainingProgressStore.completedPrescriptionCount(for: session)
     }

@@ -43,12 +43,7 @@ extension ProfileView {
                 Text("\(profile.hideBodyweight ? "Weight class hidden" : weightClassName) • \(displayedExperienceLevel.rawValue)")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
-                HStack(spacing: 12) {
-                    metric("Connections", "\(connectionCount)")
-                }
-                if !isCurrentUser {
-                    socialActions
-                } else {
+                if isCurrentUser {
                     HStack(spacing: 10) {
                         Button {
                             showingPhotoManager = true
@@ -100,39 +95,6 @@ extension ProfileView {
         let location = profile.hideCity ? nil : "\(profile.city), \(profile.state)"
         let value = [gym, location].compactMap { $0 }.joined(separator: " • ")
         return value.isEmpty ? "Gym and location hidden" : value
-    }
-
-    var socialActions: some View {
-        HStack(spacing: 10) {
-            Button {
-                handleFriendAction()
-            } label: {
-                Label(appState.friendActionTitle(for: profile), systemImage: friendActionSymbol)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(friendActionTint)
-            .disabled(isFriendActionDisabled)
-            .accessibilityHint(outgoingPendingFriendRequest == nil ? "" : "Double tap to cancel this friend request")
-
-            if appState.features.messaging {
-                Button {
-                    appState.openMessageThread(with: profile)
-                } label: {
-                    Label("Message", systemImage: "message.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .tint(Color.liftBlue)
-            }
-        }
-    }
-
-    var connectionCount: Int {
-        if isCurrentUser {
-            return appState.remoteFriendRelationships.filter { $0.status == .accepted }.count
-        }
-        return max(profile.followers, profile.following)
     }
 
     var summary: some View {
@@ -329,46 +291,6 @@ extension ProfileView {
 
     func unlocked(_ achievement: Achievement) -> Bool {
         appState.achievementUnlocks.contains { $0.title == achievement.title }
-    }
-
-    var friendActionSymbol: String {
-        switch appState.friendRequest(with: profile)?.status {
-        case .accepted:
-            return "person.crop.circle.badge.checkmark"
-        case .pending:
-            return appState.friendRequest(with: profile)?.fromUserID == appState.currentProfile.id ? "clock.fill" : "person.crop.circle.badge.plus"
-        case .declined, nil:
-            return "person.badge.plus"
-        }
-    }
-
-    var friendActionTint: Color {
-        guard let request = appState.friendRequest(with: profile) else { return Color.liftBlue }
-        if request.status == .accepted { return Color.liftGreen }
-        if request.status == .pending && request.toUserID == appState.currentProfile.id { return Color.liftBlue }
-        return Color.liftMuted
-    }
-
-    var isFriendActionDisabled: Bool {
-        guard let request = appState.friendRequest(with: profile) else { return false }
-        return request.status == .accepted
-    }
-
-    var outgoingPendingFriendRequest: FriendRequest? {
-        guard let request = appState.friendRequest(with: profile),
-              request.status == .pending,
-              request.fromUserID == appState.currentProfile.id else { return nil }
-        return request
-    }
-
-    func handleFriendAction() {
-        if outgoingPendingFriendRequest != nil {
-            showingCancelFriendRequest = true
-        } else if let request = appState.friendRequest(with: profile), request.status == .pending, request.toUserID == appState.currentProfile.id {
-            appState.acceptFriendRequest(request)
-        } else {
-            appState.sendFriendRequest(to: profile)
-        }
     }
 
     func metric(_ title: String, _ value: String) -> some View {

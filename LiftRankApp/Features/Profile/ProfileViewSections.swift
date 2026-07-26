@@ -32,9 +32,6 @@ extension ProfileView {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             Button("Edit Profile") { appState.showingEditProfile = true }
-                            if appState.isForumStaff {
-                                Button("Moderator Review") { appState.showingModeratorReview = true }
-                            }
                             Button("Settings") { appState.showingSettings = true }
                         } label: {
                             Image(systemName: "ellipsis.circle.fill")
@@ -54,20 +51,6 @@ extension ProfileView {
                         .accessibilityValue(appState.isBlocked(profile.id) ? "Blocked" : "Not blocked")
                     }
                 }
-            }
-            .confirmationDialog(
-                "Cancel friend request?",
-                isPresented: $showingCancelFriendRequest,
-                titleVisibility: .visible
-            ) {
-                if let request = outgoingPendingFriendRequest {
-                    Button("Cancel Request", role: .destructive) {
-                        appState.cancelFriendRequest(request)
-                    }
-                }
-                Button("Keep Request", role: .cancel) {}
-            } message: {
-                Text("\(profile.displayName) will no longer see your pending request. You can send another request later.")
             }
         }
     }

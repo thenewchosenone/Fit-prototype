@@ -13,8 +13,6 @@ final class DemoRepository: ObservableObject {
     @Published var lifts: [LiftSubmission]
     @Published var challenges: [Challenge]
     @Published var achievements: [Achievement]
-    @Published var activities: [ActivityItem]
-    @Published var activityComments: [ActivityComment]
     @Published var notifications: [NotificationItem]
     @Published var workoutPlans: [WorkoutPlan]
     @Published var workoutPhases: [WorkoutPhase]
@@ -35,57 +33,31 @@ final class DemoRepository: ObservableObject {
     @Published var deletedCompletedWorkoutIDs: Set<UUID>
     @Published var workoutPlanSyncRevisions: [UUID: Int]
     @Published var workoutPlanLastSyncedPayloads: [UUID: Data]
+    @Published var pendingRemoteWorkoutPlanDeletions: Set<UUID>
     @Published var workoutPreferences: WorkoutPreferences
     @Published var workoutPlanProgressionSettings: [WorkoutPlanProgressionSettings]
-    @Published var communityThreads: [CommunityThread]
-    @Published var communityThreadReplies: [CommunityThreadReply]
-    @Published var likedCommunityThreadIDs: Set<UUID>
-    @Published var communityReports: [CommunityReport]
     @Published var gymRequests: [GymRequest]
-    @Published var friendRequests: [FriendRequest]
-    @Published var messageThreads: [DirectMessageThread]
-    @Published var directMessages: [DirectMessage]
-    @Published var messageReports: [MessageReport]
-    @Published var forumCommunities: [ForumCommunity]
-    @Published var forumMemberships: [ForumMembership]
-    @Published var forumPosts: [ForumPost]
-    @Published var forumComments: [ForumComment]
-    @Published var forumJoinRequests: [ForumJoinRequest]
-    @Published var forumReports: [ForumReport]
-    @Published var forumModerationActions: [ForumModerationAction]
-    @Published var forumNotifications: [ForumNotification]
-    @Published var forumGlobalStaffUserIDs: Set<UUID>
     @Published var achievementUnlocks: [AchievementUnlock]
     @Published var rankingHistory: [RankingHistorySnapshot]
     private let workoutPersistenceStore: WorkoutPersistenceStore
-    private let forumPersistenceStore: ForumPersistenceStore
     private var persistenceCancellables = Set<AnyCancellable>()
-    private var forumPersistenceCancellables = Set<AnyCancellable>()
     private var isRestoringWorkoutSnapshot = false
-    private var isRestoringForumSnapshot = false
     private let seedDemoData: Bool
 
     init(
         workoutPersistenceStore: WorkoutPersistenceStore? = nil,
-        forumPersistenceStore: ForumPersistenceStore? = nil,
         seedDemoData: Bool = true
     ) {
         self.seedDemoData = seedDemoData
         self.workoutPersistenceStore = workoutPersistenceStore ?? InMemoryWorkoutPersistenceStore()
-        self.forumPersistenceStore = forumPersistenceStore ?? InMemoryForumPersistenceStore()
-        let seeded = MockData.community()
-        let social = MockData.social(profiles: seeded.profiles)
-        let seededThreads = MockData.communityThreads(for: MockData.challenges)
-        let seededForum = MockData.forumSeed(profiles: seeded.profiles, lifts: seeded.lifts, legacyThreads: seededThreads)
+        let seeded = MockData.seededCompetitionData()
         currentProfile = MockData.emptyProfile
         profiles = seedDemoData ? seeded.profiles : []
         gyms = []
         joinedGymIDs = []
         lifts = seedDemoData ? seeded.lifts : []
         challenges = seedDemoData ? MockData.challenges : []
-        achievements = seedDemoData ? MockData.achievements : []
-        activities = seedDemoData ? seeded.activities : []
-        activityComments = seedDemoData ? Self.seedActivityComments(for: seeded.activities, profiles: seeded.profiles) : []
+        achievements = MockData.achievements
         workoutPlans = seedDemoData ? MockData.workoutPlans : []
         workoutPhases = []
         workoutWeeks = []
@@ -105,51 +77,30 @@ final class DemoRepository: ObservableObject {
         deletedCompletedWorkoutIDs = []
         workoutPlanSyncRevisions = [:]
         workoutPlanLastSyncedPayloads = [:]
+        pendingRemoteWorkoutPlanDeletions = []
         workoutPreferences = WorkoutPreferences()
         workoutPlanProgressionSettings = []
-        communityThreads = seedDemoData ? seededThreads : []
-        communityThreadReplies = seedDemoData ? Self.seedThreadReplies(for: seededThreads, profiles: seeded.profiles) : []
-        likedCommunityThreadIDs = []
-        communityReports = []
         gymRequests = []
-        friendRequests = seedDemoData ? social.friendRequests : []
-        messageThreads = seedDemoData ? social.messageThreads : []
-        directMessages = seedDemoData ? social.messages : []
-        messageReports = []
-        forumCommunities = seedDemoData ? seededForum.communities : []
-        forumMemberships = seedDemoData ? seededForum.memberships : []
-        forumPosts = seedDemoData ? seededForum.posts : []
-        forumComments = seedDemoData ? seededForum.comments : []
-        forumJoinRequests = seedDemoData ? seededForum.joinRequests : []
-        forumReports = seedDemoData ? seededForum.reports : []
-        forumModerationActions = seedDemoData ? seededForum.moderationActions : []
-        forumNotifications = seedDemoData ? seededForum.notifications : []
-        forumGlobalStaffUserIDs = seedDemoData ? seededForum.globalStaffUserIDs : []
         achievementUnlocks = []
         rankingHistory = []
         notifications = []
         rebuildProgramBuilderDataFromEntries()
         restoreWorkoutSnapshotOrImportLegacy()
+        ensureDefaultWorkoutPlan()
         refreshAchievementUnlocks()
         bindWorkoutPersistence()
-        restoreForumSnapshot()
-        bindForumPersistence()
+        persistWorkoutSnapshot()
     }
 
     func reset() {
-        let seeded = MockData.community()
-        let social = MockData.social(profiles: seeded.profiles)
-        let seededThreads = MockData.communityThreads(for: MockData.challenges)
-        let seededForum = MockData.forumSeed(profiles: seeded.profiles, lifts: seeded.lifts, legacyThreads: seededThreads)
+        let seeded = MockData.seededCompetitionData()
         currentProfile = MockData.emptyProfile
         profiles = seedDemoData ? seeded.profiles : []
         gyms = []
         joinedGymIDs = []
         lifts = seedDemoData ? seeded.lifts : []
         challenges = seedDemoData ? MockData.challenges : []
-        achievements = seedDemoData ? MockData.achievements : []
-        activities = seedDemoData ? seeded.activities : []
-        activityComments = seedDemoData ? Self.seedActivityComments(for: seeded.activities, profiles: seeded.profiles) : []
+        achievements = MockData.achievements
         workoutPlans = seedDemoData ? MockData.workoutPlans : []
         workoutPhases = []
         workoutWeeks = []
@@ -169,36 +120,17 @@ final class DemoRepository: ObservableObject {
         deletedCompletedWorkoutIDs = []
         workoutPlanSyncRevisions = [:]
         workoutPlanLastSyncedPayloads = [:]
+        pendingRemoteWorkoutPlanDeletions = []
         workoutPreferences = WorkoutPreferences()
         workoutPlanProgressionSettings = []
-        communityThreads = seedDemoData ? seededThreads : []
-        communityThreadReplies = seedDemoData ? Self.seedThreadReplies(for: seededThreads, profiles: seeded.profiles) : []
-        likedCommunityThreadIDs = []
-        communityReports = []
         gymRequests = []
-        friendRequests = seedDemoData ? social.friendRequests : []
-        messageThreads = seedDemoData ? social.messageThreads : []
-        directMessages = seedDemoData ? social.messages : []
-        messageReports = []
-        forumCommunities = seedDemoData ? seededForum.communities : []
-        forumMemberships = seedDemoData ? seededForum.memberships : []
-        forumPosts = seedDemoData ? seededForum.posts : []
-        forumComments = seedDemoData ? seededForum.comments : []
-        forumJoinRequests = seedDemoData ? seededForum.joinRequests : []
-        forumReports = seedDemoData ? seededForum.reports : []
-        forumModerationActions = seedDemoData ? seededForum.moderationActions : []
-        forumNotifications = seedDemoData ? seededForum.notifications : []
-        forumGlobalStaffUserIDs = seedDemoData ? seededForum.globalStaffUserIDs : []
         achievementUnlocks = []
         rankingHistory = []
         rebuildProgramBuilderDataFromEntries()
         workoutPersistenceStore.reset()
-        ensurePersonalWorkoutPlan()
+        ensureDefaultWorkoutPlan()
         refreshAchievementUnlocks()
         persistWorkoutSnapshot()
-        forumPersistenceStore.reset()
-        removeForumMedia()
-        persistForumSnapshot()
     }
 
     func clearLocalUserData() {
@@ -208,8 +140,6 @@ final class DemoRepository: ObservableObject {
         joinedGymIDs.removeAll()
         lifts.removeAll()
         challenges.removeAll()
-        activities.removeAll()
-        activityComments.removeAll()
         notifications.removeAll()
         activeWorkout = nil
         completedWorkouts.removeAll()
@@ -218,6 +148,7 @@ final class DemoRepository: ObservableObject {
         deletedCompletedWorkoutIDs.removeAll()
         workoutPlanSyncRevisions.removeAll()
         workoutPlanLastSyncedPayloads.removeAll()
+        pendingRemoteWorkoutPlanDeletions.removeAll()
         workoutPlans.removeAll()
         workoutPhases.removeAll()
         workoutWeeks.removeAll()
@@ -227,31 +158,15 @@ final class DemoRepository: ObservableObject {
         workoutFeedback.removeAll()
         workoutEntries.removeAll()
         bodyweightEntries.removeAll()
+        strainEntries.removeAll()
+        injuryEntries.removeAll()
         workoutPlanProgressionSettings.removeAll()
         customTrainingExercises.removeAll()
-        communityThreads.removeAll()
-        communityThreadReplies.removeAll()
-        likedCommunityThreadIDs.removeAll()
-        communityReports.removeAll()
         gymRequests.removeAll()
-        friendRequests.removeAll()
-        forumPosts.removeAll()
-        forumComments.removeAll()
-        forumCommunities.removeAll()
-        forumMemberships.removeAll()
-        forumJoinRequests.removeAll()
-        forumReports.removeAll()
-        forumModerationActions.removeAll()
-        forumNotifications.removeAll()
-        forumGlobalStaffUserIDs.removeAll()
-        directMessages.removeAll()
-        messageThreads.removeAll()
-        messageReports.removeAll()
         achievementUnlocks.removeAll()
         rankingHistory.removeAll()
+        workoutPreferences = WorkoutPreferences()
         workoutPersistenceStore.reset()
-        forumPersistenceStore.reset()
-        removeForumMedia()
     }
 
     private func bindWorkoutPersistence() {
@@ -279,6 +194,7 @@ final class DemoRepository: ObservableObject {
             $deletedCompletedWorkoutIDs.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutPlanSyncRevisions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutPlanLastSyncedPayloads.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $pendingRemoteWorkoutPlanDeletions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutPreferences.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutPlanProgressionSettings.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $achievementUnlocks.dropFirst().map { _ in () }.eraseToAnyPublisher(),
@@ -297,6 +213,7 @@ final class DemoRepository: ObservableObject {
                 currentProfile: currentProfile,
                 profiles: profiles,
                 gyms: gyms,
+                gymRequests: gymRequests,
                 joinedGymIDs: joinedGymIDs,
                 plans: workoutPlans,
                 phases: workoutPhases,
@@ -320,7 +237,8 @@ final class DemoRepository: ObservableObject {
                 pendingCompletedWorkoutUploads: pendingCompletedWorkoutUploads,
                 deletedCompletedWorkoutIDs: deletedCompletedWorkoutIDs,
                 workoutPlanSyncRevisions: workoutPlanSyncRevisions,
-                workoutPlanLastSyncedPayloads: workoutPlanLastSyncedPayloads
+                workoutPlanLastSyncedPayloads: workoutPlanLastSyncedPayloads,
+                pendingRemoteWorkoutPlanDeletions: pendingRemoteWorkoutPlanDeletions
             )
         )
     }
@@ -340,6 +258,7 @@ final class DemoRepository: ObservableObject {
             if let restoredJoinedGymIDs = snapshot.joinedGymIDs {
                 joinedGymIDs = restoredJoinedGymIDs
             }
+            gymRequests = snapshot.gymRequests ?? []
             workoutPlans = snapshot.plans
             workoutPhases = snapshot.phases
             workoutWeeks = snapshot.weeks
@@ -350,8 +269,8 @@ final class DemoRepository: ObservableObject {
             customTrainingExercises = snapshot.customExercises
             workoutEntries = snapshot.legacyEntries
             bodyweightEntries = snapshot.bodyweightEntries
-            strainEntries = snapshot.strainEntries
-            injuryEntries = snapshot.injuryEntries
+            strainEntries = snapshot.strainEntries ?? []
+            injuryEntries = snapshot.injuryEntries ?? []
             activeWorkout = snapshot.activeWorkout
             completedWorkouts = snapshot.completedWorkouts
             pendingWorkoutPRSubmissions = snapshot.pendingPRSubmissions
@@ -359,6 +278,7 @@ final class DemoRepository: ObservableObject {
             deletedCompletedWorkoutIDs = snapshot.deletedCompletedWorkoutIDs ?? []
             workoutPlanSyncRevisions = snapshot.workoutPlanSyncRevisions ?? [:]
             workoutPlanLastSyncedPayloads = snapshot.workoutPlanLastSyncedPayloads ?? [:]
+            pendingRemoteWorkoutPlanDeletions = snapshot.pendingRemoteWorkoutPlanDeletions ?? []
             workoutPreferences = snapshot.preferences
             workoutPlanProgressionSettings = snapshot.planProgressionSettings ?? []
             achievementUnlocks = snapshot.achievementUnlocks ?? []
@@ -416,8 +336,78 @@ final class DemoRepository: ObservableObject {
         }
     }
 
-    private func ensurePersonalWorkoutPlan() {
-        return
+    private func ensureDefaultWorkoutPlan() {
+        guard seedDemoData, workoutPlans.isEmpty else { return }
+
+        let planID = MockData.defaultWorkoutPlanID
+        let phaseID = UUID()
+        let weekID = UUID()
+        let sessionID = UUID()
+        let prescriptionID = UUID()
+        let plan = WorkoutPlan(
+            id: planID,
+            name: "Strength Foundations",
+            createdAt: .now,
+            goal: "Build strength and muscle."
+        )
+        let phase = WorkoutPhase(
+            id: phaseID,
+            planID: planID,
+            name: "Base Phase",
+            order: 0,
+            goal: "Build strength and muscle.",
+            durationWeeks: 1
+        )
+        let week = WorkoutWeek(
+            id: weekID,
+            planID: planID,
+            phaseID: phaseID,
+            weekNumber: 1,
+            title: "Week 1",
+            notes: ""
+        )
+        let session = WorkoutSession(
+            id: sessionID,
+            weekID: weekID,
+            day: "Monday",
+            name: "Strength Session",
+            order: 0,
+            notes: ""
+        )
+        let exercise = MockData.trainingExerciseLibrary.first {
+            $0.id == "barbell_bench_press"
+        } ?? MockData.trainingExerciseLibrary[0]
+        let prescription = WorkoutExercisePrescription(
+            id: prescriptionID,
+            sessionID: sessionID,
+            exerciseID: exercise.id,
+            exerciseName: exercise.name,
+            bodyPart: exercise.bodyPart,
+            equipment: exercise.equipment,
+            sets: 3,
+            reps: "6-8",
+            restSeconds: 120,
+            order: 0,
+            notes: "",
+            muscleProfile: exercise.resolvedMuscleProfile
+        )
+        workoutPlans = [plan]
+        workoutPhases = [phase]
+        workoutWeeks = [week]
+        workoutSessions = [session]
+        workoutPrescriptions = [prescription]
+        workoutSetLogs = [WorkoutSetLog(
+            id: UUID(),
+            prescriptionID: prescriptionID,
+            performedAt: Calendar.current.date(byAdding: .day, value: -1, to: .now) ?? .now,
+            setNumber: 1,
+            weight: 135,
+            reps: 8,
+            rpe: 7,
+            isWarmup: false,
+            isComplete: true,
+            recordedUnit: .pounds
+        )]
     }
 
     /// Populates the private demo routine with a realistic, deterministic
@@ -466,325 +456,6 @@ final class DemoRepository: ObservableObject {
         refreshAchievementUnlocks()
         persistWorkoutSnapshot()
         return demoWorkouts.count
-    }
-
-    private func seedPersonalDemoBodyweight(firstMonday: Date, marker: String, calendar: Calendar) {
-        guard !bodyweightEntries.contains(where: { $0.notes.contains(marker) }) else { return }
-        let startingWeight = currentProfile.bodyweightPounds + 2.4
-        let entries = (0..<12).compactMap { index -> BodyweightEntry? in
-            guard let date = calendar.date(byAdding: .weekOfYear, value: index, to: firstMonday) else { return nil }
-            let naturalVariation = Double((index % 3) - 1) * 0.25
-            return BodyweightEntry(
-                id: UUID(),
-                week: bodyweightEntries.count + index + 1,
-                targetDate: date,
-                actual: startingWeight - (Double(index) * 0.42) + naturalVariation,
-                notes: "\(marker) Weekly check-in"
-            )
-        }
-        bodyweightEntries.append(contentsOf: entries)
-    }
-
-    private func personalDemoDayOffset(_ day: String) -> Int {
-        ["Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3, "Friday": 4, "Saturday": 5, "Sunday": 6][day] ?? 0
-    }
-
-    private func personalDemoRepRange(_ value: String) -> ClosedRange<Int> {
-        let numbers = value
-            .components(separatedBy: CharacterSet.decimalDigits.inverted)
-            .compactMap { Int($0) }
-        let lower = max(1, numbers.first ?? 8)
-        let upper = max(lower, numbers.dropFirst().first ?? lower)
-        return lower...upper
-    }
-
-    private func personalDemoWeight(
-        for exercise: WorkoutExercisePrescription,
-        week: Int,
-        exerciseIndex: Int
-    ) -> Double? {
-        let name = exercise.exerciseName.lowercased()
-        let bodyPart = exercise.bodyPart.lowercased()
-        let equipment = exercise.equipment.lowercased()
-        if equipment.contains("bodyweight") { return nil }
-
-        let base: Double
-        if name.contains("leg press") { base = 270 }
-        else if name.contains("squat") || name.contains("lunge") { base = equipment.contains("dumbbell") ? 35 : 155 }
-        else if name.contains("deadlift") || name.contains("rdl") { base = 165 }
-        else if name.contains("bench press") || name.contains("incline barbell") { base = 115 }
-        else if name.contains("row") { base = equipment.contains("barbell") ? 105 : 90 }
-        else if name.contains("pulldown") { base = 95 }
-        else if name.contains("shrug") || name.contains("calf") { base = 105 }
-        else if name.contains("chest press") || name.contains("shoulder press") { base = equipment.contains("dumbbell") ? 40 : 85 }
-        else if bodyPart.contains("hamstring") || bodyPart.contains("quad") || bodyPart.contains("glute") { base = 75 }
-        else if bodyPart.contains("chest") || bodyPart.contains("back") || bodyPart.contains("lat") { base = 55 }
-        else if bodyPart.contains("shoulder") || bodyPart.contains("delt") { base = 15 }
-        else if bodyPart.contains("bicep") || bodyPart.contains("tricep") { base = 30 }
-        else { base = 50 }
-
-        let progression = 1 + Double(week - 1) * 0.022
-        let sessionVariation = Double((exerciseIndex % 3) - 1) * (base < 40 ? 1.25 : 2.5)
-        return max(2.5, (base * progression) + sessionVariation)
-    }
-
-    private func personalDemoRoundedWeight(_ value: Double) -> Double {
-        let increment = value < 40 ? 2.5 : 5.0
-        return (value / increment).rounded() * increment
-    }
-
-    private func bindForumPersistence() {
-        let publishers: [AnyPublisher<Void, Never>] = [
-            $forumCommunities.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $forumMemberships.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $forumPosts.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $forumComments.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $forumJoinRequests.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $forumReports.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $forumModerationActions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $forumNotifications.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $forumGlobalStaffUserIDs.dropFirst().map { _ in () }.eraseToAnyPublisher()
-        ]
-
-        Publishers.MergeMany(publishers)
-            .sink { [weak self] in self?.persistForumSnapshot() }
-            .store(in: &forumPersistenceCancellables)
-    }
-
-    func persistForumSnapshot() {
-        guard !isRestoringForumSnapshot else { return }
-        forumPersistenceStore.saveSnapshot(
-            ForumPersistenceSnapshot(
-                schemaVersion: ForumPersistenceSnapshot.currentVersion,
-                communities: forumCommunities,
-                memberships: forumMemberships,
-                posts: forumPosts,
-                comments: forumComments,
-                joinRequests: forumJoinRequests,
-                reports: forumReports,
-                moderationActions: forumModerationActions,
-                notifications: forumNotifications,
-                globalStaffUserIDs: forumGlobalStaffUserIDs
-            )
-        )
-    }
-
-    private func restoreForumSnapshot() {
-        guard let snapshot = forumPersistenceStore.loadSnapshot(),
-              snapshot.schemaVersion <= ForumPersistenceSnapshot.currentVersion,
-              !snapshot.communities.isEmpty else {
-            persistForumSnapshot()
-            return
-        }
-
-        isRestoringForumSnapshot = true
-        forumCommunities = snapshot.communities
-        forumMemberships = snapshot.memberships
-        forumPosts = snapshot.posts
-        forumComments = snapshot.comments
-        forumJoinRequests = snapshot.joinRequests
-        forumReports = snapshot.reports
-        forumModerationActions = snapshot.moderationActions
-        forumNotifications = snapshot.notifications
-        forumGlobalStaffUserIDs = snapshot.globalStaffUserIDs
-        isRestoringForumSnapshot = false
-    }
-
-    static var forumMediaDirectory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        return base.appendingPathComponent("LiftRank/ForumMedia", isDirectory: true)
-    }
-
-    func persistForumMedia(_ data: Data, fileExtension: String) throws -> URL {
-        let directory = Self.forumMediaDirectory
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let safeExtension = fileExtension.lowercased().filter { $0.isLetter || $0.isNumber }
-        let fileURL = directory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension(safeExtension.isEmpty ? "bin" : safeExtension)
-        try data.write(to: fileURL, options: .atomic)
-        return fileURL
-    }
-
-    func removeForumMedia(at localURL: URL) {
-        guard localURL.path.hasPrefix(Self.forumMediaDirectory.path) else { return }
-        try? FileManager.default.removeItem(at: localURL)
-    }
-
-    private func removeForumMedia() {
-        try? FileManager.default.removeItem(at: Self.forumMediaDirectory)
-    }
-
-    private func importedCompletedWorkouts(
-        legacyRecords: [LegacyWorkoutRecordValue],
-        legacyEntries: [WorkoutExerciseEntry]
-    ) -> [CompletedWorkout] {
-        struct ImportRow {
-            var id: UUID
-            var exercise: String
-            var workout: String
-            var bodyPart: String
-            var weight: Double
-            var reps: Int
-            var rpe: Int?
-            var performedAt: Date
-        }
-
-        var rows = legacyRecords.map {
-            ImportRow(
-                id: $0.id,
-                exercise: $0.exercise,
-                workout: $0.workout,
-                bodyPart: "Strength",
-                weight: $0.weight,
-                reps: $0.reps,
-                rpe: $0.rpe,
-                performedAt: $0.performedAt
-            )
-        }
-        rows += legacyEntries.filter(\.isDone).flatMap { entry in
-            entry.sets.compactMap { set in
-                guard let weight = set.weight, let reps = set.reps else { return nil }
-                return ImportRow(
-                    id: set.id,
-                    exercise: entry.exercise,
-                    workout: entry.workout,
-                    bodyPart: entry.muscleGroup,
-                    weight: weight,
-                    reps: reps,
-                    rpe: set.rpe,
-                    performedAt: entry.date
-                )
-            }
-        }
-
-        let calendar = Calendar.current
-        let grouped = Dictionary(grouping: rows) { row in
-            "\(calendar.startOfDay(for: row.performedAt).timeIntervalSince1970)|\(row.workout)"
-        }
-
-        return grouped.values.compactMap { group in
-            guard let first = group.min(by: { $0.performedAt < $1.performedAt }) else { return nil }
-            let workoutID = UUID()
-            let exerciseGroups = Dictionary(grouping: group, by: \.exercise)
-            let snapshots = exerciseGroups.keys.sorted().enumerated().map { order, exerciseName in
-                let sample = exerciseGroups[exerciseName]?.first
-                let catalog = (MockData.trainingExerciseLibrary + customTrainingExercises).first {
-                    $0.name.caseInsensitiveCompare(exerciseName) == .orderedSame
-                }
-                return WorkoutExerciseSnapshot(
-                    id: UUID(),
-                    sourcePrescriptionID: nil,
-                    exerciseID: catalog?.id ?? exerciseName.lowercased().replacingOccurrences(of: " ", with: "_"),
-                    exerciseName: exerciseName,
-                    bodyPart: catalog?.bodyPart ?? sample?.bodyPart ?? "Strength",
-                    equipment: catalog?.equipment ?? "Weights",
-                    targetSets: exerciseGroups[exerciseName]?.count ?? 1,
-                    targetReps: "Recorded",
-                    restSeconds: catalog?.defaultRestSeconds ?? 120,
-                    order: order,
-                    notes: "Imported workout",
-                    rankingExerciseID: catalog?.rankingExerciseID
-                )
-            }
-            let snapshotByName = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.exerciseName, $0) })
-            let setNumberByExercise = Dictionary(grouping: group.sorted { $0.performedAt < $1.performedAt }, by: \.exercise)
-            let logs = group.map { row -> WorkoutSetLog in
-                let number = (setNumberByExercise[row.exercise]?.firstIndex(where: { $0.id == row.id }) ?? 0) + 1
-                return WorkoutSetLog(
-                    id: row.id,
-                    prescriptionID: snapshotByName[row.exercise]?.id ?? UUID(),
-                    performedAt: row.performedAt,
-                    setNumber: number,
-                    weight: row.weight,
-                    reps: row.reps,
-                    rpe: row.rpe,
-                    isWarmup: false,
-                    isComplete: true,
-                    workoutID: workoutID,
-                    recordedUnit: .pounds
-                )
-            }
-            let start = first.performedAt
-            let end = group.map(\.performedAt).max() ?? start
-            return CompletedWorkout(
-                id: workoutID,
-                source: .legacyImport,
-                sourceSessionID: nil,
-                sourcePlanID: nil,
-                name: first.workout,
-                dayLabel: start.formatted(.dateTime.weekday(.wide)),
-                startedAt: start,
-                completedAt: end,
-                duration: max(0, end.timeIntervalSince(start)),
-                effort: 3,
-                notes: "Imported from previous workout history.",
-                gymID: nil,
-                bodyweight: nil,
-                unit: .pounds,
-                exercises: snapshots,
-                sets: logs,
-                linkedSubmissionIDs: []
-            )
-        }
-        .sorted { $0.completedAt > $1.completedAt }
-    }
-
-    private static func seedActivityComments(for activities: [ActivityItem], profiles: [UserProfile]) -> [ActivityComment] {
-        guard !activities.isEmpty else { return [] }
-        let commenters = Array(profiles.dropFirst().prefix(5))
-        guard !commenters.isEmpty else { return [] }
-        let commentTemplates = [
-            "Clean rep. What was your warmup progression?",
-            "That moved fast for a max attempt.",
-            "Strong lift. Depth and control looked solid.",
-            "Nice work. Are you running this as part of a plan?",
-            "That estimated max is climbing quick."
-        ]
-
-        return Array(activities.prefix(6)).enumerated().flatMap { activityIndex, activity in
-            let count = activityIndex % 2 == 0 ? 2 : 1
-            return (0..<count).map { offset in
-                let commenter = commenters[(activityIndex + offset) % commenters.count]
-                return ActivityComment(
-                    id: UUID(),
-                    activityID: activity.id,
-                    authorID: commenter.id,
-                    authorName: commenter.displayName,
-                    body: commentTemplates[(activityIndex + offset) % commentTemplates.count],
-                    createdAt: activity.createdAt.addingTimeInterval(TimeInterval((offset + 1) * 900))
-                )
-            }
-        }
-    }
-
-    private static func seedThreadReplies(for threads: [CommunityThread], profiles: [UserProfile]) -> [CommunityThreadReply] {
-        guard !threads.isEmpty else { return [] }
-        let commenters = Array(profiles.dropFirst().prefix(6))
-        guard !commenters.isEmpty else { return [] }
-        let replyTemplates = [
-            "Side angle plus the full lockout has worked best for me.",
-            "I usually film from hip height so the plates and bar path are clear.",
-            "I am training tonight around 7 if anyone wants to run deadlifts.",
-            "Good thread. Would be useful to pin examples that got approved.",
-            "For lift checks, I try to show the setup and the full rep."
-        ]
-
-        return threads.enumerated().flatMap { threadIndex, thread in
-            let count = min(max(thread.replyCount, 1), 3)
-            return (0..<count).map { offset in
-                let commenter = commenters[(threadIndex + offset) % commenters.count]
-                return CommunityThreadReply(
-                    id: UUID(),
-                    threadID: thread.id,
-                    authorID: commenter.id,
-                    authorName: commenter.displayName,
-                    body: replyTemplates[(threadIndex + offset) % replyTemplates.count],
-                    createdAt: thread.createdAt.addingTimeInterval(TimeInterval((offset + 1) * 1_200))
-                )
-            }
-        }
     }
 
 }

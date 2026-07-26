@@ -5,20 +5,19 @@ import Foundation
 final class NotificationStore: ObservableObject {
     private let repository: any NotificationRepository
     private let deviceID: String
-    private let features: FeatureAvailability
     private var notificationService: (any NotificationService)?
     private var cancellable: AnyCancellable?
+    private var cachedUserID: UUID
 
     init(
         repository: any NotificationRepository,
         notificationService: (any NotificationService)? = nil,
-        features: FeatureAvailability = .resolved(for: nil),
         deviceID: String? = nil
     ) {
         self.repository = repository
         self.notificationService = notificationService
-        self.features = features
         self.deviceID = deviceID ?? Self.persistedDeviceID()
+        self.cachedUserID = repository.currentProfile.id
         cancellable = repository.notificationChanges.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
@@ -29,13 +28,24 @@ final class NotificationStore: ObservableObject {
     }
 
     func refreshProductionData() async {
-        clear()
+        let userID = repository.currentProfile.id
+        resetAccountScopedCacheIfNeeded()
         guard let notificationService else { return }
-        replaceNotifications((try? await notificationService.notifications()) ?? [])
+        guard let notifications = try? await notificationService.notifications() else {
+            if repository.currentProfile.id != userID {
+                resetAccountScopedCacheIfNeeded()
+            }
+            return
+        }
+        guard repository.currentProfile.id == userID else {
+            resetAccountScopedCacheIfNeeded()
+            return
+        }
+        replaceNotifications(notifications)
     }
 
     func registerPushToken(_ token: String, userID: UUID, environment: String) async {
-        guard !token.isEmpty, let notificationService else { return }
+        guard !token.isEmpty, repository.currentProfile.id == userID, let notificationService else { return }
         let registration = PushDeviceRegistration(
             id: UUID(),
             userID: userID,
@@ -61,16 +71,34 @@ final class NotificationStore: ObservableObject {
 
     func clear() {
         repository.notifications = []
+        cachedUserID = repository.currentProfile.id
     }
 
     func markRead(_ notificationID: UUID) {
+        resetAccountScopedCacheIfNeeded()
         guard let index = repository.notifications.firstIndex(where: { $0.id == notificationID }) else { return }
         repository.notifications[index].isRead = true
+        guard let notificationService else { return }
+        let userID = repository.currentProfile.id
+        Task {
+            guard repository.currentProfile.id == userID else { return }
+            try? await notificationService.markRead(notificationID: notificationID)
+        }
     }
 
     func markAllRead() {
+        resetAccountScopedCacheIfNeeded()
         for index in repository.notifications.indices {
             repository.notifications[index].isRead = true
+        }
+        guard let notificationService else { return }
+        let notificationIDs = repository.notifications.map(\.id)
+        let userID = repository.currentProfile.id
+        Task {
+            for notificationID in notificationIDs {
+                guard repository.currentProfile.id == userID else { return }
+                try? await notificationService.markRead(notificationID: notificationID)
+            }
         }
     }
 
@@ -86,42 +114,29 @@ final class NotificationStore: ObservableObject {
             filters.rankingType = destination.rankingType ?? .absolute
             filters.gymID = destination.gymID ?? fallbackGymID
             return .leaderboard(filters)
-        case .lift, .profile:
+        case .lift:
+            return .profile(repository.currentProfile.id)
+        case .profile:
             return .profile(destination.targetID)
-        case .messageThread:
-            return .messageThread(destination.targetID)
-        case .friendRequests:
-            return .friendRequests
         case .gym:
             return .gym(destination.gymID ?? destination.targetID)
         case .workoutTracker:
             return .tracker(destination.trackerStartsOnProgress ? .progress : .today)
-        case .workoutShare:
-            return destination.targetID.map(NotificationRoute.workoutShare) ?? .home
-        case .communityThread:
-            guard let targetID = destination.targetID else { return .communityHome }
-            if repository.forumPosts.contains(where: { $0.id == targetID }) {
-                return .forumPost(targetID)
-            }
-            if repository.communityThreads.contains(where: { $0.id == targetID }) {
-                return .communityThread(targetID)
-            }
-            return .communityHome
-        case .forumCommunity:
-            return destination.targetID.map(NotificationRoute.forumCommunity) ?? .communityHome
-        case .forumPost:
-            return destination.targetID.map(NotificationRoute.forumPost) ?? .communityHome
         }
     }
 
     private func isEnabled(_ notification: NotificationItem) -> Bool {
         switch notification.destination.kind {
-        case .messageThread: return features.messaging
-        case .communityThread, .forumCommunity, .forumPost: return features.forums
-        case .gym: return features.gymFeeds
-        case .workoutShare: return features.connectionActivity
+        case .gym:
+            return true
         default: return true
         }
+    }
+
+    private func resetAccountScopedCacheIfNeeded() {
+        guard cachedUserID != repository.currentProfile.id else { return }
+        cachedUserID = repository.currentProfile.id
+        repository.notifications = []
     }
 
     private static func persistedDeviceID() -> String {

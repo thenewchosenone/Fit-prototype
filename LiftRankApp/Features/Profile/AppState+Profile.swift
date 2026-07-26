@@ -27,6 +27,7 @@ extension AppState {
         guard beginAccountMutation() else { return false }
         defer { endAccountMutation() }
 
+        let editingUserID = currentProfile.id
         var updatedProfile = profile
         if let primaryGym {
             updatedProfile.primaryGymID = primaryGym.id
@@ -36,15 +37,17 @@ extension AppState {
         updatedProfile.experienceLevel = earnedExperienceLevel
 
         do {
-            if features.gymFeeds, let primaryGym, isAuthenticated && !isDemoMode {
+            guard currentProfile.id == editingUserID else { throw LiftRankServiceError.sessionExpired }
+            if let primaryGym, isAuthenticated && !isDemoMode {
                 guard try await accountSocialStore.ensureGymJoined(
                     primaryGym,
                     maximumMemberships: Self.maximumJoinedGyms,
                     authenticated: true
                 ) else { throw LiftRankServiceError.gymLimitReached }
+                guard currentProfile.id == editingUserID else { throw LiftRankServiceError.sessionExpired }
                 try await accountSocialStore.setPrimaryGym(primaryGym, authenticated: true)
-            } else if features.gymFeeds,
-                        let primaryGym,
+                guard currentProfile.id == editingUserID else { throw LiftRankServiceError.sessionExpired }
+            } else if let primaryGym,
                         !profileStore.isGymJoined(primaryGym.id) &&
                         !profileStore.joinGym(primaryGym, maximumMemberships: Self.maximumJoinedGyms) {
                 throw LiftRankServiceError.gymLimitReached
@@ -56,12 +59,14 @@ extension AppState {
                 )
             }
 
+            guard currentProfile.id == editingUserID else { throw LiftRankServiceError.sessionExpired }
             _ = try await profileStore.saveEditedProfile(
                 updatedProfile,
                 primaryGym: primaryGym,
                 privacy: privacy,
                 authenticated: isAuthenticated && !isDemoMode
             )
+            guard currentProfile.id == editingUserID else { throw LiftRankServiceError.sessionExpired }
             setAuthenticatedPrivacy(privacy)
             if isAuthenticated && !isDemoMode {
                 await refreshRemoteSocialState()

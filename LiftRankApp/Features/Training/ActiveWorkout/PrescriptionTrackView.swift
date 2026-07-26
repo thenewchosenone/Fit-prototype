@@ -4,6 +4,7 @@ struct PrescriptionTrackView: View {
     @EnvironmentObject private var appState: AppState
     let exercise: WorkoutExerciseSnapshot
     @State private var restEndsAt: Date?
+    @State private var showingExerciseInfo = false
     @FocusState private var focusedInput: WorkoutSetInputFocus?
 
     var body: some View {
@@ -16,45 +17,55 @@ struct PrescriptionTrackView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 10) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(spacing: 12) {
-                                ExerciseCatalogIcon(exercise: catalogExercise)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(exercise.exerciseName)
-                                        .font(.title3.weight(.black))
-                                    Text("Target: \(exercise.targetSets) × \(exercise.targetReps)")
-                                        .font(.caption)
-                                        .foregroundStyle(Color.liftMuted)
+                            let logs = activeLogs
+                            let completedLogs = completedLogs(in: logs)
+                            let previousLogs = previousLogsBySetNumber(for: logs)
+                            let progress = appState.activeWorkoutExerciseProgress(for: exercise)
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack(spacing: 12) {
+                                    ExerciseCatalogIcon(exercise: catalogExercise)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(exercise.exerciseName)
+                                            .font(.title3.weight(.black))
+                                        Text("Target: \(progress.plannedWorkingSets) × \(exercise.targetReps)")
+                                            .font(.caption)
+                                            .foregroundStyle(Color.liftMuted)
+                                    }
+                                    Spacer()
+                                    Text("\(progress.completedWorkingSets)/\(progress.plannedWorkingSets)")
+                                        .font(.headline.weight(.black).monospacedDigit())
+                                        .foregroundStyle(progress.isComplete ? Color.liftGreen : Color.liftBlue)
                                 }
-                                Spacer()
-                                Text("\(completedLogs.count)/\(exercise.targetSets)")
-                                    .font(.headline.weight(.black).monospacedDigit())
-                                    .foregroundStyle(completedLogs.count >= exercise.targetSets ? Color.liftGreen : Color.liftBlue)
-                            }
 
-                            HStack(spacing: 8) {
-                                compactExerciseMetric("\(exercise.restSeconds)s", "timer")
-                                compactExerciseMetric("\(Int(completedVolume)) \(appState.activeWorkout?.unit.shortLabel ?? "lb")", "scalemass")
-                                if let previous = mostRecentCompletedLog {
-                                    compactExerciseMetric("Last \(previous.reps ?? 0) × \(RankingCalculator.format(previous.weight ?? 0))", "clock.arrow.circlepath")
+                                HStack(spacing: 8) {
+                                    compactExerciseMetric("\(exercise.restSeconds)s", "timer")
+                                    compactExerciseMetric("\(Int(completedVolume(in: completedLogs))) \(appState.activeWorkout?.unit.shortLabel ?? "lb")", "scalemass")
+                                    if let previous = previousLogs[1] {
+                                        compactExerciseMetric("Last \(previous.reps ?? 0) × \(RankingCalculator.format(previous.weight ?? 0))", "clock.arrow.circlepath")
+                                    }
                                 }
                             }
-                        }
-                        .padding(14)
-                        .background(Color.liftCard)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(Color.white.opacity(0.07), lineWidth: 1)
-                        }
+                            .padding(14)
+                            .background(Color.liftCard)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                            }
+                            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .onTapGesture {
+                                showingExerciseInfo = true
+                            }
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityHint("Shows exercise information")
 
-                        setColumnHeader
+                            setColumnHeader
 
-                            ForEach(activeLogs) { log in
+                            ForEach(logs) { log in
                                 WorkoutSetLogRow(
                                     log: log,
                                     trackingKind: trackingKind,
-                                    previousLog: appState.previousSetLog(for: exercise, setNumber: log.setNumber),
+                                    previousLog: previousLogs[log.setNumber],
                                     focusedInput: $focusedInput
                                 ) {
                                     startRestTimer()
@@ -102,6 +113,11 @@ struct PrescriptionTrackView: View {
         }
         .navigationTitle("Track exercise")
         .navigationBarTitleDisplayMode(.inline)
+        .alert(catalogExercise.name, isPresented: $showingExerciseInfo) {
+            Button("Done", role: .cancel) {}
+        } message: {
+            Text(exerciseDescription(for: catalogExercise))
+        }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
@@ -138,18 +154,30 @@ struct PrescriptionTrackView: View {
         Haptics.light()
     }
 
-    private var completedLogs: [WorkoutSetLog] {
-        appState.setLogs(for: exercise).filter(\.isComplete)
+    private func completedLogs(in logs: [WorkoutSetLog]) -> [WorkoutSetLog] {
+        logs.filter(\.isComplete)
     }
 
-    private var completedVolume: Double {
-        completedLogs.reduce(0) { total, log in
+    private func completedVolume(in logs: [WorkoutSetLog]) -> Double {
+        logs.reduce(0) { total, log in
             total + setVolume(log)
         }
     }
 
-    private var mostRecentCompletedLog: WorkoutSetLog? {
-        appState.previousSetLog(for: exercise, setNumber: 1)
+    private func previousLogsBySetNumber(for logs: [WorkoutSetLog]) -> [Int: WorkoutSetLog] {
+        let neededSetNumbers = Set(logs.map(\.setNumber))
+        guard !neededSetNumbers.isEmpty else { return [:] }
+
+        var lookup: [Int: WorkoutSetLog] = [:]
+        for workout in appState.completedWorkouts.sorted(by: { $0.completedAt > $1.completedAt }) {
+            guard let previousExercise = workout.exercises.first(where: { $0.exerciseID == exercise.exerciseID }) else { continue }
+            for log in workout.sets where log.prescriptionID == previousExercise.id && log.isComplete {
+                guard neededSetNumbers.contains(log.setNumber) else { continue }
+                lookup[log.setNumber] = lookup[log.setNumber] ?? log
+            }
+            if neededSetNumbers.isSubset(of: Set(lookup.keys)) { break }
+        }
+        return lookup
     }
 
     private var catalogExercise: TrainingExerciseCatalogItem {
@@ -182,6 +210,18 @@ struct PrescriptionTrackView: View {
             .clipShape(Capsule())
     }
 
+    private func exerciseDescription(for exercise: TrainingExerciseCatalogItem) -> String {
+        guard let guidance = exercise.guidance else {
+            return "\(exercise.bodyPart) exercise using \(exercise.equipment)."
+        }
+
+        if guidance.cues.isEmpty {
+            return guidance.summary
+        }
+
+        return "\(guidance.summary)\n\nCues: \(guidance.cues.joined(separator: " • "))"
+    }
+
     private var setColumnHeader: some View {
         HStack(spacing: 8) {
             Text("SET").frame(width: 34)
@@ -204,9 +244,9 @@ struct PrescriptionTrackView: View {
 
     private func setVolume(_ log: WorkoutSetLog) -> Double {
         switch trackingKind {
-        case .weightReps, .weightTime:
-            return (log.weight ?? 0) * Double(log.reps ?? 0)
-        case .bodyweightReps, .assistedBodyweight, .repsOnly, .time:
+        case .weightReps:
+            return log.volume(in: appState.activeWorkout?.unit ?? log.recordedUnit)
+        case .bodyweightReps, .assistedBodyweight, .repsOnly, .time, .weightTime:
             return 0
         }
     }
@@ -217,7 +257,7 @@ struct PrescriptionTrackView: View {
             HStack(spacing: 12) {
                 Image(systemName: "timer")
                     .font(.headline.weight(.bold))
-                    .foregroundStyle(Color.liftBackground)
+                    .foregroundStyle(Color.liftOnAccent)
                     .frame(width: 40, height: 40)
                     .background(Color.liftBlue)
                     .clipShape(Circle())

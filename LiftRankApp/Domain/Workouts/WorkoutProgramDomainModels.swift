@@ -151,6 +151,7 @@ struct WorkoutExerciseSnapshot: Identifiable, Codable, Hashable {
     var substitutedFromExerciseID: String? = nil
     var substitutedFromExerciseName: String? = nil
     var demonstrationMediaID: String? = nil
+    var trackingType: String? = nil
 }
 
 struct ActiveWorkoutState: Identifiable, Codable, Hashable {
@@ -204,6 +205,11 @@ struct WorkoutSetLog: Identifiable, Codable, Hashable {
         guard isComplete else { return 0 }
         return (weight ?? 0) * Double(reps ?? 0)
     }
+
+    func volume(in unit: UnitSystem) -> Double {
+        guard isComplete, let weight, let reps else { return 0 }
+        return MeasurementFormatting.convert(weight, from: recordedUnit, to: unit) * Double(reps)
+    }
 }
 
 struct CompletedWorkout: Identifiable, Codable, Hashable {
@@ -232,16 +238,15 @@ struct CompletedWorkout: Identifiable, Codable, Hashable {
     var totalVolume: Double {
         completedWorkingSets.reduce(0) { total, set in
             guard trackingKind(for: set) == .weightReps else { return total }
-            return total + set.volume
+            return total + set.volume(in: unit)
         }
     }
 
     private func trackingKind(for set: WorkoutSetLog) -> ExerciseTrackingKind {
-        guard let exercise = exercises.first(where: { $0.id == set.prescriptionID }),
-              let catalog = MockData.trainingExerciseLibrary.first(where: { $0.id == exercise.exerciseID }) else {
-            return .weightReps
-        }
-        return ExerciseTrackingKind(catalog.trackingType)
+        guard let exercise = exercises.first(where: { $0.id == set.prescriptionID }) else { return .weightReps }
+        let rawTrackingType = exercise.trackingType ??
+            MockData.trainingExerciseLibrary.first(where: { $0.id == exercise.exerciseID })?.trackingType
+        return ExerciseTrackingKind(rawTrackingType ?? "Weight + Reps")
     }
 }
 
@@ -322,12 +327,13 @@ struct WorkoutPreferences: Codable, Hashable {
 }
 
 struct WorkoutPersistenceSnapshot: Codable, Hashable {
-    static let currentVersion = 8
+    static let currentVersion = 9
 
     var schemaVersion: Int
     var currentProfile: UserProfile? = nil
     var profiles: [UserProfile]? = nil
     var gyms: [Gym]? = nil
+    var gymRequests: [GymRequest]? = nil
     var joinedGymIDs: Set<UUID>? = nil
     var plans: [WorkoutPlan]
     var phases: [WorkoutPhase]
@@ -339,8 +345,8 @@ struct WorkoutPersistenceSnapshot: Codable, Hashable {
     var customExercises: [TrainingExerciseCatalogItem]
     var legacyEntries: [WorkoutExerciseEntry]
     var bodyweightEntries: [BodyweightEntry]
-    var strainEntries: [StrainEntry] = []
-    var injuryEntries: [InjuryEntry] = []
+    var strainEntries: [StrainEntry]? = nil
+    var injuryEntries: [InjuryEntry]? = nil
     var activeWorkout: ActiveWorkoutState?
     var completedWorkouts: [CompletedWorkout]
     var pendingPRSubmissions: [PendingWorkoutPRSubmission]
@@ -352,4 +358,5 @@ struct WorkoutPersistenceSnapshot: Codable, Hashable {
     var deletedCompletedWorkoutIDs: Set<UUID>? = nil
     var workoutPlanSyncRevisions: [UUID: Int]? = nil
     var workoutPlanLastSyncedPayloads: [UUID: Data]? = nil
+    var pendingRemoteWorkoutPlanDeletions: Set<UUID>? = nil
 }

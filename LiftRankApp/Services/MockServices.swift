@@ -15,7 +15,10 @@ final class MockAuthenticationService: AuthenticationService {
     func signIn(email: String, password: String) async throws -> AccountSession { throw LiftRankServiceError.invalidCredentials }
     func requestPasswordReset(email: String) async throws {}
     func signInWithApple(identityToken: String, nonce: String) async throws -> AccountSession { throw LiftRankServiceError.invalidCredentials }
-    func signInDemo() async throws -> UserProfile { repository.currentProfile }
+    func signInDemo() async throws -> UserProfile {
+        repository.currentProfile = MockData.demoProfile
+        return repository.currentProfile
+    }
     func signOut() async throws {}
 }
 
@@ -100,7 +103,7 @@ final class MockLiftService: LiftService {
         repository.addLift(submission)
         return submission
     }
-    func vote(liftID: UUID, vote: CommunityVote?) async throws {}
+    func vote(liftID: UUID, vote: LiftVoteValue?) async throws {}
     func report(liftID: UUID, reason: LiftReportReason, note: String) async throws {}
 }
 
@@ -153,8 +156,8 @@ final class MockGymService: GymService {
 final class MockSocialService: SocialService {
     private let repository: DemoRepository
     private var blockRecords: [UserBlockRecord] = []
+    var shouldFailBlocksFetch = false
     init(repository: DemoRepository) { self.repository = repository }
-    func feed() async throws -> [ActivityItem] { repository.activities }
     func searchProfiles(query: String, limit: Int) async throws -> [PublicProfileCard] {
         let clean = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return repository.profiles.filter {
@@ -170,33 +173,6 @@ final class MockSocialService: SocialService {
             )
         }
     }
-    func comments(activityID: UUID) async throws -> [ActivityComment] {
-        repository.activityComments.filter { $0.activityID == activityID }
-    }
-    func setActivityLiked(activityID: UUID, isLiked: Bool) async throws {
-        guard let activity = repository.activities.first(where: { $0.id == activityID }), activity.isLiked != isLiked else { return }
-        repository.toggleActivityLike(activity)
-    }
-    func addActivityComment(activityID: UUID, body: String) async throws -> ActivityComment {
-        guard let activity = repository.activities.first(where: { $0.id == activityID }) else {
-            throw LiftRankServiceError.invalidInput("Shared workout not found.")
-        }
-        repository.addComment(to: activity, body: body)
-        guard let comment = repository.activityComments.last(where: { $0.activityID == activityID }) else {
-            throw LiftRankServiceError.server("Comment could not be saved.")
-        }
-        return comment
-    }
-    func shareWorkout(snapshotID: UUID, title: String, detail: String) async throws -> ActivityItem {
-        let item = ActivityItem(
-            id: UUID(), profile: repository.currentProfile, title: title, detail: detail,
-            workoutID: snapshotID, createdAt: .now, isLiked: false, isSaved: false
-        )
-        repository.activities.insert(item, at: 0)
-        return item
-    }
-    func removeWorkoutShare(activityID: UUID) async throws { repository.activities.removeAll { $0.id == activityID } }
-    func reportActivity(activityID: UUID, reason: CommunityReportReason, note: String) async throws {}
     func block(userID: UUID) async throws {
         guard userID != repository.currentProfile.id,
               !blockRecords.contains(where: { $0.blockedID == userID }) else { return }
@@ -209,94 +185,11 @@ final class MockSocialService: SocialService {
     func unblock(userID: UUID) async throws {
         blockRecords.removeAll { $0.blockedID == userID }
     }
-    func blocks() async throws -> [UserBlockRecord] { blockRecords }
-}
-
-@MainActor
-final class MockCommunityService: CommunityService {
-    private let repository: DemoRepository
-    init(repository: DemoRepository) { self.repository = repository }
-    func communities() async throws -> [ForumCommunity] { repository.visibleForumCommunities() }
-    func posts(in destination: ForumDestination?) async throws -> [ForumPost] {
-        guard let destination else { return repository.forumPosts }
-        return repository.forumPosts.filter { $0.destination == destination }
-    }
-    func comments(for post: ForumPost) async throws -> [ForumComment] {
-        repository.forumComments.filter { $0.postID == post.id }
-    }
-    func join(community: ForumCommunity, note: String) async throws -> ForumMembershipStatus? {
-        repository.joinForumCommunity(community.id, note: note)
-    }
-    func leave(community: ForumCommunity) async throws { repository.leaveForumCommunity(community.id) }
-    func createPost(_ post: ForumPost) async throws -> Bool { repository.createForumPost(post) }
-    func addComment(to post: ForumPost, parentCommentID: UUID?, body: String) async throws -> ForumComment? {
-        repository.addForumComment(postID: post.id, parentCommentID: parentCommentID, body: body)
-    }
-    func vote(post: ForumPost, vote: CommunityVote?) async throws { repository.voteForumPost(post.id, vote: vote) }
-    func vote(comment: ForumComment, vote: CommunityVote?) async throws { repository.voteForumComment(comment.id, vote: vote) }
-    func toggleSaved(post: ForumPost) async throws { repository.toggleForumPostSaved(post.id) }
-    func toggleWatched(post: ForumPost) async throws { repository.toggleForumPostWatched(post.id) }
-    func vote(pollPost: ForumPost, optionID: UUID) async throws {
-        repository.voteInForumPoll(postID: pollPost.id, optionID: optionID)
-    }
-    func report(targetType: ForumReportTargetType, targetID: UUID, communityID: UUID?, reason: CommunityReportReason, note: String) async throws -> Bool {
-        repository.reportForumContent(targetType: targetType, targetID: targetID, communityID: communityID, reason: reason, note: note)
-    }
-    func moderate(post: ForumPost, action: ForumModerationActionKind, reason: String) async throws {
-        repository.moderateForumPost(post.id, action: action, reason: reason)
-    }
-    func threads() async throws -> [CommunityThread] { repository.communityThreads }
-    func replies(for thread: CommunityThread) async throws -> [CommunityThreadReply] {
-        repository.communityThreadReplies.filter { $0.threadID == thread.id }
-    }
-    func createThread(_ thread: CommunityThread) async throws -> CommunityThread {
-        repository.addThread(thread)
-        return thread
-    }
-    func addReply(to thread: CommunityThread, body: String) async throws -> CommunityThreadReply? {
-        let before = repository.communityThreadReplies.count
-        repository.addReply(to: thread, body: body, author: repository.currentProfile)
-        return repository.communityThreadReplies.count > before ? repository.communityThreadReplies.last : nil
-    }
-    func voteThread(_ thread: CommunityThread, vote: CommunityVote?) async throws {
-        repository.voteThread(thread, vote: vote)
-    }
-    func voteReply(_ reply: CommunityThreadReply, vote: CommunityVote?) async throws {
-        repository.voteReply(reply, vote: vote)
-    }
-    func report(targetType: CommunityReportTargetType, targetID: UUID, reason: CommunityReportReason, note: String) async throws {
-        repository.reportCommunity(targetType: targetType, targetID: targetID, reason: reason, note: note)
-    }
-    func moderate(_ thread: CommunityThread, operation: CommunityModerationOperation, reason: String?) async throws {
-        repository.moderateThread(thread, operation: operation, reason: reason)
-    }
-}
-
-@MainActor
-final class MockMessagingService: MessagingService {
-    private let repository: DemoRepository
-    init(repository: DemoRepository) { self.repository = repository }
-    func createOrGetThread(with userID: UUID) async throws -> DirectMessageThread {
-        guard let profile = repository.profiles.first(where: { $0.id == userID }) else { throw LiftRankServiceError.invalidInput("Member not found.") }
-        return repository.messageThread(with: profile)
-    }
-    func threads() async throws -> [DirectMessageThread] { repository.messageThreads }
-    func messages(for thread: DirectMessageThread) async throws -> [DirectMessage] {
-        repository.directMessages.filter { $0.threadID == thread.id }
-    }
-    func sendMessage(in thread: DirectMessageThread, body: String) async throws -> DirectMessage? {
-        let before = repository.directMessages.count
-        repository.addMessage(to: thread, body: body)
-        return repository.directMessages.count > before ? repository.directMessages.last : nil
-    }
-    func deleteMessage(_ message: DirectMessage) async throws {
-        repository.deleteMessage(message)
-    }
-    func deleteThread(_ thread: DirectMessageThread) async throws {
-        repository.deleteMessageThread(thread)
-    }
-    func reportMessage(_ message: DirectMessage, reason: MessageReportReason, note: String) async throws {
-        repository.reportMessage(message, reason: reason, note: note)
+    func blocks() async throws -> [UserBlockRecord] {
+        if shouldFailBlocksFetch {
+            throw LiftRankServiceError.server("Blocks unavailable")
+        }
+        return blockRecords
     }
 }
 
@@ -317,36 +210,6 @@ final class MockGymMembershipService: GymMembershipService {
         repository.currentProfile.primaryGymID = gym.id
         repository.currentProfile.primaryGymName = gym.name
     }
-}
-
-@MainActor
-final class MockFriendRelationshipService: FriendRelationshipService {
-    private let repository: DemoRepository
-    init(repository: DemoRepository) { self.repository = repository }
-    func relationships() async throws -> [FriendRelationshipRecord] {
-        repository.friendRequests.map { request in
-            let low = request.fromUserID.uuidString < request.toUserID.uuidString ? request.fromUserID : request.toUserID
-            let high = low == request.fromUserID ? request.toUserID : request.fromUserID
-            return FriendRelationshipRecord(
-                id: request.id, userLowID: low, userHighID: high, requestedBy: request.fromUserID,
-                status: request.status == .accepted ? .accepted : request.status == .declined ? .declined : .pending,
-                createdAt: request.createdAt, respondedAt: request.respondedAt
-            )
-        }
-    }
-    func request(userID: UUID) async throws {
-        guard let profile = repository.profiles.first(where: { $0.id == userID }) else { return }
-        repository.sendFriendRequest(to: profile)
-    }
-    func respond(relationshipID: UUID, accept: Bool) async throws {
-        guard let request = repository.friendRequests.first(where: { $0.id == relationshipID }) else { return }
-        repository.respondToFriendRequest(request, status: accept ? .accepted : .declined)
-    }
-    func cancel(relationshipID: UUID) async throws {
-        guard let request = repository.friendRequests.first(where: { $0.id == relationshipID }) else { return }
-        repository.cancelFriendRequest(request)
-    }
-    func remove(relationshipID: UUID) async throws { try await cancel(relationshipID: relationshipID) }
 }
 
 @MainActor
@@ -418,6 +281,7 @@ final class MockNotificationService: NotificationService {
 final class MockWorkoutSyncService: WorkoutSyncService {
     private var planDocuments: [WorkoutPlanDocument] = []
     private var snapshots: [CompletedWorkoutSnapshot] = []
+    var failNextPlanDeletion = false
     func plans() async throws -> [WorkoutPlanDocument] { planDocuments }
     func savePlan(_ document: WorkoutPlanDocument, expectedRevision: Int) async throws -> WorkoutSyncResult {
         guard !document.isSeededDemoData else { throw LiftRankServiceError.invalidInput("Demo data cannot be synced.") }
@@ -431,11 +295,18 @@ final class MockWorkoutSyncService: WorkoutSyncService {
         planDocuments.removeAll { $0.id == saved.id }; planDocuments.append(saved)
         return .saved(saved)
     }
-    func deletePlan(id: UUID) async throws { planDocuments.removeAll { $0.id == id } }
+    func deletePlan(id: UUID) async throws {
+        if failNextPlanDeletion {
+            failNextPlanDeletion = false
+            throw LiftRankServiceError.invalidInput("Simulated plan deletion failure")
+        }
+        planDocuments.removeAll { $0.id == id }
+    }
     func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot] { snapshots.filter { since == nil || $0.completedAt > since! } }
     func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws {
         guard !snapshot.isSeededDemoData else { return }
-        if !snapshots.contains(where: { $0.id == snapshot.id }) { snapshots.append(snapshot) }
+        snapshots.removeAll { $0.id == snapshot.id }
+        snapshots.append(snapshot)
     }
     func deleteCompletedWorkout(id: UUID) async throws {
         snapshots.removeAll { $0.id == id }

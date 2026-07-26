@@ -1,10 +1,16 @@
 import Foundation
 
 extension DemoRepository {
+    func clearAccountScopedWorkoutHistory() {
+        workoutFeedback.removeAll()
+        workoutEntries.removeAll()
+        workoutSetLogs.removeAll()
+        persistWorkoutSnapshot()
+    }
+
     func addWorkoutPlan(_ plan: WorkoutPlan) {
         workoutPlans.insert(plan, at: 0)
         createDefaultProgramScaffold(for: plan)
-        activities.insert(ActivityItem(id: UUID(), profile: currentProfile, title: "\(currentProfile.displayName) created a workout plan", detail: plan.name, createdAt: plan.createdAt, isLiked: false, isSaved: false), at: 0)
         persistWorkoutSnapshot()
     }
 
@@ -130,18 +136,6 @@ extension DemoRepository {
             }
         }
 
-        activities.insert(
-            ActivityItem(
-                id: UUID(),
-                profile: currentProfile,
-                title: "\(currentProfile.displayName) started a 12-week program",
-                detail: template.name,
-                createdAt: .now,
-                isLiked: false,
-                isSaved: false
-            ),
-            at: 0
-        )
         persistWorkoutSnapshot()
         return plan
     }
@@ -187,6 +181,16 @@ extension DemoRepository {
                     workoutPrescriptions[index].targetRIR = replacement.targetRIR
                     workoutPrescriptions[index].trainingMaxPercentage = replacement.trainingMaxPercentage
                     workoutPrescriptions[index].targetLoadKilograms = replacement.targetLoadKilograms
+
+                    guard let week = workoutWeeks.first(where: { $0.id == session.weekID }) else { continue }
+                    for entryIndex in workoutEntries.indices where
+                        workoutEntries[entryIndex].planID == planID &&
+                        workoutEntries[entryIndex].week == week.weekNumber &&
+                        workoutEntries[entryIndex].workout == session.name &&
+                        workoutEntries[entryIndex].exercise == workoutPrescriptions[index].exerciseName {
+                        workoutEntries[entryIndex].targetSets = replacement.sets
+                        workoutEntries[entryIndex].targetReps = replacement.reps
+                    }
                 }
             }
         }
@@ -271,7 +275,6 @@ extension DemoRepository {
             workoutPlanProgressionSettings.append(settings)
         }
 
-        activities.insert(ActivityItem(id: UUID(), profile: currentProfile, title: "\(currentProfile.displayName) duplicated a workout plan", detail: copy.name, createdAt: copy.createdAt, isLiked: false, isSaved: false), at: 0)
         persistWorkoutSnapshot()
         return copy
     }
@@ -573,4 +576,3 @@ extension DemoRepository {
         ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].firstIndex(of: day) ?? 99
     }
 }
-

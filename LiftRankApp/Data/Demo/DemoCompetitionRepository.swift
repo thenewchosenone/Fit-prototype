@@ -7,7 +7,6 @@ extension DemoRepository {
             eligibleLift.leaderboardEligibleAt = Self.nextLocalMidnight()
         }
         lifts.insert(eligibleLift, at: 0)
-        activities.insert(ActivityItem(id: UUID(), profile: currentProfile, title: "\(currentProfile.displayName) logged \(eligibleLift.exerciseName)", detail: "\(RankingCalculator.format(eligibleLift.weight)) \(eligibleLift.unit.shortLabel) × \(eligibleLift.repetitions)", liftID: eligibleLift.id, createdAt: .now, isLiked: false, isSaved: false), at: 0)
         notifications.insert(NotificationItem(id: UUID(), title: "Lift submitted", message: "Your lift will enter eligible rankings at the next daily update.", kind: "Lift submitted", createdAt: .now, isRead: false, destination: NotificationDestination(kind: .lift, targetID: eligibleLift.id)), at: 0)
         refreshAchievementUnlocks()
     }
@@ -19,15 +18,30 @@ extension DemoRepository {
     }
 
     func computedStatistics(referenceDate: Date = .now) -> CompetitiveStatistics {
-        let completedWorkingSets = completedWorkouts.flatMap(\.completedWorkingSets)
+        let lifetimeWorkingSetVolume = completedWorkouts.reduce(0.0) { workoutTotal, workout in
+            workoutTotal + workout.completedWorkingSets.reduce(0.0) { total, log in
+                let trackingKind = trackingKind(for: log, workout: workout)
+                guard trackingKind == .weightReps,
+                      let weight = log.weight,
+                      weight > 0,
+                      let reps = log.reps,
+                      reps > 0 else { return total }
+                let kilograms = log.recordedUnit == .kilograms
+                    ? weight
+                    : RankingCalculator.poundsToKilograms(weight)
+                return total + (kilograms * Double(reps))
+            }
+        }
         return CompetitiveStatistics(
             totalWorkouts: completedWorkouts.filter { !$0.completedWorkingSets.isEmpty }.count,
-            lifetimeWorkingSetVolume: completedWorkingSets.reduce(0) { total, log in
-                let kilograms = log.recordedUnit == .kilograms ? (log.weight ?? 0) : RankingCalculator.poundsToKilograms(log.weight ?? 0)
-                return total + (kilograms * Double(log.reps ?? 0))
-            },
+            lifetimeWorkingSetVolume: lifetimeWorkingSetVolume,
             totalActiveTrainingTime: completedWorkouts.reduce(0) { $0 + $1.duration },
-            totalWorkingSetRepetitions: completedWorkingSets.reduce(0) { $0 + ($1.reps ?? 0) },
+            totalWorkingSetRepetitions: completedWorkouts.reduce(0) { workoutTotal, workout in
+                workoutTotal + workout.completedWorkingSets.reduce(0) { total, log in
+                    guard !trackingKind(for: log, workout: workout).usesDuration else { return total }
+                    return total + (log.reps ?? 0)
+                }
+            },
             prCount: completedPRCount(),
             currentStreak: currentWorkoutStreak(referenceDate: referenceDate),
             longestStreak: longestWorkoutStreak(),
@@ -39,8 +53,15 @@ extension DemoRepository {
         )
     }
 
+    private func trackingKind(for log: WorkoutSetLog, workout: CompletedWorkout) -> ExerciseTrackingKind {
+        guard let exercise = workout.exercises.first(where: { $0.id == log.prescriptionID }) else { return .weightReps }
+        let rawTrackingType = exercise.trackingType ??
+            trainingExerciseCatalog.first(where: { $0.id == exercise.exerciseID })?.trackingType
+        return ExerciseTrackingKind(rawTrackingType ?? "Weight + Reps")
+    }
+
     private func completedPRCount() -> Int {
-        var seen = Set<String>()
+        var bestByKey: [String: Double] = [:]
         var count = 0
         for workout in completedWorkouts.sorted(by: { $0.completedAt < $1.completedAt }) {
             for set in workout.completedWorkingSets {
@@ -50,11 +71,10 @@ extension DemoRepository {
                       let reps = set.reps else { continue }
                 let kilograms = set.recordedUnit == .kilograms ? weight : RankingCalculator.poundsToKilograms(weight)
                 let key = "\(rankingID)|\(reps)"
-                let previous = seen.contains(key) ? maxVerifiedOrCompletedOneRepKilograms(for: rankingID) : nil
-                if previous == nil || kilograms > (previous ?? 0) {
+                if kilograms > (bestByKey[key] ?? 0) {
                     count += 1
+                    bestByKey[key] = kilograms
                 }
-                seen.insert(key)
             }
         }
         return count
@@ -211,14 +231,14 @@ extension DemoRepository {
         add("90-Day Workout Streak", when: stats.currentStreak >= 90)
         add("180-Day Workout Streak", when: stats.currentStreak >= 180)
         add("365-Day Workout Streak", when: stats.currentStreak >= 365)
-        add("10,000 kg Volume", when: stats.lifetimeWorkingSetVolume >= 10_000)
-        add("50,000 kg Volume", when: stats.lifetimeWorkingSetVolume >= 50_000)
-        add("100,000 kg Volume", when: stats.lifetimeWorkingSetVolume >= 100_000)
-        add("250,000 kg Volume", when: stats.lifetimeWorkingSetVolume >= 250_000)
-        add("500,000 kg Volume", when: stats.lifetimeWorkingSetVolume >= 500_000)
-        add("1,000,000 kg Volume", when: stats.lifetimeWorkingSetVolume >= 1_000_000)
-        add("2,500,000 kg Volume", when: stats.lifetimeWorkingSetVolume >= 2_500_000)
-        add("5,000,000 kg Volume", when: stats.lifetimeWorkingSetVolume >= 5_000_000)
+        add("10,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 10_000)
+        add("50,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 50_000)
+        add("100,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 100_000)
+        add("250,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 250_000)
+        add("500,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 500_000)
+        add("1,000,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 1_000_000)
+        add("2,500,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 2_500_000)
+        add("5,000,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 5_000_000)
         add("Global Top 100", when: stats.highestGlobalTotalRank.map { $0 <= 100 } == true)
         add("Global Top 50", when: stats.highestGlobalTotalRank.map { $0 <= 50 } == true)
         add("Global Top 10", when: stats.highestGlobalTotalRank.map { $0 <= 10 } == true)

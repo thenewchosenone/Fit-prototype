@@ -13,7 +13,7 @@ struct AppBackground<Content: View>: View {
                 .ignoresSafeArea()
             content
         }
-        .foregroundStyle(Color.liftTextPrimary)
+        .foregroundStyle(Color.liftText)
         .tint(Color.liftLime)
     }
 }
@@ -39,7 +39,6 @@ struct LiftCard<Content: View>: View {
 }
 
 struct ProfileAvatar: View {
-    @EnvironmentObject private var appState: AppState
     let profile: UserProfile
     var size: CGFloat = 44
 
@@ -180,10 +179,6 @@ enum LiftTimeFormatter {
         if days < 7 { return "\(days)d ago" }
 
         return date.formatted(.dateTime.month(.abbreviated).day())
-    }
-
-    static func messageTime(_ date: Date) -> String {
-        date.formatted(.dateTime.hour().minute())
     }
 
     static func shortDate(_ date: Date) -> String {

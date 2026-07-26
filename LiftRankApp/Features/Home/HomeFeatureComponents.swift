@@ -17,7 +17,7 @@ extension HomeView {
                 HStack(spacing: 14) {
                     Image(systemName: active.pausedAt == nil ? "dumbbell.fill" : "pause.fill")
                         .font(.title3.weight(.black))
-                        .foregroundStyle(Color.liftBackground)
+                        .foregroundStyle(Color.liftOnAccent)
                         .frame(width: 48, height: 48)
                         .background(Color.liftGold)
                         .clipShape(Circle())
@@ -77,7 +77,7 @@ extension HomeView {
     var headerIdentity: some View {
         HStack(spacing: 12) {
             Button {
-                appState.selectedTab = 4
+                appState.selectedTab = 3
             } label: {
                 ProfileAvatar(profile: appState.currentProfile, size: 44)
                     .overlay {
@@ -190,7 +190,7 @@ extension HomeView {
                     Spacer()
                     Image(systemName: today == nil ? "bed.double.fill" : "play.fill")
                         .font(.caption.weight(.black))
-                        .foregroundStyle(Color.liftBackground)
+                        .foregroundStyle(Color.liftOnAccent)
                         .frame(width: 36, height: 36)
                         .background(Color.liftBlue)
                         .clipShape(Circle())
@@ -291,8 +291,8 @@ extension HomeView {
         HStack(spacing: 12) {
             compactStat(
                 title: "Total",
-                value: "\(Int(appState.powerliftingTotal))",
-                unit: "lb",
+                value: "\(Int(MeasurementFormatting.convert(appState.powerliftingTotal, from: .pounds, to: appState.currentProfile.preferredUnit)))",
+                unit: appState.currentProfile.preferredUnit.shortLabel,
                 symbol: "dumbbell.fill",
                 tint: .liftBlue
             )
@@ -458,113 +458,6 @@ extension HomeView {
     func liftHasVideo(_ lift: LiftSubmission) -> Bool {
         lift.demoMediaID != nil || lift.videoAssetID != nil ||
             lift.localVideoURL != nil || lift.remoteVideoURL != nil
-    }
-
-    var connectionActivity: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            dashboardSectionHeader("Connection activity", actionTitle: appState.activities.isEmpty ? nil : "See All") {
-                showingAllConnectionActivity = true
-            }
-
-            if appState.activities.isEmpty {
-                LiftCard {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Label("Your connection feed is ready", systemImage: "person.2.fill")
-                            .font(.headline)
-                            .foregroundStyle(Color.liftText)
-                        Text("Connect with athletes to see the complete workouts they intentionally share.")
-                            .font(.subheadline)
-                            .foregroundStyle(Color.liftMuted)
-                        Button("Find athletes") {
-                            appState.router.openAthleteSearch()
-                        }
-                        .buttonStyle(LiftCompactProminentButtonStyle())
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(appState.activities.prefix(3).enumerated()), id: \.element.id) { index, activity in
-                        connectionActivityRow(activity)
-                        if index < min(2, appState.activities.count - 1) {
-                            Divider().overlay(Color.liftSeparator)
-                        }
-                    }
-                }
-                .padding(.horizontal, 14)
-                .homePanelStyle()
-            }
-        }
-        .accessibilityIdentifier("home.connectionActivity")
-    }
-
-    @ViewBuilder
-    var connectionRequests: some View {
-        if !appState.incomingFriendRequests.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                dashboardSectionHeader("Connection requests", actionTitle: nil) {}
-                VStack(spacing: 0) {
-                    ForEach(Array(appState.incomingFriendRequests.prefix(3).enumerated()), id: \.element.id) { index, request in
-                        if let profile = appState.profile(id: request.fromUserID) {
-                            HStack(spacing: 12) {
-                                ProfileAvatar(profile: profile, size: 44)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(profile.displayName)
-                                        .font(.subheadline.weight(.bold))
-                                    Text("@\(profile.username) wants to connect")
-                                        .font(.caption)
-                                        .foregroundStyle(Color.liftMuted)
-                                }
-                                Spacer(minLength: 6)
-                                Button("Decline") { appState.declineFriendRequest(request) }
-                                    .font(.caption.weight(.bold))
-                                    .buttonStyle(.bordered)
-                                Button("Accept") { appState.acceptFriendRequest(request) }
-                                    .font(.caption.weight(.bold))
-                                    .buttonStyle(LiftCompactProminentButtonStyle())
-                            }
-                            .padding(.vertical, 11)
-                            if index < min(2, appState.incomingFriendRequests.count - 1) {
-                                Divider().overlay(Color.liftSeparator)
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 14)
-                .homePanelStyle()
-            }
-            .accessibilityIdentifier("home.connectionRequests")
-        }
-    }
-
-    func connectionActivityRow(_ activity: ActivityItem) -> some View {
-        Button {
-            appState.selectedActivity = activity
-        } label: {
-            HStack(spacing: 12) {
-                ProfileAvatar(profile: activity.profile, size: 42)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(activity.profile.displayName)
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(Color.liftText)
-                    Text(activity.title)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.liftText)
-                        .lineLimit(1)
-                    Text(LiftTimeFormatter.relativeNoSeconds(from: activity.createdAt))
-                        .font(.caption)
-                        .foregroundStyle(Color.liftMuted)
-                }
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.liftMuted)
-            }
-            .padding(.vertical, 11)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("home.connectionActivity.\(activity.id.uuidString)")
     }
 
     func liftSymbol(for exerciseName: String) -> String {
@@ -769,10 +662,6 @@ extension HomeView {
                     quickStats
                     highlights
                     recentPRs
-                    if appState.features.connectionActivity {
-                        connectionRequests
-                        connectionActivity
-                    }
                     weeklyActivity
                 }
                 .padding(.horizontal, LiftDesign.screenHorizontalPadding)
@@ -807,11 +696,6 @@ extension HomeView {
         }
         .sheet(item: $selectedRecentPR) { lift in
             RecentPRDetailView(lift: lift)
-                .environmentObject(appState)
-                .presentationDetents([.large])
-        }
-        .sheet(isPresented: $showingAllConnectionActivity) {
-            ConnectionActivityListView()
                 .environmentObject(appState)
                 .presentationDetents([.large])
         }

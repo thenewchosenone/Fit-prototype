@@ -20,10 +20,6 @@ struct MainTabView: View {
                         startOnProgress: appState.trainingTrackerStartOnProgress,
                         isEmbeddedInTab: true
                     )
-                case .community:
-                    NavigationStack(path: $router.communityPath) {
-                        CommunityView()
-                    }
                 case .profile:
                     NavigationStack { MeHubView() }
                 }
@@ -44,18 +40,10 @@ struct MainTabView: View {
         .sheet(item: $router.sheet) { destination in
             appSheet(destination)
         }
-        .fullScreenCover(item: $router.cover, onDismiss: {
-            appState.clearForumComposerPreset()
-        }) { destination in
+        .fullScreenCover(item: $router.cover) { destination in
             switch destination {
             case .authentication:
                 AuthenticationView().environmentObject(appState)
-            case .forumComposer:
-                if appState.features.forums {
-                    ForumRichComposerView().environmentObject(appState)
-                } else {
-                    EmptyView()
-                }
             }
         }
     }
@@ -66,10 +54,6 @@ struct MainTabView: View {
             .init(tab: .leaderboards, icon: "trophy.fill", title: "Ranks", isUtility: false),
             .init(tab: .track, icon: "dumbbell.fill", title: "Track", isUtility: false),
         ]
-
-        if appState.features.communities || appState.features.forums || appState.features.messaging {
-            items.append(.init(tab: .community, icon: "person.3.fill", title: "Community", isUtility: false))
-        }
 
         items.append(.init(tab: .profile, icon: "person.crop.circle.fill", title: "Me", isUtility: false))
 
@@ -91,10 +75,6 @@ struct MainTabView: View {
             ModeratorReviewView().environmentObject(appState)
         case .settings:
             SettingsView().environmentObject(appState)
-        case .createThread:
-            if appState.features.forums {
-                CreateThreadView().environmentObject(appState).presentationDetents([.medium, .large])
-            }
         case .requestGym:
             RequestGymView().environmentObject(appState).presentationDetents([.medium])
         case .reportLift:
@@ -106,16 +86,6 @@ struct MainTabView: View {
             .environmentObject(appState)
         case .gym(let gym):
             NavigationStack { GymDetailView(gym: gym) }.environmentObject(appState)
-        case .messageThread(let thread):
-            if appState.features.messaging {
-                DirectMessageThreadView(thread: thread).environmentObject(appState).presentationDetents([.large])
-            }
-        case .communityThread(let thread):
-            if appState.features.forums {
-                CommunityThreadDetailView(thread: thread).environmentObject(appState).presentationDetents([.large])
-            }
-        case .activity(let activity):
-            ActivityDetailView(activity: activity).environmentObject(appState).presentationDetents([.large])
         }
     }
 }
@@ -167,7 +137,7 @@ struct MeHubView: View {
                         NavigationLink {
                             ProfileView(profile: appState.currentProfile, isCurrentUser: true)
                         } label: {
-                            meRow("Public athlete profile", "Rankings, lifts, and community identity", "person.text.rectangle.fill", Color.liftBlue)
+                            meRow("Public athlete profile", "Rankings, lifts, and profile identity", "person.text.rectangle.fill", Color.liftBlue)
                         }
                         Divider().overlay(Color.liftSeparator).padding(.leading, 66)
                         Button {
@@ -289,7 +259,11 @@ struct AwardsView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 Image(systemName: "dumbbell.fill").foregroundStyle(Color.liftGold)
                                 Text("Total").font(.caption.weight(.black)).foregroundStyle(Color.liftMuted)
-                                Text("\(Int(appState.powerliftingTotal)) lb").font(.headline.weight(.black))
+                                Text(MeasurementFormatting.formatDisplayedWeight(
+                                    appState.powerliftingTotal,
+                                    unit: appState.currentProfile.preferredUnit
+                                ))
+                                .font(.headline.weight(.black))
                             }
                             .padding(14).frame(maxWidth: .infinity, minHeight: 112, alignment: .leading).liftSurface()
                         }
@@ -317,7 +291,12 @@ struct AwardsView: View {
         return VStack(alignment: .leading, spacing: 8) {
             Image(systemName: "trophy.fill").foregroundStyle(Color.liftGold)
             Text(title.uppercased()).font(.caption.weight(.black)).foregroundStyle(Color.liftMuted)
-            Text(best.map { "\(RankingCalculator.format($0.weight)) \($0.unit.shortLabel)" } ?? "—")
+            Text(best.map {
+                MeasurementFormatting.formatDisplayedWeight(
+                    $0.normalizedWeightKilograms,
+                    unit: appState.currentProfile.preferredUnit
+                )
+            } ?? "—")
                 .font(.headline.weight(.black))
             Text(best == nil ? "No PR yet" : "Best logged lift").font(.caption).foregroundStyle(Color.liftMuted)
         }
@@ -325,14 +304,71 @@ struct AwardsView: View {
     }
 
     private func awardTile(_ achievement: Achievement, unlocked: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
+        let display = awardDisplay(for: achievement)
+        return VStack(alignment: .leading, spacing: 9) {
             Image(systemName: achievement.symbolName)
                 .font(.title3.weight(.bold))
                 .foregroundStyle(unlocked ? Color.liftGold : Color.liftMuted)
-            Text(achievement.title).font(.subheadline.weight(.bold)).foregroundStyle(unlocked ? Color.liftText : Color.liftMuted).lineLimit(2)
+            Text(display.title).font(.subheadline.weight(.bold)).foregroundStyle(unlocked ? Color.liftText : Color.liftMuted).lineLimit(2)
             Text(unlocked ? "Unlocked" : "Keep progressing").font(.caption2.weight(.semibold)).foregroundStyle(Color.liftMuted)
         }
         .padding(14).frame(maxWidth: .infinity, minHeight: 112, alignment: .leading).liftSurface()
+    }
+
+    private func awardDisplay(for achievement: Achievement) -> Achievement {
+        var display = achievement
+        let unit = appState.currentProfile.preferredUnit
+        if let liftMilestone = liftAwardMilestone(for: achievement.title) {
+            let formattedWeight = formattedAwardWeight(pounds: liftMilestone.pounds, unit: unit)
+            display.title = "\(formattedWeight) \(liftMilestone.exercise)"
+            display.description = "\(liftMilestone.exercise) \(formattedWeight.lowercased())."
+        } else if let totalPounds = totalAwardPounds(for: achievement.title) {
+            let formattedTotal = formattedAwardWeight(pounds: totalPounds, unit: unit)
+            display.title = "\(formattedTotal) Total"
+            display.description = "Build a \(formattedTotal) bench, squat, and deadlift total."
+        } else if let volumeKilograms = volumeAwardKilograms(for: achievement.title) {
+            let formattedVolume = formattedAwardWeight(kilograms: volumeKilograms, unit: unit)
+            display.title = "\(formattedVolume) Lifted Volume"
+            display.description = "Move \(formattedVolume) of lifted working-set volume."
+        }
+        return display
+    }
+
+    private func formattedAwardWeight(pounds: Double, unit: UnitSystem) -> String {
+        formattedAwardWeight(kilograms: RankingCalculator.poundsToKilograms(pounds), unit: unit)
+    }
+
+    private func formattedAwardWeight(kilograms: Double, unit: UnitSystem) -> String {
+        MeasurementFormatting.formatDisplayedWeight(kilograms, unit: unit) { value in
+            Int(value.rounded()).formatted()
+        }
+    }
+
+    private func liftAwardMilestone(for title: String) -> (pounds: Double, exercise: String)? {
+        for exercise in ["Bench", "Squat", "Deadlift"] where title.hasSuffix(" \(exercise)") {
+            let valueText = title.replacingOccurrences(of: " \(exercise)", with: "").replacingOccurrences(of: ",", with: "")
+            guard let pounds = Double(valueText) else { return nil }
+            return (pounds, exercise)
+        }
+        return nil
+    }
+
+    private func totalAwardPounds(for title: String) -> Double? {
+        guard title.hasSuffix(" lb Total") else { return nil }
+        let valueText = title
+            .replacingOccurrences(of: " lb Total", with: "")
+            .replacingOccurrences(of: ",", with: "")
+        return Double(valueText)
+    }
+
+    private func volumeAwardKilograms(for title: String) -> Double? {
+        let suffix = title.hasSuffix(" kg Lifted Volume")
+            ? " kg Lifted Volume"
+            : title.hasSuffix(" kg Volume") ? " kg Volume" : nil
+        guard let suffix else { return nil }
+        let valueText = title.replacingOccurrences(of: suffix, with: "")
+            .replacingOccurrences(of: ",", with: "")
+        return Double(valueText)
     }
 }
 
@@ -356,7 +392,7 @@ struct AuthenticationView: View {
                         .font(.system(size: 54, weight: .bold))
                         .foregroundStyle(Color.liftBlue)
                     Text("Lift Rivals").font(.largeTitle.bold())
-                    Text("Your training can stay local. Your profile, gyms, and friendships use your secured account.")
+                    Text("Your training can stay local. Your profile and gyms use your secured account.")
                         .foregroundStyle(Color.liftMuted)
                         .multilineTextAlignment(.center)
 

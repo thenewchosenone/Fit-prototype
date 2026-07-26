@@ -547,7 +547,7 @@ struct ProgramAddExercisePickerView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
                 .background(isSelected ? Color.liftBlue : Color.liftCard)
-                .foregroundStyle(isSelected ? Color.liftBackground : Color.liftMuted)
+                .foregroundStyle(isSelected ? Color.liftOnAccent : Color.liftMuted)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)

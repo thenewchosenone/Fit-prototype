@@ -90,9 +90,13 @@ final class ProfileStore: ObservableObject {
         authenticated: Bool
     ) async throws -> UserProfile {
         guard let profileService else { throw LiftRankServiceError.configurationMissing }
+        let expectedUserID = repository.currentProfile.id
+        guard profile.id == expectedUserID else { throw LiftRankServiceError.sessionExpired }
         var saved: UserProfile
         if authenticated {
             let existing = try await profileService.authenticatedProfile()
+            guard repository.currentProfile.id == expectedUserID,
+                  existing.id == expectedUserID else { throw LiftRankServiceError.sessionExpired }
             let remote = try await profileService.saveProfile(ProfileDraft(
                 username: profile.username,
                 displayName: profile.displayName,
@@ -115,20 +119,20 @@ final class ProfileStore: ObservableObject {
                 privacy: privacy,
                 completesOnboarding: existing.onboardingCompleted
             ))
+            guard repository.currentProfile.id == expectedUserID,
+                  remote.id == expectedUserID else { throw LiftRankServiceError.sessionExpired }
             applyAuthenticatedProfile(remote, retainingDemoProfiles: false)
             saved = currentProfile
         } else {
             saved = try await profileService.updateProfile(profile)
+            guard repository.currentProfile.id == expectedUserID,
+                  saved.id == expectedUserID else { throw LiftRankServiceError.sessionExpired }
         }
 
-        saved.avatarPath = profile.avatarPath
         if let primaryGym {
             saved.primaryGymID = primaryGym.id
             saved.primaryGymName = primaryGym.name
         }
-        saved.cityID = profile.cityID
-        saved.city = profile.city
-        saved.state = profile.state
         saveProfile(saved)
         return saved
     }
@@ -167,8 +171,6 @@ final class ProfileStore: ObservableObject {
         local.cityID = remote.cityID
         local.yearsExperience = remote.yearsExperience ?? 0
         local.experienceLevel = remote.experienceLevel ?? .beginner
-        local.followers = 0
-        local.following = 0
         local.hideExactAge = remote.privacy.ageBandAudience == .privateProfile
         local.hideBodyweight = remote.privacy.bodyweightAudience == .privateProfile
         local.hideCity = remote.privacy.locationAudience == .privateProfile
@@ -189,8 +191,24 @@ final class ProfileStore: ObservableObject {
         repository.gyms = gyms
         repository.joinedGymIDs = Set(memberships.filter { $0.leftAt == nil }.map(\.gymID))
         guard let primaryMembership = memberships.first(where: { $0.isPrimary && $0.leftAt == nil }),
-              let primaryGym = gyms.first(where: { $0.id == primaryMembership.gymID }) else { return }
+              let primaryGym = gyms.first(where: { $0.id == primaryMembership.gymID }) else {
+            clearPrimaryGym()
+            return
+        }
         setPrimaryGym(primaryGym)
+    }
+
+    func clearGymDirectory() {
+        repository.gyms = []
+        repository.joinedGymIDs = []
+        clearPrimaryGym()
+    }
+
+    private func clearPrimaryGym() {
+        var profile = repository.currentProfile
+        profile.primaryGymID = UUID()
+        profile.primaryGymName = ""
+        saveProfile(profile, insertIfMissing: false)
     }
 
     func mergePublicProfileCard(_ card: PublicProfileCard) {
@@ -205,8 +223,6 @@ final class ProfileStore: ObservableObject {
         profile.primaryGymID = card.primaryGymID ?? UUID()
         profile.primaryGymName = card.primaryGymName ?? "Hidden"
         profile.bodyweightPounds = 0
-        profile.followers = 0
-        profile.following = 0
         profile.hideExactAge = card.ageBand == nil
         profile.hideCity = card.city == nil
         profile.hideGym = card.primaryGymID == nil

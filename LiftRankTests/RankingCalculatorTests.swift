@@ -31,6 +31,30 @@ private final class TestWorkoutVideoStore: WorkoutVideoStoring {
 }
 
 @MainActor
+private final class GatedWorkoutPRLiftSubmitter: WorkoutPRLiftSubmitting {
+    private(set) var attemptCount = 0
+    private var release: CheckedContinuation<LiftSubmission?, Never>?
+
+    func submitWorkoutPR(
+        candidate: WorkoutPRCandidate,
+        exercise: Exercise,
+        workout: CompletedWorkout,
+        profile: UserProfile,
+        videoURL: URL
+    ) async -> LiftSubmission? {
+        attemptCount += 1
+        return await withCheckedContinuation { continuation in
+            release = continuation
+        }
+    }
+
+    func releaseSubmission(_ submission: LiftSubmission? = nil) {
+        release?.resume(returning: submission)
+        release = nil
+    }
+}
+
+@MainActor
 private final class FlakyWorkoutPRLiftSubmitter: WorkoutPRLiftSubmitting {
     private let delegate: any WorkoutPRLiftSubmitting
     private(set) var attemptCount = 0
@@ -60,6 +84,204 @@ private final class FlakyWorkoutPRLiftSubmitter: WorkoutPRLiftSubmitting {
             profile: profile,
             videoURL: videoURL
         )
+    }
+}
+
+@MainActor
+private final class StaticLeaderboardService: LeaderboardService {
+    let entriesToReturn: [LeaderboardEntry]
+
+    init(entries: [LeaderboardEntry]) {
+        entriesToReturn = entries
+    }
+
+    func entries(filters: LeaderboardFilters, verifiedOnly: Bool) async throws -> [LeaderboardEntry] {
+        entriesToReturn
+    }
+}
+
+@MainActor
+private final class ToggleLiftService: LiftService {
+    let submissionsToReturn: [LiftSubmission]
+    var shouldFail = false
+
+    init(submissions: [LiftSubmission]) {
+        submissionsToReturn = submissions
+    }
+
+    func submissions() async throws -> [LiftSubmission] {
+        if shouldFail { throw LiftRankServiceError.server("Lifts unavailable") }
+        return submissionsToReturn
+    }
+
+    func submit(_ submission: LiftSubmission) async throws -> LiftSubmission { submission }
+    func vote(liftID: UUID, vote: LiftVoteValue?) async throws {}
+    func report(liftID: UUID, reason: LiftReportReason, note: String) async throws {}
+}
+
+@MainActor
+private final class GatedLiftService: LiftService {
+    var requestStarted = false
+    private let submissionsToReturn: [LiftSubmission]
+    private var continuation: CheckedContinuation<[LiftSubmission], Never>?
+
+    init(submissions: [LiftSubmission]) {
+        submissionsToReturn = submissions
+    }
+
+    func submissions() async throws -> [LiftSubmission] {
+        requestStarted = true
+        return await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func release() {
+        continuation?.resume(returning: submissionsToReturn)
+        continuation = nil
+    }
+
+    func submit(_ submission: LiftSubmission) async throws -> LiftSubmission { submission }
+    func vote(liftID: UUID, vote: LiftVoteValue?) async throws {}
+    func report(liftID: UUID, reason: LiftReportReason, note: String) async throws {}
+}
+
+@MainActor
+private final class GatedSubmitLiftService: LiftService {
+    var requestStarted = false
+    private var continuation: CheckedContinuation<LiftSubmission, Never>?
+    private var pendingSubmission: LiftSubmission?
+
+    func submissions() async throws -> [LiftSubmission] { [] }
+
+    func submit(_ submission: LiftSubmission) async throws -> LiftSubmission {
+        requestStarted = true
+        pendingSubmission = submission
+        return await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func vote(liftID: UUID, vote: LiftVoteValue?) async throws {}
+    func report(liftID: UUID, reason: LiftReportReason, note: String) async throws {}
+
+    func release() {
+        guard let pendingSubmission else { return }
+        continuation?.resume(returning: pendingSubmission)
+        continuation = nil
+        self.pendingSubmission = nil
+    }
+}
+
+@MainActor
+private final class GatedVerificationService: VerificationService {
+    var requestStarted = false
+    private var continuation: CheckedContinuation<LiftSubmission, Never>?
+    private let updatedStatus: VerificationStatus
+
+    init(updatedStatus: VerificationStatus) {
+        self.updatedStatus = updatedStatus
+    }
+
+    func pendingSubmissions() async throws -> [LiftSubmission] { [] }
+
+    func updateVerification(
+        for lift: LiftSubmission,
+        status: VerificationStatus,
+        note: String?
+    ) async throws -> LiftSubmission {
+        requestStarted = true
+        return await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func moderate(liftID: UUID, decision: LiftModeratorDecision, note: String) async throws -> LiftSubmission {
+        throw LiftRankServiceError.configurationMissing
+    }
+
+    func release(lift: LiftSubmission) {
+        var updated = lift
+        updated.verificationStatus = updatedStatus
+        continuation?.resume(returning: updated)
+        continuation = nil
+    }
+}
+
+@MainActor
+private final class GatedPlaybackMediaService: MediaUploadService {
+    var requestStarted = false
+    private var continuation: CheckedContinuation<URL, Never>?
+
+    func upload(localURL: URL?) async throws -> URL? { localURL }
+    func uploadLiftVideo(
+        localURL: URL,
+        liftID: UUID,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> LiftMediaAsset {
+        throw LiftRankServiceError.configurationMissing
+    }
+
+    func signedPlaybackURL(assetID: UUID) async throws -> URL {
+        requestStarted = true
+        return await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func release() {
+        continuation?.resume(returning: URL(fileURLWithPath: "/tmp/gated-playback.mov"))
+        continuation = nil
+    }
+}
+
+@MainActor
+private final class WorkoutSyncServiceStub: WorkoutSyncService {
+    var shouldFailDeletion = false
+    private(set) var deletedIDs: [UUID] = []
+
+    func plans() async throws -> [WorkoutPlanDocument] { [] }
+    func savePlan(_ document: WorkoutPlanDocument, expectedRevision: Int) async throws -> WorkoutSyncResult {
+        throw LiftRankServiceError.configurationMissing
+    }
+    func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot] { [] }
+    func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws {}
+    func deleteCompletedWorkout(id: UUID) async throws {
+        deletedIDs.append(id)
+        if shouldFailDeletion { throw LiftRankServiceError.server("Deletion failed") }
+    }
+    func deletePlan(id: UUID) async throws {}
+}
+
+@MainActor
+private final class RecordingNotificationService: NotificationService {
+    private(set) var markedIDs: [UUID] = []
+    var shouldFailRefresh = false
+
+    func notifications() async throws -> [NotificationItem] {
+        if shouldFailRefresh { throw LiftRankServiceError.server("Notifications unavailable") }
+        return []
+    }
+    func markRead(notificationID: UUID) async throws { markedIDs.append(notificationID) }
+    func registerDevice(_ registration: PushDeviceRegistration) async throws {}
+    func revokeDevice(deviceID: String) async throws {}
+}
+
+@MainActor
+private final class GatedLeaderboardService: LeaderboardService {
+    private(set) var requests: [LeaderboardFilters] = []
+    private var continuations: [CheckedContinuation<[LeaderboardEntry], Never>?] = []
+
+    func entries(filters: LeaderboardFilters, verifiedOnly: Bool) async throws -> [LeaderboardEntry] {
+        requests.append(filters)
+        return await withCheckedContinuation { continuation in
+            continuations.append(continuation)
+        }
+    }
+
+    func release(request index: Int, entries: [LeaderboardEntry]) {
+        continuations[index]?.resume(returning: entries)
+        continuations[index] = nil
     }
 }
 
@@ -148,6 +370,68 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
+    func testCompetitionRefreshPreservesLoadedProductionLiftsWhenServerFails() async {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let productionLifts = MockData.seededCompetitionData().lifts
+        let service = ToggleLiftService(submissions: productionLifts)
+        let store = CompetitionStore(repository: repository, liftService: service)
+
+        await store.refreshProductionData()
+        XCTAssertEqual(repository.lifts, productionLifts)
+
+        service.shouldFail = true
+        await store.refreshProductionData()
+
+        XCTAssertEqual(repository.lifts, productionLifts)
+    }
+
+    @MainActor
+    func testCompetitionRefreshClearsPreviousUsersProductionLifts() async {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let firstUserID = repository.currentProfile.id
+        let productionLifts = MockData.seededCompetitionData().lifts
+        let service = ToggleLiftService(submissions: productionLifts)
+        let store = CompetitionStore(repository: repository, liftService: service)
+
+        await store.refreshProductionData()
+        XCTAssertEqual(repository.lifts, productionLifts)
+        store.lastSubmissionResult = productionLifts.first
+
+        repository.currentProfile.id = UUID()
+        XCTAssertNotEqual(repository.currentProfile.id, firstUserID)
+        repository.achievementUnlocks = [AchievementUnlock(id: "old", title: "Old award", unlockedAt: .now)]
+        repository.rankingHistory = [RankingHistorySnapshot(id: UUID(), capturedAt: .now, globalTotalRank: 1, gymTotalRank: 1)]
+        service.shouldFail = true
+        await store.refreshProductionData()
+
+        XCTAssertTrue(repository.lifts.isEmpty)
+        XCTAssertTrue(repository.achievementUnlocks.isEmpty)
+        XCTAssertTrue(repository.rankingHistory.isEmpty)
+        XCTAssertNil(store.remoteLeaderboardEntries)
+        XCTAssertNil(store.lastSubmissionResult)
+        XCTAssertNil(store.leaderboardError)
+        XCTAssertEqual(store.uploadProgress, 0)
+    }
+
+    @MainActor
+    func testCompetitionRefreshDoesNotApplyPreviousUsersResponse() async {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let service = GatedLiftService(submissions: MockData.seededCompetitionData().lifts)
+        let store = CompetitionStore(repository: repository, liftService: service)
+        let refresh = Task { await store.refreshProductionData() }
+
+        while !service.requestStarted {
+            await Task.yield()
+        }
+        repository.currentProfile.id = UUID()
+        service.release()
+        await refresh.value
+
+        XCTAssertTrue(repository.lifts.isEmpty)
+        XCTAssertNil(store.remoteLeaderboardEntries)
+    }
+
+    @MainActor
     func testOverallScoreDoesNotAddProgressForUserWithNoLifts() {
         let repository = DemoRepository()
         repository.currentProfile = MockData.emptyProfile
@@ -167,22 +451,80 @@ final class RankingCalculatorTests: XCTestCase {
         let lightID = UUID()
         let heavyID = UUID()
         let nextDayID = UUID()
+        let mixedUnitID = UUID()
 
         let result = ExerciseProgressSeries.dailyHighest(from: [
             ExerciseProgressPoint(id: lightID, date: firstDay, weight: 11, reps: 15, unit: .pounds),
             ExerciseProgressPoint(id: heavyID, date: laterFirstDay, weight: 22, reps: 8, unit: .pounds),
+            ExerciseProgressPoint(id: mixedUnitID, date: laterFirstDay, weight: 10, reps: 1, unit: .kilograms),
             ExerciseProgressPoint(id: nextDayID, date: secondDay, weight: 16.5, reps: 10, unit: .pounds)
         ], calendar: calendar)
 
         XCTAssertEqual(result.count, 2)
-        XCTAssertEqual(result[0].id, heavyID)
-        XCTAssertEqual(result[0].weight, 22)
+        XCTAssertEqual(result[0].id, mixedUnitID)
+        XCTAssertEqual(result[0].weight, 10)
+        XCTAssertEqual(result[0].unit, .kilograms)
         XCTAssertEqual(result[0].date, calendar.startOfDay(for: firstDay))
         XCTAssertEqual(result[1].id, nextDayID)
     }
 
+    func testExerciseProgressPointsExcludeTimedExercises() {
+        var workout = makeCompletedWorkout(completedAt: .now)
+        workout.exercises[0].trackingType = "Weight + Time"
+        XCTAssertTrue(
+            WorkoutProgressPresentation.progressPoints(
+                from: [workout],
+                exerciseID: workout.exercises[0].exerciseID,
+                preferredUnit: .pounds
+            ).isEmpty
+        )
+    }
+
+    func testWorkoutPRDetectorExcludesTimedSnapshots() {
+        var workout = makeCompletedWorkout(completedAt: .now)
+        workout.exercises[0].trackingType = "Weight + Time"
+        XCTAssertTrue(
+            WorkoutPRDetector.candidates(
+                workoutID: workout.id,
+                exercises: workout.exercises,
+                sets: workout.sets,
+                existingLifts: [],
+                completedWorkouts: [],
+                excludingCompletedWorkoutID: workout.id
+            ).isEmpty
+        )
+    }
+
+    @MainActor
+    func testTrainingProgressDoesNotCountWarmupOnlyExerciseAsComplete() {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let planID = UUID()
+        let phaseID = UUID()
+        let weekID = UUID()
+        let sessionID = UUID()
+        let prescriptionID = UUID()
+        repository.workoutWeeks = [WorkoutWeek(
+            id: weekID, planID: planID, phaseID: phaseID, weekNumber: 1, title: "Week 1", notes: ""
+        )]
+        repository.workoutSessions = [WorkoutSession(
+            id: sessionID, weekID: weekID, day: "Monday", name: "Upper", order: 0, notes: ""
+        )]
+        repository.workoutPrescriptions = [WorkoutExercisePrescription(
+            id: prescriptionID, sessionID: sessionID, exerciseID: "bench", exerciseName: "Bench",
+            bodyPart: "Chest", equipment: "Barbell", sets: 1, reps: "5", restSeconds: 120, order: 0, notes: ""
+        )]
+        repository.workoutSetLogs = [WorkoutSetLog(
+            id: UUID(), prescriptionID: prescriptionID, performedAt: .now, setNumber: 1,
+            weight: 45, reps: 10, rpe: nil, isWarmup: true, isComplete: true
+        )]
+        let store = TrainingProgressStore(repository: repository)
+
+        XCTAssertEqual(store.completedPrescriptionCount(for: repository.workoutSessions[0]), 0)
+        XCTAssertEqual(store.weekCompletion(for: repository.workoutWeeks[0]), 0)
+    }
+
     func testLeaderboardOrdering() {
-        let seeded = MockData.community()
+        let seeded = MockData.seededCompetitionData()
         let entries = RankingCalculator.leaderboardEntries(
             profiles: seeded.profiles,
             lifts: seeded.lifts.filter { $0.exerciseID == "deadlift" },
@@ -305,6 +647,84 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
+    func testRemoteLeaderboardAppliesClientSideFiltersAndRefreshKeyTracksThem() async throws {
+        let repository = DemoRepository()
+        var advancedProfile = repository.profiles[0]
+        advancedProfile.experienceLevel = .advanced
+        repository.profiles[0] = advancedProfile
+        let advancedLift = makeLift(userID: advancedProfile.id, weight: 300, repetitions: 5)
+        let beginnerProfile = repository.profiles[1]
+        let beginnerLift = makeLift(userID: beginnerProfile.id, weight: 315)
+        let service = StaticLeaderboardService(entries: [
+            LeaderboardEntry(rank: 2, profile: advancedProfile, lift: advancedLift, rankMovement: 0, score: 300, powerliftingBreakdown: nil),
+            LeaderboardEntry(rank: 1, profile: beginnerProfile, lift: beginnerLift, rankMovement: 0, score: 315, powerliftingBreakdown: nil)
+        ])
+        let store = CompetitionStore(repository: repository, leaderboardService: service)
+
+        store.verifiedOnly = false
+        await store.refreshLeaderboard()
+        let unfilteredCount = store.leaderboardEntries(referenceDate: .now).count
+
+        store.filters.repetitionCount = 5
+        store.filters.experienceLevel = .advanced
+        store.filters.verificationLevel = .videoVerified
+        let filtered = store.leaderboardEntries(referenceDate: .now)
+
+        XCTAssertEqual(unfilteredCount, 2)
+        XCTAssertEqual(filtered.map(\.profile.id), [advancedProfile.id])
+        XCTAssertEqual(filtered.first?.lift.repetitions, 5)
+        XCTAssertEqual(filtered.first?.profile.experienceLevel, .advanced)
+        XCTAssertEqual(filtered.first?.lift.resolvedEvidenceStatus, .videoBacked)
+        XCTAssertEqual(filtered.first?.rank, 1)
+
+        let state = AppState()
+        let initialKey = state.leaderboardRequestKey
+        state.leaderboardFilters.repetitionCount = 5
+        let repetitionKey = state.leaderboardRequestKey
+        state.leaderboardFilters.experienceLevel = .advanced
+        let experienceKey = state.leaderboardRequestKey
+        state.leaderboardFilters.verificationLevel = .videoVerified
+
+        XCTAssertNotEqual(initialKey, repetitionKey)
+        XCTAssertNotEqual(repetitionKey, experienceKey)
+        XCTAssertNotEqual(experienceKey, state.leaderboardRequestKey)
+    }
+
+    @MainActor
+    func testLeaderboardRefreshIgnoresAnOlderResponseAfterFiltersChange() async {
+        let repository = DemoRepository()
+        let service = GatedLeaderboardService()
+        let store = CompetitionStore(repository: repository, leaderboardService: service)
+        let profile = repository.currentProfile
+        let staleLift = makeLift(userID: profile.id, weight: 315)
+        let staleEntry = LeaderboardEntry(
+            rank: 1,
+            profile: profile,
+            lift: staleLift,
+            rankMovement: 0,
+            score: 315,
+            powerliftingBreakdown: nil
+        )
+
+        let firstRefresh = Task { await store.refreshLeaderboard() }
+        while service.requests.count < 1 {
+            await Task.yield()
+        }
+        store.filters.exerciseID = "bench"
+        let secondRefresh = Task { await store.refreshLeaderboard() }
+        while service.requests.count < 2 {
+            await Task.yield()
+        }
+
+        service.release(request: 1, entries: [])
+        await secondRefresh.value
+        service.release(request: 0, entries: [staleEntry])
+        await firstRefresh.value
+
+        XCTAssertEqual(store.remoteLeaderboardEntries, [])
+    }
+
+    @MainActor
     func testRankingNotificationOpensCurrentUsersGymLeaderboard() {
         let appState = AppState()
         guard let notification = appState.notifications.first(where: {
@@ -323,128 +743,6 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertTrue(appState.verifiedOnly)
         XCTAssertNotNil(appState.leaderboardFocusRequestID)
         XCTAssertTrue(appState.notifications.first(where: { $0.id == notification.id })?.isRead == true)
-    }
-
-    @MainActor
-    func testOtherNotificationTypesOpenRelevantDestinations() {
-        let appState = AppState()
-
-        let liftNotification = NotificationItem(
-            id: UUID(),
-            title: "Lift approved",
-            message: "Your lift was approved.",
-            kind: "Lift approved",
-            createdAt: .now,
-            isRead: false,
-            destination: NotificationDestination(kind: .profile, targetID: appState.currentProfile.id)
-        )
-        appState.repository.notifications.append(liftNotification)
-        appState.openNotification(liftNotification)
-        XCTAssertEqual(appState.selectedTab, 4)
-
-        let friendNotification = NotificationItem(
-            id: UUID(),
-            title: "Friend request",
-            message: "You have a friend request.",
-            kind: "Friend request",
-            createdAt: .now,
-            isRead: false,
-            destination: NotificationDestination(kind: .friendRequests)
-        )
-        appState.repository.notifications.append(friendNotification)
-        appState.openNotification(friendNotification)
-        XCTAssertEqual(appState.selectedTab, 0)
-        XCTAssertEqual(appState.selectedCommunitySegment, "Home")
-
-        let gymNotification = NotificationItem(
-            id: UUID(),
-            title: "Gym request submitted",
-            message: "Your gym is available.",
-            kind: "Gym request",
-            createdAt: .now,
-            isRead: false,
-            destination: NotificationDestination(kind: .gym, targetID: appState.currentProfile.primaryGymID, gymID: appState.currentProfile.primaryGymID)
-        )
-        appState.repository.notifications.append(gymNotification)
-        appState.openNotification(gymNotification)
-        XCTAssertEqual(appState.selectedTab, 0)
-        XCTAssertTrue(appState.communityPath.isEmpty)
-    }
-
-    @MainActor
-    func testTypedNotificationDestinationsOpenMessageAndWorkout() {
-        let appState = AppState()
-        guard let thread = appState.messageThreads.first else {
-            XCTFail("Expected seeded message thread")
-            return
-        }
-
-        let messageNotification = NotificationItem(
-            id: UUID(),
-            title: "New message",
-            message: "You have a reply.",
-            kind: "Message",
-            createdAt: .now,
-            isRead: false,
-            destination: NotificationDestination(kind: .messageThread, targetID: thread.id)
-        )
-        appState.repository.notifications.append(messageNotification)
-        appState.openNotification(messageNotification)
-        XCTAssertEqual(appState.selectedTab, 0)
-        XCTAssertNil(appState.selectedMessageThread)
-
-        let workoutNotification = NotificationItem(
-            id: UUID(),
-            title: "Weekly progress",
-            message: "Review this week.",
-            kind: "Workout",
-            createdAt: .now,
-            isRead: false,
-            destination: NotificationDestination(kind: .workoutTracker, trackerStartsOnProgress: true)
-        )
-        appState.repository.notifications.append(workoutNotification)
-        appState.openNotification(workoutNotification)
-        XCTAssertEqual(appState.selectedTab, 2)
-        XCTAssertTrue(appState.trainingTrackerStartOnProgress)
-        XCTAssertEqual(appState.requestedTrackerSegment, "Progress")
-    }
-
-    @MainActor
-    func testSubmitLiftCreatesDailyEligibleNotificationWithoutAutomaticForumPost() async {
-        let appState = AppState()
-        let initialThreadCount = appState.communityThreads.count
-        let initialPostCount = appState.forumPosts.count
-        let initialNotificationCount = appState.notifications.count
-        let gymID = appState.currentProfile.primaryGymID
-        let exercise = MockData.exercises[2]
-
-        await appState.submitLift(
-            exercise: exercise,
-            weight: 405,
-            unit: .pounds,
-            reps: 1,
-            isActual: true,
-            bodyweight: appState.currentProfile.bodyweightPounds,
-            date: .now,
-            gymID: gymID,
-            equipment: .raw,
-            visibility: .publicLift,
-            videoURL: nil,
-            caption: "Testing a public submit.",
-            requestVerification: true
-        )
-
-        guard let lift = appState.lastSubmissionResult else {
-            XCTFail("Expected submitted lift")
-            return
-        }
-        XCTAssertGreaterThan(lift.leaderboardEligibleAt, lift.createdAt)
-        XCTAssertEqual(appState.repository.lifts.first?.id, lift.id)
-        XCTAssertEqual(appState.communityThreads.count, initialThreadCount)
-        XCTAssertEqual(appState.forumPosts.count, initialPostCount)
-        XCTAssertEqual(appState.notifications.count, initialNotificationCount + 1)
-        XCTAssertEqual(appState.notifications.first?.destination.kind, .lift)
-        XCTAssertEqual(appState.notifications.first?.destination.targetID, lift.id)
     }
 
     @MainActor
@@ -486,6 +784,30 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(playbackURL, localURL)
     }
 
+    func testRemoteEstimatedLiftReconstructsOneRepMaxFromRepetitions() throws {
+        let performedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let dto = CompetitiveLiftDTO(
+            id: UUID(), userID: UUID(), exerciseID: "bench", gymID: UUID().uuidString,
+            weight: 100, unit: "kg", reps: 5, bodyweight: 90, visibility: "Public",
+            verification: "Self Reported", caption: "", performedAt: performedAt,
+            createdAt: performedAt, repetitions: 5, isActualOneRepMax: false,
+            competitiveMovement: CompetitiveMovement.barbellBenchPress.rawValue,
+            evidenceStatus: "self_reported", moderationStatus: "clear", weightPerHand: false,
+            leaderboardEligibleAt: performedAt, updatedAt: performedAt, videoAssetID: nil
+        )
+
+        let submission = try XCTUnwrap(dto.submission)
+
+        XCTAssertEqual(
+            submission.estimatedOneRepMax,
+            RankingCalculator.epleyOneRepMax(
+                weight: RankingCalculator.kilogramsToPounds(100),
+                repetitions: 5
+            ),
+            accuracy: 0.001
+        )
+    }
+
     @MainActor
     func testCompetitionStoreOwnsVerificationServiceMutation() async throws {
         let repository = DemoRepository()
@@ -509,57 +831,76 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
-    func testPrivateSubmitLiftDoesNotCreateCommunityThread() async {
-        let appState = AppState()
-        let initialThreadCount = appState.communityThreads.count
-        await appState.submitLift(
-            exercise: MockData.exercises[0],
-            weight: 225,
-            unit: .pounds,
-            reps: 1,
-            isActual: true,
-            bodyweight: appState.currentProfile.bodyweightPounds,
-            date: .now,
-            gymID: appState.currentProfile.primaryGymID,
-            equipment: .raw,
-            visibility: .privateLift,
-            videoURL: nil,
-            caption: "",
-            requestVerification: false
-        )
-        XCTAssertEqual(appState.communityThreads.count, initialThreadCount)
+    func testCompetitionVerificationDoesNotApplyPreviousUsersResponse() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let lift = try XCTUnwrap(repository.lifts.first)
+        let service = GatedVerificationService(updatedStatus: .rejected)
+        let store = CompetitionStore(repository: repository, verificationService: service)
+
+        let update = Task {
+            await store.updateVerification(for: lift, status: .rejected, note: "Invalid evidence")
+        }
+        while !service.requestStarted {
+            await Task.yield()
+        }
+
+        repository.currentProfile.id = UUID()
+        service.release(lift: lift)
+        let updated = await update.value
+
+        XCTAssertNil(updated)
+        XCTAssertTrue(repository.lifts.isEmpty)
     }
 
     @MainActor
-    func testCommunityVotesReportsAndLockedThreads() {
-        let appState = AppState()
-        guard let thread = appState.communityThreads.first else {
-            XCTFail("Expected seeded thread")
-            return
+    func testCompetitionPlaybackDoesNotUpdatePreviousUsersLift() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let lift = try XCTUnwrap(repository.lifts.first)
+        var remoteLift = lift
+        remoteLift.localVideoURL = nil
+        remoteLift.remoteVideoURL = nil
+        remoteLift.videoAssetID = UUID()
+        repository.lifts = [remoteLift]
+        let mediaService = GatedPlaybackMediaService()
+        let store = CompetitionStore(repository: repository, mediaUploadService: mediaService)
+
+        let playback = Task { await store.playbackURL(for: remoteLift) }
+        while !mediaService.requestStarted {
+            await Task.yield()
         }
 
-        appState.voteThread(thread, vote: .up)
-        XCTAssertEqual(appState.currentThread(thread).voteScore, 1)
-        appState.voteThread(thread, vote: .down)
-        XCTAssertEqual(appState.currentThread(thread).voteScore, -1)
-        appState.voteThread(thread, vote: nil)
-        XCTAssertEqual(appState.currentThread(thread).voteScore, 0)
+        repository.currentProfile.id = UUID()
+        mediaService.release()
+        let url = await playback.value
 
-        appState.reportCommunity(targetType: .thread, targetID: thread.id, reason: .spam)
-        appState.reportCommunity(targetType: .thread, targetID: thread.id, reason: .spam)
-        XCTAssertEqual(appState.communityReports.filter { $0.targetID == thread.id && $0.status == "Open" }.count, 1)
+        XCTAssertNil(url)
+        XCTAssertTrue(repository.lifts.isEmpty)
+    }
 
-        var moderator = appState.currentProfile
-        moderator.experienceLevel = .veteran
-        appState.repository.currentProfile = moderator
-        if let index = appState.repository.profiles.firstIndex(where: { $0.id == moderator.id }) {
-            appState.repository.profiles[index] = moderator
+    @MainActor
+    func testCompetitionSubmissionDoesNotApplyPreviousUsersResponse() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore(), seedDemoData: false)
+        let service = GatedSubmitLiftService()
+        let store = CompetitionStore(repository: repository, liftService: service)
+
+        let submission = Task {
+            await store.submitLift(
+                exercise: MockData.exercises[0], weight: 225, unit: .pounds, reps: 1,
+                isActual: true, bodyweight: 200, date: .now, gymID: UUID(),
+                equipment: .raw, visibility: .publicLift, videoURL: nil,
+                caption: "", requestVerification: false
+            )
         }
-        appState.moderateThread(thread, operation: .lock)
-        XCTAssertTrue(appState.currentThread(thread).isLocked)
-        let replyCount = appState.replies(for: thread).count
-        appState.addReply(to: thread, body: "Should be blocked")
-        XCTAssertEqual(appState.replies(for: thread).count, replyCount)
+        while !service.requestStarted {
+            await Task.yield()
+        }
+
+        repository.currentProfile.id = UUID()
+        service.release()
+        let result = await submission.value
+
+        XCTAssertNil(result)
+        XCTAssertTrue(repository.lifts.isEmpty)
     }
 
     @MainActor
@@ -1048,6 +1389,33 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertFalse(restoredStore.setLogs(for: restoredExercise).contains { $0.id == originalLogs[1].id })
     }
 
+    @MainActor
+    func testDeletedSetDoesNotBlockActiveExerciseCompletion() throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let appState = AppState(repository: repository)
+        let bench = try XCTUnwrap(appState.trainingExerciseLibrary.first(where: { $0.id == "barbell_bench_press" }))
+
+        XCTAssertTrue(appState.startFreestyleWorkoutInstance())
+        appState.addExercisesToActiveWorkout([bench])
+        let exercise = try XCTUnwrap(appState.activeWorkout?.exercises.first)
+        let originalLogs = appState.setLogs(for: exercise).sorted { $0.setNumber < $1.setNumber }
+        XCTAssertGreaterThanOrEqual(originalLogs.count, 3)
+
+        appState.deleteSetLog(originalLogs[2])
+        for var log in appState.setLogs(for: exercise) {
+            log.weight = 135
+            log.reps = 5
+            log.isComplete = true
+            appState.updateSetLog(log)
+        }
+
+        let progress = appState.activeWorkoutExerciseProgress(for: exercise)
+        XCTAssertEqual(progress.plannedWorkingSets, originalLogs.count - 1)
+        XCTAssertEqual(progress.completedWorkingSets, originalLogs.count - 1)
+        XCTAssertTrue(progress.isComplete)
+        XCTAssertEqual(appState.activeWorkoutFinishReadiness, .ready)
+    }
+
     func testCompositeBodyPartsResolveToMultipleHighlightedRegions() {
         XCTAssertEqual(
             Set(ExerciseBodyRegionResolver.regions(for: "Chest/Triceps")),
@@ -1089,26 +1457,6 @@ final class RankingCalculatorTests: XCTestCase {
         let left = repository.challenges.first { $0.id == challenge.id }
         XCTAssertEqual(left?.isJoined, false)
         XCTAssertEqual(left?.participantCount, participantCount)
-    }
-
-    @MainActor
-    func testGymRequestAddsVisibleGymAndRequestRecord() {
-        let repository = DemoRepository()
-        let request = GymRequest(
-            id: UUID(),
-            name: "Crunch Fitness - Test Club",
-            city: "Miami",
-            state: "Florida",
-            requestedBy: MockData.demoUserID,
-            note: "Prototype request",
-            createdAt: .now
-        )
-
-        repository.requestGym(request)
-
-        XCTAssertEqual(repository.gymRequests.first?.name, request.name)
-        XCTAssertEqual(repository.gyms.first?.name, request.name)
-        XCTAssertTrue(repository.communityThreads.contains { $0.kind == .gym && $0.gymID == repository.gyms.first?.id })
     }
 
     @MainActor
@@ -1171,53 +1519,8 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertTrue(repository.workoutEntries.contains { $0.planID == MockData.defaultWorkoutPlanID })
     }
 
-    func testChallengeThreadsAreNotSeededWhileChallengesAreDisabled() {
-        let challenges = MockData.challenges
-        let challengeThreads = MockData.communityThreads(for: challenges).filter { $0.kind == .challenge }
-
-        XCTAssertTrue(challengeThreads.isEmpty)
-    }
 
     @MainActor
-    func testFriendRequestCanBeSentAndAccepted() {
-        let repository = DemoRepository()
-        guard let profile = repository.profiles.first(where: { profile in
-            profile.id != repository.currentProfile.id &&
-            !repository.friendRequests.contains { request in
-                (request.fromUserID == repository.currentProfile.id && request.toUserID == profile.id) ||
-                (request.fromUserID == profile.id && request.toUserID == repository.currentProfile.id)
-            }
-        }) else {
-            XCTFail("Expected a profile without a request")
-            return
-        }
-
-        repository.sendFriendRequest(to: profile)
-
-        guard let request = repository.friendRequests.first(where: { $0.fromUserID == repository.currentProfile.id && $0.toUserID == profile.id }) else {
-            XCTFail("Expected sent friend request")
-            return
-        }
-        XCTAssertEqual(request.status, .pending)
-
-        repository.respondToFriendRequest(request, status: .accepted)
-
-        XCTAssertEqual(repository.friendRequests.first { $0.id == request.id }?.status, .accepted)
-        XCTAssertNotNil(repository.friendRequests.first { $0.id == request.id }?.respondedAt)
-    }
-
-    @MainActor
-    func testPendingSentFriendRequestCanBeCanceled() {
-        let repository = DemoRepository()
-        guard let request = repository.friendRequests.first(where: { $0.fromUserID == repository.currentProfile.id && $0.status == .pending }) else {
-            XCTFail("Expected seeded outgoing friend request")
-            return
-        }
-
-        repository.cancelFriendRequest(request)
-
-        XCTAssertFalse(repository.friendRequests.contains { $0.id == request.id })
-    }
 
     func testRelativeTimeFormatterDoesNotShowSeconds() {
         let now = Date(timeIntervalSince1970: 1_000)
@@ -1225,162 +1528,6 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(LiftTimeFormatter.relativeNoSeconds(from: now.addingTimeInterval(-20), now: now), "Just now")
         XCTAssertEqual(LiftTimeFormatter.relativeNoSeconds(from: now.addingTimeInterval(-90), now: now), "1 min ago")
         XCTAssertFalse(LiftTimeFormatter.relativeNoSeconds(from: now.addingTimeInterval(-20), now: now).contains("sec"))
-    }
-
-    @MainActor
-    func testMessageCanBeSentAndReported() {
-        let repository = DemoRepository()
-        guard let profile = repository.profiles.first(where: { $0.id != repository.currentProfile.id }) else {
-            XCTFail("Expected another profile")
-            return
-        }
-        let thread = repository.messageThread(with: profile)
-
-        repository.addMessage(to: thread, body: "Can you spot bench later?")
-
-        guard let sent = repository.directMessages.last(where: { $0.threadID == thread.id && $0.senderID == repository.currentProfile.id }) else {
-            XCTFail("Expected sent message")
-            return
-        }
-        XCTAssertEqual(sent.body, "Can you spot bench later?")
-
-        repository.reportMessage(sent, reason: .spam, note: "Testing report")
-
-        XCTAssertTrue(repository.directMessages.first { $0.id == sent.id }?.isReported == true)
-        XCTAssertEqual(repository.messageReports.first?.messageID, sent.id)
-        XCTAssertEqual(repository.messageReports.first?.reason, .spam)
-    }
-
-    @MainActor
-    func testSocialMessagingStoreOwnsFriendAndMessageProjectionsAndMutations() throws {
-        let repository = DemoRepository()
-        let store = SocialMessagingStore(repository: repository)
-        let profile = try XCTUnwrap(repository.profiles.first { candidate in
-            candidate.id != repository.currentProfile.id && store.friendRequest(with: candidate) == nil
-        })
-
-        XCTAssertEqual(store.friendActionTitle(for: profile), "Connect")
-        XCTAssertTrue(store.canSendFriendRequest(to: profile))
-        store.sendLocalFriendRequest(to: profile)
-
-        let request = try XCTUnwrap(store.friendRequest(with: profile))
-        XCTAssertEqual(request.status, .pending)
-        XCTAssertEqual(store.friendActionTitle(for: profile), "Request Sent")
-        store.cancelLocalFriendRequest(request)
-        XCTAssertNil(store.friendRequest(with: profile))
-
-        store.sendLocalFriendRequest(to: profile)
-        let resentRequest = try XCTUnwrap(store.friendRequest(with: profile))
-        store.respondToLocalFriendRequest(resentRequest, accept: true)
-        XCTAssertEqual(store.friendRequest(with: profile)?.status, .accepted)
-        XCTAssertTrue(store.canOpenMessageThread(with: profile, friends: [profile]))
-
-        let thread = store.openLocalMessageThread(with: profile)
-        let initialMessageCount = store.messages(for: thread).count
-        let updatedThread = try XCTUnwrap(store.sendLocalMessage(in: thread, body: "Store-owned message"))
-        XCTAssertEqual(store.messages(for: thread).count, initialMessageCount + 1)
-        XCTAssertEqual(store.lastMessage(in: thread)?.body, "Store-owned message")
-        XCTAssertEqual(store.otherParticipant(in: updatedThread)?.id, profile.id)
-
-        let sent = try XCTUnwrap(store.lastMessage(in: thread))
-        _ = store.appendRemoteMessage(sent, in: thread)
-        XCTAssertEqual(store.messages(for: thread).filter { $0.id == sent.id }.count, 1)
-        store.reportLocalMessage(sent, reason: .spam, note: "Store report")
-        XCTAssertTrue(repository.directMessages.first { $0.id == sent.id }?.isReported == true)
-        store.deleteLocalMessage(sent)
-        XCTAssertFalse(store.directMessages.contains { $0.id == sent.id })
-        store.deleteLocalThread(thread)
-        XCTAssertFalse(store.messageThreads.contains { $0.id == thread.id })
-    }
-
-    @MainActor
-    func testIndividualMessageCanBeDeleted() {
-        let appState = AppState()
-        guard let thread = appState.messageThreads.first,
-              let message = appState.messages(for: thread).first else {
-            XCTFail("Expected seeded message")
-            return
-        }
-        let initialCount = appState.messages(for: thread).count
-
-        appState.deleteMessage(message)
-
-        XCTAssertEqual(appState.messages(for: thread).count, initialCount - 1)
-        XCTAssertFalse(appState.directMessages.contains { $0.id == message.id })
-    }
-
-    @MainActor
-    func testConversationDeletionRemovesThreadAndMessages() {
-        let appState = AppState()
-        guard let thread = appState.messageThreads.first else {
-            XCTFail("Expected seeded message thread")
-            return
-        }
-
-        appState.selectedMessageThread = thread
-        appState.deleteMessageThread(thread)
-
-        XCTAssertFalse(appState.messageThreads.contains { $0.id == thread.id })
-        XCTAssertFalse(appState.directMessages.contains { $0.threadID == thread.id })
-        XCTAssertNil(appState.selectedMessageThread)
-    }
-
-    @MainActor
-    func testCommunityThreadCanBeLikedAndCommentedOn() {
-        let appState = AppState()
-        guard let thread = appState.communityThreads.first else {
-            XCTFail("Expected seeded thread")
-            return
-        }
-
-        appState.toggleThreadLike(thread)
-        appState.addReply(to: thread, body: "I am in for this lift check.")
-
-        let updatedThread = appState.currentThread(thread)
-        XCTAssertTrue(appState.isThreadLiked(updatedThread))
-        XCTAssertEqual(updatedThread.likeCount, thread.likeCount + 1)
-        XCTAssertEqual(updatedThread.replyCount, thread.replyCount + 1)
-        XCTAssertTrue(appState.replies(for: updatedThread).contains { $0.body == "I am in for this lift check." })
-    }
-
-    @MainActor
-    func testSeededCommunityThreadsHaveVisibleReplies() {
-        let appState = AppState()
-        guard let thread = appState.communityThreads.first(where: { $0.replyCount > 0 }) else {
-            XCTFail("Expected seeded thread with replies")
-            return
-        }
-
-        XCTAssertFalse(appState.replies(for: thread).isEmpty)
-    }
-
-    @MainActor
-    func testSeededActivitiesHaveVisibleComments() {
-        let appState = AppState()
-        guard let activity = appState.activities.first(where: { !appState.comments(for: $0).isEmpty }) else {
-            XCTFail("Expected seeded activity comments")
-            return
-        }
-
-        XCTAssertGreaterThan(appState.comments(for: activity).count, 0)
-    }
-
-    @MainActor
-    func testActivityCanBeLikedSavedAndCommentedOn() {
-        let appState = AppState()
-        guard let activity = appState.activities.first else {
-            XCTFail("Expected seeded activity")
-            return
-        }
-
-        appState.toggleActivityLike(activity)
-        appState.toggleActivitySave(activity)
-        appState.addComment(to: activity, body: "Strong lift.")
-
-        let updatedActivity = appState.currentActivity(activity)
-        XCTAssertTrue(updatedActivity.isLiked)
-        XCTAssertTrue(updatedActivity.isSaved)
-        XCTAssertTrue(appState.comments(for: updatedActivity).contains { $0.body == "Strong lift." })
     }
 
     @MainActor
@@ -1501,6 +1648,145 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
+    func testWorkoutSummaryNormalizesMixedRecordedUnits() {
+        let repository = DemoRepository()
+        let session = WorkoutSession(
+            id: UUID(), weekID: UUID(), day: "Sunday", name: "Mixed units", order: 0, notes: ""
+        )
+        let prescription = WorkoutExercisePrescription(
+            id: UUID(), sessionID: session.id, exerciseID: "barbell_bench_press", exerciseName: "Bench",
+            bodyPart: "Chest", equipment: "Barbell", sets: 1, reps: "1", restSeconds: 120, order: 0, notes: ""
+        )
+        repository.workoutSessions = [session]
+        repository.workoutPrescriptions = [prescription]
+        repository.workoutSetLogs = [WorkoutSetLog(
+            id: UUID(), prescriptionID: prescription.id, performedAt: .now, setNumber: 1,
+            weight: 100, reps: 1, rpe: nil, isWarmup: false, isComplete: true,
+            workoutID: nil, recordedUnit: .kilograms
+        )]
+
+        let summary = repository.workoutSummary(for: session)
+
+        XCTAssertEqual(summary.totalVolume, 220.46226218, accuracy: 0.001)
+    }
+
+    @MainActor
+    func testWorkoutSummaryExcludesWarmupsAndTimedVolume() {
+        let appState = AppState()
+        guard let week = appState.selectedPlanWeeks.first else {
+            XCTFail("Expected selected week")
+            return
+        }
+        let session = appState.addSession(to: week, day: "Sunday", name: "Summary Tracking Test")
+        guard let bench = appState.trainingExerciseLibrary.first(where: { $0.id == "barbell_bench_press" }),
+              let timed = appState.trainingExerciseLibrary.first(where: { $0.id == "farmers_carry" }) else {
+            XCTFail("Expected bench and timed exercises")
+            return
+        }
+        appState.addExercises([bench, timed], to: session)
+        let prescriptions = appState.prescriptions(for: session)
+        guard let benchPrescription = prescriptions.first(where: { $0.exerciseID == bench.id }),
+              let timedPrescription = prescriptions.first(where: { $0.exerciseID == timed.id }) else {
+            XCTFail("Expected both prescriptions")
+            return
+        }
+
+        var benchSet = appState.addSetLog(to: benchPrescription)
+        benchSet.weight = 100
+        benchSet.reps = 5
+        benchSet.isComplete = true
+        appState.updateSetLog(benchSet)
+
+        var warmup = appState.addSetLog(to: benchPrescription)
+        warmup.weight = 135
+        warmup.reps = 3
+        warmup.isWarmup = true
+        warmup.isComplete = true
+        appState.updateSetLog(warmup)
+
+        var timedSet = appState.addSetLog(to: timedPrescription)
+        timedSet.weight = 100
+        timedSet.reps = 60
+        timedSet.isComplete = true
+        appState.updateSetLog(timedSet)
+
+        let summary = appState.workoutSummary(for: session)
+
+        XCTAssertEqual(summary.completedExercises, 2)
+        XCTAssertEqual(summary.totalSets, 2)
+        XCTAssertEqual(summary.totalVolume, 500)
+        XCTAssertEqual(summary.bestSet?.id, benchSet.id)
+
+    }
+
+    func testWorkoutSummaryAchievementSetsExcludeWarmupsAndTimedExercises() {
+        let workoutID = UUID()
+        let benchID = UUID()
+        let timedID = UUID()
+        let benchSetID = UUID()
+        let warmupID = UUID()
+        let timedSetID = UUID()
+        let workout = ActiveWorkoutState(
+            id: workoutID,
+            source: .freestyle,
+            sourceSessionID: nil,
+            sourcePlanID: nil,
+            sourceWeekID: nil,
+            name: "Summary tracking test",
+            dayLabel: "Sunday",
+            startedAt: .now,
+            pausedAt: nil,
+            accumulatedPausedTime: 0,
+            gymID: nil,
+            bodyweight: nil,
+            unit: .pounds,
+            exercises: [
+                WorkoutExerciseSnapshot(
+                    id: benchID, sourcePrescriptionID: nil, exerciseID: "bench", exerciseName: "Bench",
+                    bodyPart: "Chest", equipment: "Barbell", targetSets: 1, targetReps: "5", restSeconds: 120,
+                    order: 0, notes: "", rankingExerciseID: "bench", trackingType: "Weight + Reps"
+                ),
+                WorkoutExerciseSnapshot(
+                    id: timedID, sourcePrescriptionID: nil, exerciseID: "farmers_carry", exerciseName: "Carry",
+                    bodyPart: "Full Body", equipment: "Dumbbell", targetSets: 1, targetReps: "60", restSeconds: 60,
+                    order: 1, notes: "", rankingExerciseID: nil, trackingType: "Weight + Time"
+                )
+            ],
+            automaticRestTimerEnabled: false,
+            restTimerEndsAt: nil,
+            restTimerExerciseID: nil
+        )
+        let logs = [
+            WorkoutSetLog(
+                id: benchSetID, prescriptionID: benchID, performedAt: .now, setNumber: 1,
+                weight: 100, reps: 5, rpe: nil, isWarmup: false, isComplete: true, workoutID: workoutID
+            ),
+            WorkoutSetLog(
+                id: warmupID, prescriptionID: benchID, performedAt: .now, setNumber: 2,
+                weight: 135, reps: 3, rpe: nil, isWarmup: true, isComplete: true, workoutID: workoutID
+            ),
+            WorkoutSetLog(
+                id: timedSetID, prescriptionID: timedID, performedAt: .now, setNumber: 1,
+                weight: 100, reps: 60, rpe: nil, isWarmup: false, isComplete: true, workoutID: workoutID
+            )
+        ]
+
+        XCTAssertEqual(
+            WorkoutSummaryView.achievementWorkingSets(workout: workout, logs: logs, catalog: []).map(\.id),
+            [benchSetID]
+        )
+    }
+
+    func testCompletedWorkoutVolumeNormalizesMixedRecordedUnits() {
+        var workout = makeCompletedWorkout(completedAt: .now)
+        workout.unit = .kilograms
+        workout.sets[0].recordedUnit = .pounds
+        workout.sets[0].weight = 220.46226218
+
+        XCTAssertEqual(workout.totalVolume, 500, accuracy: 0.001)
+    }
+
+    @MainActor
     func testStartingFreestyleSessionAddsWorkoutToActiveWeek() {
         let appState = AppState()
         guard let week = appState.selectedPlanWeeks.first else {
@@ -1589,6 +1875,47 @@ final class RankingCalculatorTests: XCTestCase {
             RankingCalculator.bestLift(exerciseID: "bench", submissions: repository.lifts.filter { $0.userID == currentUserID })?.weight,
             225
         )
+    }
+
+    @MainActor
+    func testVolumeAwardsNormalizeRecordedUnitsToKilograms() {
+        let poundsRepository = DemoRepository()
+        var poundsWorkout = makeCompletedWorkout(completedAt: .now)
+        poundsWorkout.sets[0].weight = 220.46226218
+        poundsWorkout.sets[0].reps = 100
+        poundsRepository.completedWorkouts = [poundsWorkout]
+
+        let kilogramsRepository = DemoRepository()
+        var kilogramsWorkout = makeCompletedWorkout(completedAt: .now)
+        kilogramsWorkout.sets[0].weight = 100
+        kilogramsWorkout.sets[0].reps = 100
+        kilogramsWorkout.sets[0].recordedUnit = .kilograms
+        kilogramsRepository.completedWorkouts = [kilogramsWorkout]
+
+        XCTAssertEqual(
+            poundsRepository.computedStatistics().lifetimeWorkingSetVolume,
+            kilogramsRepository.computedStatistics().lifetimeWorkingSetVolume,
+            accuracy: 0.001
+        )
+
+        poundsRepository.refreshAchievementUnlocks()
+        XCTAssertTrue(poundsRepository.achievementUnlocks.contains { $0.title == "10,000 kg Lifted Volume" })
+    }
+
+    @MainActor
+    func testCompetitionPRCountUsesTheBestSetSeenSoFar() {
+        let repository = DemoRepository()
+        let weights = [200.0, 225.0, 250.0]
+        repository.completedWorkouts = weights.enumerated().map { index, weight in
+            var workout = makeCompletedWorkout(
+                completedAt: Date(timeIntervalSince1970: 1_800_000_000 + Double(index) * 86_400)
+            )
+            workout.sets[0].weight = weight
+            workout.sets[0].reps = 1
+            return workout
+        }
+
+        XCTAssertEqual(repository.computedStatistics().prCount, weights.count)
     }
 
     private func makeLift(
@@ -1693,7 +2020,7 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     func testLeaderboardTotalUsesOneRepPRsAndAllowsPartialTotals() {
-        let seeded = MockData.community()
+        let seeded = MockData.seededCompetitionData()
         let userID = seeded.profiles[0].id
         let lifts = [
             makeLift(userID: userID, weight: 300, exerciseID: "squat", repetitions: 1),
@@ -1725,7 +2052,7 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     func testExerciseLeaderboardUsesSubmittedWeightRatherThanEstimatedMax() {
-        let seeded = MockData.community()
+        let seeded = MockData.seededCompetitionData()
         let firstUser = seeded.profiles[0].id
         let secondUser = seeded.profiles[1].id
         var lighter = makeLift(userID: firstUser, weight: 300, exerciseID: "bench", repetitions: 10)
@@ -1769,14 +2096,6 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertTrue(entries.contains { $0.profile.id != appState.currentProfile.id })
     }
 
-    func testDefaultVerificationEligibilityIncludesEvidenceBasedStatuses() {
-        XCTAssertTrue(VerificationStatus.videoVerified.isDefaultLeaderboardEligible)
-        XCTAssertTrue(VerificationStatus.communityVerified.isDefaultLeaderboardEligible)
-        XCTAssertTrue(VerificationStatus.competitionVerified.isDefaultLeaderboardEligible)
-        XCTAssertFalse(VerificationStatus.selfReported.isDefaultLeaderboardEligible)
-        XCTAssertFalse(VerificationStatus.videoSubmitted.isDefaultLeaderboardEligible)
-        XCTAssertFalse(VerificationStatus.rejected.isDefaultLeaderboardEligible)
-    }
 
     func testLegacyModeratorVerifiedStatusMigratesToVideoVerified() throws {
         let data = try XCTUnwrap("\"Moderator Verified\"".data(using: .utf8))
@@ -1789,7 +2108,7 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     func testAllSubmissionsIncludesSelfReportedTotal() {
-        let seeded = MockData.community()
+        let seeded = MockData.seededCompetitionData()
         let profile = seeded.profiles[1]
         var lifts = [
             makeLift(userID: profile.id, weight: 300, exerciseID: "squat"),
@@ -1809,54 +2128,6 @@ final class RankingCalculatorTests: XCTestCase {
 
         XCTAssertTrue(verified.isEmpty)
         XCTAssertEqual(all.count, 1)
-    }
-
-    @MainActor
-    func testUnifiedCommunityFeedIsChronologicalAndSuppressesThreadEchoes() {
-        let appState = AppState()
-        let items = CommunityFeedBuilder.items(
-            threads: appState.communityThreads,
-            activities: appState.activities,
-            lifts: appState.lifts,
-            topic: .all
-        )
-
-        XCTAssertFalse(items.isEmpty)
-        XCTAssertEqual(items.map(\.id), items.sorted { $0.createdAt > $1.createdAt }.map(\.id))
-        XCTAssertFalse(items.contains { item in
-            guard case .activity(let activity) = item else { return false }
-            return activity.title.localizedCaseInsensitiveContains("started a thread") ||
-                activity.title.localizedCaseInsensitiveContains("replied to")
-        })
-    }
-
-    @MainActor
-    func testCommunityBenchTopicUsesLinkedLiftData() {
-        let appState = AppState()
-        let items = CommunityFeedBuilder.items(
-            threads: appState.communityThreads,
-            activities: appState.activities,
-            lifts: appState.lifts,
-            topic: .bench
-        )
-        let liftByID = Dictionary(uniqueKeysWithValues: appState.lifts.map { ($0.id, $0) })
-
-        XCTAssertFalse(items.isEmpty)
-        for item in items {
-            if case .activity(let activity) = item {
-                XCTAssertEqual(activity.liftID.flatMap { liftByID[$0] }?.exerciseID, "bench")
-            }
-        }
-    }
-
-    @MainActor
-    func testSubmittedLiftActivityRetainsLiftLink() {
-        let appState = AppState()
-        let lift = makeLift(userID: appState.currentProfile.id, weight: 405)
-
-        appState.repository.addLift(lift)
-
-        XCTAssertEqual(appState.activities.first?.liftID, lift.id)
     }
 
     @MainActor
@@ -2130,11 +2401,68 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(store.plateauInsights.first?.exerciseID, bench.id)
         XCTAssertEqual(store.plateauInsights.first?.performances.count, 3)
 
-        var bodyweight = try XCTUnwrap(store.bodyweightEntries.first)
+        let draftBodyweight = BodyweightEntry.draftForCurrentWeek(
+            entries: store.bodyweightEntries,
+            currentBodyweightPounds: 200,
+            calendar: calendar,
+            now: latestDate
+        )
+        store.updateBodyweight(draftBodyweight)
+        var bodyweight = try XCTUnwrap(store.bodyweightEntries.first(where: { $0.id == draftBodyweight.id }))
         bodyweight.actual = 201
         bodyweight.notes = "Store test"
         store.updateBodyweight(bodyweight)
         XCTAssertEqual(store.bodyweightEntries.first(where: { $0.id == bodyweight.id }), bodyweight)
+        repository.strainEntries = [StrainEntry(strain: 5)]
+        repository.injuryEntries = [InjuryEntry(area: "Knee", description: "Private", intensity: 3)]
+
+        repository.currentProfile.id = UUID()
+        XCTAssertTrue(store.bodyweightEntries.isEmpty)
+        XCTAssertTrue(store.strainEntries.isEmpty)
+        XCTAssertTrue(store.injuryEntries.isEmpty)
+    }
+
+    @MainActor
+    func testTrainingProgressVolumeExcludesWeightAndTimeSets() throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let exerciseStore = ExerciseLibraryStore(repository: repository)
+        let carry = try XCTUnwrap(exerciseStore.createCustomExercise(
+            name: "Timed Carry",
+            bodyPart: "Full Body",
+            equipment: "Dumbbell",
+            trackingType: "Weight + Time"
+        ))
+        let startedAt = Date(timeIntervalSince1970: 1_900_400_000)
+        _ = try XCTUnwrap(repository.startFreestyleWorkout(
+            name: "Carry Conditioning",
+            gymID: nil,
+            bodyweight: 200,
+            unit: .pounds,
+            at: startedAt
+        ))
+        repository.addExercisesToActiveWorkout([carry])
+        var log = try XCTUnwrap(repository.workoutSetLogs.first { $0.workoutID == repository.activeWorkout?.id })
+        log.weight = 100
+        log.reps = 60
+        log.isComplete = true
+        repository.updateWorkoutSetLog(log)
+        let completed = try XCTUnwrap(repository.finishActiveWorkout(
+            effort: 3,
+            notes: "",
+            at: startedAt.addingTimeInterval(1_800)
+        ))
+        let store = TrainingProgressStore(repository: repository)
+
+        XCTAssertEqual(completed.totalVolume, 0)
+        XCTAssertEqual(
+            store.volumeByBodyPart(planID: completed.sourcePlanID ?? UUID(), preferredUnit: .pounds)[carry.bodyPart] ?? 0,
+            0
+        )
+        XCTAssertTrue(store.plateauInsights.isEmpty)
+        XCTAssertEqual(repository.computedStatistics().lifetimeWorkingSetVolume, 0)
+        XCTAssertEqual(repository.computedStatistics().totalWorkingSetRepetitions, 0)
+        repository.refreshAchievementUnlocks()
+        XCTAssertFalse(repository.achievementUnlocks.contains { $0.title == "10,000 kg Lifted Volume" })
     }
 
     @MainActor
@@ -2157,6 +2485,20 @@ final class RankingCalculatorTests: XCTestCase {
 
         XCTAssertTrue(store.attemptAutomaticCompletion(before: logs[1]))
         XCTAssertEqual(store.completedWorkingSets.map(\.id), [logs[0].id])
+
+        repository.updateWorkoutSetLog(WorkoutSetLog(
+            id: UUID(),
+            prescriptionID: exercise.id,
+            performedAt: .now,
+            setNumber: 0,
+            weight: 135,
+            reps: 10,
+            rpe: nil,
+            isWarmup: true,
+            isComplete: true,
+            workoutID: store.workout?.id,
+            recordedUnit: .pounds
+        ))
 
         let summary = try XCTUnwrap(store.summary())
         XCTAssertEqual(summary.completedExercises, 1)
@@ -2249,6 +2591,27 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertNil(store.workout)
         XCTAssertEqual(store.finishReadiness, .unavailable)
         XCTAssertEqual(notifications.cancelCount, 1)
+    }
+
+    @MainActor
+    func testActiveWorkoutCompletionPersistsDraftValuesBeforeMarkingSetComplete() throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let appState = AppState(repository: repository)
+        let bench = try XCTUnwrap(appState.trainingExerciseLibrary.first { $0.id == "barbell_bench_press" })
+
+        XCTAssertTrue(appState.startFreestyleWorkoutInstance())
+        appState.addExercisesToActiveWorkout([bench])
+        let store = ActiveWorkoutStore(repository: repository)
+        var draft = try XCTUnwrap(store.setLogs(for: try XCTUnwrap(store.workout?.exercises.first)).first)
+        draft.weight = 225
+        draft.reps = 5
+
+        XCTAssertTrue(store.applySetCompletion(draft, isComplete: true, source: .manual))
+
+        let saved = try XCTUnwrap(repository.workoutSetLogs.first { $0.id == draft.id })
+        XCTAssertEqual(saved.weight, 225)
+        XCTAssertEqual(saved.reps, 5)
+        XCTAssertTrue(saved.isComplete)
     }
 
     @MainActor
@@ -2373,6 +2736,139 @@ final class RankingCalculatorTests: XCTestCase {
 
         XCTAssertTrue(repository.completedWorkouts.isEmpty)
         XCTAssertEqual(repository.pendingWorkoutPRSubmissions.map(\.state), [.submitted])
+
+        repository.workoutPreferences.automaticallySubmitVideoBackedPRs = true
+        repository.currentProfile.id = UUID()
+        let store = WorkoutPRSubmissionStore(
+            repository: repository,
+            liftSubmitter: GatedWorkoutPRLiftSubmitter(),
+            exercise: { id in MockData.exercises.first { $0.id == id } }
+        )
+        XCTAssertTrue(store.pendingSubmissions.isEmpty)
+        XCTAssertFalse(store.preferences.automaticallySubmitVideoBackedPRs)
+    }
+
+    @MainActor
+    func testActiveWorkoutStoreClearsDraftForANewAccount() {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let store = ActiveWorkoutStore(repository: repository)
+        let workout = repository.startFreestyleWorkout(
+            name: "Private workout",
+            gymID: nil,
+            bodyweight: nil,
+            unit: .pounds,
+            at: .now
+        )
+        let workoutID = try! XCTUnwrap(workout?.id)
+        _ = repository.addWorkoutSetLog(
+            prescriptionID: UUID(),
+            workoutID: workoutID,
+            unit: .pounds
+        )
+        XCTAssertNotNil(store.workout)
+
+        repository.currentProfile.id = UUID()
+
+        XCTAssertNil(store.workout)
+        XCTAssertTrue(repository.workoutSetLogs.isEmpty)
+    }
+
+    @MainActor
+    func testUpdatingCompletedWorkoutReplacesAndPersistsHistoryEntry() throws {
+        let store = InMemoryWorkoutPersistenceStore()
+        let repository = DemoRepository(workoutPersistenceStore: store)
+        let original = makeCompletedWorkout(completedAt: Date(timeIntervalSince1970: 1_800_000_000))
+        let later = makeCompletedWorkout(completedAt: Date(timeIntervalSince1970: 1_800_086_400))
+        repository.completedWorkouts = [original, later]
+        repository.deletedCompletedWorkoutIDs.insert(original.id)
+
+        var edited = original
+        edited.completedAt = Date(timeIntervalSince1970: 1_800_172_800)
+        edited.notes = "Adjusted after workout"
+        edited.effort = 5
+        edited.sets[0].weight = 235
+        edited.sets[0].reps = 4
+
+        repository.updateCompletedWorkout(edited)
+
+        XCTAssertEqual(repository.completedWorkouts.map(\.id), [edited.id, later.id])
+        let saved = try XCTUnwrap(repository.completedWorkouts.first)
+        XCTAssertEqual(saved.notes, "Adjusted after workout")
+        XCTAssertEqual(saved.effort, 5)
+        XCTAssertEqual(saved.sets[0].weight, 235)
+        XCTAssertEqual(saved.sets[0].reps, 4)
+        XCTAssertFalse(repository.deletedCompletedWorkoutIDs.contains(original.id))
+
+        let persisted = try XCTUnwrap(store.loadSnapshot()?.completedWorkouts.first(where: { $0.id == edited.id }))
+        XCTAssertEqual(persisted.notes, "Adjusted after workout")
+        XCTAssertEqual(persisted.sets[0].weight, 235)
+    }
+
+    @MainActor
+    func testWorkoutSyncRemovesSuccessfulDeletionRetriesAndRetainsFailures() async {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let service = WorkoutSyncServiceStub()
+        let store = WorkoutSyncStore(repository: repository, service: service)
+        let workoutID = UUID()
+        repository.deletedCompletedWorkoutIDs = [workoutID]
+
+        await store.synchronizeCompletedWorkoutHistory()
+
+        XCTAssertEqual(service.deletedIDs, [workoutID])
+        XCTAssertTrue(repository.deletedCompletedWorkoutIDs.isEmpty)
+
+        service.shouldFailDeletion = true
+        repository.deletedCompletedWorkoutIDs = [workoutID]
+        await store.synchronizeCompletedWorkoutHistory()
+
+        XCTAssertEqual(service.deletedIDs, [workoutID, workoutID])
+        XCTAssertEqual(repository.deletedCompletedWorkoutIDs, [workoutID])
+    }
+
+    @MainActor
+    func testNotificationReadStateSynchronizesWithRemoteService() async {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let service = RecordingNotificationService()
+        let store = NotificationStore(
+            repository: repository,
+            notificationService: service,
+            deviceID: "notification-test-device"
+        )
+        let firstID = UUID()
+        let secondID = UUID()
+        repository.notifications = [
+            NotificationItem(id: firstID, title: "First", message: "", kind: "Test", createdAt: .now, isRead: false),
+            NotificationItem(id: secondID, title: "Second", message: "", kind: "Test", createdAt: .now, isRead: false)
+        ]
+
+        store.markRead(firstID)
+        for _ in 0..<3 { await Task.yield() }
+        store.markAllRead()
+        for _ in 0..<3 { await Task.yield() }
+
+        XCTAssertEqual(service.markedIDs, [firstID, firstID, secondID])
+        XCTAssertTrue(repository.notifications.allSatisfy(\.isRead))
+    }
+
+    @MainActor
+    func testNotificationRefreshPreservesCachedItemsWhenRemoteFetchFails() async {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let service = RecordingNotificationService()
+        let store = NotificationStore(repository: repository, notificationService: service)
+        let notification = NotificationItem(
+            id: UUID(), title: "Cached", message: "", kind: "Test", createdAt: .now, isRead: false
+        )
+        repository.notifications = [notification]
+        service.shouldFailRefresh = true
+
+        await store.refreshProductionData()
+
+        XCTAssertEqual(repository.notifications, [notification])
+
+        repository.currentProfile.id = UUID()
+        await store.refreshProductionData()
+
+        XCTAssertTrue(repository.notifications.isEmpty)
     }
 
     @MainActor
@@ -2497,50 +2993,6 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
-    func testAutomaticPRSubmissionRequiresOptInAndVideoAndDoesNotDuplicate() async {
-        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
-        repository.completedWorkouts = []
-        let appState = AppState(repository: repository)
-        let bench = try! XCTUnwrap(appState.trainingExerciseLibrary.first(where: { $0.id == "barbell_bench_press" }))
-        XCTAssertFalse(appState.workoutPreferences.automaticallySubmitVideoBackedPRs)
-
-        XCTAssertTrue(appState.startFreestyleWorkoutInstance())
-        appState.addExercisesToActiveWorkout([bench])
-        var log = try! XCTUnwrap(repository.workoutSetLogs.first(where: { $0.workoutID == appState.activeWorkout?.id }))
-        log.weight = 1_000
-        log.reps = 1
-        log.isComplete = true
-        appState.updateSetLog(log)
-        let completed = try! XCTUnwrap(appState.finishActiveWorkout(effort: 5, notes: "PR"))
-        let initialLiftCount = appState.lifts.count
-        let initialThreadCount = appState.communityThreads.count
-
-        await appState.submitVideoBackedPRs(for: completed, videoURLsBySetID: [log.id: URL(fileURLWithPath: "/tmp/pr.mov")])
-        XCTAssertEqual(appState.lifts.count, initialLiftCount)
-
-        appState.setAutomaticVideoPRSubmission(true)
-        await appState.submitVideoBackedPRs(for: completed, videoURLsBySetID: [:])
-        XCTAssertEqual(appState.lifts.count, initialLiftCount)
-
-        let videoURL = URL(fileURLWithPath: "/tmp/pr.mov")
-        await appState.submitVideoBackedPRs(for: completed, videoURLsBySetID: [log.id: videoURL])
-        XCTAssertEqual(appState.lifts.count, initialLiftCount + 1)
-        XCTAssertEqual(appState.communityThreads.count, initialThreadCount)
-        XCTAssertEqual(appState.lifts.first?.verificationStatus, .videoVerified)
-        XCTAssertEqual(appState.lifts.first?.evidenceStatus, .videoBacked)
-        XCTAssertEqual(appState.lifts.first?.visibility, .publicLift)
-        XCTAssertEqual(appState.lifts.first?.weight, 1_000)
-        XCTAssertEqual(appState.lifts.first?.repetitions, 1)
-        XCTAssertTrue(appState.lifts.first?.isActualOneRepMax == true)
-        XCTAssertGreaterThan(appState.lifts.first?.leaderboardEligibleAt ?? .distantPast, appState.lifts.first?.createdAt ?? .distantFuture)
-        XCTAssertEqual(appState.pendingWorkoutPRSubmissions.first(where: { $0.candidate.setID == log.id })?.state, .submitted)
-        XCTAssertEqual(appState.completedWorkouts.first(where: { $0.id == completed.id })?.linkedSubmissionIDs.count, 1)
-
-        await appState.submitVideoBackedPRs(for: completed, videoURLsBySetID: [log.id: videoURL])
-        XCTAssertEqual(appState.lifts.count, initialLiftCount + 1)
-    }
-
-    @MainActor
     func testWorkoutPRSubmissionStoreOwnsMediaQueueSubmissionAndWorkoutLinking() async throws {
         let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
         let competitionStore = CompetitionStore(
@@ -2610,6 +3062,48 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
+    func testWorkoutPRSubmissionStoreDoesNotDuplicateAnInFlightSubmission() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let submitter = GatedWorkoutPRLiftSubmitter()
+        let store = WorkoutPRSubmissionStore(
+            repository: repository,
+            liftSubmitter: submitter,
+            exercise: { id in MockData.exercises.first { $0.id == id } }
+        )
+        let workout = makeExerciseHistoryWorkout(
+            completedAt: .now,
+            unit: .pounds,
+            sets: [(weight: 315, reps: 1, warmup: false, complete: true)]
+        )
+        repository.completedWorkouts = [workout]
+        store.setAutomaticSubmissionEnabled(true)
+        let candidate = try XCTUnwrap(store.candidates(for: workout, existingLifts: []).first)
+        let videoURL = URL(fileURLWithPath: "/tmp/workout-pr-in-flight.mov")
+
+        let firstSubmission = Task {
+            await store.submitVideoBackedPRs(
+                for: workout,
+                videoURLsBySetID: [candidate.setID: videoURL],
+                existingLifts: []
+            )
+        }
+        for _ in 0..<20 where submitter.attemptCount == 0 {
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+
+        await store.submitVideoBackedPRs(
+            for: workout,
+            videoURLsBySetID: [candidate.setID: videoURL],
+            existingLifts: []
+        )
+        XCTAssertEqual(submitter.attemptCount, 1)
+        repository.currentProfile.id = UUID()
+        submitter.releaseSubmission()
+        await firstSubmission.value
+        XCTAssertTrue(repository.pendingWorkoutPRSubmissions.isEmpty)
+    }
+
+    @MainActor
     func testPauseDurationAndMidnightDoNotDependOnCalendarDay() {
         let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
         let appState = AppState(repository: repository)
@@ -2648,405 +3142,6 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
-    func testForumSeedsEightCommunitiesAndThreeHomeMemberships() {
-        let appState = AppState()
-        XCTAssertEqual(appState.repository.forumCommunities.count, 8)
-        XCTAssertEqual(appState.joinedForumCommunities.count, 3)
-        XCTAssertTrue(appState.joinedForumCommunities.contains { $0.id == MockData.generalStrengthCommunityID })
-        XCTAssertTrue(appState.joinedForumCommunities.contains { $0.id == MockData.powerliftingCommunityID })
-        XCTAssertTrue(appState.joinedForumCommunities.contains { $0.id == MockData.milestonesCommunityID })
-        XCTAssertTrue(appState.isForumStaff)
-        XCTAssertTrue(appState.repository.forumPosts.contains { $0.destination.gymID != nil })
-    }
-
-    @MainActor
-    func testCommunityStoreOwnsForumDiscoveryFeedsCommentsAndActivityProjection() throws {
-        let repository = DemoRepository()
-        let referenceDate = Date(timeIntervalSince1970: 1_782_374_400)
-        let store = CommunityStore(repository: repository, now: { referenceDate })
-
-        XCTAssertEqual(store.joinedCommunities.count, 3)
-        XCTAssertTrue(store.isStaff)
-        XCTAssertEqual(store.notifications.count, repository.forumNotifications.filter {
-            $0.userID == repository.currentProfile.id
-        }.count)
-
-        let joinedCommunity = try XCTUnwrap(store.joinedCommunities.first)
-        let searchResults = store.searchCommunities(query: joinedCommunity.name)
-        XCTAssertEqual(searchResults.first?.id, joinedCommunity.id)
-
-        let feed = store.feed(communityID: joinedCommunity.id, sort: .new)
-        XCTAssertTrue(feed.allSatisfy { $0.destination.communityID == joinedCommunity.id })
-        let unpinnedDates = feed.filter { !$0.isPinned }.map(\.createdAt)
-        XCTAssertEqual(unpinnedDates, unpinnedDates.sorted(by: >))
-
-        if let post = repository.forumPosts.first(where: { candidate in
-            repository.forumComments.contains { $0.postID == candidate.id }
-        }) {
-            let newest = store.comments(for: post.id, sort: .new)
-            XCTAssertEqual(newest.map(\.createdAt), newest.map(\.createdAt).sorted(by: >))
-            let oldest = store.comments(for: post.id, sort: .old)
-            XCTAssertEqual(oldest.map(\.createdAt), oldest.map(\.createdAt).sorted())
-            XCTAssertEqual(
-                store.hotScore(post, referenceDate: post.createdAt.addingTimeInterval(86_400)),
-                Double(post.voteScore * 2) + log2(Double(post.commentCount) + 1) * 3 - 1,
-                accuracy: 0.001
-            )
-        } else {
-            XCTFail("Expected seeded forum comments")
-        }
-
-        let activity = try XCTUnwrap(repository.activities.first)
-        XCTAssertEqual(store.currentActivity(activity).id, activity.id)
-        XCTAssertEqual(
-            store.comments(for: activity).map(\.createdAt),
-            store.comments(for: activity).map(\.createdAt).sorted()
-        )
-    }
-
-    @MainActor
-    func testCommunityStoreOwnsMembershipAndForumEngagementMutations() throws {
-        let repository = DemoRepository()
-        let store = CommunityStore(repository: repository)
-        let userID = repository.currentProfile.id
-        let community = try XCTUnwrap(store.joinedCommunities.first)
-        XCTAssertTrue(store.canRead(community.id))
-        store.setArchived(true, communityID: community.id)
-        XCTAssertNotNil(repository.forumCommunities.first { $0.id == community.id }?.archivedAt)
-        store.setArchived(false, communityID: community.id)
-        XCTAssertNil(repository.forumCommunities.first { $0.id == community.id }?.archivedAt)
-        let post = try XCTUnwrap(repository.forumPosts.first {
-            $0.destination.communityID == community.id && $0.removedAt == nil && !$0.isLocked
-        })
-
-        let newVote: CommunityVote = post.votes[userID] == .up ? .down : .up
-        XCTAssertEqual(store.vote(on: post.id, selection: newVote)?.id, post.id)
-        XCTAssertEqual(store.post(post.id)?.votes[userID], newVote)
-
-        let wasSaved = post.savedByUserIDs.contains(userID)
-        XCTAssertEqual(store.toggleSaved(postID: post.id)?.id, post.id)
-        XCTAssertEqual(store.post(post.id)?.savedByUserIDs.contains(userID), !wasSaved)
-
-        let wasWatched = post.watchedByUserIDs.contains(userID)
-        XCTAssertEqual(store.toggleWatched(postID: post.id)?.id, post.id)
-        XCTAssertEqual(store.post(post.id)?.watchedByUserIDs.contains(userID), !wasWatched)
-
-        let comment = try XCTUnwrap(store.addComment(
-            postID: post.id,
-            parentCommentID: nil,
-            body: "Store-owned engagement"
-        ))
-        XCTAssertTrue(store.comments(for: post.id).contains { $0.id == comment.id })
-        XCTAssertEqual(store.vote(onComment: comment.id, selection: .up)?.id, comment.id)
-        XCTAssertEqual(repository.forumComments.first { $0.id == comment.id }?.votes[userID], .up)
-        XCTAssertTrue(store.report(
-            targetType: .comment,
-            targetID: comment.id,
-            communityID: community.id,
-            reason: .spam,
-            note: "  duplicate links  "
-        ))
-        XCTAssertEqual(store.forumReports.first { $0.targetID == comment.id }?.note, "duplicate links")
-        store.deleteComment(comment.id)
-        XCTAssertNotNil(repository.forumComments.first { $0.id == comment.id }?.removedAt)
-
-        let ownedPost = makeForumPost(
-            communityID: community.id,
-            author: repository.currentProfile,
-            title: "Store edit target"
-        )
-        XCTAssertTrue(repository.createForumPost(ownedPost))
-        store.update(ownedPost, title: "  Updated title  ", body: "  Updated body  ")
-        XCTAssertEqual(store.post(ownedPost.id)?.title, "Updated title")
-        XCTAssertEqual(store.post(ownedPost.id)?.body, "Updated body")
-        store.deletePost(ownedPost.id)
-        XCTAssertNotNil(store.post(ownedPost.id)?.removedAt)
-
-        XCTAssertEqual(store.moderate(postID: post.id, action: .lock)?.id, post.id)
-        XCTAssertTrue(store.post(post.id)?.isLocked == true)
-        store.moderate(postID: post.id, action: .unlock)
-        XCTAssertFalse(store.post(post.id)?.isLocked == true)
-
-        if let unread = store.notifications.first(where: { !$0.isRead }) {
-            store.markNotificationRead(unread.id)
-            XCTAssertTrue(store.notifications.first { $0.id == unread.id }?.isRead == true)
-        }
-
-        store.setNotificationLevel(.off, communityID: community.id)
-        XCTAssertEqual(store.membership(for: community.id)?.notificationLevel, .off)
-
-        let unjoined = try XCTUnwrap(store.communities.first { !store.isJoined(to: $0.id) && $0.visibility == .publicOpen })
-        XCTAssertEqual(store.join(unjoined.id), .joined)
-        XCTAssertTrue(store.isJoined(to: unjoined.id))
-        XCTAssertEqual(store.leave(unjoined.id)?.id, unjoined.id)
-        XCTAssertFalse(store.isJoined(to: unjoined.id))
-    }
-
-    @MainActor
-    func testCommunityStoreOwnsRemotePostAndEngagementBoundary() async throws {
-        let local = DemoRepository()
-        let remote = DemoRepository()
-        let store = CommunityStore(
-            repository: local,
-            socialService: MockSocialService(repository: remote),
-            communityService: MockCommunityService(repository: remote)
-        )
-        let community = try XCTUnwrap(store.joinedCommunities.first)
-        let post = try XCTUnwrap(store.createPost(
-            destination: .community(community.id),
-            kind: .discussion,
-            title: "Remote boundary",
-            body: "Store forwards this mutation"
-        ))
-
-        await store.syncCreatedPost(post)
-        XCTAssertTrue(remote.forumPosts.contains { $0.id == post.id })
-
-        await store.syncVote(on: post, selection: .up)
-        XCTAssertEqual(
-            remote.forumPosts.first { $0.id == post.id }?.votes[remote.currentProfile.id],
-            .up
-        )
-
-        await store.syncSavedState(of: post)
-        XCTAssertTrue(
-            remote.forumPosts.first { $0.id == post.id }?.savedByUserIDs.contains(remote.currentProfile.id) == true
-        )
-
-        await store.syncModeration(of: post, action: .lock, reason: "Review")
-        XCTAssertTrue(remote.forumPosts.first { $0.id == post.id }?.isLocked == true)
-    }
-
-    @MainActor
-    func testCommunityStoreBuildsDeterministicTrimmedPollPosts() throws {
-        let repository = DemoRepository()
-        let timestamp = Date(timeIntervalSince1970: 1_800_000_000)
-        let generatedIDs = [
-            UUID(uuidString: "00000000-0000-0000-0000-000000000201")!,
-            UUID(uuidString: "00000000-0000-0000-0000-000000000202")!,
-            UUID(uuidString: "00000000-0000-0000-0000-000000000203")!,
-            UUID(uuidString: "00000000-0000-0000-0000-000000000204")!
-        ]
-        var idIterator = generatedIDs.makeIterator()
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let store = CommunityStore(
-            repository: repository,
-            calendar: calendar,
-            now: { timestamp },
-            makeUUID: { idIterator.next()! }
-        )
-        let community = try XCTUnwrap(store.joinedCommunities.first)
-
-        let post = try XCTUnwrap(store.createPost(
-            destination: .community(community.id),
-            kind: .poll,
-            title: "  Training split  ",
-            body: "  Pick one  ",
-            tag: "Programming",
-            pollOptions: ["  Upper/Lower  ", "", "  Full body"],
-            pollCloseDays: 3
-        ))
-
-        XCTAssertEqual(post.id, generatedIDs[3])
-        XCTAssertEqual(post.poll?.id, generatedIDs[0])
-        XCTAssertEqual(post.poll?.options.map(\.id), Array(generatedIDs[1...2]))
-        XCTAssertEqual(post.poll?.options.map(\.text), ["Upper/Lower", "Full body"])
-        XCTAssertEqual(post.poll?.closesAt, calendar.date(byAdding: .day, value: 3, to: timestamp))
-        XCTAssertEqual(post.title, "Training split")
-        XCTAssertEqual(post.body, "Pick one")
-        XCTAssertEqual(post.tag, "Programming")
-        XCTAssertEqual(post.createdAt, timestamp)
-        XCTAssertEqual(store.post(post.id), post)
-    }
-
-    @MainActor
-    func testPublicForumRequiresMembershipBeforeInteraction() throws {
-        let repository = DemoRepository()
-        let appState = AppState(repository: repository)
-        let community = try XCTUnwrap(repository.forumCommunities.first { $0.id == MockData.bodybuildingCommunityID })
-        let regular = try XCTUnwrap(repository.profiles.first { profile in
-            profile.id != MockData.demoUserID && repository.forumMembership(communityID: community.id, userID: profile.id) == nil
-        })
-        repository.currentProfile = regular
-        let post = makeForumPost(communityID: community.id, author: regular, title: "Testing membership gates")
-
-        XCTAssertTrue(repository.canReadForumCommunity(community.id))
-        XCTAssertFalse(repository.canContributeToForumCommunity(community.id))
-        XCTAssertFalse(repository.createForumPost(post))
-        XCTAssertEqual(repository.joinForumCommunity(community.id), .joined)
-        XCTAssertTrue(repository.canContributeToForumCommunity(community.id))
-        XCTAssertTrue(repository.createForumPost(post))
-        appState.voteForumPost(post.id, vote: .up)
-        XCTAssertEqual(appState.forumPost(post.id)?.votes[regular.id], .up)
-        appState.toggleForumPostSaved(post.id)
-        appState.toggleForumPostWatched(post.id)
-        XCTAssertTrue(appState.forumPost(post.id)?.savedByUserIDs.contains(regular.id) == true)
-        XCTAssertTrue(appState.forumPost(post.id)?.watchedByUserIDs.contains(regular.id) == true)
-    }
-
-    @MainActor
-    func testRestrictedMembershipRequestRequiresStaffApproval() throws {
-        let repository = DemoRepository()
-        let appState = AppState(repository: repository)
-        XCTAssertTrue(appState.createForumCommunity(
-            name: "Coach Lab", summary: "Restricted programming reviews", details: "Private review room",
-            category: "Training", visibility: .restricted, rules: ["Keep client data private"]
-        ))
-        let community = try XCTUnwrap(repository.forumCommunities.first { $0.name == "Coach Lab" })
-        let regular = try XCTUnwrap(repository.profiles.first { $0.id != MockData.demoUserID })
-        repository.currentProfile = regular
-
-        XCTAssertFalse(repository.canReadForumCommunity(community.id))
-        XCTAssertEqual(repository.joinForumCommunity(community.id, note: "I coach locally"), .pending)
-        let request = try XCTUnwrap(repository.forumJoinRequests.first { $0.communityID == community.id && $0.userID == regular.id })
-        XCTAssertFalse(repository.canContributeToForumCommunity(community.id))
-
-        repository.currentProfile = MockData.demoProfile
-        repository.resolveForumJoinRequest(request.id, approved: true)
-        repository.currentProfile = regular
-        XCTAssertTrue(repository.canReadForumCommunity(community.id))
-        XCTAssertTrue(repository.canContributeToForumCommunity(community.id))
-    }
-
-    @MainActor
-    func testInviteOnlyCommunityIsHiddenUntilStaffInvitesUser() throws {
-        let repository = DemoRepository()
-        let appState = AppState(repository: repository)
-        XCTAssertTrue(appState.createForumCommunity(
-            name: "Staff Testers", summary: "Invite-only feature testing", details: "Hidden room",
-            category: "Staff", visibility: .inviteOnly, rules: ["Do not share builds"]
-        ))
-        let community = try XCTUnwrap(repository.forumCommunities.first { $0.name == "Staff Testers" })
-        let regular = try XCTUnwrap(repository.profiles.first { $0.id != MockData.demoUserID })
-        repository.currentProfile = regular
-        XCTAssertFalse(repository.visibleForumCommunities().contains { $0.id == community.id })
-        XCTAssertNil(repository.joinForumCommunity(community.id))
-
-        repository.currentProfile = MockData.demoProfile
-        XCTAssertTrue(repository.inviteForumMember(userID: regular.id, communityID: community.id))
-        repository.currentProfile = regular
-        XCTAssertTrue(repository.visibleForumCommunities().contains { $0.id == community.id })
-        XCTAssertEqual(repository.joinForumCommunity(community.id), .joined)
-    }
-
-    @MainActor
-    func testForumSnapshotRestoresPostsMembershipAndVotes() throws {
-        let store = InMemoryForumPersistenceStore()
-        let first = DemoRepository(forumPersistenceStore: store)
-        let post = makeForumPost(
-            communityID: MockData.generalStrengthCommunityID,
-            author: first.currentProfile,
-            title: "Persist this forum post"
-        )
-        XCTAssertTrue(first.createForumPost(post))
-        first.voteForumPost(post.id, vote: .up)
-
-        let restored = DemoRepository(forumPersistenceStore: store)
-        let restoredPost = try XCTUnwrap(restored.forumPosts.first { $0.id == post.id })
-        XCTAssertEqual(restoredPost.title, post.title)
-        XCTAssertEqual(restoredPost.votes[MockData.demoUserID], .up)
-        XCTAssertEqual(restored.forumCommunities.count, 8)
-    }
-
-    @MainActor
-    func testForumRepliesPreserveNestedParentRelationships() throws {
-        let repository = DemoRepository()
-        let post = try XCTUnwrap(repository.forumPosts.first { $0.destination.communityID == MockData.generalStrengthCommunityID })
-        let root = try XCTUnwrap(repository.addForumComment(postID: post.id, parentCommentID: nil, body: "Root comment"))
-        let child = try XCTUnwrap(repository.addForumComment(postID: post.id, parentCommentID: root.id, body: "First reply"))
-        let nestedAttempt = try XCTUnwrap(repository.addForumComment(postID: post.id, parentCommentID: child.id, body: "Replying deeper"))
-
-        XCTAssertEqual(child.parentCommentID, root.id)
-        XCTAssertEqual(nestedAttempt.parentCommentID, child.id)
-        XCTAssertEqual(nestedAttempt.body, "Replying deeper")
-
-        let items = ForumCommentThreadBuilder.flattened(comments: [root, child, nestedAttempt])
-        XCTAssertEqual(items.map(\.comment.id), [root.id, child.id, nestedAttempt.id])
-        XCTAssertEqual(items.map(\.depth), [0, 1, 2])
-        XCTAssertEqual(items.map(\.descendantCount), [2, 1, 0])
-
-        let collapsed = ForumCommentThreadBuilder.flattened(
-            comments: [root, child, nestedAttempt],
-            collapsedCommentIDs: [root.id]
-        )
-        XCTAssertEqual(collapsed.map(\.comment.id), [root.id])
-        XCTAssertEqual(collapsed.first?.descendantCount, 2)
-    }
-
-    @MainActor
-    func testPollVoteCanChangeAndForumReportsDoNotDuplicate() throws {
-        let repository = DemoRepository()
-        let appState = AppState(repository: repository)
-        _ = repository.joinForumCommunity(MockData.programmingCommunityID)
-        let pollPost = try XCTUnwrap(repository.forumPosts.first { $0.kind == .poll })
-        let poll = try XCTUnwrap(pollPost.poll)
-        let firstOption = try XCTUnwrap(poll.options.first)
-        let secondOption = try XCTUnwrap(poll.options.dropFirst().first)
-        appState.voteInForumPoll(postID: pollPost.id, optionID: firstOption.id)
-        appState.voteInForumPoll(postID: pollPost.id, optionID: secondOption.id)
-        let updated = try XCTUnwrap(appState.forumPost(pollPost.id)?.poll)
-        XCTAssertFalse(updated.options.first(where: { $0.id == firstOption.id })?.voterIDs.contains(appState.currentProfile.id) == true)
-        XCTAssertTrue(updated.options.first(where: { $0.id == secondOption.id })?.voterIDs.contains(appState.currentProfile.id) == true)
-
-        XCTAssertTrue(appState.reportForumContent(targetType: .post, targetID: pollPost.id, communityID: pollPost.destination.communityID, reason: .spam))
-        XCTAssertFalse(appState.reportForumContent(targetType: .post, targetID: pollPost.id, communityID: pollPost.destination.communityID, reason: .spam))
-        XCTAssertEqual(appState.forumReports.filter { $0.targetID == pollPost.id && $0.status == .open }.count, 1)
-    }
-
-    @MainActor
-    func testForumModerationUsesRolesAndRecordsAuditHistory() throws {
-        let repository = DemoRepository()
-        let post = try XCTUnwrap(repository.forumPosts.first { $0.destination.communityID == MockData.generalStrengthCommunityID && $0.removedAt == nil })
-        let regular = try XCTUnwrap(repository.profiles.first { profile in
-            profile.id != MockData.demoUserID && repository.forumMembership(communityID: MockData.generalStrengthCommunityID, userID: profile.id) == nil
-        })
-        repository.currentProfile = regular
-        _ = repository.joinForumCommunity(MockData.generalStrengthCommunityID)
-        repository.moderateForumPost(post.id, action: .remove, reason: "Should not work")
-        XCTAssertNil(repository.forumPosts.first(where: { $0.id == post.id })?.removedAt)
-
-        repository.currentProfile = MockData.demoProfile
-        repository.moderateForumPost(post.id, action: .remove, reason: "Confirmed spam")
-        XCTAssertNotNil(repository.forumPosts.first(where: { $0.id == post.id })?.removedAt)
-        XCTAssertEqual(repository.forumModerationActions.first?.kind, .remove)
-        repository.moderateForumPost(post.id, action: .restore, reason: "Appeal accepted")
-        XCTAssertNil(repository.forumPosts.first(where: { $0.id == post.id })?.removedAt)
-    }
-
-    @MainActor
-    func testPinnedForumPostsSortAheadOfHotPosts() throws {
-        let repository = DemoRepository()
-        let appState = AppState(repository: repository)
-        let post = makeForumPost(
-            communityID: MockData.generalStrengthCommunityID,
-            author: repository.currentProfile,
-            title: "Pinned staff announcement"
-        )
-        XCTAssertTrue(repository.createForumPost(post))
-        repository.moderateForumPost(post.id, action: .pin, reason: "Important")
-        let feed = appState.forumFeed(communityID: MockData.generalStrengthCommunityID, sort: .hot)
-        let pinnedIndex = try XCTUnwrap(feed.firstIndex(where: { $0.id == post.id }))
-        let firstUnpinnedIndex = feed.firstIndex(where: { !$0.isPinned }) ?? feed.endIndex
-        XCTAssertTrue(feed.first?.isPinned == true)
-        XCTAssertLessThan(pinnedIndex, firstUnpinnedIndex)
-    }
-
-    @MainActor
-    func testForumNotificationRoutesDirectlyToPost() throws {
-        let appState = AppState()
-        let post = try XCTUnwrap(appState.forumPosts.first)
-        let notification = ForumNotification(
-            id: UUID(), userID: appState.currentProfile.id, actorID: nil, kind: .reply,
-            title: "New reply", message: "A lifter replied", communityID: post.destination.communityID,
-            postID: post.id, commentID: nil, createdAt: .now, isRead: false
-        )
-        appState.repository.forumNotifications.append(notification)
-        appState.openForumNotification(notification)
-        XCTAssertEqual(appState.selectedTab, 3)
-        XCTAssertEqual(appState.communityPath, [.post(post.id)])
-        XCTAssertTrue(appState.repository.forumNotifications.first(where: { $0.id == notification.id })?.isRead == true)
-    }
 
     func testBundledProgramsAreCompleteAndReferenceCatalogExercises() {
         let templates = WorkoutProgramCatalog.templates
@@ -3222,12 +3317,23 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(custom.resolvedMuscleProfile.orientation, .split)
         XCTAssertEqual(store.customExercises.first, custom)
         XCTAssertEqual(store.search(query: "Split Cable Press").first?.exercise.id, custom.id)
+        let repsOnly = try XCTUnwrap(store.createCustomExercise(
+            name: "Timed Bodyweight Hold",
+            bodyPart: "Core",
+            equipment: "Bodyweight",
+            trackingType: "Reps Only"
+        ))
+        XCTAssertEqual(repsOnly.trackingType, "Reps Only")
         XCTAssertNil(store.createCustomExercise(
             name: "   ",
             bodyPart: "Chest",
             equipment: "Cable",
             trackingType: "Weight + Reps"
         ))
+
+        repository.currentProfile.id = UUID()
+        XCTAssertTrue(store.customExercises.isEmpty)
+        XCTAssertTrue(store.exercises.contains { $0.id == "barbell_bench_press" })
     }
 
     @MainActor
@@ -3310,12 +3416,26 @@ final class RankingCalculatorTests: XCTestCase {
         let weekTwoSession = try XCTUnwrap(repository.workoutSessions.first { $0.weekID == weekTwo.id })
         let weekOnePrescriptionID = try XCTUnwrap(repository.workoutPrescriptions.first { $0.sessionID == weekOneSession.id }?.id)
         let weekTwoPrescriptionID = try XCTUnwrap(repository.workoutPrescriptions.first { $0.sessionID == weekTwoSession.id }?.id)
+        let weekTwoExerciseName = try XCTUnwrap(repository.workoutPrescriptions.first { $0.id == weekTwoPrescriptionID }?.exerciseName)
+        let originalMirroredEntry = try XCTUnwrap(repository.workoutEntries.first {
+            $0.planID == plan.id && $0.week == 2 && $0.workout == weekTwoSession.name && $0.exercise == weekTwoExerciseName
+        })
+        let templateExerciseIDs = Set(template.sessions.flatMap(\.exercises).map(\.exerciseID))
+        let trainingMax = Dictionary(uniqueKeysWithValues: templateExerciseIDs.map { ($0, 100.0) })
 
         XCTAssertNotNil(repository.startWorkout(session: weekOneSession, planID: plan.id, gymID: nil, bodyweight: nil, unit: .pounds))
-        XCTAssertTrue(repository.changeWorkoutProgramProgression(planID: plan.id, method: .rirRepRange, trainingMaxKilograms: [:]))
+        XCTAssertTrue(repository.changeWorkoutProgramProgression(planID: plan.id, method: .percentage, trainingMaxKilograms: trainingMax))
 
         XCTAssertNil(repository.workoutPrescriptions.first { $0.id == weekOnePrescriptionID }?.targetRIR)
-        XCTAssertNotNil(repository.workoutPrescriptions.first { $0.id == weekTwoPrescriptionID }?.targetRIR)
+        XCTAssertNotNil(repository.workoutPrescriptions.first { $0.id == weekTwoPrescriptionID }?.trainingMaxPercentage)
+
+        let updatedPrescription = try XCTUnwrap(repository.workoutPrescriptions.first { $0.id == weekTwoPrescriptionID })
+        let mirroredEntry = try XCTUnwrap(repository.workoutEntries.first {
+            $0.planID == plan.id && $0.week == 2 && $0.workout == weekTwoSession.name && $0.exercise == weekTwoExerciseName
+        })
+        XCTAssertEqual(mirroredEntry.targetSets, updatedPrescription.sets)
+        XCTAssertEqual(mirroredEntry.targetReps, updatedPrescription.reps)
+        XCTAssertNotEqual(mirroredEntry.targetReps, originalMirroredEntry.targetReps)
     }
 
     @MainActor
@@ -3336,11 +3456,15 @@ final class RankingCalculatorTests: XCTestCase {
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
         object["schemaVersion"] = 2
         object.removeValue(forKey: "planProgressionSettings")
+        object.removeValue(forKey: "strainEntries")
+        object.removeValue(forKey: "injuryEntries")
         let legacyData = try JSONSerialization.data(withJSONObject: object)
         let decoded = try JSONDecoder().decode(WorkoutPersistenceSnapshot.self, from: legacyData)
 
         XCTAssertEqual(decoded.schemaVersion, 2)
         XCTAssertNil(decoded.planProgressionSettings)
+        XCTAssertNil(decoded.strainEntries)
+        XCTAssertNil(decoded.injuryEntries)
     }
 
     func testExerciseSearchFindsGenericMachineChestPressThroughBrandAlias() throws {
@@ -3420,7 +3544,7 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     func testSeededDemoLiftsCarryDemoMediaIdentifiers() {
-        let lifts = MockData.community().lifts
+        let lifts = MockData.seededCompetitionData().lifts
         let demoMediaIDs = lifts.compactMap(\.demoMediaID)
 
         XCTAssertTrue(demoMediaIDs.contains("demo-leaderboard-bench"))
@@ -3538,15 +3662,7 @@ final class RankingCalculatorTests: XCTestCase {
         )
     }
 
-    private func makeForumPost(communityID: UUID, author: UserProfile, title: String) -> ForumPost {
-        ForumPost(
-            id: UUID(), destination: .community(communityID), authorID: author.id,
-            authorName: author.displayName, kind: .discussion, title: title,
-            body: "A detailed test discussion for the LiftRank forum prototype.", tag: nil,
-            attachments: [], poll: nil, liftID: nil, workoutID: nil, linkURL: nil,
-            challengeID: nil, createdAt: .now, editedAt: nil, commentCount: 0,
-            votes: [:], savedByUserIDs: [], watchedByUserIDs: [], isPinned: false,
-            isLocked: false, removedAt: nil, removalReason: nil
-        )
-    }
+
+
+
 }

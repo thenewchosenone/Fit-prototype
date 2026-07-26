@@ -64,7 +64,6 @@ enum SupabaseServiceErrorMapper {
         if message.contains("profiles_username_lower_unique") || (message.contains("username") && message.contains("duplicate")) { return .usernameUnavailable }
         if message.contains("three active gyms") { return .gymLimitReached }
         if message.contains("choose another primary gym") { return .primaryGymRequired }
-        if message.contains("friendship or pending request") || message.contains("duplicate") { return .duplicateRelationship }
         if message.contains("permission denied") || message.contains("42501") { return .permissionDenied }
         if message.contains("network") || message.contains("offline") || message.contains("timed out") { return .networkUnavailable }
         return .server("Lift Rivals couldn't complete that request. Please try again.")

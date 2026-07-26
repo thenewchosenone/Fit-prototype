@@ -34,21 +34,6 @@ extension AppState {
             .sorted { $0.setNumber < $1.setNumber }
     }
 
-    func previousSetLog(for exercise: WorkoutExerciseSnapshot, setNumber: Int) -> WorkoutSetLog? {
-        completedWorkouts
-            .sorted { $0.completedAt > $1.completedAt }
-            .lazy
-            .compactMap { workout -> WorkoutSetLog? in
-                guard let previousExercise = workout.exercises.first(where: { $0.exerciseID == exercise.exerciseID }) else { return nil }
-                return workout.sets.first {
-                    $0.prescriptionID == previousExercise.id &&
-                    $0.setNumber == setNumber &&
-                    $0.isComplete
-                }
-            }
-            .first
-    }
-
     @discardableResult
     func startWorkout(_ session: WorkoutSession) -> Bool {
         let isFirstWorkout = completedWorkouts.isEmpty
@@ -131,6 +116,14 @@ extension AppState {
         activeWorkoutStore.completedWorkingSets
     }
 
+    var activeWorkoutPlannedWorkingSetCount: Int {
+        activeWorkoutStore.plannedWorkingSetCount
+    }
+
+    func activeWorkoutExerciseProgress(for exercise: WorkoutExerciseSnapshot) -> ActiveWorkoutExerciseProgress {
+        activeWorkoutStore.exerciseProgress(for: exercise)
+    }
+
     func activeWorkoutSummary() -> WorkoutSummary? {
         activeWorkoutStore.summary()
     }
@@ -141,6 +134,7 @@ extension AppState {
 
     @discardableResult
     func finishActiveWorkout(effort: Int, notes: String) -> CompletedWorkout? {
+        let completingUserID = accountSession?.userID
         let completed = activeWorkoutStore.finish(effort: effort, notes: notes)
         if let completed {
             Haptics.success()
@@ -154,7 +148,15 @@ extension AppState {
                 workoutSyncStore.enqueueCompletedWorkout(snapshot)
                 Task { await synchronizeCompletedWorkoutHistory() }
             }
-            Task { await track(.workoutCompleted, properties: ["workout_id": completed.id.uuidString]) }
+            if let completingUserID {
+                Task {
+                    await track(
+                        .workoutCompleted,
+                        userID: completingUserID,
+                        properties: ["workout_id": completed.id.uuidString]
+                    )
+                }
+            }
         }
         return completed
     }
@@ -167,27 +169,18 @@ extension AppState {
         Haptics.warning()
     }
 
-    func shareCompletedWorkout(_ workout: CompletedWorkout) async {
-        guard features.connectionActivity else { return }
-        do {
-            if isAuthenticated, !isDemoMode {
-                await synchronizeCompletedWorkoutHistory()
-            }
-            let detail = "\(workout.completedWorkingSets.count) sets · \(MeasurementFormatting.formatRecordedWeight(workout.totalVolume, unit: workout.unit)) volume"
-            let activity = try await serviceContainer.social.shareWorkout(
-                snapshotID: workout.id,
-                title: workout.name,
-                detail: detail
-            )
-            if !repository.activities.contains(where: { $0.id == activity.id }) {
-                repository.activities.insert(activity, at: 0)
-            }
-            await track(.workoutShared, properties: ["workout_id": workout.id.uuidString])
-            Haptics.success()
-        } catch {
-            accountMessage = userMessage(error)
-            Haptics.warning()
+    func updateCompletedWorkout(_ workout: CompletedWorkout) {
+        activeWorkoutStore.updateCompletedWorkout(workout)
+        if isAuthenticated, !isDemoMode, let payload = try? JSONEncoder().encode(workout) {
+            workoutSyncStore.enqueueCompletedWorkout(CompletedWorkoutSnapshot(
+                id: workout.id,
+                ownerID: currentProfile.id,
+                payload: payload,
+                completedAt: workout.completedAt
+            ))
+            Task { await synchronizeCompletedWorkoutHistory() }
         }
+        Haptics.success()
     }
 
     func setAutomaticVideoPRSubmission(_ enabled: Bool) {

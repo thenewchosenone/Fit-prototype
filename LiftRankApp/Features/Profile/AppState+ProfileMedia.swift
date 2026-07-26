@@ -25,7 +25,10 @@ extension AppState {
 
     func saveProfilePhoto(_ image: UIImage) {
         do {
+            profilePhotoMutation += 1
+            let mutation = profilePhotoMutation
             var profile = currentProfile
+            let userID = profile.id
             let mode: AccountMode = isDemoMode ? .demo : .authenticated
             profile.avatarPath = try profilePhotoStore.save(image: image, userID: profile.id, mode: mode)
             profileStore.saveProfile(profile)
@@ -42,11 +45,15 @@ extension AppState {
             }
             Task {
                 do {
+                    guard repository.currentProfile.id == userID,
+                          mutation == profilePhotoMutation else { return }
                     let uploadedAvatarPath = try await profileStore.uploadProfileAvatar(
                         avatarPath: avatarPath,
                         fullImageURL: fileURLs.fullImageURL,
                         thumbnailURL: fileURLs.thumbnailURL
                     )
+                    guard repository.currentProfile.id == userID,
+                          mutation == profilePhotoMutation else { return }
                     if uploadedAvatarPath != avatarPath {
                         let fullImageData = try Data(contentsOf: fileURLs.fullImageURL)
                         let thumbnailData = try Data(contentsOf: fileURLs.thumbnailURL)
@@ -56,6 +63,8 @@ extension AppState {
                             avatarPath: uploadedAvatarPath
                         )
                     }
+                    guard repository.currentProfile.id == userID,
+                          mutation == profilePhotoMutation else { return }
                     profile.avatarPath = uploadedAvatarPath
                     _ = try await profileStore.updateProfile(profile)
                     repository.persistWorkoutSnapshot()
@@ -70,8 +79,11 @@ extension AppState {
     }
 
     func removeProfilePhoto() {
+        profilePhotoMutation += 1
+        let mutation = profilePhotoMutation
         let oldPath = currentProfile.avatarPath
         var profile = currentProfile
+        let userID = profile.id
         profile.avatarPath = nil
         profileStore.saveProfile(profile)
         profilePhotoStore.remove(avatarPath: oldPath)
@@ -82,7 +94,11 @@ extension AppState {
         }
         Task {
             do {
+                guard repository.currentProfile.id == userID,
+                      mutation == profilePhotoMutation else { return }
                 try await profileStore.removeProfileAvatar(avatarPath: oldPath)
+                guard repository.currentProfile.id == userID,
+                      mutation == profilePhotoMutation else { return }
                 _ = try await profileStore.updateProfile(profile)
                 repository.persistWorkoutSnapshot()
             } catch {
@@ -96,8 +112,11 @@ extension AppState {
         guard isAuthenticated, !isDemoMode,
               let avatarPath = currentProfile.avatarPath,
               profilePhotoStore.thumbnail(for: avatarPath) == nil else { return }
+        let userID = currentProfile.id
         do {
             guard let download = try await profileStore.downloadProfileAvatar(avatarPath: avatarPath) else { return }
+            guard repository.currentProfile.id == userID,
+                  repository.currentProfile.avatarPath == avatarPath else { return }
             try profilePhotoStore.cache(
                 fullImageData: download.fullImageData,
                 thumbnailData: download.thumbnailData,
@@ -111,12 +130,15 @@ extension AppState {
 
     func uploadProfilePhotoIfNeeded(avatarPath: String?) async throws -> String? {
         guard isAuthenticated, !isDemoMode, let avatarPath else { return avatarPath }
+        let userID = currentProfile.id
         guard let fileURLs = profilePhotoStore.fileURLs(for: avatarPath) else { return avatarPath }
+        guard repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
         let uploadedAvatarPath = try await profileStore.uploadProfileAvatar(
             avatarPath: avatarPath,
             fullImageURL: fileURLs.fullImageURL,
             thumbnailURL: fileURLs.thumbnailURL
         )
+        guard repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
         if uploadedAvatarPath != avatarPath {
             let fullImageData = try Data(contentsOf: fileURLs.fullImageURL)
             let thumbnailData = try Data(contentsOf: fileURLs.thumbnailURL)
@@ -126,6 +148,7 @@ extension AppState {
                 avatarPath: uploadedAvatarPath
             )
         }
+        guard repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
         return uploadedAvatarPath
     }
 

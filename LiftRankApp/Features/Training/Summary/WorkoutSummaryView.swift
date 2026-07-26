@@ -18,7 +18,6 @@ struct WorkoutSummaryView: View {
     @State private var loadingVideoSetIDs: Set<UUID> = []
     @State private var videoError: String?
     @State private var showingAutomaticSubmissionExplanation = false
-    @State private var shareWithConnections = false
 
     init(
         summary: WorkoutSummary,
@@ -56,6 +55,19 @@ struct WorkoutSummaryView: View {
         max(appState.competitiveStatistics.currentStreak, 0) + 1
     }
 
+    private var newlyUnlockedAchievements: [AchievementUnlock] {
+        let unlockedTitles = Set(appState.achievementUnlocks.map(\.title))
+        return projectedAchievementTitles()
+            .filter { !unlockedTitles.contains($0) }
+            .map {
+                AchievementUnlock(
+                    id: $0.lowercased().replacingOccurrences(of: " ", with: "-"),
+                    title: $0,
+                    unlockedAt: .now
+                )
+            }
+    }
+
     var body: some View {
         NavigationStack {
             AppBackground {
@@ -64,7 +76,7 @@ struct WorkoutSummaryView: View {
                         VStack(spacing: 10) {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 34, weight: .black))
-                                .foregroundStyle(Color.liftBackground)
+                                .foregroundStyle(Color.liftOnAccent)
                                 .frame(width: 72, height: 72)
                                 .background(Color.liftGreen)
                                 .clipShape(Circle())
@@ -116,11 +128,11 @@ struct WorkoutSummaryView: View {
                             prSubmissionSection
                         }
 
-                        if !appState.achievementUnlocks.isEmpty {
+                        if !newlyUnlockedAchievements.isEmpty {
                             VStack(alignment: .leading, spacing: 10) {
                                 Text("Unlocked achievements")
                                     .font(.headline.weight(.bold))
-                                ForEach(appState.achievementUnlocks.prefix(3)) { unlock in
+                                ForEach(newlyUnlockedAchievements.prefix(3)) { unlock in
                                     HStack(spacing: 10) {
                                         Image(systemName: "medal.fill")
                                             .foregroundStyle(Color.liftGold)
@@ -154,7 +166,7 @@ struct WorkoutSummaryView: View {
                                         .frame(maxWidth: .infinity)
                                         .padding(.vertical, 11)
                                         .background(effort == value ? Color.liftBlue : Color.liftCard)
-                                        .foregroundStyle(effort == value ? Color.liftBackground : Color.liftMuted)
+                                        .foregroundStyle(effort == value ? Color.liftOnAccent : Color.liftMuted)
                                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                                     }
                                     .buttonStyle(.plain)
@@ -183,25 +195,8 @@ struct WorkoutSummaryView: View {
                                 }
                         }
 
-                        if appState.features.connectionActivity {
-                            Toggle(isOn: $shareWithConnections) {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Label("Share with connections", systemImage: "person.2.fill")
-                                        .font(.headline.weight(.bold))
-                                    Text("Adds this full workout to connection activity. PRs stay structured records.")
-                                        .font(.caption)
-                                        .foregroundStyle(Color.liftMuted)
-                                }
-                            }
-                            .tint(Color.liftBlue)
-                            .padding(14)
-                            .background(Color.liftCard)
-                            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-                            .accessibilityIdentifier("workout.finish.shareConnections")
-                        }
-
                         PrimaryButton(title: "Save & finish", symbolName: "checkmark.circle.fill") {
-                            onComplete(effort, notes, videoURLsBySetID, shareWithConnections)
+                            onComplete(effort, notes, videoURLsBySetID, false)
                         }
                         .accessibilityIdentifier("workout.finish.save")
                     }
@@ -393,6 +388,85 @@ struct WorkoutSummaryView: View {
         MeasurementFormatting.signedShortClockText(seconds: Int(value.rounded()))
     }
 
+    private func projectedAchievementTitles() -> [String] {
+        let stats = appState.competitiveStatistics
+        let workoutCount = stats.totalWorkouts + 1
+        let volumeKilograms = stats.lifetimeWorkingSetVolume + currentWorkoutVolumeKilograms
+        let trainingTime = stats.totalActiveTrainingTime + activeDuration
+        let repetitions = stats.totalWorkingSetRepetitions + currentWorkoutWorkingSetRepetitions
+        var titles: [String] = []
+
+        addWorkoutMilestones(to: &titles, count: workoutCount)
+        addRepetitionMilestones(to: &titles, count: repetitions)
+        addTrainingHourMilestones(to: &titles, seconds: trainingTime)
+        addVolumeMilestones(to: &titles, kilograms: volumeKilograms)
+
+        return titles.filter { title in
+            appState.achievements.contains { $0.title == title }
+        }
+    }
+
+    private var currentWorkoutWorkingSets: [WorkoutSetLog] {
+        Self.achievementWorkingSets(
+            workout: appState.activeWorkout,
+            logs: appState.workoutSetLogs,
+            catalog: appState.trainingExerciseLibrary
+        )
+    }
+
+    static func achievementWorkingSets(
+        workout: ActiveWorkoutState?,
+        logs: [WorkoutSetLog],
+        catalog: [TrainingExerciseCatalogItem]
+    ) -> [WorkoutSetLog] {
+        guard let workout else { return [] }
+        return logs.filter { log in
+            guard log.workoutID == workout.id,
+                  log.isComplete,
+                  !log.isWarmup,
+                  let exercise = workout.exercises.first(where: { $0.id == log.prescriptionID }) else {
+                return false
+            }
+            let rawTrackingType = exercise.trackingType ??
+                catalog.first(where: { $0.id == exercise.exerciseID })?.trackingType
+            return ExerciseTrackingKind(rawTrackingType ?? "Weight + Reps") == .weightReps
+        }
+    }
+
+    private var currentWorkoutWorkingSetRepetitions: Int {
+        currentWorkoutWorkingSets.reduce(0) { $0 + ($1.reps ?? 0) }
+    }
+
+    private var currentWorkoutVolumeKilograms: Double {
+        let unit = appState.activeWorkout?.unit ?? appState.currentProfile.preferredUnit
+        let volume = currentWorkoutWorkingSets.reduce(0) { $0 + $1.volume(in: unit) }
+        return unit == .kilograms ? volume : RankingCalculator.poundsToKilograms(volume)
+    }
+
+    private func addWorkoutMilestones(to titles: inout [String], count: Int) {
+        for milestone in [1, 2, 3, 5, 10, 25, 50, 75, 100, 200, 300, 500, 1_000] where count >= milestone {
+            titles.append(milestone == 1 ? "First Workout" : "\(milestone.formatted()) Workouts")
+        }
+    }
+
+    private func addRepetitionMilestones(to titles: inout [String], count: Int) {
+        for milestone in [1_000, 5_000, 10_000, 15_000, 25_000, 50_000, 100_000] where count >= milestone {
+            titles.append("\(milestone.formatted()) Reps")
+        }
+    }
+
+    private func addTrainingHourMilestones(to titles: inout [String], seconds: TimeInterval) {
+        for milestone in [10, 50, 100, 150, 250, 500, 1_000] where seconds >= Double(milestone * 60 * 60) {
+            titles.append("\(milestone.formatted()) Training Hours")
+        }
+    }
+
+    private func addVolumeMilestones(to titles: inout [String], kilograms: Double) {
+        for milestone in [10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000] where kilograms >= Double(milestone) {
+            titles.append("\(milestone.formatted()) kg Lifted Volume")
+        }
+    }
+
     private func loadVideo(_ item: PhotosPickerItem, for candidate: WorkoutPRCandidate) {
         loadingVideoSetIDs.insert(candidate.setID)
         videoError = nil
@@ -437,10 +511,11 @@ struct WorkoutSummaryView: View {
     }
 
     private func trackingKind(for set: WorkoutSetLog) -> ExerciseTrackingKind {
-        guard let exercise = appState.activeWorkout?.exercises.first(where: { $0.id == set.prescriptionID }),
-              let catalog = appState.trainingExerciseLibrary.first(where: { $0.id == exercise.exerciseID }) else {
+        guard let exercise = appState.activeWorkout?.exercises.first(where: { $0.id == set.prescriptionID }) else {
             return .weightReps
         }
-        return ExerciseTrackingKind(catalog.trackingType)
+        let rawTrackingType = exercise.trackingType ??
+            appState.trainingExerciseLibrary.first(where: { $0.id == exercise.exerciseID })?.trackingType
+        return ExerciseTrackingKind(rawTrackingType ?? "Weight + Reps")
     }
 }

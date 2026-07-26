@@ -7,6 +7,7 @@ final class WorkoutSyncStore {
     private let makeUUID: () -> UUID
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    private var syncedUserID: UUID
 
     init(
         repository: any WorkoutSyncRepository,
@@ -20,6 +21,7 @@ final class WorkoutSyncStore {
         self.makeUUID = makeUUID
         self.encoder = encoder
         self.decoder = decoder
+        self.syncedUserID = repository.currentProfile.id
     }
 
     var pendingCompletedWorkoutUploads: [CompletedWorkoutSnapshot] {
@@ -27,29 +29,55 @@ final class WorkoutSyncStore {
     }
 
     func enqueueCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) {
-        guard !repository.pendingCompletedWorkoutUploads.contains(where: { $0.id == snapshot.id }) else { return }
         repository.deletedCompletedWorkoutIDs.remove(snapshot.id)
-        repository.pendingCompletedWorkoutUploads.append(snapshot)
+        if let index = repository.pendingCompletedWorkoutUploads.firstIndex(where: { $0.id == snapshot.id }) {
+            repository.pendingCompletedWorkoutUploads[index] = snapshot
+        } else {
+            repository.pendingCompletedWorkoutUploads.append(snapshot)
+        }
         repository.persistWorkoutSnapshot()
     }
 
     func synchronizeCompletedWorkoutHistory() async {
-        for deletedID in repository.deletedCompletedWorkoutIDs {
-            try? await service.deleteCompletedWorkout(id: deletedID)
+        resetAccountScopedDataIfNeeded()
+        let userID = repository.currentProfile.id
+
+        let deletedIDs = repository.deletedCompletedWorkoutIDs
+        for deletedID in deletedIDs {
+            guard repository.currentProfile.id == userID else {
+                resetAccountScopedDataIfNeeded()
+                return
+            }
+            do {
+                try await service.deleteCompletedWorkout(id: deletedID)
+                repository.deletedCompletedWorkoutIDs.remove(deletedID)
+            } catch { }
         }
 
         var remaining: [CompletedWorkoutSnapshot] = []
         for snapshot in repository.pendingCompletedWorkoutUploads {
+            guard repository.currentProfile.id == userID else {
+                resetAccountScopedDataIfNeeded()
+                return
+            }
             do { try await service.uploadCompletedWorkout(snapshot) }
             catch { remaining.append(snapshot) }
         }
         repository.pendingCompletedWorkoutUploads = remaining
 
         guard let remote = try? await service.completedWorkouts(since: nil) else {
+            if repository.currentProfile.id != userID {
+                resetAccountScopedDataIfNeeded()
+            }
             repository.persistWorkoutSnapshot()
             return
         }
-        for snapshot in remote where !repository.deletedCompletedWorkoutIDs.contains(snapshot.id)
+        guard repository.currentProfile.id == userID else {
+            resetAccountScopedDataIfNeeded()
+            return
+        }
+        for snapshot in remote where snapshot.ownerID == userID
+            && !repository.deletedCompletedWorkoutIDs.contains(snapshot.id)
             && !repository.completedWorkouts.contains(where: { $0.id == snapshot.id }) {
             guard let workout = try? decoder.decode(CompletedWorkout.self, from: snapshot.payload) else { continue }
             repository.completedWorkouts.append(workout)
@@ -58,15 +86,50 @@ final class WorkoutSyncStore {
     }
 
     func synchronizeDeletedCompletedWorkout(id: UUID) async {
-        try? await service.deleteCompletedWorkout(id: id)
+        resetAccountScopedDataIfNeeded()
+        guard repository.deletedCompletedWorkoutIDs.contains(id) else { return }
+        do {
+            try await service.deleteCompletedWorkout(id: id)
+            repository.deletedCompletedWorkoutIDs.remove(id)
+        } catch { }
         repository.persistWorkoutSnapshot()
     }
 
     func synchronizeWorkoutPlans() async {
+        resetAccountScopedDataIfNeeded()
+        let userID = repository.currentProfile.id
+
+        for planID in repository.pendingRemoteWorkoutPlanDeletions {
+            guard repository.currentProfile.id == userID else {
+                resetAccountScopedDataIfNeeded()
+                return
+            }
+            do {
+                try await service.deletePlan(id: planID)
+                repository.pendingRemoteWorkoutPlanDeletions.remove(planID)
+            } catch { }
+        }
+        guard repository.currentProfile.id == userID else {
+            resetAccountScopedDataIfNeeded()
+            return
+        }
         guard var remoteByID = try? await service.plans().reduce(
             into: [UUID: WorkoutPlanDocument](),
-            { $0[$1.id] = $1 }
-        ) else { return }
+            { result, document in
+                if document.ownerID == userID {
+                    result[document.id] = document
+                }
+            }
+        ) else {
+            if repository.currentProfile.id != userID {
+                resetAccountScopedDataIfNeeded()
+            }
+            return
+        }
+        guard repository.currentProfile.id == userID else {
+            resetAccountScopedDataIfNeeded()
+            return
+        }
         let seededIDs = Set(MockData.workoutPlans.map(\.id)).union([PersonalWorkoutPlanCatalog.planID])
 
         for plan in repository.workoutPlans where !seededIDs.contains(plan.id) {
@@ -103,10 +166,15 @@ final class WorkoutSyncStore {
                     payload: data,
                     updatedAt: .now
                 )
-                if let result = try? await service.savePlan(
+                let result = try? await service.savePlan(
                     document,
                     expectedRevision: knownRevision ?? remote.revision
-                ) {
+                )
+                guard repository.currentProfile.id == userID else {
+                    resetAccountScopedDataIfNeeded()
+                    return
+                }
+                if let result {
                     apply(result)
                     if case let .saved(saved) = result { remoteByID[saved.id] = saved }
                 }
@@ -119,17 +187,48 @@ final class WorkoutSyncStore {
                     payload: data,
                     updatedAt: .now
                 )
-                if let result = try? await service.savePlan(document, expectedRevision: 0) {
+                let result = try? await service.savePlan(document, expectedRevision: 0)
+                guard repository.currentProfile.id == userID else {
+                    resetAccountScopedDataIfNeeded()
+                    return
+                }
+                if let result {
                     apply(result)
                 }
             }
         }
 
-        for document in remoteByID.values where !repository.workoutPlans.contains(where: { $0.id == document.id }) {
+        for document in remoteByID.values
+        where !repository.pendingRemoteWorkoutPlanDeletions.contains(document.id)
+            && !repository.workoutPlans.contains(where: { $0.id == document.id }) {
             guard let payload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: document.payload) else { continue }
             apply(payload, replacing: nil)
             remember(document)
         }
+        repository.persistWorkoutSnapshot()
+    }
+
+    private func resetAccountScopedDataIfNeeded() {
+        guard syncedUserID != repository.currentProfile.id else { return }
+        syncedUserID = repository.currentProfile.id
+        repository.completedWorkouts.removeAll()
+        repository.pendingCompletedWorkoutUploads.removeAll()
+        repository.deletedCompletedWorkoutIDs.removeAll()
+        repository.clearAccountScopedWorkoutHistory()
+
+        let seededPlanIDs = Set(MockData.workoutPlans.map(\.id)).union([PersonalWorkoutPlanCatalog.planID])
+        let removedPlanIDs = Set(repository.workoutPlans.map(\.id).filter { !seededPlanIDs.contains($0) })
+        let removedWeekIDs = Set(repository.workoutWeeks.filter { removedPlanIDs.contains($0.planID) }.map(\.id))
+        let removedSessionIDs = Set(repository.workoutSessions.filter { removedWeekIDs.contains($0.weekID) }.map(\.id))
+        repository.workoutPlans.removeAll { removedPlanIDs.contains($0.id) }
+        repository.workoutPhases.removeAll { removedPlanIDs.contains($0.planID) }
+        repository.workoutWeeks.removeAll { removedPlanIDs.contains($0.id) }
+        repository.workoutSessions.removeAll { removedWeekIDs.contains($0.id) }
+        repository.workoutPrescriptions.removeAll { removedSessionIDs.contains($0.sessionID) }
+        repository.workoutPlanProgressionSettings.removeAll { removedPlanIDs.contains($0.planID) }
+        repository.workoutPlanSyncRevisions.removeAll()
+        repository.workoutPlanLastSyncedPayloads.removeAll()
+        repository.pendingRemoteWorkoutPlanDeletions.removeAll()
         repository.persistWorkoutSnapshot()
     }
 
@@ -140,7 +239,23 @@ final class WorkoutSyncStore {
     }
 
     func deleteRemotePlan(_ planID: UUID) async {
-        try? await service.deletePlan(id: planID)
+        let userID = repository.currentProfile.id
+        repository.pendingRemoteWorkoutPlanDeletions.insert(planID)
+        repository.persistWorkoutSnapshot()
+        do {
+            try await service.deletePlan(id: planID)
+            guard repository.currentProfile.id == userID else {
+                resetAccountScopedDataIfNeeded()
+                return
+            }
+            repository.pendingRemoteWorkoutPlanDeletions.remove(planID)
+        } catch {
+            guard repository.currentProfile.id == userID else {
+                resetAccountScopedDataIfNeeded()
+                return
+            }
+        }
+        repository.persistWorkoutSnapshot()
     }
 
     func payload(planID: UUID) -> WorkoutPlanSyncPayload? {

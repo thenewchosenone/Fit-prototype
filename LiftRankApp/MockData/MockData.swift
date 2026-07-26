@@ -4,14 +4,6 @@ enum MockData {
     static let demoGymID = UUID(uuidString: "C0000000-0000-0000-0000-000000000063")!
     static let demoUserID = UUID(uuidString: "20D85C0B-32F0-4144-8A0D-15D8820B3592")!
     static let defaultWorkoutPlanID = UUID(uuidString: "A1000000-0000-0000-0000-000000000001")!
-    static let generalStrengthCommunityID = UUID(uuidString: "B1000000-0000-0000-0000-000000000001")!
-    static let powerliftingCommunityID = UUID(uuidString: "B1000000-0000-0000-0000-000000000002")!
-    static let bodybuildingCommunityID = UUID(uuidString: "B1000000-0000-0000-0000-000000000003")!
-    static let beginnerQuestionsCommunityID = UUID(uuidString: "B1000000-0000-0000-0000-000000000004")!
-    static let formChecksCommunityID = UUID(uuidString: "B1000000-0000-0000-0000-000000000005")!
-    static let programmingCommunityID = UUID(uuidString: "B1000000-0000-0000-0000-000000000006")!
-    static let equipmentCommunityID = UUID(uuidString: "B1000000-0000-0000-0000-000000000007")!
-    static let milestonesCommunityID = UUID(uuidString: "B1000000-0000-0000-0000-000000000008")!
 
     static let exercises: [Exercise] = [
         Exercise(id: "bench", name: "Barbell bench press", symbolName: "figure.strengthtraining.traditional", isPowerlift: true),
@@ -318,8 +310,6 @@ enum MockData {
         yearsExperience: 0,
         experienceLevel: .beginner,
         profileImageName: "person.crop.circle.fill",
-        followers: 0,
-        following: 0,
         hideExactAge: false,
         hideBodyweight: false,
         hideCity: false,
@@ -343,8 +333,6 @@ enum MockData {
         yearsExperience: 0,
         experienceLevel: .beginner,
         profileImageName: "person.crop.circle.fill",
-        followers: 0,
-        following: 0,
         hideExactAge: false,
         hideBodyweight: false,
         hideCity: false,
@@ -353,33 +341,6 @@ enum MockData {
     )
 
     static let challenges: [Challenge] = []
-
-    static func communityThreads(for _: [Challenge]) -> [CommunityThread] {
-        []
-    }
-
-    static func forumSeed(
-        profiles: [UserProfile],
-        lifts: [LiftSubmission],
-        legacyThreads: [CommunityThread]
-    ) -> ForumPersistenceSnapshot {
-        return ForumPersistenceSnapshot(
-            schemaVersion: ForumPersistenceSnapshot.currentVersion,
-            communities: [],
-            memberships: [],
-            posts: [],
-            comments: [],
-            joinRequests: [],
-            reports: [],
-            moderationActions: [],
-            notifications: [],
-            globalStaffUserIDs: []
-        )
-    }
-
-    static func social(profiles: [UserProfile]) -> (friendRequests: [FriendRequest], messageThreads: [DirectMessageThread], messages: [DirectMessage]) {
-        ([], [], [])
-    }
 
     static let achievements: [Achievement] = [
         ("First Workout", "Finish your first workout.", "figure.strengthtraining.traditional"),
@@ -466,14 +427,14 @@ enum MockData {
         ("90-Day Workout Streak", "Train ninety days in a row.", "calendar.badge.clock"),
         ("180-Day Workout Streak", "Train one hundred eighty days in a row.", "calendar.circle"),
         ("365-Day Workout Streak", "Train every day for a year.", "calendar.circle.fill"),
-        ("10,000 kg Volume", "Move 10,000 kg of working-set volume.", "gauge.with.dots.needle.67percent"),
-        ("50,000 kg Volume", "Move 50,000 kg of working-set volume.", "shippingbox.fill"),
-        ("100,000 kg Volume", "Move 100,000 kg of working-set volume.", "cube.box.fill"),
-        ("250,000 kg Volume", "Move 250,000 kg of working-set volume.", "building.columns.fill"),
-        ("500,000 kg Volume", "Move 500,000 kg of working-set volume.", "building.2.crop.circle.fill"),
-        ("1,000,000 kg Volume", "Move 1,000,000 kg of working-set volume.", "globe.americas.fill"),
-        ("2,500,000 kg Volume", "Move 2,500,000 kg of working-set volume.", "globe.americas"),
-        ("5,000,000 kg Volume", "Move 5,000,000 kg of working-set volume.", "globe"),
+        ("10,000 kg Lifted Volume", "Move 10,000 kg of lifted working-set volume.", "gauge.with.dots.needle.67percent"),
+        ("50,000 kg Lifted Volume", "Move 50,000 kg of lifted working-set volume.", "shippingbox.fill"),
+        ("100,000 kg Lifted Volume", "Move 100,000 kg of lifted working-set volume.", "cube.box.fill"),
+        ("250,000 kg Lifted Volume", "Move 250,000 kg of lifted working-set volume.", "building.columns.fill"),
+        ("500,000 kg Lifted Volume", "Move 500,000 kg of lifted working-set volume.", "building.2.crop.circle.fill"),
+        ("1,000,000 kg Lifted Volume", "Move 1,000,000 kg of lifted working-set volume.", "globe.americas.fill"),
+        ("2,500,000 kg Lifted Volume", "Move 2,500,000 kg of lifted working-set volume.", "globe.americas"),
+        ("5,000,000 kg Lifted Volume", "Move 5,000,000 kg of lifted working-set volume.", "globe"),
         ("Global Top 100", "Reach the global top 100.", "list.number"),
         ("Global Top 50", "Reach the global top 50.", "50.circle.fill"),
         ("Global Top 10", "Reach the global top 10.", "10.circle.fill"),
@@ -494,7 +455,7 @@ enum MockData {
         []
     }
 
-    static func community() -> (profiles: [UserProfile], lifts: [LiftSubmission], activities: [ActivityItem]) {
-        ([], [], [])
+    static func seededCompetitionData() -> (profiles: [UserProfile], lifts: [LiftSubmission]) {
+        ([], [])
     }
 }

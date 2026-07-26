@@ -177,9 +177,9 @@ struct WorkoutHistoryCalendar: View {
             VStack(spacing: 2) {
                 Text(day.date.map { String(calendar.component(.day, from: $0)) } ?? "")
                     .font(.caption.weight(isSelected || day.workoutCount > 0 ? .bold : .medium).monospacedDigit())
-                    .foregroundStyle(isSelected ? Color.white : day.date == nil ? Color.clear : Color.liftText)
+                    .foregroundStyle(isSelected ? Color.liftOnAccent : day.date == nil ? Color.clear : Color.liftText)
                 Circle()
-                    .fill(day.workoutCount > 0 ? (isSelected ? Color.white : Color.liftBlue) : Color.clear)
+                    .fill(day.workoutCount > 0 ? (isSelected ? Color.liftOnAccent : Color.liftBlue) : Color.clear)
                     .frame(width: 5, height: 5)
             }
             .frame(maxWidth: .infinity)
