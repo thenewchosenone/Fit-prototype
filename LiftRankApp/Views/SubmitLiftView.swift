@@ -55,10 +55,10 @@ struct SubmitLiftView: View {
     private var bodyweightDisplayValue: Binding<Double> {
         Binding(
             get: {
-                MeasurementFormatting.convert(bodyweight, from: .pounds, to: unit)
+                MeasurementFormatting.convert(bodyweight, from: .pounds, to: appState.currentProfile.preferredUnit)
             },
             set: { newValue in
-                bodyweight = MeasurementFormatting.convert(newValue, from: unit, to: .pounds)
+                bodyweight = MeasurementFormatting.convert(newValue, from: appState.currentProfile.preferredUnit, to: .pounds)
             }
         )
     }
@@ -234,7 +234,7 @@ struct SubmitLiftView: View {
                     NumericInputField(
                         title: "Bodyweight",
                         value: bodyweightDisplayValue,
-                        unit: unit.shortLabel,
+                        unit: appState.currentProfile.preferredUnit.shortLabel,
                         precision: 0...2,
                         presentation: .inset
                     )
