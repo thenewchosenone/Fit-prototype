@@ -15,7 +15,7 @@
     "test:demo": "pnpm build:demo && playwright test --config=playwright.demo.config.ts",
     "perf": "VITE_PUBLIC_DEMO=true VITE_AUTH_DEMO_MODE=true pnpm build && playwright test --config=playwright.performance.config.ts",
     "test:release-routes": "LIFTRANK_RELEASE_WEB_MODE=production playwright test --config=playwright.release.config.ts",
-    "test:release-routes:demo": "LIFTRANK_RELEASE_WEB_MODE=demo playwright test --config=playwright.release.config.ts",
+    "test:release-routes:demo": "pnpm build:demo && LIFTRANK_RELEASE_WEB_MODE=demo playwright test --config=playwright.release.config.ts",
     "gyms:update": "node scripts/update-gym-catalog.mjs"
   },
   "dependencies": {
