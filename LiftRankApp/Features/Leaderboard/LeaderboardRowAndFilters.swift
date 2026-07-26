@@ -23,7 +23,7 @@ struct LeaderboardRow: View {
                     ProfileAvatar(profile: entry.profile, size: 44)
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: 8) {
-                            Text(entry.profile.username)
+                            Text(entry.profile.displayName)
                                 .font(.headline)
                                 .lineLimit(1)
                             if entry.profile.id == appState.currentProfile.id {
@@ -35,7 +35,7 @@ struct LeaderboardRow: View {
                                     .clipShape(Capsule())
                             }
                         }
-                        Text(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)
+                        Text("@\(entry.profile.username) • \(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                             .lineLimit(1)
@@ -103,7 +103,11 @@ struct LeaderboardFiltersView: View {
     }
 
     private var locationOptions: [String] {
-        let profileLocations = appState.profiles.map { "\($0.city), \($0.state)" }
+        let profileLocations = appState.profiles.compactMap { profile -> String? in
+            guard !profile.hideCity else { return nil }
+            let location = ProfileDisplayFormatting.location(city: profile.city, region: profile.state)
+            return location == "Location missing" ? nil : location
+        }
         let gymLocations = appState.gyms.map { "\($0.city), \($0.state)" }
         return Array(Set(profileLocations + gymLocations)).sorted().prefix(14).map { $0 }
     }

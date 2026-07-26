@@ -218,7 +218,7 @@ struct CompactLeaderboardRow: View {
             ProfileAvatar(profile: entry.profile, size: 40)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 5) {
-                    Text(entry.profile.username)
+                    Text(entry.profile.displayName)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
                     if entry.lift.verificationStatus != .selfReported {
@@ -257,7 +257,7 @@ struct CompactLeaderboardRow: View {
         .background(isCurrentUser ? Color.liftBlue.opacity(0.09) : Color.clear)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Rank \(entry.rank), \(entry.profile.username), \(RankingFormatting.leaderboardValueText(for: entry, rankingType: rankingType, preferredUnit: preferredUnit)), \(movementAccessibility)")
+        .accessibilityLabel("Rank \(entry.rank), \(entry.profile.displayName), at \(entry.profile.username), \(RankingFormatting.leaderboardValueText(for: entry, rankingType: rankingType, preferredUnit: preferredUnit)), \(movementAccessibility)")
         .accessibilityHint("Opens lifter profile")
     }
 
@@ -286,14 +286,14 @@ struct CompactLeaderboardRow: View {
 
     private var detailText: String {
         if let breakdown = entry.powerliftingBreakdown, !isExerciseLeaderboard {
-            return "S \(formatted(breakdown.squatKilograms)) • B \(formatted(breakdown.benchKilograms)) • D \(formatted(breakdown.deadliftKilograms))"
+            return "@\(entry.profile.username) • S \(formatted(breakdown.squatKilograms)) • B \(formatted(breakdown.benchKilograms)) • D \(formatted(breakdown.deadliftKilograms))"
         }
         let location = ProfileDisplayFormatting.location(
             city: entry.profile.city,
             region: entry.profile.state,
             hidden: entry.profile.hideCity
         )
-        return "\(entry.lift.repetitions) rep\(entry.lift.repetitions == 1 ? "" : "s") • \(formattedBodyweight) BW • \(location)"
+        return "@\(entry.profile.username) • \(entry.lift.repetitions) rep\(entry.lift.repetitions == 1 ? "" : "s") • \(formattedBodyweight) BW • \(location)"
     }
 
     private var formattedBodyweight: String {
