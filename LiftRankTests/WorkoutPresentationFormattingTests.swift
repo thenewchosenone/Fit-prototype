@@ -28,16 +28,16 @@ final class WorkoutPresentationFormattingTests: XCTestCase {
         XCTAssertEqual(MeasurementFormatting.formatWeight(77.5), "77.5")
     }
 
-    func testLiftSetTextWithoutRepLabel() {
+    func testRecordedLiftSetTextPreservesKilograms() {
         XCTAssertEqual(
-            MeasurementFormatting.liftSetText(weightKilograms: 150, unit: .kilograms, repetitions: 5),
+            MeasurementFormatting.recordedLiftSetText(weight: 150, unit: .kilograms, repetitions: 5),
             "150 kg × 5"
         )
     }
 
-    func testLiftSetTextWithXKeepsXSeparator() {
+    func testRecordedLiftSetTextPreservesPoundsWithoutDoubleConversion() {
         XCTAssertEqual(
-            MeasurementFormatting.liftSetTextWithX(weightKilograms: 225, unit: .pounds, repetitions: 3),
+            MeasurementFormatting.recordedLiftSetTextWithX(weight: 225, unit: .pounds, repetitions: 3),
             "225 lb x 3"
         )
     }
@@ -52,10 +52,17 @@ final class WorkoutPresentationFormattingTests: XCTestCase {
         XCTAssertEqual(MeasurementFormatting.compactDisplayedWeightOrDash(0, unit: .pounds), "0lb")
     }
 
-    func testLiftSetTextWithRepLabel() {
+    func testRecordedLiftSetTextWithRepLabel() {
         XCTAssertEqual(
-            MeasurementFormatting.liftSetText(weightKilograms: 150, unit: .kilograms, repetitions: 1, includeRepLabel: true),
+            MeasurementFormatting.recordedLiftSetText(weight: 150, unit: .kilograms, repetitions: 1, includeRepLabel: true),
             "150 kg × 1 rep"
+        )
+    }
+
+    func testNormalizedLiftSetTextConvertsAtDisplayBoundary() {
+        XCTAssertEqual(
+            MeasurementFormatting.normalizedLiftSetText(weightKilograms: 100, preferredUnit: .pounds, repetitions: 2),
+            "220.5 lb × 2"
         )
     }
 

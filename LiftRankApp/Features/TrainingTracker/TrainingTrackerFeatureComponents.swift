@@ -73,9 +73,9 @@ struct PlateauInsightDetailView: View {
     }
 
     private func setDescription(_ performance: PlateauPerformance) -> String {
-        return MeasurementFormatting.liftSetText(
+        return MeasurementFormatting.normalizedLiftSetText(
             weightKilograms: performance.weightKilograms,
-            unit: appState.currentProfile.preferredUnit,
+            preferredUnit: appState.currentProfile.preferredUnit,
             repetitions: performance.repetitions
         )
     }

@@ -52,7 +52,7 @@ struct ModeratorReviewView: View {
                     VStack(alignment: .leading) {
                         Text(lift.exerciseName)
                             .font(.headline)
-                        Text("\(MeasurementFormatting.liftSetTextWithX(weightKilograms: lift.weight, unit: lift.unit, repetitions: lift.repetitions)) - \(MeasurementFormatting.formatWeight(lift.estimatedOneRepMax)) lb max")
+                        Text("\(MeasurementFormatting.recordedLiftSetTextWithX(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions)) - \(MeasurementFormatting.formatWeight(lift.estimatedOneRepMax)) lb max")
                             .foregroundStyle(Color.liftMuted)
                     }
                     Spacer()

@@ -423,7 +423,7 @@ extension HomeView {
                                 Text(lift.exerciseName)
                                     .font(.subheadline.weight(.bold))
                                     .foregroundStyle(Color.liftText)
-                                Text(MeasurementFormatting.liftSetText(weightKilograms: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true))
+                                Text(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true))
                                     .font(.caption)
                                     .foregroundStyle(Color.liftMuted)
                                 VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus, compact: true)

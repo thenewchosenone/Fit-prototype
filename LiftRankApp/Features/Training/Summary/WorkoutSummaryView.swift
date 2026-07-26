@@ -270,7 +270,7 @@ struct WorkoutSummaryView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(candidate.exerciseName)
                                 .font(.subheadline.weight(.bold))
-                            Text(MeasurementFormatting.liftSetText(weightKilograms: candidate.weight, unit: candidate.unit, repetitions: candidate.repetitions))
+                            Text(MeasurementFormatting.recordedLiftSetText(weight: candidate.weight, unit: candidate.unit, repetitions: candidate.repetitions))
                                 .font(.headline.weight(.black).monospacedDigit())
                                 .foregroundStyle(Color.liftGold)
                         }

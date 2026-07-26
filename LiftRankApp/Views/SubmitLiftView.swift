@@ -278,7 +278,7 @@ struct SubmitLiftView: View {
         MetricCard(
             title: "Estimated max",
             value: "\(RankingCalculator.format(estimate)) \(unit.shortLabel)",
-            subtitle: "\(MeasurementFormatting.liftSetTextWithX(weightKilograms: weight, unit: unit, repetitions: repetitions)) estimates a \(RankingCalculator.format(estimate)) \(unit.shortLabel) one-rep max.",
+            subtitle: "\(MeasurementFormatting.recordedLiftSetTextWithX(weight: weight, unit: unit, repetitions: repetitions)) estimates a \(RankingCalculator.format(estimate)) \(unit.shortLabel) one-rep max.",
             symbolName: "function",
             tint: .liftGreen
         )

@@ -556,7 +556,7 @@ extension CompetitionStore: WorkoutPRLiftSubmitting {
             equipment: .raw,
             visibility: .publicLift,
             videoURL: videoURL,
-            caption: "PR from \(workout.name): \(candidate.exerciseName) \(MeasurementFormatting.liftSetText(weightKilograms: candidate.weight, unit: candidate.unit, repetitions: candidate.repetitions))",
+            caption: "PR from \(workout.name): \(candidate.exerciseName) \(MeasurementFormatting.recordedLiftSetText(weight: candidate.weight, unit: candidate.unit, repetitions: candidate.repetitions))",
             requestVerification: true
         )
     }

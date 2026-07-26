@@ -75,7 +75,7 @@ struct ProfileLiftVideosSection: View {
                                     Text(lift.exerciseName)
                                         .font(.subheadline.weight(.bold))
                                         .foregroundStyle(Color.primary)
-                                    Text("\(MeasurementFormatting.liftSetText(weightKilograms: lift.weight, unit: lift.unit, repetitions: lift.repetitions)) • \(LiftTimeFormatter.shortDate(lift.performedAt))")
+                                    Text("\(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions)) • \(LiftTimeFormatter.shortDate(lift.performedAt))")
                                         .font(.caption)
                                         .foregroundStyle(Color.liftMuted)
                                 }
@@ -122,7 +122,7 @@ private struct ProfileLiftVideoDetailView: View {
                         VStack(alignment: .leading, spacing: 5) {
                             Text(lift.exerciseName)
                                 .font(.title2.weight(.black))
-                            Text("\(MeasurementFormatting.liftSetText(weightKilograms: lift.weight, unit: lift.unit, repetitions: lift.repetitions)) • \(LiftTimeFormatter.shortDateTime(lift.performedAt))")
+                            Text("\(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions)) • \(LiftTimeFormatter.shortDateTime(lift.performedAt))")
                                 .font(.subheadline)
                                 .foregroundStyle(Color.liftMuted)
                             VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus)
@@ -134,7 +134,7 @@ private struct ProfileLiftVideoDetailView: View {
                         if let mediaID = lift.demoMediaID {
                             DemoMediaCard(
                                 title: lift.exerciseName,
-                                subtitle: MeasurementFormatting.liftSetText(weightKilograms: lift.weight, unit: lift.unit, repetitions: lift.repetitions),
+                                subtitle: MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions),
                                 mediaID: mediaID,
                                 badge: "Lift video"
                             )

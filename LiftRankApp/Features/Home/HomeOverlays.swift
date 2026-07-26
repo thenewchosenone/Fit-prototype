@@ -43,7 +43,7 @@ struct RecentPRDetailView: View {
                         if let mediaID = lift.demoMediaID {
                             DemoMediaCard(
                                 title: lift.exerciseName,
-                                subtitle: MeasurementFormatting.liftSetText(weightKilograms: lift.weight, unit: lift.unit, repetitions: lift.repetitions),
+                                subtitle: MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions),
                                 mediaID: mediaID,
                                 badge: "PR Video"
                             )

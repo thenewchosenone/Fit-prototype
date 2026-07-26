@@ -219,7 +219,7 @@ extension ProfileView {
                 VStack(alignment: .leading) {
                     Text(lift.exerciseName)
                         .font(.headline)
-                    Text(MeasurementFormatting.liftSetText(weightKilograms: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true))
+                    Text(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true))
                         .foregroundStyle(Color.liftMuted)
                 }
                         Spacer()

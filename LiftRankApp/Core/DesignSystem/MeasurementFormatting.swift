@@ -87,26 +87,37 @@ enum MeasurementFormatting {
         includeLabel ? "× \(repetitions) \(repetitions == 1 ? "rep" : "reps")" : "× \(repetitions)"
     }
 
-    static func liftSetText(
-        weightKilograms: Double,
+    static func recordedLiftSetText(
+        weight: Double,
         unit: UnitSystem,
         repetitions: Int,
         includeRepLabel: Bool = false,
         format: (Double) -> String = RankingCalculator.format
     ) -> String {
         let repLabel = includeRepLabel ? " \(repetitions == 1 ? "rep" : "reps")" : ""
-        return "\(formatDisplayedWeight(weightKilograms, unit: unit, format: format)) × \(repetitions)\(repLabel)"
+        return "\(formatRecordedWeight(weight, unit: unit, format: format)) × \(repetitions)\(repLabel)"
     }
 
-    static func liftSetTextWithX(
-        weightKilograms: Double,
+    static func recordedLiftSetTextWithX(
+        weight: Double,
         unit: UnitSystem,
         repetitions: Int,
         includeRepLabel: Bool = false,
         format: (Double) -> String = RankingCalculator.format
     ) -> String {
         let repLabel = includeRepLabel ? " \(repetitions == 1 ? "rep" : "reps")" : ""
-        return "\(formatDisplayedWeight(weightKilograms, unit: unit, format: format)) x \(repetitions)\(repLabel)"
+        return "\(formatRecordedWeight(weight, unit: unit, format: format)) x \(repetitions)\(repLabel)"
+    }
+
+    static func normalizedLiftSetText(
+        weightKilograms: Double,
+        preferredUnit: UnitSystem,
+        repetitions: Int,
+        includeRepLabel: Bool = false,
+        format: (Double) -> String = RankingCalculator.format
+    ) -> String {
+        let repLabel = includeRepLabel ? " \(repetitions == 1 ? "rep" : "reps")" : ""
+        return "\(formatDisplayedWeight(weightKilograms, unit: preferredUnit, format: format)) × \(repetitions)\(repLabel)"
     }
 
     static func workoutSetText(
