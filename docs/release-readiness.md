@@ -107,6 +107,7 @@ This document records evidence for the 11-phase public-launch plan. A phase is c
 ## Focused-launch stabilization verification — July 25, 2026
 
 - The focused native app and all native test targets compile with `xcodebuild ... build-for-testing` for the generic iOS Simulator destination.
+- The unsigned Release simulator build passed for arm64 and x86_64 after the focused leaderboard cleanup.
 - Product-consistency batches were completed for recorded workout/PR weights, normalized kilogram presentation, preferred-unit bodyweight editing, leaderboard identity and location privacy, deferred gym leaderboard scopes, and failed video-upload state.
 - Failed evidence uploads now remain self-reported, clear temporary media references, and invalidate late progress callbacks. The focused regression test compiles in the unit-test target.
 - Native simulator test execution is not a passing gate. Xcode repeatedly launches a clone worker and then hangs while materializing/finalizing the test session. A media regression run executed before the final callback-race correction and failed; later runs after the correction did not execute assertions before the same worker hang. Re-run native unit and UI suites after repairing CoreSimulator/Xcode.
