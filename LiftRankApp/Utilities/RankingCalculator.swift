@@ -214,6 +214,6 @@ enum RankingCalculator {
     }
 
     static func format(_ value: Double) -> String {
-        value.rounded() == value ? "\(Int(value))" : String(format: "%.1f", value)
+        abs(value.rounded() - value) < 0.0001 ? "\(Int(value.rounded()))" : String(format: "%.1f", value)
     }
 }

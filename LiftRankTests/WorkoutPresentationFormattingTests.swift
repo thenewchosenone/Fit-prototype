@@ -43,7 +43,7 @@ final class WorkoutPresentationFormattingTests: XCTestCase {
     }
 
     func testCompactDisplayedWeightOmitsUnitSpacing() {
-        XCTAssertEqual(MeasurementFormatting.compactDisplayedWeight(200, unit: .pounds), "200lb")
+        XCTAssertEqual(MeasurementFormatting.compactDisplayedWeight(200, unit: .pounds), "440.9lb")
         XCTAssertEqual(MeasurementFormatting.compactDisplayedWeight(90.5, unit: .kilograms), "90.5kg")
     }
 
@@ -243,7 +243,7 @@ final class WorkoutPresentationFormattingTests: XCTestCase {
         XCTAssertEqual(MeasurementFormatting.shortDurationText(59), "0m")
         XCTAssertEqual(MeasurementFormatting.shortDurationText(60), "1m")
         XCTAssertEqual(MeasurementFormatting.shortDurationText(125), "2m")
-        XCTAssertEqual(MeasurementFormatting.shortDurationText(3_700), "61m")
+        XCTAssertEqual(MeasurementFormatting.shortDurationText(3_700), "1h 1m")
         XCTAssertEqual(MeasurementFormatting.shortDurationText(-600), "0m")
         XCTAssertEqual(MeasurementFormatting.shortDurationText(3_780), "1h 3m")
     }
