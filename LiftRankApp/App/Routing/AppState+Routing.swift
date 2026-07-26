@@ -42,10 +42,6 @@ extension AppState {
         get { router.sheet == .settings }
         set { router.setSheet(.settings, isPresented: newValue) }
     }
-    var showingReportLift: Bool {
-        get { router.sheet == .reportLift }
-        set { router.setSheet(.reportLift, isPresented: newValue) }
-    }
     var showingRequestGym: Bool {
         get { router.sheet == .requestGym }
         set { router.setSheet(.requestGym, isPresented: newValue) }
@@ -61,6 +57,10 @@ extension AppState {
     var selectedGym: Gym? {
         get { if case .gym(let value) = router.sheet { return value }; return nil }
         set { setSelectedSheet(newValue.map(AppSheet.gym), matching: { if case .gym = $0 { true } else { false } }) }
+    }
+    var selectedReportLift: LiftSubmission? {
+        get { if case .reportLift(let value) = router.sheet { return value }; return nil }
+        set { setSelectedSheet(newValue.map(AppSheet.reportLift), matching: { if case .reportLift = $0 { true } else { false } }) }
     }
     private func setSelectedSheet(_ destination: AppSheet?, matching: (AppSheet) -> Bool) {
         if let destination {

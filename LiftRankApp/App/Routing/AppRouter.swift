@@ -15,7 +15,7 @@ enum AppSheet: Identifiable, Hashable {
     case moderatorReview
     case settings
     case requestGym
-    case reportLift
+    case reportLift(LiftSubmission)
     case profile(UserProfile)
     case gym(Gym)
 
@@ -27,7 +27,7 @@ enum AppSheet: Identifiable, Hashable {
         case .moderatorReview: return "moderator-review"
         case .settings: return "settings"
         case .requestGym: return "request-gym"
-        case .reportLift: return "report-lift"
+        case .reportLift(let lift): return "report-lift-\(lift.id)"
         case .profile(let profile): return "profile-\(profile.id)"
         case .gym(let gym): return "gym-\(gym.id)"
         }

@@ -104,6 +104,9 @@ private final class StaticLeaderboardService: LeaderboardService {
 private final class ToggleLiftService: LiftService {
     let submissionsToReturn: [LiftSubmission]
     var shouldFail = false
+    private(set) var reportedLiftID: UUID?
+    private(set) var reportedReason: LiftReportReason?
+    private(set) var reportedNote: String?
 
     init(submissions: [LiftSubmission]) {
         submissionsToReturn = submissions
@@ -116,7 +119,11 @@ private final class ToggleLiftService: LiftService {
 
     func submit(_ submission: LiftSubmission) async throws -> LiftSubmission { submission }
     func vote(liftID: UUID, vote: LiftVoteValue?) async throws {}
-    func report(liftID: UUID, reason: LiftReportReason, note: String) async throws {}
+    func report(liftID: UUID, reason: LiftReportReason, note: String) async throws {
+        reportedLiftID = liftID
+        reportedReason = reason
+        reportedNote = note
+    }
 }
 
 @MainActor
@@ -400,6 +407,21 @@ final class RankingCalculatorTests: XCTestCase {
         await store.refreshProductionData()
 
         XCTAssertEqual(repository.lifts, productionLifts)
+    }
+
+    @MainActor
+    func testCompetitionReportTargetsAnotherAthletesLift() async {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let lift = makeLift(userID: UUID(), weight: 315)
+        let service = ToggleLiftService(submissions: [])
+        let store = CompetitionStore(repository: repository, liftService: service)
+
+        let submitted = await store.report(lift, reason: .incorrectWeight, note: "Displayed weight is incorrect")
+
+        XCTAssertTrue(submitted)
+        XCTAssertEqual(service.reportedLiftID, lift.id)
+        XCTAssertEqual(service.reportedReason, .incorrectWeight)
+        XCTAssertEqual(service.reportedNote, "Displayed weight is incorrect")
     }
 
     @MainActor

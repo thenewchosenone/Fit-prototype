@@ -224,6 +224,19 @@ extension ProfileView {
                 }
                         Spacer()
                         VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus)
+                        if !isCurrentUser {
+                            Menu {
+                                Button("Report lift", role: .destructive) {
+                                    appState.selectedReportLift = lift
+                                }
+                                .accessibilityIdentifier("profile.reportLift")
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                            .accessibilityLabel("Lift options")
+                            .accessibilityIdentifier("profile.liftOptions.\(lift.id.uuidString)")
+                        }
                     }
                     .padding(.horizontal, 14)
                     .frame(minHeight: 66)

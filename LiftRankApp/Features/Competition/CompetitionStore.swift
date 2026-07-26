@@ -492,6 +492,16 @@ final class CompetitionStore: ObservableObject {
         return updated
     }
 
+    func report(_ lift: LiftSubmission, reason: LiftReportReason, note: String) async -> Bool {
+        guard lift.userID != repository.currentProfile.id, let liftService else { return false }
+        do {
+            try await liftService.report(liftID: lift.id, reason: reason, note: note)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     private func upsert(_ submission: LiftSubmission) {
         if let index = repository.lifts.firstIndex(where: { $0.id == submission.id }) {
             repository.lifts[index] = submission

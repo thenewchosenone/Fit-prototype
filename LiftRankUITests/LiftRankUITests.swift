@@ -439,6 +439,33 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.buttons["profile.unblockAthlete"].waitForExistence(timeout: 5))
     }
 
+    func testReportingAnotherAthletesLiftSubmitsAndDismisses() {
+        let app = launchDemo(arguments: ["-uiTestingCompetitionFixture"])
+        XCTAssertTrue(tab("leaderboards", in: app).waitForExistence(timeout: 8))
+        tab("leaderboards", in: app).tap()
+
+        let otherAthlete = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@ AND value == %@", "leaderboard.athlete.", "Other athlete")
+        ).firstMatch
+        XCTAssertTrue(otherAthlete.waitForExistence(timeout: 5))
+        otherAthlete.tap()
+
+        let liftOptions = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "profile.liftOptions.")
+        ).firstMatch
+        XCTAssertTrue(liftOptions.waitForExistence(timeout: 5))
+        liftOptions.tap()
+        let report = app.buttons["profile.reportLift"]
+        XCTAssertTrue(report.waitForExistence(timeout: 5))
+        report.tap()
+
+        XCTAssertTrue(app.navigationBars["Report Lift"].waitForExistence(timeout: 5))
+        let submit = app.buttons["report.submit"]
+        XCTAssertTrue(submit.waitForExistence(timeout: 5))
+        submit.tap()
+        XCTAssertTrue(app.navigationBars["Report Lift"].waitForNonExistence(timeout: 5))
+    }
+
     func testUnauthenticatedRoutingDoesNotExposeDemoEntryInReleaseContract() {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTestingAuthentication"]

@@ -77,8 +77,8 @@ struct MainTabView: View {
             SettingsView().environmentObject(appState)
         case .requestGym:
             RequestGymView().environmentObject(appState).presentationDetents([.medium])
-        case .reportLift:
-            ReportLiftView().presentationDetents([.medium])
+        case .reportLift(let lift):
+            ReportLiftView(lift: lift).environmentObject(appState).presentationDetents([.medium])
         case .profile(let profile):
             NavigationStack {
                 ProfileView(profile: profile, isCurrentUser: profile.id == appState.currentProfile.id)
@@ -616,25 +616,45 @@ private enum AppleNonce {
 }
 
 struct ReportLiftView: View {
+    @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
-    @State private var reason = "Incorrect weight"
+    let lift: LiftSubmission
+    @State private var reason = LiftReportReason.incorrectWeight
     @State private var note = ""
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
             AppBackground {
                 Form {
                     Picker("Reason", selection: $reason) {
-                        ForEach(["Incorrect weight", "Duplicate submission", "Edited or unclear video", "Incorrect exercise"], id: \.self) {
-                            Text($0).tag($0)
+                        ForEach(LiftReportReason.allCases) { option in
+                            Text(option.rawValue).tag(option)
                         }
                     }
                     TextField("Optional note", text: $note, axis: .vertical)
                         .lineLimit(3...5)
-                    Button("Submit Report") {
-                        Haptics.warning()
-                        dismiss()
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(Color.liftRed)
                     }
+                    Button(isSubmitting ? "Submitting…" : "Submit Report") {
+                        isSubmitting = true
+                        errorMessage = nil
+                        Task {
+                            if await appState.competitionStore.report(lift, reason: reason, note: note) {
+                                Haptics.warning()
+                                dismiss()
+                            } else {
+                                errorMessage = "The report could not be submitted. Try again."
+                                isSubmitting = false
+                            }
+                        }
+                    }
+                    .accessibilityIdentifier("report.submit")
+                    .disabled(isSubmitting)
                 }
                 .scrollContentBackground(.hidden)
             }
