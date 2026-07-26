@@ -29,9 +29,8 @@ This document records evidence for the 11-phase public-launch plan. A phase is c
 ## Focused v1 launch profile — July 19, 2026
 
 - Production now resolves an explicit focused feature profile: Home, Leaderboards, Track, and Me.
-- The launch social loop is mutual connections, athlete discovery, intentionally shared completed workouts, likes, comments, reports, blocking, and in-app/push notifications.
-- Connection requests and connection workout activity live on Home; athlete discovery lives in Leaderboards search.
-- Community tab, forums, direct messages, communities/gym feeds, polls, saves/watches, and advertising remain in the codebase for staging/debug evaluation but are unavailable in production.
+- Athlete discovery lives in Leaderboards search; reporting and blocking remain available from athlete profiles.
+- Community, forums, direct messages, gym feeds, polls, saves/watches, and broad social navigation are removed from the production app surfaces. Historical backend migrations are not evidence that these deferred surfaces ship in focused v1.
 - Completed-workout sharing uses dedicated Supabase tables/RPCs and RLS. The migration is `202607190001_focused_launch.sql`; it must pass its pgTAP test before staging promotion.
 - Verification evidence: Debug simulator build passed; the complete iOS unit suite passed 174 tests with zero failures. The app launched successfully to the production account screen.
 
@@ -104,3 +103,22 @@ This document records evidence for the 11-phase public-launch plan. A phase is c
 - Release now uses the production URL and dedicated `mobile` publishable key; Debug remains on staging. Independent Debug and Release simulator builds passed, and their compiled Info.plists resolve to the correct environments.
 - Production is provisioned but remains prelaunch. Two-account application rehearsal, physical-device validation, Apple services, legal/accessibility/media review, and signed/TestFlight gates remain open.
 - Custom SMTP is not configured. Supabase's built-in mailer is restricted to organization-team addresses and two messages per hour, so public email signup/recovery must remain a release blocker until a production SMTP provider is connected and tested.
+
+## Focused-launch stabilization verification — July 25, 2026
+
+- The focused native app and all native test targets compile with `xcodebuild ... build-for-testing` for the generic iOS Simulator destination.
+- Product-consistency batches were completed for recorded workout/PR weights, normalized kilogram presentation, preferred-unit bodyweight editing, leaderboard identity and location privacy, deferred gym leaderboard scopes, and failed video-upload state.
+- Failed evidence uploads now remain self-reported, clear temporary media references, and invalidate late progress callbacks. The focused regression test compiles in the unit-test target.
+- Native simulator test execution is not a passing gate. Xcode repeatedly launches a clone worker and then hangs while materializing/finalizing the test session. A media regression run executed before the final callback-race correction and failed; later runs after the correction did not execute assertions before the same worker hang. Re-run native unit and UI suites after repairing CoreSimulator/Xcode.
+- Focused native UI coverage exists and compiles for workout logging, workout completion, profile editing, PR submission, leaderboard/profile navigation, and blocking. Unit coverage exists and compiles for authenticated routing/onboarding, profile persistence, reporting/service boundaries, ranking, media state, and account deletion. This compiled coverage does not replace a successful runtime pass.
+- Web unit/component tests passed: 95 of 95. Gym-source parser tests passed: 10 of 10. The production web build passed.
+- Production release-route smoke passed on desktop and mobile: 6 of 6. Demo-mode release-route smoke rebuilt the demo bundle and passed on desktop and mobile: 6 of 6. Deferred Community and Messages routes resolve through focused Home and then to Login when unauthenticated in production.
+- `check_publish_readiness_services.sh` and `check_launch_metadata.sh` passed their local source/configuration checks. The services check still warns that production APNs secrets, notification-delivery runtime evidence, and production SMTP evidence are unavailable locally.
+
+### Explicit remaining release blockers
+
+- Connect and load-test production SMTP for signup and recovery.
+- Complete the two-unrelated-account staging rehearsal for signup/onboarding, profile edit, workout sync/logging/detail, PR plus signed media playback, ranking, reporting, blocking, and account deletion.
+- Complete physical-device testing and a clean native unit/UI runtime pass.
+- Verify Apple Developer capabilities and distribution signing, Sign in with Apple account linking, APNs credentials and live delivery, and TestFlight installation.
+- Complete legal, App Store privacy disclosure, accessibility, support/moderation workflow, and original/licensed media-rights reviews.
