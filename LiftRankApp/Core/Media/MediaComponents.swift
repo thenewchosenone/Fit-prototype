@@ -106,8 +106,7 @@ final class LocalProfilePhotoStore: ProfilePhotoStore {
 
     private func fileURL(for avatarPath: String, variant: String) -> URL? {
         let suffix = variant == "thumb" ? "avatar-thumb.jpg" : "avatar-full.jpg"
-        return try? directoryURL().appendingPathComponent(avatarPath, isDirectory: false)
-            .deletingLastPathComponent()
+        return try? directoryURL().appendingPathComponent(avatarPath, isDirectory: true)
             .appendingPathComponent(suffix)
     }
 

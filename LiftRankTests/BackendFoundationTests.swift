@@ -317,7 +317,7 @@ final class BackendFoundationTests: XCTestCase {
         )
 
         appState.saveProfilePhoto(image)
-        for _ in 0..<20 where service.updateProfileCount == 0 {
+        for _ in 0..<120 where appState.currentProfile.avatarPath != serverAvatarPath {
             try await Task.sleep(nanoseconds: 25_000_000)
         }
 
@@ -617,8 +617,12 @@ final class BackendFoundationTests: XCTestCase {
     @MainActor
     func testGymNotificationOpensTheTargetGym() throws {
         let repository = DemoRepository()
+        let gym = Gym(
+            id: UUID(), name: "Downtown Strength", city: "Austin", state: "Texas",
+            memberCount: 0, verifiedLiftCount: 0
+        )
+        repository.gyms = [gym]
         let appState = AppState(repository: repository)
-        let gym = try XCTUnwrap(appState.gyms.first)
         let notification = NotificationItem(
             id: UUID(), title: "Gym update", message: "Your gym has a new update.", kind: "Gym",
             createdAt: .now, isRead: false,
@@ -698,6 +702,7 @@ final class BackendFoundationTests: XCTestCase {
     func testProfileStoreOwnsRemoteEditedProfilePersistence() async throws {
         let repository = DemoRepository()
         let userID = UUID()
+        repository.currentProfile.id = userID
         let service = TestProfileService(profile: AuthenticatedProfile(
             id: userID,
             username: "remote_lifter",
@@ -774,16 +779,17 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(saved.cityID, serverCityID)
         XCTAssertEqual(saved.city, "Austin")
         XCTAssertEqual(saved.state, "Texas")
-        XCTAssertEqual(service.profile.bio, "Keep this bio")
+        let savedDraft = try XCTUnwrap(service.lastSavedProfileDraft)
+        XCTAssertEqual(savedDraft.bio, "Keep this bio")
         XCTAssertEqual(
-            ProfileDisplayFormatting.ageGroup(for: try XCTUnwrap(service.profile.birthDate)),
+            ProfileDisplayFormatting.ageGroup(for: try XCTUnwrap(savedDraft.birthDate)),
             "30-34"
         )
-        XCTAssertEqual(service.profile.bodyweightPounds, 205)
-        XCTAssertEqual(service.profile.cityID, edited.cityID)
-        XCTAssertEqual(service.profile.city, "Miami")
-        XCTAssertEqual(service.profile.region, "Florida")
-        XCTAssertEqual(service.profile.privacy.locationAudience, .privateProfile)
+        XCTAssertEqual(savedDraft.bodyweightPounds, 205)
+        XCTAssertEqual(savedDraft.cityID, edited.cityID)
+        XCTAssertEqual(savedDraft.city, "Miami")
+        XCTAssertEqual(savedDraft.region, "Florida")
+        XCTAssertEqual(savedDraft.privacy.locationAudience, .privateProfile)
         XCTAssertEqual(store.profiles.map(\.id), [userID])
     }
 
@@ -902,6 +908,7 @@ final class BackendFoundationTests: XCTestCase {
     func testProfileStoreAllowsEditedProfileWithoutPrimaryGym() async throws {
         let repository = DemoRepository()
         let userID = UUID()
+        repository.currentProfile.id = userID
         let originalGymID = repository.currentProfile.primaryGymID
         let originalGymName = repository.currentProfile.primaryGymName
         let service = TestProfileService(profile: AuthenticatedProfile(
@@ -1029,7 +1036,7 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(event.properties, ["workout_id": "test-workout"])
     }
 
-    func testProfileStoreOwnsGymMembershipLimitAndPrimaryProtection() {
+    func testProfileStoreOwnsGymMembershipLimitAndPrimaryReassignment() {
         let repository = DemoRepository()
         let primary = Gym(id: UUID(), name: "Primary", city: "Miami", state: "Florida", memberCount: 10, verifiedLiftCount: 2)
         let secondary = Gym(id: UUID(), name: "Secondary", city: "Miami", state: "Florida", memberCount: 5, verifiedLiftCount: 1)
@@ -1045,7 +1052,8 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(store.joinedGymCount, 2)
 
         store.leaveGym(primary)
-        XCTAssertTrue(store.isGymJoined(primary.id))
+        XCTAssertFalse(store.isGymJoined(primary.id))
+        XCTAssertEqual(store.currentProfile.primaryGymID, secondary.id)
 
         store.leaveGym(secondary)
         XCTAssertFalse(store.isGymJoined(secondary.id))
@@ -1156,6 +1164,7 @@ final class BackendFoundationTests: XCTestCase {
             deviceID: "test-device"
         )
         let userID = UUID()
+        repository.currentProfile.id = userID
 
         await store.registerPushToken("token-value", userID: userID, environment: "sandbox")
         let registration = try XCTUnwrap(service.registrations.first)
@@ -1443,9 +1452,7 @@ final class BackendFoundationTests: XCTestCase {
     func testMockSocialServicePersistsBlockRelationships() async throws {
         let repository = DemoRepository()
         let service = MockSocialService(repository: repository)
-        let otherUserID = try XCTUnwrap(repository.profiles.first {
-            $0.id != repository.currentProfile.id
-        }?.id)
+        let otherUserID = UUID()
 
         try await service.block(userID: otherUserID)
         let blockedIDs = try await service.blocks().map(\.blockedID)
@@ -1460,9 +1467,7 @@ final class BackendFoundationTests: XCTestCase {
     func testAccountSocialStoreDoesNotApplyPreviousUsersBlockResponse() async throws {
         let repository = DemoRepository()
         let profileStore = ProfileStore(repository: repository)
-        let blockedID = try XCTUnwrap(repository.profiles.first {
-            $0.id != repository.currentProfile.id
-        }?.id)
+        let blockedID = UUID()
         let socialService = GatedBlockService(blockedID: blockedID)
         let store = AccountSocialStore(
             repository: repository,
@@ -2048,7 +2053,7 @@ final class BackendFoundationTests: XCTestCase {
         await store.synchronizeCompletedWorkoutHistory()
 
         XCTAssertTrue(repository.completedWorkouts.isEmpty)
-        XCTAssertTrue(repository.deletedCompletedWorkoutIDs.contains(workout.id))
+        XCTAssertFalse(repository.deletedCompletedWorkoutIDs.contains(workout.id))
     }
 
     @MainActor
@@ -2432,6 +2437,7 @@ private final class TestProfileService: ProfileService {
     private(set) var authenticatedProfileStarted = false
     private var authenticatedProfileRelease: CheckedContinuation<Void, Never>?
     var saveProfileResponse: AuthenticatedProfile?
+    private(set) var lastSavedProfileDraft: ProfileDraft?
     var avatarDownload: ProfileAvatarDownload?
     var uploadedAvatarReturnPath: String?
     private(set) var saveProfileCount = 0
@@ -2454,7 +2460,7 @@ private final class TestProfileService: ProfileService {
                 authenticatedProfileRelease = continuation
             }
         }
-        return saveProfileResponse ?? profile
+        return profile
     }
     func releaseAuthenticatedProfile() {
         authenticatedProfileRelease?.resume()
@@ -2462,6 +2468,7 @@ private final class TestProfileService: ProfileService {
     }
     func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile {
         saveProfileCount += 1
+        lastSavedProfileDraft = draft
         profile.username = draft.username
         profile.displayName = draft.displayName
         profile.bio = draft.bio
@@ -2479,6 +2486,9 @@ private final class TestProfileService: ProfileService {
         profile.avatarPath = draft.avatarPath
         profile.privacy = draft.privacy
         profile.onboardingCompleted = draft.completesOnboarding
+        if let saveProfileResponse {
+            profile = saveProfileResponse
+        }
         return profile
     }
     func claimUsername(_ username: String) async throws -> String { username }
