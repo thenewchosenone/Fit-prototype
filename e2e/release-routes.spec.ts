@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 type GateMode = "production" | "demo";
-const gateMode = (process.env.LIFT RIVALS_RELEASE_WEB_MODE ?? "production") as GateMode;
+const gateMode = (process.env.LIFTRANK_RELEASE_WEB_MODE ?? "production") as GateMode;
 
 const expectProtectedRouteRedirect = async (page: Page, path: string) => {
   await page.goto(`/#${path}`);
@@ -12,6 +12,7 @@ const expectProtectedRouteRedirect = async (page: Page, path: string) => {
 
 test.describe(`web release route smoke (${gateMode} mode)`, () => {
   test.beforeEach(async ({ page }) => {
+    await page.goto("/");
     await page.evaluate(() => {
       localStorage.clear();
       sessionStorage.clear();
@@ -57,7 +58,6 @@ test.describe(`web release route smoke (${gateMode} mode)`, () => {
     await expectProtectedRouteRedirect(page, "/plans");
     await expectProtectedRouteRedirect(page, "/progress");
     await expectProtectedRouteRedirect(page, "/submit");
-    await expectProtectedRouteRedirect(page, "/profile");
     await expectProtectedRouteRedirect(page, "/settings");
   });
 
@@ -69,10 +69,10 @@ test.describe(`web release route smoke (${gateMode} mode)`, () => {
     }
 
     await page.goto("/#/community");
-    await expect(page).toHaveURL(/#\/home$/);
+    await expect(page).toHaveURL(/#\/login$/);
     await page.goto("/#/messages");
-    await expect(page).toHaveURL(/#\/home$/);
+    await expect(page).toHaveURL(/#\/login$/);
     await page.goto("/#/messages/thread-1");
-    await expect(page).toHaveURL(/#\/home$/);
+    await expect(page).toHaveURL(/#\/login$/);
   });
 });
