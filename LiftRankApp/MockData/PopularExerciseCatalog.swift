@@ -36,7 +36,6 @@ enum PopularExerciseCatalog {
         ("machine_smith_shrug", "Smith Machine Shrug", "Traps", "Pull", "8-12"),
         ("machine_smith_upright_row", "Smith Machine Upright Row", "Shoulders/Traps", "Pull", "8-12"),
         ("machine_smith_close_grip_bench_press", "Smith Machine Close-Grip Bench Press", "Triceps/Chest", "Push", "6-10"),
-        ("machine_smith_decline_press", "Smith Machine Decline Press", "Chest", "Push", "8-12"),
         ("machine_smith_floor_press", "Smith Machine Floor Press", "Chest/Triceps", "Push", "6-10"),
         ("machine_smith_row", "Smith Machine Row", "Back", "Pull", "8-12"),
         ("machine_plate_loaded_chest_press", "Plate-Loaded Chest Press", "Chest", "Push", "6-10"),
