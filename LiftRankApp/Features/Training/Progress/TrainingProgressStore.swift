@@ -252,7 +252,7 @@ final class TrainingProgressStore {
             preferredUnit: preferredUnit,
             currentWeekID: currentWeek?.id,
             workoutSessions: repository.workoutSessions,
-            completedWorkouts: repository.completedWorkouts
+            completedWorkoutsRevision: repository.completedWorkoutsRevision
         )
         if let cachedHomeWeeklySummary, cachedHomeWeeklySummarySignature == signature {
             return cachedHomeWeeklySummary
@@ -520,23 +520,21 @@ private struct HomeWeeklySummarySignature: Equatable {
     let preferredUnit: UnitSystem
     let currentWeekID: UUID?
     private let sessions: [SessionValue]
-    private let workouts: [WorkoutValue]
+    private let completedWorkoutsRevision: Int
 
     init(
         week: DateInterval,
         preferredUnit: UnitSystem,
         currentWeekID: UUID?,
         workoutSessions: [WorkoutSession],
-        completedWorkouts: [CompletedWorkout]
+        completedWorkoutsRevision: Int
     ) {
         self.weekStart = week.start
         self.weekEnd = week.end
         self.preferredUnit = preferredUnit
         self.currentWeekID = currentWeekID
         self.sessions = workoutSessions.map(SessionValue.init)
-        self.workouts = completedWorkouts
-            .filter { week.contains($0.completedAt) }
-            .map(WorkoutValue.init)
+        self.completedWorkoutsRevision = completedWorkoutsRevision
     }
 
     private struct SessionValue: Equatable {
@@ -549,31 +547,4 @@ private struct HomeWeeklySummarySignature: Equatable {
         }
     }
 
-    private struct WorkoutValue: Equatable {
-        let id: UUID
-        let completedAt: Date
-        let duration: TimeInterval
-        let sets: [SetValue]
-
-        init(workout: CompletedWorkout) {
-            self.id = workout.id
-            self.completedAt = workout.completedAt
-            self.duration = workout.duration
-            self.sets = workout.completedWorkingSets.map(SetValue.init)
-        }
-    }
-
-    private struct SetValue: Equatable {
-        let id: UUID
-        let weight: Double?
-        let reps: Int?
-        let recordedUnit: UnitSystem
-
-        init(set: WorkoutSetLog) {
-            self.id = set.id
-            self.weight = set.weight
-            self.reps = set.reps
-            self.recordedUnit = set.recordedUnit
-        }
-    }
 }
