@@ -139,11 +139,6 @@ final class AppState: ObservableObject {
                 self?.scheduleForwardedObjectWillChange()
             }
             .store(in: &cancellables)
-        self.router.objectWillChange
-            .sink { [weak self] _ in
-                self?.scheduleForwardedObjectWillChange()
-            }
-            .store(in: &cancellables)
     }
 
     private func scheduleForwardedObjectWillChange() {
