@@ -585,7 +585,7 @@ final class CompetitionStore: ObservableObject {
     private func scheduleAchievementRefresh() {
         achievementRefreshTask?.cancel()
         achievementRefreshTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 250_000_000)
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
             guard let self, !Task.isCancelled else { return }
             self.achievementRefreshTask = nil
             self.repository.refreshAchievementUnlocks(now: self.now())
