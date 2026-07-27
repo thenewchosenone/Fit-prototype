@@ -102,15 +102,16 @@ extension HomeView {
     }
 
     var headerActions: some View {
-        HStack(spacing: 8) {
+        let streak = appState.workoutStreak()
+        return HStack(spacing: 8) {
             Button {
                 Haptics.light()
                 showingStreak = true
             } label: {
-                statusPill(symbol: "flame.fill", value: "\(appState.workoutStreak())", tint: .orange)
+                statusPill(symbol: "flame.fill", value: "\(streak)", tint: .orange)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Open \(appState.workoutStreak()) day streak details")
+            .accessibilityLabel("Open \(streak) day streak details")
 
             NativeIconButton(
                 symbolName: "bell.fill",
