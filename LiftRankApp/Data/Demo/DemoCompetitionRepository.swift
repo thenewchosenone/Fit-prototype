@@ -1,14 +1,16 @@
 import Foundation
 
 extension DemoRepository {
-    func addLift(_ lift: LiftSubmission) {
+    func addLift(_ lift: LiftSubmission, refreshAchievements: Bool = true) {
         var eligibleLift = lift
         if eligibleLift.leaderboardEligibleAt == .distantPast {
             eligibleLift.leaderboardEligibleAt = Self.nextLocalMidnight()
         }
         lifts.insert(eligibleLift, at: 0)
         notifications.insert(NotificationItem(id: UUID(), title: "Lift submitted", message: "Your lift will enter eligible rankings at the next daily update.", kind: "Lift submitted", createdAt: .now, isRead: false, destination: NotificationDestination(kind: .lift, targetID: eligibleLift.id)), at: 0)
-        refreshAchievementUnlocks()
+        if refreshAchievements {
+            refreshAchievementUnlocks()
+        }
     }
 
     private static func nextLocalMidnight(referenceDate: Date = .now) -> Date {

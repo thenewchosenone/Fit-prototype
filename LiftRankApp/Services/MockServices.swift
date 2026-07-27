@@ -100,7 +100,7 @@ final class MockLiftService: LiftService {
     init(repository: DemoRepository) { self.repository = repository }
     func submissions() async throws -> [LiftSubmission] { repository.lifts }
     func submit(_ submission: LiftSubmission) async throws -> LiftSubmission {
-        repository.addLift(submission)
+        repository.addLift(submission, refreshAchievements: false)
         return submission
     }
     func vote(liftID: UUID, vote: LiftVoteValue?) async throws {}
