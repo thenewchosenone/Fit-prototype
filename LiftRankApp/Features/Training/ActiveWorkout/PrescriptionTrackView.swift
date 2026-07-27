@@ -6,6 +6,7 @@ struct PrescriptionTrackView: View {
     @State private var restEndsAt: Date?
     @State private var showingExerciseInfo = false
     @State private var activeLogs: [WorkoutSetLog] = []
+    @State private var activeLogIDs: [UUID] = []
     @State private var cachedPreviousLogsBySetNumber: [Int: WorkoutSetLog] = [:]
     @FocusState private var focusedInput: WorkoutSetInputFocus?
 
@@ -137,9 +138,9 @@ struct PrescriptionTrackView: View {
             refreshPreviousLogs(for: activeLogs)
             restoreRestTimer()
         }
-        .onChange(of: appState.workoutSetLogs) {
+        .onChange(of: appState.workoutSetLogs) { _, logs in
             let previousSetNumbers = activeLogs.map(\.setNumber)
-            refreshActiveLogs()
+            guard refreshActiveLogs(from: logs) else { return }
             guard previousSetNumbers != activeLogs.map(\.setNumber) else { return }
             refreshPreviousLogs(for: activeLogs)
         }
@@ -175,7 +176,24 @@ struct PrescriptionTrackView: View {
     }
 
     private func refreshActiveLogs() {
-        activeLogs = appState.setLogs(for: exercise)
+        refreshActiveLogs(from: appState.workoutSetLogs)
+    }
+
+    @discardableResult
+    private func refreshActiveLogs(from logs: [WorkoutSetLog]) -> Bool {
+        guard let workoutID = appState.activeWorkout?.id else {
+            activeLogs = []
+            activeLogIDs = []
+            return true
+        }
+        let updatedLogs = logs
+            .filter { $0.workoutID == workoutID && $0.prescriptionID == exercise.id }
+            .sorted { $0.setNumber < $1.setNumber }
+        let updatedLogIDs = updatedLogs.map(\.id)
+        guard updatedLogIDs != activeLogIDs || updatedLogs != activeLogs else { return false }
+        activeLogs = updatedLogs
+        activeLogIDs = updatedLogIDs
+        return true
     }
 
     private func refreshPreviousLogs(for logs: [WorkoutSetLog]) {
