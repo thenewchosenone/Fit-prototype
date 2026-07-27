@@ -48,6 +48,9 @@ struct FloatingTabBar: View {
                             Text(item.title)
                                 .font(.system(size: 10, weight: .bold, design: .rounded))
                                 .tracking(0.3)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
+                                .allowsTightening(true)
                                 .foregroundStyle(item.tab == selection ? Color.liftLime : Color.liftTextSecondary)
                         }
                         .frame(maxWidth: .infinity)
