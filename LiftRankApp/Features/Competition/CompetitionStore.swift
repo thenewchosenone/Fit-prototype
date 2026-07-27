@@ -403,15 +403,15 @@ final class CompetitionStore: ObservableObject {
                 caption: caption,
                 requestVerification: requestVerification
               ) else {
-            lastSubmissionResult = nil
+            setLastSubmissionResult(nil)
             return nil
         }
 
-        uploadProgress = 0
+        setUploadProgress(0)
         do {
             submission = try await liftService.submit(submission)
         } catch {
-            lastSubmissionResult = nil
+            setLastSubmissionResult(nil)
             return nil
         }
         guard repository.currentProfile.id == userID else {
@@ -437,7 +437,7 @@ final class CompetitionStore: ObservableObject {
                     progress: { [weak self] value in
                         Task { @MainActor in
                             guard self?.activeUploadID == uploadID else { return }
-                            self?.uploadProgress = value
+                            self?.setUploadProgress(value)
                         }
                     }
                 )
@@ -451,7 +451,7 @@ final class CompetitionStore: ObservableObject {
                     return nil
                 }
                 activeUploadID = nil
-                uploadProgress = 1
+                setUploadProgress(1)
                 await track(.videoBackedPRSubmitted, userID: userID, properties: ["movement": movementName])
             } catch {
                 // The lift remains submitted as self-reported when evidence upload fails.
@@ -461,7 +461,7 @@ final class CompetitionStore: ObservableObject {
                 submission.videoAssetID = nil
                 submission.localVideoURL = nil
                 submission.remoteVideoURL = nil
-                uploadProgress = 0
+                setUploadProgress(0)
             }
         }
 
@@ -470,7 +470,7 @@ final class CompetitionStore: ObservableObject {
             return nil
         }
         upsert(submission, refreshAchievements: false)
-        lastSubmissionResult = submission
+        setLastSubmissionResult(submission)
         scheduleAchievementRefresh()
         return submission
     }
@@ -571,9 +571,19 @@ final class CompetitionStore: ObservableObject {
         leaderboardRequestID = nil
         achievementRefreshTask?.cancel()
         achievementRefreshTask = nil
-        lastSubmissionResult = nil
+        setLastSubmissionResult(nil)
         leaderboardError = nil
-        uploadProgress = 0
+        setUploadProgress(0)
+    }
+
+    private func setUploadProgress(_ value: Double) {
+        guard uploadProgress != value else { return }
+        uploadProgress = value
+    }
+
+    private func setLastSubmissionResult(_ value: LiftSubmission?) {
+        guard lastSubmissionResult != value else { return }
+        lastSubmissionResult = value
     }
 
     private func isLift(_ lift: LiftSubmission, inTimeRange range: String) -> Bool {
