@@ -454,6 +454,12 @@ extension DemoRepository {
         if !isComplete, log.completionSource == .automatic, source == .manual {
             log.suppressAutoCompletion = true
         }
+        guard log.isComplete != isComplete ||
+              log.completionSource != (isComplete ? source : nil) ||
+              log.hasTriggeredRestTimer != isComplete ||
+              log.suppressAutoCompletion != workoutSetLogs[index].suppressAutoCompletion else {
+            return log
+        }
         log.isComplete = isComplete
         log.performedAt = .now
         log.completionSource = isComplete ? source : nil
