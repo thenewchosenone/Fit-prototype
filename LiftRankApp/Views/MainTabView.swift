@@ -23,6 +23,7 @@ struct MainTabView: View {
                     .tag(AppTab.profile)
             }
             .toolbar(.hidden, for: .tabBar)
+            .toolbarBackground(.hidden, for: .tabBar)
             .ignoresSafeArea(.keyboard)
             .safeAreaInset(edge: .bottom) {
                 FloatingTabBar(
@@ -35,6 +36,8 @@ struct MainTabView: View {
                 .padding(.bottom, 12)
             }
         }
+        .toolbar(.hidden, for: .tabBar)
+        .toolbarBackground(.hidden, for: .tabBar)
         .tint(Color.liftLime)
         .sheet(item: $router.sheet) { destination in
             appSheet(destination)
