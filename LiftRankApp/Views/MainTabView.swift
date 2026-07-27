@@ -14,9 +14,9 @@ struct MainTabView: View {
                     .tag(AppTab.home)
                 NavigationStack { LeaderboardsTabView(router: router) }
                     .tag(AppTab.leaderboards)
-                TrainingTrackerView(
-                    startOnProgress: appState.trainingTrackerStartOnProgress,
-                    isEmbeddedInTab: true
+                TrackTabView(
+                    router: router,
+                    startOnProgress: appState.trainingTrackerStartOnProgress
                 )
                 .tag(AppTab.track)
                 NavigationStack { MeHubView(router: router) }
@@ -111,6 +111,25 @@ private struct LeaderboardsTabView: View {
     var body: some View {
         if router.selectedTab == .leaderboards {
             LeaderboardsView()
+        } else {
+            AppBackground {
+                Color.clear
+            }
+        }
+    }
+}
+
+private struct TrackTabView: View {
+    @ObservedObject var router: AppRouter
+    let startOnProgress: Bool
+
+    @ViewBuilder
+    var body: some View {
+        if router.selectedTab == .track {
+            TrainingTrackerView(
+                startOnProgress: startOnProgress,
+                isEmbeddedInTab: true
+            )
         } else {
             AppBackground {
                 Color.clear
