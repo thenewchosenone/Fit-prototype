@@ -69,7 +69,7 @@ struct ProfileLiftVideosSection: View {
                 )
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(videoLifts.enumerated()), id: \.element.id) { index, lift in
+                    ForEach(Array(videoLifts.enumerated()), id: \.offset) { index, lift in
                         Button {
                             selectedLift = lift
                         } label: {

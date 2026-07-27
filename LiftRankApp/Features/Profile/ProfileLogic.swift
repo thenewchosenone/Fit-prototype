@@ -228,7 +228,7 @@ extension ProfileView {
         VStack(alignment: .leading, spacing: 10) {
             CompactSectionHeader(title: "Recent submissions")
             VStack(spacing: 0) {
-                ForEach(Array(profileLifts.prefix(5).enumerated()), id: \.element.id) { index, lift in
+                ForEach(Array(profileLifts.prefix(5).enumerated()), id: \.offset) { index, lift in
                     HStack {
                 VStack(alignment: .leading) {
                     Text(lift.exerciseName)
