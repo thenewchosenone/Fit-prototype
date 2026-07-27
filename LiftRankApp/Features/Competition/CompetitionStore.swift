@@ -573,6 +573,7 @@ final class CompetitionStore: ObservableObject {
 
     private func upsert(_ submission: LiftSubmission, refreshAchievements: Bool = true) {
         if let index = repository.lifts.firstIndex(where: { $0.id == submission.id }) {
+            guard repository.lifts[index] != submission else { return }
             repository.lifts[index] = submission
         } else {
             repository.lifts.insert(submission, at: 0)
