@@ -8,6 +8,22 @@ struct ExerciseProgressPoint: Identifiable, Equatable {
     let unit: UnitSystem
 }
 
+struct WeeklyPoint: Identifiable, Equatable {
+    var id: Date { date }
+    let date: Date
+    let day: String
+    let count: Int
+}
+
+struct HomeWeeklySummary: Equatable {
+    let points: [WeeklyPoint]
+    let completedWorkoutCount: Int
+    let plannedWorkoutCount: Int
+    let completedSetCount: Int
+    let volume: Double
+    let duration: TimeInterval
+}
+
 enum ExerciseProgressSeries {
     static func dailyHighest(
         from points: [ExerciseProgressPoint],
@@ -43,6 +59,8 @@ final class TrainingProgressStore {
     private var cachedStrengthTierSignature: StrengthTierSignature?
     private var cachedWorkoutStreak: Int?
     private var cachedWorkoutStreakSignature: WorkoutStreakSignature?
+    private var cachedHomeWeeklySummary: HomeWeeklySummary?
+    private var cachedHomeWeeklySummarySignature: HomeWeeklySummarySignature?
 
     init(
         repository: any TrainingProgressRepository,
@@ -126,6 +144,8 @@ final class TrainingProgressStore {
         cachedStrengthTierSignature = nil
         cachedWorkoutStreak = nil
         cachedWorkoutStreakSignature = nil
+        cachedHomeWeeklySummary = nil
+        cachedHomeWeeklySummarySignature = nil
         repository.clearTrainingHealthEntries()
     }
 
@@ -216,6 +236,55 @@ final class TrainingProgressStore {
             },
             preferredUnit: preferredUnit
         )
+    }
+
+    func homeWeeklySummary(
+        referenceDate: Date = .now,
+        currentWeek: WorkoutWeek?,
+        preferredUnit: UnitSystem
+    ) -> HomeWeeklySummary {
+        guard let interval = calendar.dateInterval(of: .weekOfYear, for: referenceDate) else {
+            return HomeWeeklySummary(points: [], completedWorkoutCount: 0, plannedWorkoutCount: 0, completedSetCount: 0, volume: 0, duration: 0)
+        }
+
+        let signature = HomeWeeklySummarySignature(
+            week: interval,
+            preferredUnit: preferredUnit,
+            currentWeekID: currentWeek?.id,
+            workoutSessions: repository.workoutSessions,
+            completedWorkouts: repository.completedWorkouts
+        )
+        if let cachedHomeWeeklySummary, cachedHomeWeeklySummarySignature == signature {
+            return cachedHomeWeeklySummary
+        }
+
+        let completedWorkouts = repository.completedWorkouts.filter {
+            interval.contains($0.completedAt) && !$0.completedWorkingSets.isEmpty
+        }
+        let symbols = WorkoutHistoryCalendarData.weekdaySymbols(calendar: calendar)
+        let points = (0..<7).map { offset in
+            let date = calendar.date(byAdding: .day, value: offset, to: interval.start) ?? interval.start
+            let symbol = symbols.indices.contains(offset) ? symbols[offset] : ""
+            let count = completedWorkouts.filter { calendar.isDate($0.completedAt, inSameDayAs: date) }.count
+            return WeeklyPoint(date: date, day: symbol, count: count)
+        }
+        let sets = completedWorkouts.flatMap(\.completedWorkingSets)
+        let volume = sets.reduce(0) { total, set in
+            guard let weight = set.weight, let reps = set.reps else { return total }
+            let displayedWeight = MeasurementFormatting.convert(weight, from: set.recordedUnit, to: preferredUnit)
+            return total + displayedWeight * Double(reps)
+        }
+        let summary = HomeWeeklySummary(
+            points: points,
+            completedWorkoutCount: completedWorkouts.count,
+            plannedWorkoutCount: currentWeek.map { week in repository.workoutSessions.filter { $0.weekID == week.id }.count } ?? 0,
+            completedSetCount: sets.count,
+            volume: volume,
+            duration: completedWorkouts.reduce(0) { $0 + $1.duration }
+        )
+        cachedHomeWeeklySummary = summary
+        cachedHomeWeeklySummarySignature = signature
+        return summary
     }
 
     private func volumeByBodyPart(workouts: [CompletedWorkout], preferredUnit: UnitSystem) -> [String: Double] {
@@ -495,6 +564,70 @@ private struct WorkoutStreakSignature: Equatable {
             id = workout.id
             completedAt = workout.completedAt
             completedWorkingSetCount = workout.completedWorkingSets.count
+        }
+    }
+}
+
+private struct HomeWeeklySummarySignature: Equatable {
+    let weekStart: Date
+    let weekEnd: Date
+    let preferredUnit: UnitSystem
+    let currentWeekID: UUID?
+    private let sessions: [SessionValue]
+    private let workouts: [WorkoutValue]
+
+    init(
+        week: DateInterval,
+        preferredUnit: UnitSystem,
+        currentWeekID: UUID?,
+        workoutSessions: [WorkoutSession],
+        completedWorkouts: [CompletedWorkout]
+    ) {
+        self.weekStart = week.start
+        self.weekEnd = week.end
+        self.preferredUnit = preferredUnit
+        self.currentWeekID = currentWeekID
+        self.sessions = workoutSessions.map(SessionValue.init)
+        self.workouts = completedWorkouts
+            .filter { week.contains($0.completedAt) }
+            .map(WorkoutValue.init)
+    }
+
+    private struct SessionValue: Equatable {
+        let id: UUID
+        let weekID: UUID
+
+        init(session: WorkoutSession) {
+            self.id = session.id
+            self.weekID = session.weekID
+        }
+    }
+
+    private struct WorkoutValue: Equatable {
+        let id: UUID
+        let completedAt: Date
+        let duration: TimeInterval
+        let sets: [SetValue]
+
+        init(workout: CompletedWorkout) {
+            self.id = workout.id
+            self.completedAt = workout.completedAt
+            self.duration = workout.duration
+            self.sets = workout.completedWorkingSets.map(SetValue.init)
+        }
+    }
+
+    private struct SetValue: Equatable {
+        let id: UUID
+        let weight: Double?
+        let reps: Int?
+        let recordedUnit: UnitSystem
+
+        init(set: WorkoutSetLog) {
+            self.id = set.id
+            self.weight = set.weight
+            self.reps = set.reps
+            self.recordedUnit = set.recordedUnit
         }
     }
 }

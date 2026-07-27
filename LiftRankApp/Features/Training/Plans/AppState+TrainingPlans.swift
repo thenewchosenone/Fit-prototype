@@ -38,6 +38,14 @@ extension AppState {
         )
     }
 
+    func homeWeeklySummary(referenceDate: Date = .now) -> HomeWeeklySummary {
+        trainingProgressStore.homeWeeklySummary(
+            referenceDate: referenceDate,
+            currentWeek: currentSelectedProgramWeek,
+            preferredUnit: currentProfile.preferredUnit
+        )
+    }
+
     func addWeekToSelectedPlan() -> WorkoutWeek {
         let week = programStore.addWeek(planID: selectedWorkoutPlanID)
         Haptics.success()

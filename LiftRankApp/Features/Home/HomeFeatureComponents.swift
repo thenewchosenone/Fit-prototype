@@ -1,12 +1,5 @@
 import SwiftUI
 
-struct WeeklyPoint: Identifiable {
-    var id: Date { date }
-    let date: Date
-    let day: String
-    let count: Int
-}
-
 extension HomeView {
     @ViewBuilder
     var workoutStatus: some View {
@@ -472,7 +465,11 @@ extension HomeView {
     }
 
     var weeklyActivity: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let summary = homeWeeklySummary
+        let statusText = weeklyStatusText(summary)
+        let statusColor = weeklyStatusColor(summary)
+
+        return VStack(alignment: .leading, spacing: 12) {
             dashboardSectionHeader("Training this week", actionTitle: "Details") {
                 openWeeklyProgress()
             }
@@ -482,35 +479,35 @@ extension HomeView {
             } label: {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(alignment: .firstTextBaseline) {
-                        Text("\(thisWeekWorkoutCount)/\(plannedWorkoutCount)")
+                        Text("\(summary.completedWorkoutCount)/\(summary.plannedWorkoutCount)")
                             .font(.system(size: 32, weight: .black, design: .rounded))
                             .foregroundStyle(Color.liftText)
                         Text("workouts")
                             .font(.subheadline.weight(.bold))
                             .foregroundStyle(Color.liftMuted)
                         Spacer(minLength: 8)
-                        Text(weeklyStatusText)
+                        Text(statusText)
                             .font(.caption.weight(.black))
-                            .foregroundStyle(weeklyStatusColor)
+                            .foregroundStyle(statusColor)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
-                            .background(weeklyStatusColor.opacity(0.11))
+                            .background(statusColor.opacity(0.11))
                             .clipShape(Capsule())
                     }
 
                     HStack(spacing: 0) {
                         weeklyMetric(
-                            value: Int(thisWeekVolume).formatted(),
+                            value: Int(summary.volume).formatted(),
                             label: "\(appState.currentProfile.preferredUnit.shortLabel) VOLUME"
                         )
                         weeklyDivider
-                        weeklyMetric(value: formattedWeeklyDuration, label: "TRAINING TIME")
+                        weeklyMetric(value: MeasurementFormatting.shortDurationText(summary.duration), label: "TRAINING TIME")
                         weeklyDivider
-                        weeklyMetric(value: "\(thisWeekCompletedSetCount)", label: "WORKING SETS")
+                        weeklyMetric(value: "\(summary.completedSetCount)", label: "WORKING SETS")
                     }
 
                     HStack(spacing: 0) {
-                        ForEach(weeklyPoints) { point in
+                        ForEach(summary.points) { point in
                             VStack(spacing: 7) {
                                 Text(point.day)
                                     .font(.caption2.weight(.bold))
@@ -545,7 +542,7 @@ extension HomeView {
                 .homePanelStyle()
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Open weekly training progress, \(thisWeekWorkoutCount) of \(plannedWorkoutCount) workouts, \(thisWeekCompletedSetCount) completed working sets")
+            .accessibilityLabel("Open weekly training progress, \(summary.completedWorkoutCount) of \(summary.plannedWorkoutCount) workouts, \(summary.completedSetCount) completed working sets")
         }
     }
 
@@ -594,64 +591,21 @@ extension HomeView {
         return "Good evening"
     }
 
-    var weeklyPoints: [WeeklyPoint] {
-        let calendar = Calendar.current
-        guard let interval = calendar.dateInterval(of: .weekOfYear, for: .now) else { return [] }
-        let symbols = WorkoutHistoryCalendarData.weekdaySymbols(calendar: calendar)
-        return (0..<7).map { offset in
-            let date = calendar.date(byAdding: .day, value: offset, to: interval.start) ?? interval.start
-            let symbol = symbols.indices.contains(offset) ? symbols[offset] : ""
-            let count = thisWeekCompletedWorkouts
-                .filter { calendar.isDate($0.completedAt, inSameDayAs: date) }
-                .count
-            return WeeklyPoint(date: date, day: symbol, count: count)
-        }
+    var homeWeeklySummary: HomeWeeklySummary {
+        appState.homeWeeklySummary()
     }
 
-    var thisWeekCompletedWorkouts: [CompletedWorkout] {
-        guard let interval = Calendar.current.dateInterval(of: .weekOfYear, for: .now) else { return [] }
-        return appState.completedWorkouts.filter {
-            interval.contains($0.completedAt) &&
-                !$0.completedWorkingSets.isEmpty
-        }
-    }
-
-    var plannedWorkoutCount: Int {
-        guard let week = appState.currentSelectedProgramWeek else { return 0 }
-        return appState.sessions(for: week).count
-    }
-
-    var thisWeekWorkoutCount: Int {
-        thisWeekCompletedWorkouts.count
-    }
-
-    var thisWeekCompletedSetCount: Int {
-        thisWeekCompletedWorkouts.flatMap(\.completedWorkingSets).count
-    }
-
-    var thisWeekVolume: Double {
-        thisWeekCompletedWorkouts.flatMap(\.completedWorkingSets).reduce(0) { total, set in
-            guard let weight = set.weight, let reps = set.reps else { return total }
-            let displayedWeight = MeasurementFormatting.convert(weight, from: set.recordedUnit, to: appState.currentProfile.preferredUnit)
-            return total + displayedWeight * Double(reps)
-        }
-    }
-
-    var formattedWeeklyDuration: String {
-        MeasurementFormatting.shortDurationText(thisWeekCompletedWorkouts.reduce(0) { $0 + $1.duration })
-    }
-
-    var weeklyStatusText: String {
-        guard plannedWorkoutCount > 0 else { return "No plan" }
-        if thisWeekWorkoutCount >= plannedWorkoutCount { return "Complete" }
-        if thisWeekWorkoutCount > 0 { return "In progress" }
+    func weeklyStatusText(_ summary: HomeWeeklySummary) -> String {
+        guard summary.plannedWorkoutCount > 0 else { return "No plan" }
+        if summary.completedWorkoutCount >= summary.plannedWorkoutCount { return "Complete" }
+        if summary.completedWorkoutCount > 0 { return "In progress" }
         return "Not started"
     }
 
-    var weeklyStatusColor: Color {
-        guard plannedWorkoutCount > 0 else { return .liftMuted }
-        if thisWeekWorkoutCount >= plannedWorkoutCount { return .liftGreen }
-        return thisWeekWorkoutCount > 0 ? .liftBlue : .liftMuted
+    func weeklyStatusColor(_ summary: HomeWeeklySummary) -> Color {
+        guard summary.plannedWorkoutCount > 0 else { return .liftMuted }
+        if summary.completedWorkoutCount >= summary.plannedWorkoutCount { return .liftGreen }
+        return summary.completedWorkoutCount > 0 ? .liftBlue : .liftMuted
     }
 }
 
