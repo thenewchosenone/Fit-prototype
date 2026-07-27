@@ -92,7 +92,18 @@ struct MainTabView: View {
 struct MeHubView: View {
     @EnvironmentObject private var appState: AppState
 
+    @ViewBuilder
     var body: some View {
+        if appState.router.selectedTab == .profile {
+            meContent
+        } else {
+            AppBackground {
+                Color.clear
+            }
+        }
+    }
+
+    private var meContent: some View {
         AppBackground {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
