@@ -41,6 +41,8 @@ final class TrainingProgressStore {
     private var cachedUserID: UUID
     private var cachedStrengthTierSummary: StrengthTierSummary?
     private var cachedStrengthTierSignature: StrengthTierSignature?
+    private var cachedWorkoutStreak: Int?
+    private var cachedWorkoutStreakSignature: WorkoutStreakSignature?
 
     init(
         repository: any TrainingProgressRepository,
@@ -122,6 +124,8 @@ final class TrainingProgressStore {
         cachedUserID = repository.currentProfile.id
         cachedStrengthTierSummary = nil
         cachedStrengthTierSignature = nil
+        cachedWorkoutStreak = nil
+        cachedWorkoutStreakSignature = nil
         repository.clearTrainingHealthEntries()
     }
 
@@ -156,6 +160,15 @@ final class TrainingProgressStore {
     }
 
     func workoutStreak(referenceDate: Date) -> Int {
+        let signature = WorkoutStreakSignature(
+            referenceDay: calendar.startOfDay(for: referenceDate),
+            completedWorkouts: repository.completedWorkouts
+        )
+        if let cachedWorkoutStreak,
+           cachedWorkoutStreakSignature == signature {
+            return cachedWorkoutStreak
+        }
+
         let completedDays = Set(
             repository.completedWorkouts
                 .filter { !$0.completedWorkingSets.isEmpty }
@@ -170,6 +183,8 @@ final class TrainingProgressStore {
         } else if completedDays.contains(yesterday) {
             cursor = yesterday
         } else {
+            cachedWorkoutStreakSignature = signature
+            cachedWorkoutStreak = 0
             return 0
         }
 
@@ -179,6 +194,8 @@ final class TrainingProgressStore {
             guard let previousDay = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
             cursor = previousDay
         }
+        cachedWorkoutStreakSignature = signature
+        cachedWorkoutStreak = streak
         return streak
     }
 
@@ -457,5 +474,27 @@ private struct StrengthTierSignature: Equatable {
         let isWarmup: Bool
         let isComplete: Bool
         let recordedUnit: UnitSystem
+    }
+}
+
+private struct WorkoutStreakSignature: Equatable {
+    let referenceDay: Date
+    let workoutValues: [WorkoutValue]
+
+    init(referenceDay: Date, completedWorkouts: [CompletedWorkout]) {
+        self.referenceDay = referenceDay
+        self.workoutValues = completedWorkouts.map { WorkoutValue(workout: $0) }
+    }
+
+    struct WorkoutValue: Equatable {
+        let id: UUID
+        let completedAt: Date
+        let completedWorkingSetCount: Int
+
+        init(workout: CompletedWorkout) {
+            id = workout.id
+            completedAt = workout.completedAt
+            completedWorkingSetCount = workout.completedWorkingSets.count
+        }
     }
 }
