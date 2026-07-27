@@ -37,6 +37,7 @@ final class CompetitionStore: ObservableObject {
     private var cachedOverallScoreSignature: OverallScoreSignature?
     private var cachedBestStrengthLifts: [String: LiftSubmission]?
     private var cachedBestStrengthLiftsSignature: CurrentUserLiftsSignature?
+    private let uploadProgressStep = 0.025
 
     init(
         repository: any CompetitionRepository,
@@ -641,8 +642,12 @@ final class CompetitionStore: ObservableObject {
     }
 
     private func setUploadProgress(_ value: Double) {
-        guard uploadProgress != value else { return }
-        uploadProgress = value
+        let clampedValue = min(1, max(0, value))
+        let shouldPublish = clampedValue == 0 ||
+            clampedValue == 1 ||
+            abs(uploadProgress - clampedValue) >= uploadProgressStep
+        guard shouldPublish, uploadProgress != clampedValue else { return }
+        uploadProgress = clampedValue
     }
 
     private func setLastSubmissionResult(_ value: LiftSubmission?) {
