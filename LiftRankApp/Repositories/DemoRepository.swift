@@ -19,7 +19,7 @@ final class DemoRepository: ObservableObject {
     @Published var workoutWeeks: [WorkoutWeek]
     @Published var workoutSessions: [WorkoutSession]
     @Published var workoutPrescriptions: [WorkoutExercisePrescription]
-    @Published var workoutSetLogs: [WorkoutSetLog]
+    @Published var workoutSetLogs: [WorkoutSetLog] { didSet { workoutSetLogsRevision &+= 1 } }
     @Published var workoutFeedback: [WorkoutFeedback]
     @Published var customTrainingExercises: [TrainingExerciseCatalogItem]
     @Published var workoutEntries: [WorkoutExerciseEntry]
@@ -45,6 +45,7 @@ final class DemoRepository: ObservableObject {
     private var isRestoringWorkoutSnapshot = false
     private let seedDemoData: Bool
     private(set) var liftsRevision = 0
+    private(set) var workoutSetLogsRevision = 0
 
     init(
         workoutPersistenceStore: WorkoutPersistenceStore? = nil,

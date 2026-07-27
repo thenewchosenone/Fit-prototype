@@ -38,21 +38,10 @@ private struct ActiveWorkoutDisplayStateSignature: Equatable {
         let targetSets: Int
     }
 
-    struct SetLogSignature: Equatable {
-        let id: UUID
-        let prescriptionID: UUID
-        let setNumber: Int
-        let weight: Double?
-        let reps: Int?
-        let isWarmup: Bool
-        let isComplete: Bool
-        let recordedUnit: UnitSystem
-    }
-
     let workoutID: UUID?
     let unit: UnitSystem?
     let exercises: [ExerciseSignature]
-    let setLogs: [SetLogSignature]
+    let workoutSetLogsRevision: Int
 }
 
 private struct PreviousWorkoutSetLookupSignature: Equatable {
@@ -142,7 +131,6 @@ final class ActiveWorkoutStore {
         }
 
         let exercises = workout.exercises.sorted { $0.order < $1.order }
-        let activeLogs = repository.workoutSetLogs.filter { $0.workoutID == workout.id }
         let signature = ActiveWorkoutDisplayStateSignature(
             workoutID: workout.id,
             unit: workout.unit,
@@ -153,24 +141,13 @@ final class ActiveWorkoutStore {
                     targetSets: $0.targetSets
                 )
             },
-            setLogs: activeLogs
-                .map {
-                    ActiveWorkoutDisplayStateSignature.SetLogSignature(
-                        id: $0.id,
-                        prescriptionID: $0.prescriptionID,
-                        setNumber: $0.setNumber,
-                        weight: $0.isComplete ? $0.weight : nil,
-                        reps: $0.isComplete ? $0.reps : nil,
-                        isWarmup: $0.isWarmup,
-                        isComplete: $0.isComplete,
-                        recordedUnit: $0.recordedUnit
-                    )
-                }
+            workoutSetLogsRevision: repository.workoutSetLogsRevision
         )
         if let cachedDisplayState, cachedDisplayStateSignature == signature {
             return cachedDisplayState
         }
 
+        let activeLogs = repository.workoutSetLogs.filter { $0.workoutID == workout.id }
         let logsByExerciseID = Dictionary(grouping: activeLogs, by: \.prescriptionID)
         var progressByExerciseID: [UUID: ActiveWorkoutExerciseProgress] = [:]
         var completedWorkingSets = 0
