@@ -214,6 +214,11 @@ struct AwardsView: View {
         let unlockedTitles = Set(appState.achievementUnlocks.map(\.title))
         let unlockedAchievements = achievements.filter { unlockedTitles.contains($0.title) }
         let progressAchievements = achievements.filter { !unlockedTitles.contains($0.title) }
+        let preferredUnit = appState.currentProfile.preferredUnit
+        let currentUserLifts = appState.currentUserLifts
+        let bestBench = RankingCalculator.bestLift(exerciseID: "bench", submissions: currentUserLifts)
+        let bestSquat = RankingCalculator.bestLift(exerciseID: "squat", submissions: currentUserLifts)
+        let bestDeadlift = RankingCalculator.bestLift(exerciseID: "deadlift", submissions: currentUserLifts)
         AppBackground {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -261,7 +266,7 @@ struct AwardsView: View {
                             .foregroundStyle(Color.liftMuted)
 
                         ForEach(tierSummary.liftProgress) { lift in
-                            strengthLiftRow(lift)
+                            strengthLiftRow(lift, preferredUnit: preferredUnit)
                         }
                     }
                     .padding(18)
@@ -311,15 +316,15 @@ struct AwardsView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         CompactSectionHeader(title: "Personal records")
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            personalRecord("Bench", exerciseID: "bench")
-                            personalRecord("Squat", exerciseID: "squat")
-                            personalRecord("Deadlift", exerciseID: "deadlift")
+                            personalRecord("Bench", best: bestBench, preferredUnit: preferredUnit)
+                            personalRecord("Squat", best: bestSquat, preferredUnit: preferredUnit)
+                            personalRecord("Deadlift", best: bestDeadlift, preferredUnit: preferredUnit)
                             VStack(alignment: .leading, spacing: 8) {
                                 Image(systemName: "dumbbell.fill").foregroundStyle(Color.liftGold)
                                 Text("Total").font(.caption.weight(.black)).foregroundStyle(Color.liftMuted)
                                 Text(MeasurementFormatting.formatDisplayedWeight(
                                     appState.powerliftingTotal,
-                                    unit: appState.currentProfile.preferredUnit
+                                    unit: preferredUnit
                                 ))
                                 .font(.headline.weight(.black))
                             }
@@ -357,7 +362,7 @@ struct AwardsView: View {
         rivalTierShareImage = renderer.uiImage.map(Image.init(uiImage:))
     }
 
-    private func strengthLiftRow(_ lift: LiftTierProgress) -> some View {
+    private func strengthLiftRow(_ lift: LiftTierProgress, preferredUnit: UnitSystem) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack {
                 Text(lift.exerciseName)
@@ -371,7 +376,7 @@ struct AwardsView: View {
                 .tint(.liftGold)
             HStack {
                 Text(lift.estimatedOneRepMaxKilograms.map {
-                    "Est. 1RM \(MeasurementFormatting.formatDisplayedWeight($0, unit: appState.currentProfile.preferredUnit))"
+                    "Est. 1RM \(MeasurementFormatting.formatDisplayedWeight($0, unit: preferredUnit))"
                 } ?? "Complete a set of 10 reps or fewer")
                 Spacer()
                 if let nextTier = lift.nextTier, let threshold = lift.nextThresholdMultiple {
@@ -384,15 +389,14 @@ struct AwardsView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func personalRecord(_ title: String, exerciseID: String) -> some View {
-        let best = RankingCalculator.bestLift(exerciseID: exerciseID, submissions: appState.currentUserLifts)
-        return VStack(alignment: .leading, spacing: 8) {
+    private func personalRecord(_ title: String, best: LiftSubmission?, preferredUnit: UnitSystem) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
             Image(systemName: "trophy.fill").foregroundStyle(Color.liftGold)
             Text(title.uppercased()).font(.caption.weight(.black)).foregroundStyle(Color.liftMuted)
             Text(best.map {
                 MeasurementFormatting.formatDisplayedWeight(
                     $0.normalizedWeightKilograms,
-                    unit: appState.currentProfile.preferredUnit
+                    unit: preferredUnit
                 )
             } ?? "—")
                 .font(.headline.weight(.black))
