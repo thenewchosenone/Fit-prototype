@@ -2,14 +2,15 @@ import SwiftUI
 
 extension ProfileView {
     var featureBody: some View {
-        AppBackground {
+        let visibleProfileLifts = profileLifts
+        return AppBackground {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
-                    summary
-                    recentSubmissions
+                    summary(profileLifts: visibleProfileLifts)
+                    recentSubmissions(profileLifts: visibleProfileLifts)
                     ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser)
-                    athleteDetails
+                    athleteDetails(profileLifts: visibleProfileLifts)
                 }
                 .padding()
                 .padding(.bottom, isCurrentUser ? 96 : 24)
