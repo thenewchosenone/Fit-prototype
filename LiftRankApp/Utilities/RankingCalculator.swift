@@ -103,6 +103,29 @@ enum RankingCalculator {
         )
     }
 
+    static func strengthPerformances(from workouts: [CompletedWorkout]) -> [StrengthLiftPerformance] {
+        var bestEstimatedMaxByExercise: [String: Double] = [:]
+        for workout in workouts {
+            for exercise in workout.exercises {
+                let exerciseID = exercise.rankingExerciseID ?? exercise.exerciseID
+                guard strengthTierExerciseIDs.contains(exerciseID) else { continue }
+                for set in workout.sets where set.prescriptionID == exercise.id && set.isComplete && !set.isWarmup {
+                    guard let weight = set.weight, weight > 0,
+                          let repetitions = set.reps, (1...10).contains(repetitions) else { continue }
+                    let kilograms = MeasurementFormatting.normalizeToKilograms(weight, unit: set.recordedUnit)
+                    let estimatedMax = epleyOneRepMax(weight: kilograms, repetitions: repetitions)
+                    bestEstimatedMaxByExercise[exerciseID] = max(
+                        bestEstimatedMaxByExercise[exerciseID] ?? 0,
+                        estimatedMax
+                    )
+                }
+            }
+        }
+        return bestEstimatedMaxByExercise.map {
+            StrengthLiftPerformance(exerciseID: $0.key, estimatedOneRepMaxKilograms: $0.value)
+        }
+    }
+
     static func powerliftingTotal(bench: Double?, squat: Double?, deadlift: Double?) -> Double {
         (bench ?? 0) + (squat ?? 0) + (deadlift ?? 0)
     }

@@ -446,6 +446,29 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(projected.advancedLifts(comparedTo: previous).map(\.exerciseID), ["squat"])
     }
 
+    @MainActor
+    func testStrengthTierAchievementsUseCanonicalRankingExerciseIDs() {
+        let repository = DemoRepository()
+        repository.lifts = []
+        repository.achievementUnlocks = []
+        repository.currentProfile.bodyweightPounds = RankingCalculator.kilogramsToPounds(100)
+        repository.currentProfile.sexCategory = .male
+        let standards: [(String, Double)] = [("squat", 75), ("bench", 50), ("deadlift", 100)]
+        repository.completedWorkouts = standards.map { exerciseID, kilograms in
+            var workout = makeCompletedWorkout(completedAt: .now)
+            workout.exercises[0].rankingExerciseID = exerciseID
+            workout.sets[0].weight = kilograms
+            workout.sets[0].reps = 1
+            workout.sets[0].recordedUnit = .kilograms
+            return workout
+        }
+
+        repository.refreshAchievementUnlocks()
+
+        XCTAssertTrue(repository.achievementUnlocks.contains { $0.title == "Novice Rival" })
+        XCTAssertFalse(repository.achievementUnlocks.contains { $0.title == "Beginner Rival" })
+    }
+
     func testPowerliftingTotal() {
         XCTAssertEqual(RankingCalculator.powerliftingTotal(bench: 245, squat: 275, deadlift: 495), 1015)
     }

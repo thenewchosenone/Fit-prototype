@@ -217,6 +217,14 @@ extension DemoRepository {
         add("2x Bodyweight Squat", when: maxSquat >= bodyweightKilograms * 2)
         add("2x Bodyweight Deadlift", when: maxDeadlift >= bodyweightKilograms * 2)
         add("2.5x Bodyweight Deadlift", when: maxDeadlift >= bodyweightKilograms * 2.5)
+        let strengthTier = RankingCalculator.strengthTierSummary(
+            performances: RankingCalculator.strengthPerformances(from: completedWorkouts),
+            bodyweightKilograms: bodyweightKilograms,
+            sexCategory: currentProfile.sexCategory
+        ).overallTier
+        for tier in StrengthTier.allCases where tier != .unranked && tier <= strengthTier {
+            add("\(tier.label) Rival", when: true)
+        }
         add("Bodyweight Logged", when: bodyweightEntries.contains { $0.actual != nil })
         add("4 Bodyweight Logs", when: bodyweightEntries.filter { $0.actual != nil }.count >= 4)
         add("12 Bodyweight Logs", when: bodyweightEntries.filter { $0.actual != nil }.count >= 12)

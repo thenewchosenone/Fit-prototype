@@ -73,12 +73,13 @@ struct WorkoutSummaryView: View {
         let performances = currentWorkoutWorkingSets.compactMap { set -> StrengthLiftPerformance? in
             guard let workout,
                   let exercise = workout.exercises.first(where: { $0.id == set.prescriptionID }),
-                  RankingCalculator.strengthTierExerciseIDs.contains(exercise.exerciseID),
                   let weight = set.weight, weight > 0,
                   let repetitions = set.reps, (1...10).contains(repetitions) else { return nil }
+            let exerciseID = exercise.rankingExerciseID ?? exercise.exerciseID
+            guard RankingCalculator.strengthTierExerciseIDs.contains(exerciseID) else { return nil }
             let kilograms = MeasurementFormatting.normalizeToKilograms(weight, unit: set.recordedUnit)
             return StrengthLiftPerformance(
-                exerciseID: exercise.exerciseID,
+                exerciseID: exerciseID,
                 estimatedOneRepMaxKilograms: RankingCalculator.epleyOneRepMax(
                     weight: kilograms,
                     repetitions: repetitions
