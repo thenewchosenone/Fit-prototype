@@ -26,6 +26,7 @@ final class CompetitionStore: ObservableObject {
     private var productionUserID: UUID?
     private var leaderboardRequestID: UUID?
     private var activeUploadID: UUID?
+    private var achievementRefreshTask: Task<Void, Never>?
     private var cachedLeaderboardEntries: [LeaderboardEntry]?
     private var cachedLeaderboardSignature: LeaderboardCacheSignature?
 
@@ -465,8 +466,9 @@ final class CompetitionStore: ObservableObject {
             resetProductionDataIfNeeded()
             return nil
         }
-        upsert(submission)
+        upsert(submission, refreshAchievements: false)
         lastSubmissionResult = submission
+        scheduleAchievementRefresh()
         return submission
     }
 
@@ -523,13 +525,25 @@ final class CompetitionStore: ObservableObject {
         }
     }
 
-    private func upsert(_ submission: LiftSubmission) {
+    private func upsert(_ submission: LiftSubmission, refreshAchievements: Bool = true) {
         if let index = repository.lifts.firstIndex(where: { $0.id == submission.id }) {
             repository.lifts[index] = submission
         } else {
             repository.lifts.insert(submission, at: 0)
         }
-        repository.refreshAchievementUnlocks(now: now())
+        if refreshAchievements {
+            repository.refreshAchievementUnlocks(now: now())
+        }
+    }
+
+    private func scheduleAchievementRefresh() {
+        achievementRefreshTask?.cancel()
+        achievementRefreshTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard let self, !Task.isCancelled else { return }
+            self.achievementRefreshTask = nil
+            self.repository.refreshAchievementUnlocks(now: self.now())
+        }
     }
 
     private func track(_ name: AnalyticsEventName, userID: UUID, properties: [String: String]) async {
@@ -552,6 +566,8 @@ final class CompetitionStore: ObservableObject {
         repository.rankingHistory = []
         remoteLeaderboardEntries = nil
         leaderboardRequestID = nil
+        achievementRefreshTask?.cancel()
+        achievementRefreshTask = nil
         lastSubmissionResult = nil
         leaderboardError = nil
         uploadProgress = 0
