@@ -9,7 +9,7 @@ extension ProfileView {
                     header
                     summary(profileLifts: visibleProfileLifts)
                     recentSubmissions(profileLifts: visibleProfileLifts)
-                    ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser)
+                    ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: visibleProfileLifts)
                     athleteDetails(profileLifts: visibleProfileLifts)
                 }
                 .padding()

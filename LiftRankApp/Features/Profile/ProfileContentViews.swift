@@ -31,10 +31,20 @@ struct ProfileLiftVideosSection: View {
     @EnvironmentObject private var appState: AppState
     let profile: UserProfile
     let isCurrentUser: Bool
+    let prefilteredLifts: [LiftSubmission]?
     @State private var selectedLift: LiftSubmission?
 
+    init(profile: UserProfile, isCurrentUser: Bool, prefilteredLifts: [LiftSubmission]? = nil) {
+        self.profile = profile
+        self.isCurrentUser = isCurrentUser
+        self.prefilteredLifts = prefilteredLifts
+    }
+
     private var videoLifts: [LiftSubmission] {
-        ProfileLiftVideoLibrary.visibleLifts(
+        if let prefilteredLifts {
+            return prefilteredLifts.filter(\.hasVideoReference)
+        }
+        return ProfileLiftVideoLibrary.visibleLifts(
             for: profile.id,
             viewerID: appState.currentProfile.id,
             allLifts: appState.lifts
