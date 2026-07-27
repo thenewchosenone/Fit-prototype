@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import LiftRank
 
@@ -2002,6 +2003,25 @@ final class RankingCalculatorTests: XCTestCase {
             RankingCalculator.bestLift(exerciseID: "bench", submissions: repository.lifts.filter { $0.userID == currentUserID })?.weight,
             225
         )
+    }
+
+    @MainActor
+    func testAchievementRefreshSkipsUnchangedPublish() {
+        let repository = DemoRepository()
+        repository.lifts = []
+        repository.achievementUnlocks = []
+        var publishCount = 0
+        let cancellable = repository.$achievementUnlocks.dropFirst().sink { _ in
+            publishCount += 1
+        }
+
+        repository.addLift(makeLift(userID: repository.currentProfile.id, weight: 225, exerciseID: "bench"))
+        XCTAssertEqual(publishCount, 1)
+
+        repository.refreshAchievementUnlocks(now: Date(timeIntervalSince1970: 1_800_000_100))
+
+        XCTAssertEqual(publishCount, 1)
+        cancellable.cancel()
     }
 
     @MainActor

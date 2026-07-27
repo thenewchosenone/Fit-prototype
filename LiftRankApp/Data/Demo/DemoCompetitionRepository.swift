@@ -135,7 +135,10 @@ extension DemoRepository {
                 unlockedAt: now
             ))
         }
-        achievementUnlocks = refreshed.sorted { $0.unlockedAt > $1.unlockedAt }
+        let sortedUnlocks = refreshed.sorted { $0.unlockedAt > $1.unlockedAt }
+        if achievementUnlocks != sortedUnlocks {
+            achievementUnlocks = sortedUnlocks
+        }
     }
 
     private func earnedAchievementTitles() -> [String] {
