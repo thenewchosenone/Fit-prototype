@@ -186,16 +186,17 @@ struct PrescriptionTrackView: View {
         let neededSetNumbers = Set(logs.map(\.setNumber))
         guard !neededSetNumbers.isEmpty else { return [:] }
 
-        var lookup: [Int: WorkoutSetLog] = [:]
-        for workout in appState.completedWorkouts.sorted(by: { $0.completedAt > $1.completedAt }) {
+        var lookup: [Int: (date: Date, log: WorkoutSetLog)] = [:]
+        for workout in appState.completedWorkouts {
             guard let previousExercise = workout.exercises.first(where: { $0.exerciseID == exercise.exerciseID }) else { continue }
             for log in workout.sets where log.prescriptionID == previousExercise.id && log.isComplete {
                 guard neededSetNumbers.contains(log.setNumber) else { continue }
-                lookup[log.setNumber] = lookup[log.setNumber] ?? log
+                if lookup[log.setNumber]?.date ?? .distantPast < workout.completedAt {
+                    lookup[log.setNumber] = (workout.completedAt, log)
+                }
             }
-            if neededSetNumbers.isSubset(of: Set(lookup.keys)) { break }
         }
-        return lookup
+        return lookup.mapValues(\.log)
     }
 
     private var catalogExercise: TrainingExerciseCatalogItem {
