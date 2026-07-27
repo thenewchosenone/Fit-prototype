@@ -380,19 +380,18 @@ struct AwardsView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         CompactSectionHeader(title: "Personal records")
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                            personalRecord("Bench", best: bestBench, preferredUnit: preferredUnit)
-                            personalRecord("Squat", best: bestSquat, preferredUnit: preferredUnit)
-                            personalRecord("Deadlift", best: bestDeadlift, preferredUnit: preferredUnit)
-                            VStack(alignment: .leading, spacing: 8) {
-                                Image(systemName: "dumbbell.fill").foregroundStyle(Color.liftGold)
-                                Text("Total").font(.caption.weight(.black)).foregroundStyle(Color.liftMuted)
-                                Text(MeasurementFormatting.formatDisplayedWeight(
-                                    appState.powerliftingTotal,
-                                    unit: preferredUnit
-                                ))
-                                .font(.headline.weight(.black))
+                            ForEach(["bench", "squat", "deadlift", "total"], id: \.self) { metric in
+                                switch metric {
+                                case "bench":
+                                    personalRecord("Bench", best: bestBench, preferredUnit: preferredUnit)
+                                case "squat":
+                                    personalRecord("Squat", best: bestSquat, preferredUnit: preferredUnit)
+                                case "deadlift":
+                                    personalRecord("Deadlift", best: bestDeadlift, preferredUnit: preferredUnit)
+                                default:
+                                    totalRecord(preferredUnit: preferredUnit)
+                                }
                             }
-                            .padding(14).frame(maxWidth: .infinity, minHeight: 112, alignment: .leading).liftSurface()
                         }
                     }
 
@@ -465,6 +464,19 @@ struct AwardsView: View {
             } ?? "—")
                 .font(.headline.weight(.black))
             Text(best == nil ? "No PR yet" : "Best logged lift").font(.caption).foregroundStyle(Color.liftMuted)
+        }
+        .padding(14).frame(maxWidth: .infinity, minHeight: 112, alignment: .leading).liftSurface()
+    }
+
+    private func totalRecord(preferredUnit: UnitSystem) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: "dumbbell.fill").foregroundStyle(Color.liftGold)
+            Text("Total").font(.caption.weight(.black)).foregroundStyle(Color.liftMuted)
+            Text(MeasurementFormatting.formatDisplayedWeight(
+                appState.powerliftingTotal,
+                unit: preferredUnit
+            ))
+            .font(.headline.weight(.black))
         }
         .padding(14).frame(maxWidth: .infinity, minHeight: 112, alignment: .leading).liftSurface()
     }
