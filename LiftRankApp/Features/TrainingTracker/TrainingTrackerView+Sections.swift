@@ -5,34 +5,10 @@ extension TrainingTrackerView {
     var featureBody: some View {
         NavigationStack {
             AppBackground {
-                VStack(spacing: 0) {
-                    controls
-                    ScrollViewReader { scrollProxy in
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 16) {
-                                if segment == .today {
-                                    today
-                                } else if segment == .plans {
-                                    plans
-                                } else if segment == .library {
-                                    library(scrollProxy: scrollProxy)
-                                } else {
-                                    progress
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.top, 12)
-                            .padding(.bottom, isEmbeddedInTab ? 132 : 36)
-                        }
-                        .id(segment)
-                        .scrollIndicators(.hidden)
-                        .overlay(alignment: .trailing) {
-                            if segment == .library && librarySearch.isEmpty {
-                                libraryAlphabetIndex(scrollProxy: scrollProxy)
-                                    .padding(.trailing, 2)
-                            }
-                        }
-                    }
+                if !isEmbeddedInTab || appState.router.selectedTab == .track {
+                    trackerContent
+                } else {
+                    Color.clear
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
@@ -138,6 +114,38 @@ extension TrainingTrackerView {
                 Button("Cancel", role: .cancel) { clearPendingStart() }
             } message: {
                 Text("Lift Rivals keeps one active workout at a time so sets and timers cannot be mixed between sessions.")
+            }
+        }
+    }
+
+    private var trackerContent: some View {
+        VStack(spacing: 0) {
+            controls
+            ScrollViewReader { scrollProxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if segment == .today {
+                            today
+                        } else if segment == .plans {
+                            plans
+                        } else if segment == .library {
+                            library(scrollProxy: scrollProxy)
+                        } else {
+                            progress
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, isEmbeddedInTab ? 132 : 36)
+                }
+                .id(segment)
+                .scrollIndicators(.hidden)
+                .overlay(alignment: .trailing) {
+                    if segment == .library && librarySearch.isEmpty {
+                        libraryAlphabetIndex(scrollProxy: scrollProxy)
+                            .padding(.trailing, 2)
+                    }
+                }
             }
         }
     }
