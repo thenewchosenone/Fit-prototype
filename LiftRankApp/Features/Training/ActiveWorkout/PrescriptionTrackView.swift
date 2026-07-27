@@ -329,7 +329,6 @@ struct PrescriptionTrackView: View {
         for _ in existing..<exercise.targetSets {
             _ = appState.addSetLog(to: exercise, persistImmediately: false)
         }
-        appState.persistLocalWorkoutSnapshot()
     }
 
     private func startRestTimer() {
