@@ -3,7 +3,8 @@ import SwiftUI
 
 extension TrainingTrackerView {
     var progress: some View {
-        let totals = appState.weeklyVolumeByBodyPart()
+        let volumeWeek = selectedVolumeWeek
+        let totals = appState.weeklyVolumeByBodyPart(referenceDate: volumeWeek.referenceDate)
         let maxVolume = max(1, totals.values.max() ?? 1)
         let totalVolume = totals.values.reduce(0, +)
         let rankedTotals = totals
@@ -65,14 +66,21 @@ extension TrainingTrackerView {
                             .foregroundStyle(Color.liftMuted)
                     }
                     Spacer(minLength: 8)
-                    Text("THIS WEEK")
-                        .font(.system(size: 10, weight: .black, design: .rounded))
-                        .tracking(0.8)
-                        .foregroundStyle(Color.liftBlue)
-                        .padding(.horizontal, 9)
-                        .frame(height: 26)
-                        .background(Color.liftBlue.opacity(0.12))
-                        .clipShape(Capsule())
+                    Button {
+                        selectedVolumeWeek = volumeWeek == .thisWeek ? .lastWeek : .thisWeek
+                    } label: {
+                        Text(volumeWeek.rawValue.uppercased())
+                            .font(.system(size: 10, weight: .black, design: .rounded))
+                            .tracking(0.8)
+                            .foregroundStyle(Color.liftBlue)
+                            .padding(.horizontal, 9)
+                            .frame(height: 26)
+                            .background(Color.liftBlue.opacity(0.12))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Volume period")
+                    .accessibilityValue(volumeWeek.rawValue)
                 }
 
                 if totals.values.allSatisfy({ $0 == 0 }) {

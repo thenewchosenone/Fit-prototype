@@ -1,6 +1,22 @@
 import Foundation
 
 extension TrainingTrackerView {
+    enum VolumeWeekSelection: String, CaseIterable, Identifiable {
+        case thisWeek = "This week"
+        case lastWeek = "Last week"
+
+        var id: String { rawValue }
+
+        var referenceDate: Date {
+            switch self {
+            case .thisWeek:
+                return .now
+            case .lastWeek:
+                return Calendar.current.date(byAdding: .weekOfYear, value: -1, to: .now) ?? .now
+            }
+        }
+    }
+
     enum TrackerSegment: String, CaseIterable, Hashable {
         case today = "Today"
         case plans = "Plans"
