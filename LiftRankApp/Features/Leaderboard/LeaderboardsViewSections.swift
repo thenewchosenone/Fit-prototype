@@ -2,8 +2,9 @@ import SwiftUI
 
 extension LeaderboardsView {
     var featureBody: some View {
-        let entries = visibleEntries
-        let currentEntry = allEntries.first { $0.profile.id == appState.currentProfile.id }
+        let leaderboardEntries = allEntries
+        let entries = visibleEntries(from: leaderboardEntries)
+        let currentEntry = leaderboardEntries.first { $0.profile.id == appState.currentProfile.id }
 
         return AppBackground {
             VStack(spacing: 0) {
@@ -12,7 +13,7 @@ extension LeaderboardsView {
                         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                             LeaderboardMetricStrip(
                                 rank: RankingFormatting.leaderboardRankText(rank: currentEntry?.rank),
-                                lifters: allEntries.count,
+                                lifters: leaderboardEntries.count,
                                 ranking: appState.leaderboardFilters.rankingType.rawValue,
                                 nextUpdate: appState.nextLeaderboardUpdateDate(referenceDate: .now)
                             )

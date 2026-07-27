@@ -6,9 +6,13 @@ extension LeaderboardsView {
     }
 
     var visibleEntries: [LeaderboardEntry] {
+        visibleEntries(from: allEntries)
+    }
+
+    func visibleEntries(from entries: [LeaderboardEntry]) -> [LeaderboardEntry] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !query.isEmpty else { return allEntries }
-        return allEntries.filter { entry in
+        guard !query.isEmpty else { return entries }
+        return entries.filter { entry in
             entry.profile.username.lowercased().contains(query) ||
             entry.profile.displayName.lowercased().contains(query) ||
             (entry.profile.primaryGymName.lowercased().contains(query)) ||
