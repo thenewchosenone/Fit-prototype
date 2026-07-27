@@ -179,24 +179,10 @@ struct PrescriptionTrackView: View {
     }
 
     private func refreshPreviousLogs(for logs: [WorkoutSetLog]) {
-        cachedPreviousLogsBySetNumber = previousLogsBySetNumber(for: logs)
-    }
-
-    private func previousLogsBySetNumber(for logs: [WorkoutSetLog]) -> [Int: WorkoutSetLog] {
-        let neededSetNumbers = Set(logs.map(\.setNumber))
-        guard !neededSetNumbers.isEmpty else { return [:] }
-
-        var lookup: [Int: (date: Date, log: WorkoutSetLog)] = [:]
-        for workout in appState.completedWorkouts {
-            guard let previousExercise = workout.exercises.first(where: { $0.exerciseID == exercise.exerciseID }) else { continue }
-            for log in workout.sets where log.prescriptionID == previousExercise.id && log.isComplete {
-                guard neededSetNumbers.contains(log.setNumber) else { continue }
-                if lookup[log.setNumber]?.date ?? .distantPast < workout.completedAt {
-                    lookup[log.setNumber] = (workout.completedAt, log)
-                }
-            }
-        }
-        return lookup.mapValues(\.log)
+        cachedPreviousLogsBySetNumber = appState.previousSetLogsBySetNumber(
+            for: exercise,
+            setNumbers: logs.map(\.setNumber)
+        )
     }
 
     private var catalogExercise: TrainingExerciseCatalogItem {

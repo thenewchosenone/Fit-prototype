@@ -55,6 +55,53 @@ private struct ActiveWorkoutDisplayStateSignature: Equatable {
     let setLogs: [SetLogSignature]
 }
 
+private struct PreviousWorkoutSetLookupSignature: Equatable {
+    struct WorkoutSignature: Equatable {
+        let id: UUID
+        let completedAt: Date
+        let exercises: [ExerciseSignature]
+        let sets: [SetSignature]
+
+        init(workout: CompletedWorkout) {
+            id = workout.id
+            completedAt = workout.completedAt
+            exercises = workout.exercises.map {
+                ExerciseSignature(id: $0.id, exerciseID: $0.exerciseID)
+            }
+            sets = workout.sets.map {
+                SetSignature(
+                    id: $0.id,
+                    prescriptionID: $0.prescriptionID,
+                    setNumber: $0.setNumber,
+                    weight: $0.weight,
+                    reps: $0.reps,
+                    isComplete: $0.isComplete,
+                    recordedUnit: $0.recordedUnit
+                )
+            }
+        }
+    }
+
+    struct ExerciseSignature: Equatable {
+        let id: UUID
+        let exerciseID: String
+    }
+
+    struct SetSignature: Equatable {
+        let id: UUID
+        let prescriptionID: UUID
+        let setNumber: Int
+        let weight: Double?
+        let reps: Int?
+        let isComplete: Bool
+        let recordedUnit: UnitSystem
+    }
+
+    let exerciseID: String
+    let setNumbers: [Int]
+    let workouts: [WorkoutSignature]
+}
+
 @MainActor
 final class ActiveWorkoutStore {
     private let repository: any ActiveWorkoutRepository
@@ -63,6 +110,8 @@ final class ActiveWorkoutStore {
     private var cachedUserID: UUID
     private var cachedDisplayStateSignature: ActiveWorkoutDisplayStateSignature?
     private var cachedDisplayState: ActiveWorkoutDisplayState?
+    private var cachedPreviousWorkoutSetLookupSignature: PreviousWorkoutSetLookupSignature?
+    private var cachedPreviousWorkoutSetLookup: [Int: WorkoutSetLog]?
 
     init(
         repository: any ActiveWorkoutRepository,
@@ -279,6 +328,38 @@ final class ActiveWorkoutStore {
         )
     }
 
+    func previousSetLogsBySetNumber(for exercise: WorkoutExerciseSnapshot, setNumbers: [Int]) -> [Int: WorkoutSetLog] {
+        let neededSetNumbers = Array(Set(setNumbers)).sorted()
+        guard !neededSetNumbers.isEmpty else { return [:] }
+
+        let signature = PreviousWorkoutSetLookupSignature(
+            exerciseID: exercise.exerciseID,
+            setNumbers: neededSetNumbers,
+            workouts: repository.completedWorkouts.map(PreviousWorkoutSetLookupSignature.WorkoutSignature.init)
+        )
+        if let cachedPreviousWorkoutSetLookup,
+           cachedPreviousWorkoutSetLookupSignature == signature {
+            return cachedPreviousWorkoutSetLookup
+        }
+
+        let needed = Set(neededSetNumbers)
+        var lookup: [Int: (date: Date, log: WorkoutSetLog)] = [:]
+        for workout in repository.completedWorkouts {
+            guard let previousExercise = workout.exercises.first(where: { $0.exerciseID == exercise.exerciseID }) else { continue }
+            for log in workout.sets where log.prescriptionID == previousExercise.id && log.isComplete {
+                guard needed.contains(log.setNumber) else { continue }
+                if lookup[log.setNumber]?.date ?? .distantPast < workout.completedAt {
+                    lookup[log.setNumber] = (workout.completedAt, log)
+                }
+            }
+        }
+
+        let result = lookup.mapValues(\.log)
+        cachedPreviousWorkoutSetLookup = result
+        cachedPreviousWorkoutSetLookupSignature = signature
+        return result
+    }
+
     var finishReadiness: ActiveWorkoutFinishReadiness {
         guard workout != nil else { return .unavailable }
         let completedSets = completedWorkingSets.count
@@ -391,6 +472,10 @@ final class ActiveWorkoutStore {
     private func resetAccountScopedDraftIfNeeded() {
         guard cachedUserID != repository.currentProfile.id else { return }
         cachedUserID = repository.currentProfile.id
+        cachedDisplayState = nil
+        cachedDisplayStateSignature = nil
+        cachedPreviousWorkoutSetLookup = nil
+        cachedPreviousWorkoutSetLookupSignature = nil
         repository.clearActiveWorkoutDraft()
     }
 

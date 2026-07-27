@@ -34,6 +34,10 @@ extension AppState {
             .sorted { $0.setNumber < $1.setNumber }
     }
 
+    func previousSetLogsBySetNumber(for exercise: WorkoutExerciseSnapshot, setNumbers: [Int]) -> [Int: WorkoutSetLog] {
+        activeWorkoutStore.previousSetLogsBySetNumber(for: exercise, setNumbers: setNumbers)
+    }
+
     @discardableResult
     func startWorkout(_ session: WorkoutSession) -> Bool {
         let isFirstWorkout = completedWorkouts.isEmpty
