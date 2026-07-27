@@ -75,7 +75,7 @@ extension HomeView {
     }
 
     var headerIdentity: some View {
-        HStack(spacing: 12) {
+        return HStack(spacing: 12) {
             Button {
                 appState.selectedTab = 3
             } label: {
@@ -285,11 +285,17 @@ extension HomeView {
     }
 
     var quickStats: some View {
-        HStack(spacing: 12) {
+        let preferredUnit = appState.currentProfile.preferredUnit
+        let totalPounds = appState.powerliftingTotal
+        let relativeTotal = RankingCalculator.relativeTotal(
+            total: totalPounds,
+            bodyweight: appState.currentProfile.bodyweightPounds
+        )
+        return HStack(spacing: 12) {
             compactStat(
                 title: "Total",
-                value: "\(Int(MeasurementFormatting.convert(appState.powerliftingTotal, from: .pounds, to: appState.currentProfile.preferredUnit)))",
-                unit: appState.currentProfile.preferredUnit.shortLabel,
+                value: "\(Int(MeasurementFormatting.convert(totalPounds, from: .pounds, to: preferredUnit)))",
+                unit: preferredUnit.shortLabel,
                 symbol: "dumbbell.fill",
                 tint: .liftBlue
             )
@@ -304,7 +310,7 @@ extension HomeView {
             statDivider
             compactStat(
                 title: "Relative",
-                value: RankingFormatting.ratioText(appState.relativeTotal),
+                value: RankingFormatting.ratioText(relativeTotal),
                 unit: "x",
                 symbol: "bolt.fill",
                 tint: .liftBlue
