@@ -33,6 +33,14 @@ struct LeaderboardRow: View {
                                     .padding(.vertical, 4)
                                     .background(Color.liftBlue.opacity(0.22))
                                     .clipShape(Capsule())
+                                Text("\(appState.strengthTierSummary.overallTier.label) tier")
+                                    .font(.caption2.bold())
+                                    .foregroundStyle(Color.liftGold)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 4)
+                                    .background(Color.liftGold.opacity(0.12))
+                                    .clipShape(Capsule())
+                                    .accessibilityIdentifier("leaderboard.currentUserRivalTier")
                             }
                         }
                         Text("@\(entry.profile.username) • \(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)")
