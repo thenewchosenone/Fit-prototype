@@ -206,6 +206,7 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Squat"].exists)
         XCTAssertTrue(app.staticTexts["Bench"].exists)
         XCTAssertTrue(app.staticTexts["Deadlift"].exists)
+        XCTAssertTrue(app.buttons["awards.shareRivalTier"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Personal records"].exists)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Locked awards")).firstMatch.exists)
     }

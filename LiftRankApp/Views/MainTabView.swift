@@ -207,6 +207,7 @@ struct MeHubView: View {
 
 struct AwardsView: View {
     @EnvironmentObject private var appState: AppState
+    @State private var rivalTierShareImage: Image?
 
     private var unlockedTitles: Set<String> { Set(appState.achievementUnlocks.map(\.title)) }
     private var unlockedAchievements: [Achievement] { appState.achievements.filter { unlockedTitles.contains($0.title) } }
@@ -267,6 +268,23 @@ struct AwardsView: View {
                     .padding(18)
                     .liftSurface()
 
+                    if let rivalTierShareImage {
+                        ShareLink(
+                            item: rivalTierShareImage,
+                            preview: SharePreview(
+                                "\(appState.currentProfile.displayName)'s Rival Tier",
+                                image: rivalTierShareImage
+                            )
+                        ) {
+                            Label("Share Rival Tier card", systemImage: "square.and.arrow.up")
+                                .font(.headline.weight(.bold))
+                                .frame(maxWidth: .infinity, minHeight: 50)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color.liftGold)
+                        .accessibilityIdentifier("awards.shareRivalTier")
+                    }
+
                     VStack(alignment: .leading, spacing: 12) {
                         CompactSectionHeader(title: "Unlocked awards (\(unlockedAchievements.count))")
                         if unlockedAchievements.isEmpty {
@@ -314,6 +332,15 @@ struct AwardsView: View {
         .navigationTitle("Awards")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("awards.screen")
+        .task(id: tierSummary) {
+            let renderer = ImageRenderer(content: RivalTierShareCard(
+                profile: appState.currentProfile,
+                summary: tierSummary,
+                preferredUnit: appState.currentProfile.preferredUnit
+            ))
+            renderer.scale = 2
+            rivalTierShareImage = renderer.uiImage.map(Image.init(uiImage:))
+        }
     }
 
     private func strengthLiftRow(_ lift: LiftTierProgress) -> some View {
@@ -426,6 +453,88 @@ struct AwardsView: View {
         let valueText = title.replacingOccurrences(of: suffix, with: "")
             .replacingOccurrences(of: ",", with: "")
         return Double(valueText)
+    }
+}
+
+private struct RivalTierShareCard: View {
+    let profile: UserProfile
+    let summary: StrengthTierSummary
+    let preferredUnit: UnitSystem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            HStack {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("LIFT RIVALS")
+                        .font(.system(size: 18, weight: .black))
+                        .tracking(3)
+                        .foregroundStyle(Color.liftGold)
+                    Text(profile.displayName)
+                        .font(.system(size: 34, weight: .black, design: .rounded))
+                        .foregroundStyle(.white)
+                    Text("@\(profile.username)")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(Color.white.opacity(0.62))
+                }
+                Spacer()
+                Image(systemName: "medal.fill")
+                    .font(.system(size: 42, weight: .black))
+                    .foregroundStyle(Color.liftGold)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("RIVAL TIER")
+                    .font(.system(size: 16, weight: .black))
+                    .tracking(2)
+                    .foregroundStyle(Color.white.opacity(0.62))
+                Text(summary.overallTier.label)
+                    .font(.system(size: 58, weight: .black, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+
+            VStack(spacing: 14) {
+                ForEach(summary.liftProgress) { lift in
+                    HStack(spacing: 14) {
+                        Image(systemName: "dumbbell.fill")
+                            .foregroundStyle(Color.liftGold)
+                            .frame(width: 28)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(lift.exerciseName)
+                                .font(.system(size: 19, weight: .bold))
+                                .foregroundStyle(.white)
+                            Text(lift.estimatedOneRepMaxKilograms.map {
+                                "Est. 1RM \(MeasurementFormatting.formatDisplayedWeight($0, unit: preferredUnit))"
+                            } ?? "Not logged")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(Color.white.opacity(0.58))
+                        }
+                        Spacer()
+                        Text(lift.currentTier.label)
+                            .font(.system(size: 17, weight: .black))
+                            .foregroundStyle(Color.liftGold)
+                    }
+                    .padding(16)
+                    .background(Color.white.opacity(0.07))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+            }
+
+            Spacer()
+            Text("TRAIN. PROVE. RISE.")
+                .font(.system(size: 15, weight: .black))
+                .tracking(2.5)
+                .foregroundStyle(Color.white.opacity(0.5))
+                .frame(maxWidth: .infinity)
+        }
+        .padding(42)
+        .frame(width: 540, height: 675)
+        .background(
+            LinearGradient(
+                colors: [Color.black, Color(red: 0.08, green: 0.09, blue: 0.12)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
     }
 }
 
