@@ -10,9 +10,9 @@ struct MainTabView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             TabView(selection: $router.selectedTab) {
-                NavigationStack { HomeView() }
+                NavigationStack { HomeTabView(router: router) }
                     .tag(AppTab.home)
-                NavigationStack { LeaderboardsView() }
+                NavigationStack { LeaderboardsTabView(router: router) }
                     .tag(AppTab.leaderboards)
                 TrainingTrackerView(
                     startOnProgress: appState.trainingTrackerStartOnProgress,
@@ -85,6 +85,36 @@ struct MainTabView: View {
             .environmentObject(appState)
         case .gym(let gym):
             NavigationStack { GymDetailView(gym: gym) }.environmentObject(appState)
+        }
+    }
+}
+
+private struct HomeTabView: View {
+    @ObservedObject var router: AppRouter
+
+    @ViewBuilder
+    var body: some View {
+        if router.selectedTab == .home {
+            HomeView()
+        } else {
+            AppBackground {
+                Color.clear
+            }
+        }
+    }
+}
+
+private struct LeaderboardsTabView: View {
+    @ObservedObject var router: AppRouter
+
+    @ViewBuilder
+    var body: some View {
+        if router.selectedTab == .leaderboards {
+            LeaderboardsView()
+        } else {
+            AppBackground {
+                Color.clear
+            }
         }
     }
 }
