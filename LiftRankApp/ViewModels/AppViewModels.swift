@@ -29,6 +29,7 @@ final class AppState: ObservableObject {
     let features: FeatureAvailability
     private var cachedCompetitiveStatistics: CompetitiveStatistics?
     private var cachedCompetitiveStatisticsSignature: CompetitiveStatisticsSignature?
+    private var forwardedObjectWillChangeTask: Task<Void, Never>?
 
     private let launchServiceContainer: AppServiceContainer
     private(set) var serviceContainer: AppServiceContainer!
@@ -120,31 +121,39 @@ final class AppState: ObservableObject {
         self.serviceContainer = resolvedServiceContainer
         self.repository.objectWillChange
             .sink { [weak self] _ in
-                self?.objectWillChange.send()
+                self?.scheduleForwardedObjectWillChange()
             }
             .store(in: &cancellables)
         self.competitionStore.objectWillChange
             .sink { [weak self] _ in
-                self?.objectWillChange.send()
+                self?.scheduleForwardedObjectWillChange()
             }
             .store(in: &cancellables)
         self.sessionStore.objectWillChange
             .sink { [weak self] _ in
-                self?.objectWillChange.send()
+                self?.scheduleForwardedObjectWillChange()
             }
             .store(in: &cancellables)
         self.accountSocialStore.objectWillChange
             .sink { [weak self] _ in
-                self?.objectWillChange.send()
+                self?.scheduleForwardedObjectWillChange()
             }
             .store(in: &cancellables)
         self.router.objectWillChange
             .sink { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.objectWillChange.send()
-                }
+                self?.scheduleForwardedObjectWillChange()
             }
             .store(in: &cancellables)
+    }
+
+    private func scheduleForwardedObjectWillChange() {
+        guard forwardedObjectWillChangeTask == nil else { return }
+        forwardedObjectWillChangeTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 16_000_000)
+            guard let self, !Task.isCancelled else { return }
+            self.forwardedObjectWillChangeTask = nil
+            self.objectWillChange.send()
+        }
     }
 
     var leaderboardFocusRequestID: UUID? {
