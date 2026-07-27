@@ -615,7 +615,7 @@ struct ActiveWorkoutResumeCard: View {
                 HStack {
                     Label("\(workout.exercises.count) exercises", systemImage: "dumbbell.fill")
                     Spacer()
-                    Label("\(appState.activeWorkoutCompletedWorkingSets.count) sets logged", systemImage: "checkmark.circle.fill")
+                    Label("\(appState.activeWorkoutCompletedWorkingSetCount) sets logged", systemImage: "checkmark.circle.fill")
                 }
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color.liftMuted)

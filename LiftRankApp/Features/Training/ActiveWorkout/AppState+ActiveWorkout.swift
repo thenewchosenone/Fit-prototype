@@ -120,6 +120,10 @@ extension AppState {
         activeWorkoutStore.completedWorkingSets
     }
 
+    var activeWorkoutCompletedWorkingSetCount: Int {
+        activeWorkoutStore.displayState.completedWorkingSets
+    }
+
     var activeWorkoutPlannedWorkingSetCount: Int {
         activeWorkoutStore.plannedWorkingSetCount
     }
