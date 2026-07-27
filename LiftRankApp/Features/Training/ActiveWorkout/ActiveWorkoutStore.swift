@@ -44,6 +44,21 @@ private struct ActiveWorkoutDisplayStateSignature: Equatable {
     let workoutSetLogsRevision: Int
 }
 
+private struct ActiveWorkoutSummarySignature: Equatable {
+    struct ExerciseSignature: Equatable {
+        let id: UUID
+        let exerciseID: String
+        let trackingType: String?
+    }
+
+    let workoutID: UUID
+    let sourceSessionID: UUID?
+    let workoutName: String
+    let unit: UnitSystem
+    let exercises: [ExerciseSignature]
+    let workoutSetLogsRevision: Int
+}
+
 private struct PreviousWorkoutSetLookupSignature: Equatable {
     struct WorkoutSignature: Equatable {
         let id: UUID
@@ -99,6 +114,8 @@ final class ActiveWorkoutStore {
     private var cachedUserID: UUID
     private var cachedDisplayStateSignature: ActiveWorkoutDisplayStateSignature?
     private var cachedDisplayState: ActiveWorkoutDisplayState?
+    private var cachedSummarySignature: ActiveWorkoutSummarySignature?
+    private var cachedSummary: WorkoutSummary?
     private var cachedPreviousWorkoutSetLookupSignature: PreviousWorkoutSetLookupSignature?
     private var cachedPreviousWorkoutSetLookup: [Int: WorkoutSetLog]?
 
@@ -415,22 +432,41 @@ final class ActiveWorkoutStore {
 
     func summary() -> WorkoutSummary? {
         guard let workout else { return nil }
-        let logs = repository.workoutSetLogs.filter {
-            $0.workoutID == workout.id && $0.isComplete
+        let signature = ActiveWorkoutSummarySignature(
+            workoutID: workout.id,
+            sourceSessionID: workout.sourceSessionID,
+            workoutName: workout.name,
+            unit: workout.unit,
+            exercises: workout.exercises.map {
+                ActiveWorkoutSummarySignature.ExerciseSignature(
+                    id: $0.id,
+                    exerciseID: $0.exerciseID,
+                    trackingType: $0.trackingType
+                )
+            },
+            workoutSetLogsRevision: repository.workoutSetLogsRevision
+        )
+        if let cachedSummary, cachedSummarySignature == signature {
+            return cachedSummary
         }
-        let workingSets = logs.filter { !$0.isWarmup }
-        let completedExerciseIDs = Set(workingSets.map(\.prescriptionID))
 
-        return WorkoutSummary(
+        let displayState = displayState
+        let logs = repository.workoutSetLogs.filter {
+            $0.workoutID == workout.id && $0.isComplete && !$0.isWarmup
+        }
+        let summary = WorkoutSummary(
             id: workout.id,
             sessionID: workout.sourceSessionID ?? workout.id,
             workoutName: workout.name,
-            completedExercises: completedExerciseIDs.count,
+            completedExercises: displayState.completedExercises,
             totalExercises: workout.exercises.count,
-            totalSets: workingSets.count,
-            totalVolume: workingSets.reduce(0) { $0 + trackingAwareVolume(for: $1, workout: workout) },
-            bestSet: workingSets.filter { trackingKind(for: $0, workout: workout) == .weightReps }.max { ($0.weight ?? 0) < ($1.weight ?? 0) }
+            totalSets: displayState.completedWorkingSets,
+            totalVolume: displayState.totalVolume,
+            bestSet: logs.filter { trackingKind(for: $0, workout: workout) == .weightReps }.max { ($0.weight ?? 0) < ($1.weight ?? 0) }
         )
+        cachedSummary = summary
+        cachedSummarySignature = signature
+        return summary
     }
 
     private func trackingKind(for set: WorkoutSetLog, workout: ActiveWorkoutState) -> ExerciseTrackingKind {
@@ -449,6 +485,8 @@ final class ActiveWorkoutStore {
         cachedUserID = repository.currentProfile.id
         cachedDisplayState = nil
         cachedDisplayStateSignature = nil
+        cachedSummary = nil
+        cachedSummarySignature = nil
         cachedPreviousWorkoutSetLookup = nil
         cachedPreviousWorkoutSetLookupSignature = nil
         repository.clearActiveWorkoutDraft()
