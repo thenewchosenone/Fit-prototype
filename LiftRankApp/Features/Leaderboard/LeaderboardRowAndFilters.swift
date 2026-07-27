@@ -84,6 +84,7 @@ struct LeaderboardFiltersView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var customRepText = ""
+    @State private var locationOptions: [String] = []
 
     private var ageGroups: [String] {
         LeaderboardAgeGroupPresentation.groups(from: appState.profiles)
@@ -97,7 +98,7 @@ struct LeaderboardFiltersView: View {
         )
     }
 
-    private var locationOptions: [String] {
+    private func makeLocationOptions() -> [String] {
         let profileLocations = appState.profiles.compactMap { profile -> String? in
             guard !profile.hideCity else { return nil }
             let location = ProfileDisplayFormatting.location(city: profile.city, region: profile.state)
@@ -275,6 +276,9 @@ struct LeaderboardFiltersView: View {
                 }
             }
             .navigationTitle("Filters")
+            .onAppear {
+                locationOptions = makeLocationOptions()
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Reset") {
