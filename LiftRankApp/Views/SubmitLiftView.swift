@@ -73,7 +73,7 @@ struct SubmitLiftView: View {
         NavigationStack {
             AppBackground {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
+                    LazyVStack(alignment: .leading, spacing: 18) {
                         formSection
                         estimateCard
                         plateCard
