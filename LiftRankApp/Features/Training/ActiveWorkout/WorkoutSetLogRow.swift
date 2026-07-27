@@ -71,7 +71,6 @@ struct SwipeToDeleteRow<Content: View>: View {
 }
 
 struct WorkoutSetLogRow: View {
-    @EnvironmentObject private var appState: AppState
     @FocusState.Binding var focusedInput: WorkoutSetInputFocus?
     @State private var draft: WorkoutSetLog
     @State private var repsText: String
@@ -83,6 +82,10 @@ struct WorkoutSetLogRow: View {
     @State private var isDeleting = false
     let previousLog: WorkoutSetLog?
     let trackingKind: ExerciseTrackingKind
+    let onDelete: (WorkoutSetLog) -> Void
+    let onApplyCompletion: (WorkoutSetLog, Bool) -> Bool
+    let onAttemptAutomaticCompletion: (WorkoutSetLog) -> Bool
+    let onUpdate: (WorkoutSetLog) -> Void
     var onCompleted: (() -> Void)?
 
     init(
@@ -90,6 +93,10 @@ struct WorkoutSetLogRow: View {
         trackingKind: ExerciseTrackingKind = .weightReps,
         previousLog: WorkoutSetLog? = nil,
         focusedInput: FocusState<WorkoutSetInputFocus?>.Binding,
+        onDelete: @escaping (WorkoutSetLog) -> Void,
+        onApplyCompletion: @escaping (WorkoutSetLog, Bool) -> Bool,
+        onAttemptAutomaticCompletion: @escaping (WorkoutSetLog) -> Bool,
+        onUpdate: @escaping (WorkoutSetLog) -> Void,
         onCompleted: (() -> Void)? = nil
     ) {
         _focusedInput = focusedInput
@@ -99,6 +106,10 @@ struct WorkoutSetLogRow: View {
         _lastPersistedDraft = State(initialValue: log)
         self.previousLog = previousLog
         self.trackingKind = trackingKind
+        self.onDelete = onDelete
+        self.onApplyCompletion = onApplyCompletion
+        self.onAttemptAutomaticCompletion = onAttemptAutomaticCompletion
+        self.onUpdate = onUpdate
         self.onCompleted = onCompleted
     }
 
@@ -207,7 +218,7 @@ struct WorkoutSetLogRow: View {
                     Button(role: .destructive) {
                         isDeleting = true
                         cancelPendingPersist()
-                        appState.deleteSetLog(draft)
+                        onDelete(draft)
                     } label: {
                         Label("Delete", systemImage: "trash")
                             .font(.caption.weight(.bold))
@@ -282,7 +293,7 @@ struct WorkoutSetLogRow: View {
             Button(role: .destructive) {
                 isDeleting = true
                 cancelPendingPersist()
-                appState.deleteSetLog(draft)
+                onDelete(draft)
             } label: {
                 Label("Delete Set", systemImage: "trash")
             }
@@ -358,7 +369,7 @@ struct WorkoutSetLogRow: View {
         }
         showValidation = false
         let completing = !draft.isComplete
-        let triggerTimer = appState.applyWorkoutSetCompletion(draft, isComplete: completing, source: .manual)
+        let triggerTimer = onApplyCompletion(draft, completing)
         draft.isComplete = completing
         draft.performedAt = .now
         draft.completionSource = completing ? .manual : nil
@@ -404,14 +415,14 @@ struct WorkoutSetLogRow: View {
     private func persistDraft() {
         guard draft != lastPersistedDraft else { return }
         persistSnapshot(draft)
-        if appState.attemptAutomaticCompletion(before: draft) {
+        if onAttemptAutomaticCompletion(draft) {
             onCompleted?()
         }
     }
 
     private func persistSnapshot(_ snapshot: WorkoutSetLog) {
         guard snapshot != lastPersistedDraft else { return }
-        appState.updateSetLog(snapshot)
+        onUpdate(snapshot)
         lastPersistedDraft = snapshot
     }
 

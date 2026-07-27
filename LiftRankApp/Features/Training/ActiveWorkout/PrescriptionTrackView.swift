@@ -75,11 +75,14 @@ struct PrescriptionTrackView: View {
                                     log: log,
                                     trackingKind: trackingKind,
                                     previousLog: previousLogs[log.setNumber],
-                                    focusedInput: $focusedInput
+                                    focusedInput: $focusedInput,
+                                    onDelete: { appState.deleteSetLog($0) },
+                                    onApplyCompletion: { appState.applyWorkoutSetCompletion($0, isComplete: $1, source: .manual) },
+                                    onAttemptAutomaticCompletion: { appState.attemptAutomaticCompletion(before: $0) },
+                                    onUpdate: { appState.updateSetLog($0) }
                                 ) {
                                     startRestTimer()
                                 }
-                                .environmentObject(appState)
                                 .id(log.id)
                             }
                         }
