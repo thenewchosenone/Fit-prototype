@@ -377,6 +377,52 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(RankingCalculator.bodyweightMultiple(oneRepMax: 495, bodyweight: 210), 2.357, accuracy: 0.001)
     }
 
+    func testStrengthTierRequiresAllThreeLifts() {
+        let summary = RankingCalculator.strengthTierSummary(
+            performances: [
+                StrengthLiftPerformance(exerciseID: "squat", estimatedOneRepMaxKilograms: 150),
+                StrengthLiftPerformance(exerciseID: "bench", estimatedOneRepMaxKilograms: 100)
+            ],
+            bodyweightKilograms: 100,
+            sexCategory: .male
+        )
+
+        XCTAssertEqual(summary.overallTier, .unranked)
+        XCTAssertEqual(summary.completedRequiredLiftCount, 2)
+        XCTAssertEqual(summary.requiredLiftCount, 3)
+    }
+
+    func testStrengthTierUsesWeakestRequiredLift() {
+        let summary = RankingCalculator.strengthTierSummary(
+            performances: [
+                StrengthLiftPerformance(exerciseID: "squat", estimatedOneRepMaxKilograms: 200),
+                StrengthLiftPerformance(exerciseID: "bench", estimatedOneRepMaxKilograms: 100),
+                StrengthLiftPerformance(exerciseID: "deadlift", estimatedOneRepMaxKilograms: 225)
+            ],
+            bodyweightKilograms: 100,
+            sexCategory: .male
+        )
+
+        XCTAssertEqual(summary.overallTier, .intermediate)
+        XCTAssertEqual(summary.liftProgress.first { $0.exerciseID == "squat" }?.currentTier, .advanced)
+        XCTAssertEqual(summary.liftProgress.first { $0.exerciseID == "bench" }?.currentTier, .intermediate)
+    }
+
+    func testStrengthTierProgressIsClamped() {
+        let summary = RankingCalculator.strengthTierSummary(
+            performances: [
+                StrengthLiftPerformance(exerciseID: "squat", estimatedOneRepMaxKilograms: 400),
+                StrengthLiftPerformance(exerciseID: "bench", estimatedOneRepMaxKilograms: 300),
+                StrengthLiftPerformance(exerciseID: "deadlift", estimatedOneRepMaxKilograms: 450)
+            ],
+            bodyweightKilograms: 100,
+            sexCategory: .male
+        )
+
+        XCTAssertEqual(summary.overallTier, .legend)
+        XCTAssertTrue(summary.liftProgress.allSatisfy { $0.progressToNextTier == 1 })
+    }
+
     func testPowerliftingTotal() {
         XCTAssertEqual(RankingCalculator.powerliftingTotal(bench: 245, squat: 275, deadlift: 495), 1015)
     }

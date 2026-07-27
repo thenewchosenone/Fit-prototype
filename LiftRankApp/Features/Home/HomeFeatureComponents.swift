@@ -237,9 +237,9 @@ extension HomeView {
     }
 
     var strengthOverviewCard: some View {
-        let strengthTier = RankingFormatting.strengthTier(for: appState.overallScore)
+        let summary = appState.strengthTierSummary
         return Button {
-            appState.selectedTab = 1
+            showingAwards = true
         } label: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
@@ -248,29 +248,25 @@ extension HomeView {
                         .tracking(1)
                         .foregroundStyle(Color.liftBlue)
                     Spacer()
-                    Image(systemName: "video.fill")
+                    Image(systemName: "medal.fill")
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(Color.liftGreen)
-                        .accessibilityLabel("Video-backed strength records")
+                        .foregroundStyle(Color.liftGold)
                 }
 
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text("\(Int(appState.overallScore))")
-                        .font(.system(size: 36, weight: .black, design: .rounded))
+                    Text(summary.overallTier.label)
+                        .font(.title2.weight(.black))
                         .foregroundStyle(Color.liftText)
-                    Text("score")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftMuted)
                 }
 
-                Text(strengthTier.label)
-                    .font(.subheadline.weight(.black))
-                    .foregroundStyle(Color.liftText)
+                Text("\(summary.completedRequiredLiftCount) of \(summary.requiredLiftCount) lifts logged")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.liftMuted)
 
                 Spacer(minLength: 2)
 
                 HStack {
-                    Label("Global rank", systemImage: "chart.line.uptrend.xyaxis")
+                    Label(summary.nextTier.map { "Next: \($0.label)" } ?? "Top tier reached", systemImage: "chart.line.uptrend.xyaxis")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.liftMuted)
                     Spacer()
@@ -284,7 +280,7 @@ extension HomeView {
             .liftSurface()
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Open leaderboards, strength score \(Int(appState.overallScore)), \(strengthTier.label), global rank")
+        .accessibilityLabel("Open strength milestones, \(summary.overallTier.label), \(summary.completedRequiredLiftCount) of \(summary.requiredLiftCount) lifts logged")
     }
 
     var quickStats: some View {

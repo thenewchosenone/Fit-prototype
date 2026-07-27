@@ -202,6 +202,10 @@ final class LiftRankUITests: XCTestCase {
 
         awards.tap()
         XCTAssertTrue(app.otherElements["awards.screen"].waitForExistence(timeout: 5) || app.navigationBars["Awards"].exists)
+        XCTAssertTrue(app.staticTexts["RIVAL TIER"].exists)
+        XCTAssertTrue(app.staticTexts["Squat"].exists)
+        XCTAssertTrue(app.staticTexts["Bench"].exists)
+        XCTAssertTrue(app.staticTexts["Deadlift"].exists)
         XCTAssertTrue(app.staticTexts["Personal records"].exists)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Locked awards")).firstMatch.exists)
     }

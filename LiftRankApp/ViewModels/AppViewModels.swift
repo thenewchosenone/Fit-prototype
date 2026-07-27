@@ -693,6 +693,7 @@ final class AppState: ObservableObject {
     var injuryEntries: [InjuryEntry] { trainingProgressStore.injuryEntries }
     var activeWorkout: ActiveWorkoutState? { activeWorkoutStore.workout }
     var completedWorkouts: [CompletedWorkout] { trainingProgressStore.completedWorkouts }
+    var strengthTierSummary: StrengthTierSummary { trainingProgressStore.strengthTierSummary }
     var pendingWorkoutPRSubmissions: [PendingWorkoutPRSubmission] { workoutPRSubmissionStore.pendingSubmissions }
     var workoutPreferences: WorkoutPreferences { workoutPRSubmissionStore.preferences }
     var workoutProgramTemplates: [WorkoutProgramTemplate] { WorkoutProgramCatalog.templates }

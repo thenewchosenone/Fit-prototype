@@ -50,6 +50,31 @@ final class TrainingProgressStore {
     }
 
     var completedWorkouts: [CompletedWorkout] { repository.completedWorkouts }
+    var strengthTierSummary: StrengthTierSummary {
+        var bestEstimatedMaxByExercise: [String: Double] = [:]
+        for workout in repository.completedWorkouts {
+            for exercise in workout.exercises where RankingCalculator.strengthTierExerciseIDs.contains(exercise.exerciseID) {
+                for set in workout.sets where set.prescriptionID == exercise.id && set.isComplete && !set.isWarmup {
+                    guard let weight = set.weight, weight > 0,
+                          let repetitions = set.reps, (1...10).contains(repetitions) else { continue }
+                    let kilograms = MeasurementFormatting.normalizeToKilograms(weight, unit: set.recordedUnit)
+                    let estimatedMax = RankingCalculator.epleyOneRepMax(weight: kilograms, repetitions: repetitions)
+                    bestEstimatedMaxByExercise[exercise.exerciseID] = max(
+                        bestEstimatedMaxByExercise[exercise.exerciseID] ?? 0,
+                        estimatedMax
+                    )
+                }
+            }
+        }
+        let performances = bestEstimatedMaxByExercise.map {
+            StrengthLiftPerformance(exerciseID: $0.key, estimatedOneRepMaxKilograms: $0.value)
+        }
+        return RankingCalculator.strengthTierSummary(
+            performances: performances,
+            bodyweightKilograms: RankingCalculator.poundsToKilograms(repository.currentProfile.bodyweightPounds),
+            sexCategory: repository.currentProfile.sexCategory
+        )
+    }
     var bodyweightEntries: [BodyweightEntry] {
         resetAccountScopedEntriesIfNeeded()
         return repository.bodyweightEntries

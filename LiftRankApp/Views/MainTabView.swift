@@ -129,8 +129,8 @@ struct MeHubView: View {
                         NavigationLink {
                             AwardsView()
                         } label: {
-                            meRow("Awards", "Milestones, records, and progress", "trophy.fill", Color.liftGold,
-                                  badge: "\(appState.achievementUnlocks.count)")
+                            meRow("Rival tier & awards", "Strength milestones, records, and progress", "trophy.fill", Color.liftGold,
+                                  badge: appState.strengthTierSummary.overallTier.label)
                         }
                         .accessibilityIdentifier("me.awards")
                         Divider().overlay(Color.liftSeparator).padding(.leading, 66)
@@ -213,6 +213,7 @@ struct AwardsView: View {
     private var progressAchievements: [Achievement] { appState.achievements.filter { !unlockedTitles.contains($0.title) } }
 
     var body: some View {
+        let tierSummary = appState.strengthTierSummary
         AppBackground {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -236,6 +237,35 @@ struct AwardsView: View {
                         LinearGradient(colors: [Color.liftGold, Color.orange, Color.pink.opacity(0.85)], startPoint: .topLeading, endPoint: .bottomTrailing)
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("RIVAL TIER")
+                                    .font(.caption2.weight(.black))
+                                    .tracking(1.2)
+                                    .foregroundStyle(Color.liftGold)
+                                Text(tierSummary.overallTier.label)
+                                    .font(.title.weight(.black))
+                            }
+                            Spacer()
+                            Image(systemName: "medal.fill")
+                                .font(.title.weight(.bold))
+                                .foregroundStyle(Color.liftGold)
+                        }
+
+                        Text(tierSummary.completedRequiredLiftCount == tierSummary.requiredLiftCount
+                             ? "Your tier is the highest level reached across squat, bench, and deadlift."
+                             : "Log completed working sets for all three lifts to unlock your starting tier.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.liftMuted)
+
+                        ForEach(tierSummary.liftProgress) { lift in
+                            strengthLiftRow(lift)
+                        }
+                    }
+                    .padding(18)
+                    .liftSurface()
 
                     VStack(alignment: .leading, spacing: 12) {
                         CompactSectionHeader(title: "Unlocked awards (\(unlockedAchievements.count))")
@@ -284,6 +314,33 @@ struct AwardsView: View {
         .navigationTitle("Awards")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("awards.screen")
+    }
+
+    private func strengthLiftRow(_ lift: LiftTierProgress) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Text(lift.exerciseName)
+                    .font(.subheadline.weight(.bold))
+                Spacer()
+                Text(lift.estimatedOneRepMaxKilograms == nil ? "Not logged" : lift.currentTier.label)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(lift.estimatedOneRepMaxKilograms == nil ? Color.liftMuted : Color.liftGold)
+            }
+            ProgressView(value: lift.progressToNextTier)
+                .tint(.liftGold)
+            HStack {
+                Text(lift.estimatedOneRepMaxKilograms.map {
+                    "Est. 1RM \(MeasurementFormatting.formatDisplayedWeight($0, unit: appState.currentProfile.preferredUnit))"
+                } ?? "Complete a set of 10 reps or fewer")
+                Spacer()
+                if let nextTier = lift.nextTier, let threshold = lift.nextThresholdMultiple {
+                    Text("\(RankingCalculator.format(threshold))× BW to \(nextTier.label)")
+                }
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(Color.liftMuted)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private func personalRecord(_ title: String, exerciseID: String) -> some View {

@@ -2,6 +2,40 @@ import Foundation
 
 enum RankingCalculator {
     static let poundsPerKilogram = 2.2046226218
+    static let strengthTierExerciseIDs = ["squat", "bench", "deadlift"]
+
+    static let strengthTierStandards: [StrengthTierStandard] = {
+        let thresholds: [SexCategory: [String: [Double]]] = [
+            .male: [
+                "squat": [0.75, 1, 1.5, 2, 2.5, 3],
+                "bench": [0.5, 0.75, 1, 1.5, 1.75, 2],
+                "deadlift": [1, 1.25, 1.75, 2.25, 2.75, 3.25]
+            ],
+            .female: [
+                "squat": [0.5, 0.75, 1, 1.5, 2, 2.5],
+                "bench": [0.3, 0.5, 0.75, 1, 1.25, 1.5],
+                "deadlift": [0.75, 1, 1.5, 2, 2.5, 3]
+            ],
+            .open: [
+                "squat": [0.625, 0.875, 1.25, 1.75, 2.25, 2.75],
+                "bench": [0.4, 0.625, 0.875, 1.25, 1.5, 1.75],
+                "deadlift": [0.875, 1.125, 1.625, 2.125, 2.625, 3.125]
+            ]
+        ]
+        let rankedTiers = StrengthTier.allCases.filter { $0 != .unranked }
+        return thresholds.flatMap { sexCategory, exercises in
+            exercises.flatMap { exerciseID, multiples in
+                zip(rankedTiers, multiples).map { tier, multiple in
+                    StrengthTierStandard(
+                        tier: tier,
+                        exerciseID: exerciseID,
+                        sexCategory: sexCategory,
+                        bodyweightMultiple: multiple
+                    )
+                }
+            }
+        }
+    }()
 
     static func epleyOneRepMax(weight: Double, repetitions: Int) -> Double {
         guard repetitions > 1 else { return weight }
@@ -23,6 +57,50 @@ enum RankingCalculator {
     static func bodyweightMultiple(oneRepMax: Double, bodyweight: Double) -> Double {
         guard bodyweight > 0 else { return 0 }
         return oneRepMax / bodyweight
+    }
+
+    static func strengthTierSummary(
+        performances: [StrengthLiftPerformance],
+        bodyweightKilograms: Double,
+        sexCategory: SexCategory
+    ) -> StrengthTierSummary {
+        let bestByExercise = Dictionary(grouping: performances, by: \.exerciseID)
+            .mapValues { performances in
+                performances.map(\.estimatedOneRepMaxKilograms).max() ?? 0
+            }
+
+        let names = ["squat": "Squat", "bench": "Bench", "deadlift": "Deadlift"]
+        let liftProgress = strengthTierExerciseIDs.map { exerciseID in
+            let estimatedMax = bestByExercise[exerciseID].flatMap { $0 > 0 ? $0 : nil }
+            let multiple = bodyweightKilograms > 0 ? (estimatedMax ?? 0) / bodyweightKilograms : 0
+            let standards = strengthTierStandards
+                .filter { $0.exerciseID == exerciseID && $0.sexCategory == sexCategory }
+                .sorted { $0.tier < $1.tier }
+            let currentStandard = standards.last { multiple >= $0.bodyweightMultiple }
+            let currentTier = estimatedMax == nil ? .unranked : (currentStandard?.tier ?? .unranked)
+            let nextStandard = standards.first { $0.tier > currentTier }
+            let currentThreshold = currentStandard?.bodyweightMultiple ?? 0
+            let progress: Double
+            if let nextStandard {
+                progress = min(1, max(0, (multiple - currentThreshold) / (nextStandard.bodyweightMultiple - currentThreshold)))
+            } else {
+                progress = 1
+            }
+            return LiftTierProgress(
+                exerciseID: exerciseID,
+                exerciseName: names[exerciseID] ?? exerciseID.capitalized,
+                estimatedOneRepMaxKilograms: estimatedMax,
+                bodyweightMultiple: multiple,
+                currentTier: currentTier,
+                nextTier: nextStandard?.tier,
+                progressToNextTier: progress,
+                nextThresholdMultiple: nextStandard?.bodyweightMultiple
+            )
+        }
+        return StrengthTierSummary(
+            overallTier: liftProgress.map(\.currentTier).min() ?? .unranked,
+            liftProgress: liftProgress
+        )
     }
 
     static func powerliftingTotal(bench: Double?, squat: Double?, deadlift: Double?) -> Double {
