@@ -73,7 +73,7 @@ extension AppState {
         competitionStore.normalizeFilters()
     }
 
-    func submitLift(exercise: Exercise, weight: Double, unit: UnitSystem, reps: Int, isActual: Bool, bodyweight: Double, date: Date, gymID: UUID, equipment: EquipmentType, visibility: LiftVisibility, videoURL: URL?, caption: String, requestVerification: Bool) async {
+    func submitLift(exercise: Exercise, weight: Double, unit: UnitSystem, reps: Int, isActual: Bool, bodyweight: Double, date: Date, gymID: UUID, equipment: EquipmentType, visibility: LiftVisibility, videoURL: URL?, caption: String, requestVerification: Bool) async -> LiftSubmission? {
         let submission = await competitionStore.submitLift(
             exercise: exercise,
             weight: weight,
@@ -98,6 +98,7 @@ extension AppState {
             }
             Haptics.success()
         }
+        return submission
     }
 
 }

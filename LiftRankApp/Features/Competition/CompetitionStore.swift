@@ -534,7 +534,6 @@ final class CompetitionStore: ObservableObject {
             return nil
         }
         upsert(submission, refreshAchievements: false)
-        setLastSubmissionResult(submission)
         scheduleAchievementRefresh()
         return submission
     }

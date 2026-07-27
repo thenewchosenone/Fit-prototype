@@ -42,6 +42,7 @@ struct SubmitLiftView: View {
     @State private var showingVideoReview = false
     @State private var isVideoPickerReady = false
     @State private var showingResult = false
+    @State private var submittedLift: LiftSubmission?
     @State private var plateLoads: [EditablePlateLoad] = []
     @State private var barbellWeight = 45.0
     @State private var plateLoadingWasEdited = false
@@ -81,8 +82,8 @@ struct SubmitLiftView: View {
                         guidanceCard
                         PrimaryButton(title: "Submit lift", symbolName: "paperplane.fill") {
                             Task {
-                                await appState.submitLift(exercise: exercise, weight: weight, unit: unit, reps: repetitions, isActual: isActualOneRepMax, bodyweight: bodyweight, date: performedAt, gymID: gymID, equipment: equipment, visibility: visibility, videoURL: selectedVideoURL, caption: caption, requestVerification: requestVerification)
-                                if appState.lastSubmissionResult != nil {
+                                submittedLift = await appState.submitLift(exercise: exercise, weight: weight, unit: unit, reps: repetitions, isActual: isActualOneRepMax, bodyweight: bodyweight, date: performedAt, gymID: gymID, equipment: equipment, visibility: visibility, videoURL: selectedVideoURL, caption: caption, requestVerification: requestVerification)
+                                if submittedLift != nil {
                                     showingResult = true
                                 } else {
                                     submissionError = appState.accountMessage ?? "The lift could not be submitted."
@@ -109,9 +110,10 @@ struct SubmitLiftView: View {
                 }
             }
             .sheet(isPresented: $showingResult) {
-                if let result = appState.lastSubmissionResult {
+                if let result = submittedLift {
                     LiftSubmissionResultView(lift: result) {
                         showingResult = false
+                        submittedLift = nil
                         dismiss()
                     }
                     .environmentObject(appState)
