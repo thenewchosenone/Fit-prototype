@@ -325,17 +325,24 @@ struct LeaderboardFiltersView: View {
                 Label("Quick filters", systemImage: "bolt.fill")
                     .font(.headline)
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                    quickFilterButton("All lifters", symbol: "globe") {
-                        appState.leaderboardFilters = LeaderboardFilters(exerciseID: appState.leaderboardFilters.exerciseID)
-                    }
-                    quickFilterButton("My city", symbol: "mappin.and.ellipse") {
-                        appState.leaderboardFilters.city = appState.currentProfile.city
-                        appState.leaderboardFilters.state = appState.currentProfile.state
-                        appState.leaderboardFilters.gymID = nil
-                    }
-                    quickFilterButton("My class", symbol: "person.crop.rectangle.stack") {
-                        appState.leaderboardFilters.sexCategory = appState.currentProfile.sexCategory
-                        appState.leaderboardFilters.weightClassID = bodyweightClass?.id
+                    ForEach(["all", "city", "class"], id: \.self) { filter in
+                        switch filter {
+                        case "all":
+                            quickFilterButton("All lifters", symbol: "globe") {
+                                appState.leaderboardFilters = LeaderboardFilters(exerciseID: appState.leaderboardFilters.exerciseID)
+                            }
+                        case "city":
+                            quickFilterButton("My city", symbol: "mappin.and.ellipse") {
+                                appState.leaderboardFilters.city = appState.currentProfile.city
+                                appState.leaderboardFilters.state = appState.currentProfile.state
+                                appState.leaderboardFilters.gymID = nil
+                            }
+                        default:
+                            quickFilterButton("My class", symbol: "person.crop.rectangle.stack") {
+                                appState.leaderboardFilters.sexCategory = appState.currentProfile.sexCategory
+                                appState.leaderboardFilters.weightClassID = bodyweightClass?.id
+                            }
+                        }
                     }
                 }
             }

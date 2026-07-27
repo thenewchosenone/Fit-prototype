@@ -153,10 +153,18 @@ extension ProfileView {
             CompactSectionHeader(title: "Rankings")
             LiftCard {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                    rankingMetric("Global", "Unranked", "Complete verified lifts", .liftGold)
-                    rankingMetric("City", profile.hideCity ? "Hidden" : "Unranked", profile.hideCity ? "Location hidden" : profile.city, .liftBlue)
-                    rankingMetric("State", profile.hideCity ? "Hidden" : "Unranked", profile.hideCity ? "Location hidden" : profile.state, .liftBlue)
-                    rankingMetric("Age group", profile.hideExactAge ? "Hidden" : "Unranked", profile.hideExactAge ? "Age hidden" : profile.ageGroup, .liftGreen)
+                    ForEach(["global", "city", "state", "age"], id: \.self) { metric in
+                        switch metric {
+                        case "global":
+                            rankingMetric("Global", "Unranked", "Complete verified lifts", .liftGold)
+                        case "city":
+                            rankingMetric("City", profile.hideCity ? "Hidden" : "Unranked", profile.hideCity ? "Location hidden" : profile.city, .liftBlue)
+                        case "state":
+                            rankingMetric("State", profile.hideCity ? "Hidden" : "Unranked", profile.hideCity ? "Location hidden" : profile.state, .liftBlue)
+                        default:
+                            rankingMetric("Age group", profile.hideExactAge ? "Hidden" : "Unranked", profile.hideExactAge ? "Age hidden" : profile.ageGroup, .liftGreen)
+                        }
+                    }
                 }
             }
         }

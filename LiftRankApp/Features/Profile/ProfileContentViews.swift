@@ -846,8 +846,13 @@ struct GymDetailView: View {
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        MetricCard(title: "Members", value: "\(gym.memberCount)", subtitle: "Local lifters")
-                        MetricCard(title: "Verified lifts", value: "\(gym.verifiedLiftCount)", subtitle: "Approved submissions", tint: .liftGreen)
+                        ForEach(["members", "verified"], id: \.self) { metric in
+                            if metric == "members" {
+                                MetricCard(title: "Members", value: "\(gym.memberCount)", subtitle: "Local lifters")
+                            } else {
+                                MetricCard(title: "Verified lifts", value: "\(gym.verifiedLiftCount)", subtitle: "Approved submissions", tint: .liftGreen)
+                            }
+                        }
                     }
                     SectionHeader(title: "Top lifters")
                     ForEach(appState.leaderboardEntries().prefix(5)) { entry in
