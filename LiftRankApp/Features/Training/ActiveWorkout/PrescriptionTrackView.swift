@@ -25,6 +25,11 @@ struct PrescriptionTrackView: View {
                             let previousLogs = cachedPreviousLogsBySetNumber
                             let progress = appState.activeWorkoutDisplayState.progressByExerciseID[exercise.id]
                                 ?? appState.activeWorkoutExerciseProgress(for: exercise)
+                            let restMetric = "\(exercise.restSeconds)s"
+                            let volumeMetric = "\(Int(completedVolume(in: completedLogs))) \(appState.activeWorkout?.unit.shortLabel ?? "lb")"
+                            let previousMetric = previousLogs[1].map {
+                                "Last \($0.reps ?? 0) × \(RankingCalculator.format($0.weight ?? 0))"
+                            }
                             VStack(alignment: .leading, spacing: 12) {
                                 HStack(spacing: 12) {
                                     ExerciseCatalogIcon(exercise: catalogExercise)
@@ -42,10 +47,10 @@ struct PrescriptionTrackView: View {
                                 }
 
                                 HStack(spacing: 8) {
-                                    compactExerciseMetric("\(exercise.restSeconds)s", "timer")
-                                    compactExerciseMetric("\(Int(completedVolume(in: completedLogs))) \(appState.activeWorkout?.unit.shortLabel ?? "lb")", "scalemass")
-                                    if let previous = previousLogs[1] {
-                                        compactExerciseMetric("Last \(previous.reps ?? 0) × \(RankingCalculator.format(previous.weight ?? 0))", "clock.arrow.circlepath")
+                                    compactExerciseMetric(restMetric, "timer")
+                                    compactExerciseMetric(volumeMetric, "scalemass")
+                                    if let previousMetric {
+                                        compactExerciseMetric(previousMetric, "clock.arrow.circlepath")
                                     }
                                 }
                             }
@@ -138,9 +143,9 @@ struct PrescriptionTrackView: View {
             refreshPreviousLogs(for: activeLogs)
             restoreRestTimer()
         }
-        .onChange(of: appState.workoutSetLogs) { _, logs in
+        .onChange(of: appState.workoutSetLogsRevision) {
             let previousSetNumbers = activeLogs.map(\.setNumber)
-            guard refreshActiveLogs(from: logs) else { return }
+            guard refreshActiveLogs() else { return }
             guard previousSetNumbers != activeLogs.map(\.setNumber) else { return }
             refreshPreviousLogs(for: activeLogs)
         }
@@ -175,7 +180,8 @@ struct PrescriptionTrackView: View {
         }
     }
 
-    private func refreshActiveLogs() {
+    @discardableResult
+    private func refreshActiveLogs() -> Bool {
         refreshActiveLogs(from: appState.workoutSetLogs)
     }
 
