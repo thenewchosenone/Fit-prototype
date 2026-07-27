@@ -610,7 +610,18 @@ extension HomeView {
 }
 
 extension HomeView {
+    @ViewBuilder
     var featureBody: some View {
+        if appState.router.selectedTab == .home {
+            homeContent
+        } else {
+            AppBackground {
+                Color.clear
+            }
+        }
+    }
+
+    private var homeContent: some View {
         AppBackground {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
