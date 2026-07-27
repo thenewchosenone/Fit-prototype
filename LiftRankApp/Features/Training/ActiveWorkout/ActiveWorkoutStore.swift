@@ -401,12 +401,15 @@ final class ActiveWorkoutStore {
         source: WorkoutSetCompletionSource
     ) -> Bool {
         let shouldTriggerTimer = isComplete && !log.hasTriggeredRestTimer
-        repository.updateWorkoutSetLog(log)
-        _ = repository.applyWorkoutSetCompletion(
-            logID: log.id,
-            isComplete: isComplete,
-            source: source
-        )
+        var updated = log
+        if !isComplete, updated.completionSource == .automatic, source == .manual {
+            updated.suppressAutoCompletion = true
+        }
+        updated.isComplete = isComplete
+        updated.performedAt = .now
+        updated.completionSource = isComplete ? source : nil
+        updated.hasTriggeredRestTimer = isComplete
+        repository.updateWorkoutSetLog(updated)
         return shouldTriggerTimer
     }
 
