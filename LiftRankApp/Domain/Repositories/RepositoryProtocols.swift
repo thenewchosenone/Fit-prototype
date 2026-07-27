@@ -160,6 +160,7 @@ protocol ExerciseRepository: AnyObject {
 @MainActor
 protocol CompetitionRepository: AnyObject {
     var lifts: [LiftSubmission] { get set }
+    var liftsRevision: Int { get }
     var profiles: [UserProfile] { get }
     var currentProfile: UserProfile { get }
     var joinedGymIDs: Set<UUID> { get }

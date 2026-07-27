@@ -135,7 +135,7 @@ final class CompetitionStore: ObservableObject {
     var currentUserLifts: [LiftSubmission] {
         let signature = CurrentUserLiftsSignature(
             currentUserID: repository.currentProfile.id,
-            lifts: repository.lifts
+            liftsRevision: repository.liftsRevision
         )
         if let cachedCurrentUserLifts, cachedCurrentUserLiftsSignature == signature {
             return cachedCurrentUserLifts
@@ -155,7 +155,7 @@ final class CompetitionStore: ObservableObject {
     var powerliftingTotal: Double {
         let signature = CurrentUserLiftsSignature(
             currentUserID: repository.currentProfile.id,
-            lifts: repository.lifts
+            liftsRevision: repository.liftsRevision
         )
         if let cachedPowerliftingTotal, cachedPowerliftingTotalSignature == signature {
             return cachedPowerliftingTotal
@@ -177,7 +177,7 @@ final class CompetitionStore: ObservableObject {
         let signature = OverallScoreSignature(
             currentUserID: repository.currentProfile.id,
             bodyweightPounds: repository.currentProfile.bodyweightPounds,
-            lifts: repository.lifts
+            liftsRevision: repository.liftsRevision
         )
         if let cachedOverallScore, cachedOverallScoreSignature == signature {
             return cachedOverallScore
@@ -216,7 +216,7 @@ final class CompetitionStore: ObservableObject {
             filters: filters,
             verifiedOnly: verifiedOnly,
             currentUserID: repository.currentProfile.id,
-            lifts: repository.lifts,
+            liftsRevision: repository.liftsRevision,
             profiles: repository.profiles,
             remoteEntries: remoteLeaderboardEntries
         )
@@ -653,39 +653,14 @@ private struct LeaderboardCacheSignature: Equatable {
     let filters: LeaderboardFilters
     let verifiedOnly: Bool
     let currentUserID: UUID
-    let lifts: [LiftSubmission]
+    let liftsRevision: Int
     let profiles: [UserProfile]
     let remoteEntries: [LeaderboardEntry]?
 }
 
 private struct CurrentUserLiftsSignature: Equatable {
     let currentUserID: UUID
-    private let lifts: [LiftSignature]
-
-    init(currentUserID: UUID, lifts: [LiftSubmission]) {
-        self.currentUserID = currentUserID
-        self.lifts = lifts.map(LiftSignature.init)
-    }
-
-    private struct LiftSignature: Equatable {
-        let id: UUID
-        let userID: UUID
-        let exerciseID: String
-        let repetitions: Int
-        let estimatedOneRepMax: Double
-        let normalizedWeightKilograms: Double
-        let updatedAt: Date
-
-        init(lift: LiftSubmission) {
-            self.id = lift.id
-            self.userID = lift.userID
-            self.exerciseID = lift.exerciseID
-            self.repetitions = lift.repetitions
-            self.estimatedOneRepMax = lift.estimatedOneRepMax
-            self.normalizedWeightKilograms = lift.normalizedWeightKilograms
-            self.updatedAt = lift.updatedAt
-        }
-    }
+    let liftsRevision: Int
 }
 
 private struct OverallScoreSignature: Equatable {
@@ -693,10 +668,10 @@ private struct OverallScoreSignature: Equatable {
     let bodyweightPounds: Double
     private let lifts: CurrentUserLiftsSignature
 
-    init(currentUserID: UUID, bodyweightPounds: Double, lifts: [LiftSubmission]) {
+    init(currentUserID: UUID, bodyweightPounds: Double, liftsRevision: Int) {
         self.currentUserID = currentUserID
         self.bodyweightPounds = bodyweightPounds
-        self.lifts = CurrentUserLiftsSignature(currentUserID: currentUserID, lifts: lifts)
+        self.lifts = CurrentUserLiftsSignature(currentUserID: currentUserID, liftsRevision: liftsRevision)
     }
 }
 

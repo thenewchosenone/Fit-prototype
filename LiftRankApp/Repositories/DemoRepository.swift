@@ -10,7 +10,7 @@ final class DemoRepository: ObservableObject {
     @Published var profiles: [UserProfile]
     @Published var gyms: [Gym]
     @Published var joinedGymIDs: Set<UUID>
-    @Published var lifts: [LiftSubmission]
+    @Published var lifts: [LiftSubmission] { didSet { liftsRevision &+= 1 } }
     @Published var challenges: [Challenge]
     @Published var achievements: [Achievement]
     @Published var notifications: [NotificationItem]
@@ -44,6 +44,7 @@ final class DemoRepository: ObservableObject {
     private var pendingPersistenceTask: Task<Void, Never>?
     private var isRestoringWorkoutSnapshot = false
     private let seedDemoData: Bool
+    private(set) var liftsRevision = 0
 
     init(
         workoutPersistenceStore: WorkoutPersistenceStore? = nil,
