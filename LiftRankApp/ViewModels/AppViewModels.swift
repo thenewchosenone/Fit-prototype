@@ -702,6 +702,7 @@ final class AppState: ObservableObject {
     var workoutPrescriptions: [WorkoutExercisePrescription] { repository.workoutPrescriptions }
     var workoutSetLogs: [WorkoutSetLog] { repository.workoutSetLogs }
     var workoutSetLogsRevision: Int { repository.workoutSetLogsRevision }
+    var completedWorkoutsRevision: Int { repository.completedWorkoutsRevision }
     var workoutFeedback: [WorkoutFeedback] { repository.workoutFeedback }
     var customTrainingExercises: [TrainingExerciseCatalogItem] { exerciseLibraryStore.customExercises }
     var trainingExerciseLibrary: [TrainingExerciseCatalogItem] { exerciseLibraryStore.exercises }

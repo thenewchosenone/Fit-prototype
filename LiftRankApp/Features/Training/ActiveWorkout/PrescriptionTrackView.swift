@@ -149,7 +149,7 @@ struct PrescriptionTrackView: View {
             guard previousSetNumbers != activeLogs.map(\.setNumber) else { return }
             refreshPreviousLogs(for: activeLogs)
         }
-        .onChange(of: appState.completedWorkouts.count) {
+        .onChange(of: appState.completedWorkoutsRevision) {
             refreshPreviousLogs(for: activeLogs)
         }
     }

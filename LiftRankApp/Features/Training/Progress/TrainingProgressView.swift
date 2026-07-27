@@ -155,7 +155,7 @@ extension TrainingTrackerView {
             syncProgressExerciseSelection()
             syncWorkoutHistorySelection()
         }
-        .onChange(of: appState.completedWorkouts.count) {
+        .onChange(of: appState.completedWorkoutsRevision) {
             syncProgressExerciseSelection()
             syncWorkoutHistorySelection()
         }
