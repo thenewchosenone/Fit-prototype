@@ -517,10 +517,7 @@ struct SubmitLiftView: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(LiftCompactProminentButtonStyle())
-                    if appState.uploadProgress > 0 {
-                        ProgressView(value: appState.uploadProgress)
-                            .tint(Color.liftGreen)
-                    }
+                    UploadProgressView()
                     Button(role: .destructive) {
                         Haptics.warning()
                         selectedVideoURL = nil
@@ -579,6 +576,17 @@ private struct EditablePlateLoad: Identifiable, Hashable {
     var plateWeight: Double
     var label: String
     var count: Int
+}
+
+private struct UploadProgressView: View {
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
+        if appState.uploadProgress > 0 {
+            ProgressView(value: appState.uploadProgress)
+                .tint(Color.liftGreen)
+        }
+    }
 }
 
 struct VideoReviewView: View {
