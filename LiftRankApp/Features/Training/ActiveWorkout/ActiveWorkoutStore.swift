@@ -110,8 +110,8 @@ final class ActiveWorkoutStore {
                         id: $0.id,
                         prescriptionID: $0.prescriptionID,
                         setNumber: $0.setNumber,
-                        weight: $0.weight,
-                        reps: $0.reps,
+                        weight: $0.isComplete ? $0.weight : nil,
+                        reps: $0.isComplete ? $0.reps : nil,
                         isWarmup: $0.isWarmup,
                         isComplete: $0.isComplete,
                         recordedUnit: $0.recordedUnit

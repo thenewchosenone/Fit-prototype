@@ -2437,10 +2437,19 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(store.displayState.plannedWorkingSets, activeExercise.targetSets)
         XCTAssertEqual(store.displayState.progressByExerciseID[activeExercise.id]?.completedWorkingSets, 0)
 
-        _ = store.applySetCompletion(log, isComplete: true, source: .manual)
+        var editedLog = log
+        editedLog.weight = 225
+        editedLog.reps = 5
+        store.updateSet(editedLog)
+
+        XCTAssertEqual(store.displayState.completedWorkingSets, 0)
+        XCTAssertEqual(store.displayState.totalVolume, 0)
+
+        _ = store.applySetCompletion(editedLog, isComplete: true, source: .manual)
 
         XCTAssertEqual(store.displayState.completedWorkingSets, 1)
         XCTAssertEqual(store.displayState.progressByExerciseID[activeExercise.id]?.completedWorkingSets, 1)
+        XCTAssertEqual(store.displayState.totalVolume, 1_125)
 
         store.deleteSet(log)
 
