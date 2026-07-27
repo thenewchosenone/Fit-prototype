@@ -441,7 +441,6 @@ extension DemoRepository {
         for (offset, index) in remainingIndices.enumerated() {
             workoutSetLogs[index].setNumber = offset + 1
         }
-        persistWorkoutSnapshot()
     }
 
     @discardableResult
