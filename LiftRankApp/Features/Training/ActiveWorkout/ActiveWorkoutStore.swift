@@ -60,50 +60,9 @@ private struct ActiveWorkoutSummarySignature: Equatable {
 }
 
 private struct PreviousWorkoutSetLookupSignature: Equatable {
-    struct WorkoutSignature: Equatable {
-        let id: UUID
-        let completedAt: Date
-        let exercises: [ExerciseSignature]
-        let sets: [SetSignature]
-
-        init(workout: CompletedWorkout) {
-            id = workout.id
-            completedAt = workout.completedAt
-            exercises = workout.exercises.map {
-                ExerciseSignature(id: $0.id, exerciseID: $0.exerciseID)
-            }
-            sets = workout.sets.map {
-                SetSignature(
-                    id: $0.id,
-                    prescriptionID: $0.prescriptionID,
-                    setNumber: $0.setNumber,
-                    weight: $0.weight,
-                    reps: $0.reps,
-                    isComplete: $0.isComplete,
-                    recordedUnit: $0.recordedUnit
-                )
-            }
-        }
-    }
-
-    struct ExerciseSignature: Equatable {
-        let id: UUID
-        let exerciseID: String
-    }
-
-    struct SetSignature: Equatable {
-        let id: UUID
-        let prescriptionID: UUID
-        let setNumber: Int
-        let weight: Double?
-        let reps: Int?
-        let isComplete: Bool
-        let recordedUnit: UnitSystem
-    }
-
     let exerciseID: String
     let setNumbers: [Int]
-    let workouts: [WorkoutSignature]
+    let completedWorkoutsRevision: Int
 }
 
 @MainActor
@@ -326,7 +285,7 @@ final class ActiveWorkoutStore {
         let signature = PreviousWorkoutSetLookupSignature(
             exerciseID: exercise.exerciseID,
             setNumbers: neededSetNumbers,
-            workouts: repository.completedWorkouts.map(PreviousWorkoutSetLookupSignature.WorkoutSignature.init)
+            completedWorkoutsRevision: repository.completedWorkoutsRevision
         )
         if let cachedPreviousWorkoutSetLookup,
            cachedPreviousWorkoutSetLookupSignature == signature {

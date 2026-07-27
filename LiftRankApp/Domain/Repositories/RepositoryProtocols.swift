@@ -8,6 +8,7 @@ protocol ActiveWorkoutRepository: AnyObject {
     var workoutSetLogs: [WorkoutSetLog] { get }
     var workoutSetLogsRevision: Int { get }
     var completedWorkouts: [CompletedWorkout] { get }
+    var completedWorkoutsRevision: Int { get }
     var workoutPreferences: WorkoutPreferences { get set }
 
     @discardableResult
