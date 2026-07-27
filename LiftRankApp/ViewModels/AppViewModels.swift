@@ -27,6 +27,8 @@ final class AppState: ObservableObject {
     let notificationStore: NotificationStore
     let analyticsStore: AnalyticsStore
     let features: FeatureAvailability
+    private var cachedCompetitiveStatistics: CompetitiveStatistics?
+    private var cachedCompetitiveStatisticsSignature: CompetitiveStatisticsSignature?
 
     private let launchServiceContainer: AppServiceContainer
     private(set) var serviceContainer: AppServiceContainer!
@@ -671,7 +673,21 @@ final class AppState: ObservableObject {
     var achievementUnlocks: [AchievementUnlock] {
         repository.achievementUnlocks
     }
-    var competitiveStatistics: CompetitiveStatistics { repository.computedStatistics() }
+    var competitiveStatistics: CompetitiveStatistics {
+        let signature = CompetitiveStatisticsSignature(
+            currentUserID: currentProfile.id,
+            completedWorkouts: repository.completedWorkouts,
+            lifts: repository.lifts
+        )
+        if let cachedCompetitiveStatistics,
+           cachedCompetitiveStatisticsSignature == signature {
+            return cachedCompetitiveStatistics
+        }
+        let statistics = repository.computedStatistics()
+        cachedCompetitiveStatistics = statistics
+        cachedCompetitiveStatisticsSignature = signature
+        return statistics
+    }
     var notifications: [NotificationItem] { notificationStore.notifications }
     var unreadNotificationCount: Int { notificationStore.unreadCount }
     var workoutPlans: [WorkoutPlan] { repository.workoutPlans }
@@ -895,5 +911,67 @@ enum Haptics {
 
     static func warning() {
         UINotificationFeedbackGenerator().notificationOccurred(.warning)
+    }
+}
+
+private struct CompetitiveStatisticsSignature: Equatable {
+    private struct WorkoutSignature: Equatable {
+        private struct SetSignature: Equatable {
+            let id: UUID
+            let prescriptionID: UUID
+            let weight: Double?
+            let reps: Int?
+            let isWarmup: Bool
+            let recordedUnit: UnitSystem
+        }
+
+        let id: UUID
+        let completedAt: Date
+        let duration: TimeInterval
+        private let sets: [SetSignature]
+
+        init(workout: CompletedWorkout) {
+            self.id = workout.id
+            self.completedAt = workout.completedAt
+            self.duration = workout.duration
+            self.sets = workout.completedWorkingSets.map {
+                SetSignature(
+                    id: $0.id,
+                    prescriptionID: $0.prescriptionID,
+                    weight: $0.weight,
+                    reps: $0.reps,
+                    isWarmup: $0.isWarmup,
+                    recordedUnit: $0.recordedUnit
+                )
+            }
+        }
+    }
+
+    private struct LiftSignature: Equatable {
+        let id: UUID
+        let userID: UUID
+        let verificationStatus: VerificationStatus
+        let estimatedOneRepMax: Double
+    }
+
+    let currentUserID: UUID
+    private let completedWorkouts: [WorkoutSignature]
+    private let lifts: [LiftSignature]
+
+    init(
+        currentUserID: UUID,
+        completedWorkouts: [CompletedWorkout],
+        lifts: [LiftSubmission]
+    ) {
+        self.currentUserID = currentUserID
+        self.completedWorkouts = completedWorkouts.map(WorkoutSignature.init)
+        self.lifts = lifts.map {
+            LiftSignature(
+                id: $0.id,
+                userID: $0.userID,
+                verificationStatus: $0.verificationStatus,
+                estimatedOneRepMax: $0.estimatedOneRepMax
+            )
+        }
     }
 }
