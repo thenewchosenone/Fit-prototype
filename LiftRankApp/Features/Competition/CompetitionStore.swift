@@ -288,16 +288,19 @@ final class CompetitionStore: ObservableObject {
     }
 
     func normalizeFilters() {
-        filters.gymID = nil
-        if let weightClassID = filters.weightClassID,
+        var normalized = filters
+        normalized.gymID = nil
+        if let weightClassID = normalized.weightClassID,
            !weightClasses.contains(where: { $0.id == weightClassID }) {
-            filters.weightClassID = nil
+            normalized.weightClassID = nil
         }
-        if filters.exerciseID == nil {
-            filters.repetitionCount = nil
-        } else if filters.rankingType == .total || filters.rankingType == .relativeTotal {
-            filters.rankingType = .absolute
+        if normalized.exerciseID == nil {
+            normalized.repetitionCount = nil
+        } else if normalized.rankingType == .total || normalized.rankingType == .relativeTotal {
+            normalized.rankingType = .absolute
         }
+        guard normalized != filters else { return }
+        filters = normalized
     }
 
     func requestFocus(filters: LeaderboardFilters, verifiedOnly: Bool = true) {
