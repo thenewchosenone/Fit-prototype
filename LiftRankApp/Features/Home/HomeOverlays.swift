@@ -1,4 +1,3 @@
-import AVKit
 import SwiftUI
 
 extension View {
@@ -51,7 +50,7 @@ struct RecentPRDetailView: View {
                             VStack(alignment: .leading, spacing: 10) {
                                 Text("PR video")
                                     .font(.headline.weight(.bold))
-                                VideoPlayer(player: AVPlayer(url: playbackURL))
+                                ManagedVideoPlayer(url: playbackURL)
                                     .frame(height: 260)
                                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                             }

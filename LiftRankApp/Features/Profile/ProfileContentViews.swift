@@ -1,4 +1,3 @@
-import AVKit
 import Charts
 import PhotosUI
 import SwiftUI
@@ -149,7 +148,7 @@ private struct ProfileLiftVideoDetailView: View {
                                 badge: "Lift video"
                             )
                         } else if let playbackURL {
-                            VideoPlayer(player: AVPlayer(url: playbackURL))
+                            ManagedVideoPlayer(url: playbackURL)
                                 .frame(height: 320)
                                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                                 .accessibilityIdentifier("profile.liftVideoPlayer")

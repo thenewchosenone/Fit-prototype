@@ -1,4 +1,5 @@
 import ImageIO
+import AVKit
 import Foundation
 import SwiftUI
 import UIKit
@@ -248,6 +249,35 @@ private enum GIFAnimationDecoder {
         let clamped = gifProperties[kCGImagePropertyGIFDelayTime] as? Double
         let delay = unclamped ?? clamped ?? 0.1
         return delay > 0.01 ? delay : 0.1
+    }
+}
+
+struct ManagedVideoPlayer: View {
+    let url: URL
+
+    @State private var player: AVPlayer?
+    @State private var loadedURL: URL?
+
+    var body: some View {
+        VideoPlayer(player: player)
+            .onAppear {
+                loadPlayerIfNeeded()
+            }
+            .onChange(of: url) { _, _ in
+                loadPlayerIfNeeded()
+            }
+            .onDisappear {
+                player?.pause()
+                player = nil
+                loadedURL = nil
+            }
+    }
+
+    private func loadPlayerIfNeeded() {
+        guard loadedURL != url else { return }
+        player?.pause()
+        player = AVPlayer(url: url)
+        loadedURL = url
     }
 }
 

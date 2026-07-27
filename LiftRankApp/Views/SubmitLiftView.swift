@@ -1,4 +1,3 @@
-import AVKit
 import PhotosUI
 import SwiftData
 import SwiftUI
@@ -588,7 +587,7 @@ struct VideoReviewView: View {
         ZStack(alignment: .topTrailing) {
             Color.black.ignoresSafeArea()
             if let videoURL {
-                VideoPlayer(player: AVPlayer(url: videoURL))
+                ManagedVideoPlayer(url: videoURL)
                     .ignoresSafeArea()
             } else {
                 Text("No video selected")
