@@ -289,10 +289,7 @@ final class ActiveWorkoutStore {
     }
 
     var plannedWorkingSetCount: Int {
-        guard let workout else { return 0 }
-        return workout.exercises.reduce(0) { total, exercise in
-            total + exerciseProgress(for: exercise).plannedWorkingSets
-        }
+        displayState.plannedWorkingSets
     }
 
     func exerciseProgress(for exercise: WorkoutExerciseSnapshot) -> ActiveWorkoutExerciseProgress {
@@ -339,9 +336,10 @@ final class ActiveWorkoutStore {
 
     var finishReadiness: ActiveWorkoutFinishReadiness {
         guard workout != nil else { return .unavailable }
-        let completedSets = completedWorkingSets.count
+        let displayState = displayState
+        let completedSets = displayState.completedWorkingSets
         guard completedSets > 0 else { return .empty }
-        let plannedSets = plannedWorkingSetCount
+        let plannedSets = displayState.plannedWorkingSets
         guard completedSets >= plannedSets else {
             return .incomplete(completedSets: completedSets, plannedSets: plannedSets)
         }
