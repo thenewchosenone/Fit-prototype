@@ -27,7 +27,7 @@ final class DemoRepository: ObservableObject {
     @Published var strainEntries: [StrainEntry]
     @Published var injuryEntries: [InjuryEntry]
     @Published var activeWorkout: ActiveWorkoutState?
-    @Published var completedWorkouts: [CompletedWorkout]
+    @Published var completedWorkouts: [CompletedWorkout] { didSet { completedWorkoutsRevision &+= 1 } }
     @Published var pendingWorkoutPRSubmissions: [PendingWorkoutPRSubmission]
     @Published var pendingCompletedWorkoutUploads: [CompletedWorkoutSnapshot]
     @Published var deletedCompletedWorkoutIDs: Set<UUID>
@@ -47,6 +47,7 @@ final class DemoRepository: ObservableObject {
     private(set) var liftsRevision = 0
     private(set) var workoutSetLogsRevision = 0
     private(set) var notificationsRevision = 0
+    private(set) var completedWorkoutsRevision = 0
 
     init(
         workoutPersistenceStore: WorkoutPersistenceStore? = nil,
