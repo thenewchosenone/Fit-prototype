@@ -76,6 +76,7 @@ struct WorkoutSetLogRow: View {
     @State private var draft: WorkoutSetLog
     @State private var repsText: String
     @State private var weightText: String
+    @State private var lastPersistedDraft: WorkoutSetLog
     @State private var showValidation = false
     @State private var showingDetails = false
     @State private var pendingPersistTask: Task<Void, Never>?
@@ -95,6 +96,7 @@ struct WorkoutSetLogRow: View {
         _draft = State(initialValue: log)
         _repsText = State(initialValue: log.reps.map(String.init) ?? "")
         _weightText = State(initialValue: log.weight.map(Self.formatWeight) ?? "")
+        _lastPersistedDraft = State(initialValue: log)
         self.previousLog = previousLog
         self.trackingKind = trackingKind
         self.onCompleted = onCompleted
@@ -186,14 +188,14 @@ struct WorkoutSetLogRow: View {
                         get: { draft.rpe },
                         set: {
                             draft.rpe = $0
-                            appState.updateSetLog(draft)
+                            persistDraft()
                         }
                     ), presentation: .inset)
                         .frame(maxWidth: 150)
 
                     Button {
                         draft.isWarmup.toggle()
-                        appState.updateSetLog(draft)
+                        persistDraft()
                     } label: {
                         Image(systemName: draft.isWarmup ? "flame.fill" : "flame")
                             .frame(width: 36, height: 36)
@@ -223,7 +225,7 @@ struct WorkoutSetLogRow: View {
                         Button {
                             cancelPendingPersist()
                             draft.rpe = draft.rpe == value ? nil : value
-                            appState.updateSetLog(draft)
+                            persistDraft()
                             Haptics.light()
                         } label: {
                             Text("\(value)")
@@ -273,7 +275,7 @@ struct WorkoutSetLogRow: View {
             Button {
                 cancelPendingPersist()
                 draft.isWarmup.toggle()
-                appState.updateSetLog(draft)
+                persistDraft()
             } label: {
                 Label(draft.isWarmup ? "Mark Working Set" : "Mark Warmup Set", systemImage: "flame")
             }
@@ -344,7 +346,7 @@ struct WorkoutSetLogRow: View {
             weightText = MeasurementFormatting.formatWeight(weight)
             draft.weight = weight
         }
-        appState.updateSetLog(draft)
+        persistDraft()
         Haptics.light()
     }
 
@@ -360,6 +362,7 @@ struct WorkoutSetLogRow: View {
         draft.isComplete = completing
         draft.performedAt = .now
         draft.completionSource = completing ? .manual : nil
+        lastPersistedDraft = draft
         if completing {
             Haptics.success()
             if triggerTimer { onCompleted?() }
@@ -373,7 +376,7 @@ struct WorkoutSetLogRow: View {
             try? await Task.sleep(for: .milliseconds(550))
             guard !Task.isCancelled else { return }
             await MainActor.run {
-                appState.updateSetLog(snapshot)
+                persistSnapshot(snapshot)
                 pendingPersistTask = nil
             }
         }
@@ -399,10 +402,17 @@ struct WorkoutSetLogRow: View {
     }
 
     private func persistDraft() {
-        appState.updateSetLog(draft)
+        guard draft != lastPersistedDraft else { return }
+        persistSnapshot(draft)
         if appState.attemptAutomaticCompletion(before: draft) {
             onCompleted?()
         }
+    }
+
+    private func persistSnapshot(_ snapshot: WorkoutSetLog) {
+        guard snapshot != lastPersistedDraft else { return }
+        appState.updateSetLog(snapshot)
+        lastPersistedDraft = snapshot
     }
 
     private func rpeTint(_ value: Int) -> Color {
