@@ -273,7 +273,7 @@ extension AppState {
     }
 
     func activeWorkoutPRCandidates() -> [WorkoutPRCandidate] {
-        activeWorkoutStore.prCandidates(existingLifts: currentUserLifts)
+        activeWorkoutStore.prCandidates(existingLifts: currentUserLifts, liftsRevision: repository.liftsRevision)
     }
 
     func workoutPRCandidates(for workout: CompletedWorkout) -> [WorkoutPRCandidate] {

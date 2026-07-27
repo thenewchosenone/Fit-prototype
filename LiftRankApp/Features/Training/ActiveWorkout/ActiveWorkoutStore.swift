@@ -65,6 +65,13 @@ private struct PreviousWorkoutSetLookupSignature: Equatable {
     let completedWorkoutsRevision: Int
 }
 
+private struct ActiveWorkoutPRCandidatesSignature: Equatable {
+    let workoutID: UUID
+    let workoutSetLogsRevision: Int
+    let completedWorkoutsRevision: Int
+    let liftsRevision: Int
+}
+
 @MainActor
 final class ActiveWorkoutStore {
     private let repository: any ActiveWorkoutRepository
@@ -77,6 +84,8 @@ final class ActiveWorkoutStore {
     private var cachedSummary: WorkoutSummary?
     private var cachedPreviousWorkoutSetLookupSignature: PreviousWorkoutSetLookupSignature?
     private var cachedPreviousWorkoutSetLookup: [Int: WorkoutSetLog]?
+    private var cachedPRCandidatesSignature: ActiveWorkoutPRCandidatesSignature?
+    private var cachedPRCandidates: [WorkoutPRCandidate]?
 
     init(
         repository: any ActiveWorkoutRepository,
@@ -247,10 +256,19 @@ final class ActiveWorkoutStore {
         repository.deleteWorkoutSetLog(log)
     }
 
-    func prCandidates(existingLifts: [LiftSubmission]) -> [WorkoutPRCandidate] {
+    func prCandidates(existingLifts: [LiftSubmission], liftsRevision: Int) -> [WorkoutPRCandidate] {
         guard let workout else { return [] }
+        let signature = ActiveWorkoutPRCandidatesSignature(
+            workoutID: workout.id,
+            workoutSetLogsRevision: repository.workoutSetLogsRevision,
+            completedWorkoutsRevision: repository.completedWorkoutsRevision,
+            liftsRevision: liftsRevision
+        )
+        if let cachedPRCandidates, cachedPRCandidatesSignature == signature {
+            return cachedPRCandidates
+        }
         let sets = repository.workoutSetLogs.filter { $0.workoutID == workout.id }
-        return WorkoutPRDetector.candidates(
+        let candidates = WorkoutPRDetector.candidates(
             workoutID: workout.id,
             exercises: workout.exercises,
             sets: sets,
@@ -258,6 +276,9 @@ final class ActiveWorkoutStore {
             completedWorkouts: repository.completedWorkouts,
             excludingCompletedWorkoutID: nil
         )
+        cachedPRCandidates = candidates
+        cachedPRCandidatesSignature = signature
+        return candidates
     }
 
     var completedWorkingSets: [WorkoutSetLog] {
