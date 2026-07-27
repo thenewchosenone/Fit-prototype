@@ -41,6 +41,7 @@ struct SubmitLiftView: View {
     @State private var submissionError: String?
     @State private var gymSelectionError: String?
     @State private var showingVideoReview = false
+    @State private var isVideoPickerReady = false
     @State private var showingResult = false
     @State private var plateLoads: [EditablePlateLoad] = []
     @State private var barbellWeight = 45.0
@@ -156,6 +157,7 @@ struct SubmitLiftView: View {
                     $0.id == appState.currentProfile.primaryGymID && appState.isGymJoined($0)
                 })?.id ?? appState.gyms.first(where: { appState.isGymJoined($0) })?.id ?? UUID()
                 resetPlateLoadingFromWeight()
+                prepareVideoPickerAfterPresentation()
             }
             .alert("Lift not submitted", isPresented: Binding(
                 get: { submissionError != nil },
@@ -433,6 +435,15 @@ struct SubmitLiftView: View {
         activeSelector = nil
     }
 
+    private func prepareVideoPickerAfterPresentation() {
+        guard !isVideoPickerReady else { return }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard !Task.isCancelled else { return }
+            isVideoPickerReady = true
+        }
+    }
+
     private func prepareSelectedVideo() {
         guard let pickerItem else { return }
         isPreparingVideo = true
@@ -516,17 +527,27 @@ struct SubmitLiftView: View {
                         Label("Remove video", systemImage: "trash")
                     }
                 } else {
-                    PhotosPicker(selection: $pickerItem, matching: .videos) {
-                        if isPreparingVideo {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            Label("Select lift video", systemImage: "video.badge.plus")
-                            .frame(maxWidth: .infinity)
+                    if isVideoPickerReady {
+                        PhotosPicker(selection: $pickerItem, matching: .videos) {
+                            if isPreparingVideo {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity)
+                            } else {
+                                Label("Select lift video", systemImage: "video.badge.plus")
+                                    .frame(maxWidth: .infinity)
+                            }
                         }
+                        .buttonStyle(LiftCompactProminentButtonStyle())
+                        .disabled(isPreparingVideo)
+                    } else {
+                        Label("Video optional", systemImage: "video")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(Color.liftMuted)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color.liftField)
+                            .clipShape(RoundedRectangle(cornerRadius: LiftDesign.controlRadius, style: .continuous))
                     }
-                    .buttonStyle(LiftCompactProminentButtonStyle())
-                    .disabled(isPreparingVideo)
                 }
                 if let videoError {
                     Text(videoError)
