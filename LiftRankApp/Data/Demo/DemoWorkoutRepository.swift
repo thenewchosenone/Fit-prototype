@@ -401,6 +401,7 @@ extension DemoRepository {
     func updateWorkoutSetLog(_ log: WorkoutSetLog) {
         if let index = workoutSetLogs.firstIndex(where: { $0.id == log.id }) {
             let previous = workoutSetLogs[index]
+            guard previous != log else { return }
             var updated = log
             let valuesChanged = previous.weight != updated.weight || previous.reps != updated.reps
             if valuesChanged {
