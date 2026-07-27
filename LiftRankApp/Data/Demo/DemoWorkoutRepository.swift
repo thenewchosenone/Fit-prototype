@@ -431,16 +431,19 @@ extension DemoRepository {
     }
 
     func deleteWorkoutSetLog(_ log: WorkoutSetLog) {
-        workoutSetLogs.removeAll { $0.id == log.id }
-        let remainingIndices = workoutSetLogs.indices
+        guard workoutSetLogs.contains(where: { $0.id == log.id }) else { return }
+        var updatedLogs = workoutSetLogs
+        updatedLogs.removeAll { $0.id == log.id }
+        let remainingIndices = updatedLogs.indices
             .filter {
-                workoutSetLogs[$0].prescriptionID == log.prescriptionID &&
-                    workoutSetLogs[$0].workoutID == log.workoutID
+                updatedLogs[$0].prescriptionID == log.prescriptionID &&
+                    updatedLogs[$0].workoutID == log.workoutID
             }
-            .sorted { workoutSetLogs[$0].setNumber < workoutSetLogs[$1].setNumber }
+            .sorted { updatedLogs[$0].setNumber < updatedLogs[$1].setNumber }
         for (offset, index) in remainingIndices.enumerated() {
-            workoutSetLogs[index].setNumber = offset + 1
+            updatedLogs[index].setNumber = offset + 1
         }
+        workoutSetLogs = updatedLogs
     }
 
     @discardableResult
