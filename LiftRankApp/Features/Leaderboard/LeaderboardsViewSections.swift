@@ -158,6 +158,8 @@ extension LeaderboardsView {
             athleteSearchResults = await appState.searchAthletes(query)
         }
         .task(id: appState.leaderboardRequestKey) {
+            guard lastRefreshedLeaderboardRequestKey != appState.leaderboardRequestKey else { return }
+            lastRefreshedLeaderboardRequestKey = appState.leaderboardRequestKey
             await appState.refreshLeaderboard()
         }
     }
