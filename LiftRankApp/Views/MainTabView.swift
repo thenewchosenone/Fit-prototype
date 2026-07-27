@@ -19,7 +19,7 @@ struct MainTabView: View {
                     isEmbeddedInTab: true
                 )
                 .tag(AppTab.track)
-                NavigationStack { MeHubView() }
+                NavigationStack { MeHubView(router: router) }
                     .tag(AppTab.profile)
             }
             .toolbar(.hidden, for: .tabBar)
@@ -90,20 +90,24 @@ struct MainTabView: View {
 }
 
 struct MeHubView: View {
-    @EnvironmentObject private var appState: AppState
+    @ObservedObject var router: AppRouter
 
     @ViewBuilder
     var body: some View {
-        if appState.router.selectedTab == .profile {
-            meContent
+        if router.selectedTab == .profile {
+            MeHubContentView()
         } else {
             AppBackground {
                 Color.clear
             }
         }
     }
+}
 
-    private var meContent: some View {
+private struct MeHubContentView: View {
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
         AppBackground {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
