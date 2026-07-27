@@ -9,18 +9,20 @@ struct MainTabView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            Group {
-                switch router.selectedTab {
-                case .home:
+            ZStack {
+                tabRoot(.home) {
                     NavigationStack { HomeView() }
-                case .leaderboards:
+                }
+                tabRoot(.leaderboards) {
                     NavigationStack { LeaderboardsView() }
-                case .track:
+                }
+                tabRoot(.track) {
                     TrainingTrackerView(
                         startOnProgress: appState.trainingTrackerStartOnProgress,
                         isEmbeddedInTab: true
                     )
-                case .profile:
+                }
+                tabRoot(.profile) {
                     NavigationStack { MeHubView() }
                 }
             }
@@ -46,6 +48,16 @@ struct MainTabView: View {
                 AuthenticationView().environmentObject(appState)
             }
         }
+    }
+
+    @ViewBuilder
+    private func tabRoot<Content: View>(_ tab: AppTab, @ViewBuilder content: () -> Content) -> some View {
+        let isSelected = router.selectedTab == tab
+        content()
+            .opacity(isSelected ? 1 : 0)
+            .allowsHitTesting(isSelected)
+            .accessibilityHidden(!isSelected)
+            .zIndex(isSelected ? 1 : 0)
     }
 
     private var tabItems: [FloatingTabItem] {

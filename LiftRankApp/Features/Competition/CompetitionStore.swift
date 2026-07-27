@@ -26,6 +26,8 @@ final class CompetitionStore: ObservableObject {
     private var productionUserID: UUID?
     private var leaderboardRequestID: UUID?
     private var activeUploadID: UUID?
+    private var cachedLeaderboardEntries: [LeaderboardEntry]?
+    private var cachedLeaderboardSignature: LeaderboardCacheSignature?
 
     init(
         repository: any CompetitionRepository,
@@ -164,6 +166,21 @@ final class CompetitionStore: ObservableObject {
     }
 
     func leaderboardEntries(referenceDate: Date) -> [LeaderboardEntry] {
+        let snapshotDate = leaderboardSnapshotDate(referenceDate: referenceDate)
+        let signature = LeaderboardCacheSignature(
+            snapshotDate: snapshotDate,
+            filters: filters,
+            verifiedOnly: verifiedOnly,
+            currentUserID: repository.currentProfile.id,
+            lifts: repository.lifts,
+            profiles: repository.profiles,
+            remoteEntries: remoteLeaderboardEntries
+        )
+        if let cachedLeaderboardEntries, cachedLeaderboardSignature == signature {
+            return cachedLeaderboardEntries
+        }
+
+        let entries: [LeaderboardEntry]
         if let remoteLeaderboardEntries {
             let filtered = remoteLeaderboardEntries.filter { entry in
                 if let repetitionCount = filters.repetitionCount,
@@ -182,7 +199,7 @@ final class CompetitionStore: ObservableObject {
             }
             var previousScore: Double?
             var currentRank = 0
-            return filtered.enumerated().map { index, entry in
+            entries = filtered.enumerated().map { index, entry in
                 if previousScore == nil || entry.score != previousScore {
                     currentRank = index + 1
                 }
@@ -196,63 +213,67 @@ final class CompetitionStore: ObservableObject {
                     powerliftingBreakdown: entry.powerliftingBreakdown
                 )
             }
-        }
-        let snapshotDate = leaderboardSnapshotDate(referenceDate: referenceDate)
-        var filtered = repository.lifts.filter { $0.leaderboardEligibleAt <= snapshotDate }
-        let profileByID = Dictionary(uniqueKeysWithValues: repository.profiles.map { ($0.id, $0) })
+        } else {
+            var filtered = repository.lifts.filter { $0.leaderboardEligibleAt <= snapshotDate }
+            let profileByID = Dictionary(uniqueKeysWithValues: repository.profiles.map { ($0.id, $0) })
 
-        if let exerciseID = filters.exerciseID {
-            filtered = filtered.filter { $0.exerciseID == exerciseID }
-        }
-        if let repetitionCount = filters.repetitionCount {
-            filtered = filtered.filter { $0.repetitions == repetitionCount }
-        }
-        if let status = filters.verificationLevel {
-            let evidenceStatus: LiftEvidenceStatus = status == .selfReported ? .selfReported : .videoBacked
-            filtered = filtered.filter { $0.resolvedEvidenceStatus == evidenceStatus }
-        }
-        if let gymID = filters.gymID {
-            filtered = filtered.filter { $0.gymID == gymID }
-        }
-        if let city = filters.city, !city.isEmpty {
-            filtered = filtered.filter {
-                profileByID[$0.userID]?.city.caseInsensitiveCompare(city) == .orderedSame
+            if let exerciseID = filters.exerciseID {
+                filtered = filtered.filter { $0.exerciseID == exerciseID }
             }
-        }
-        if let state = filters.state, !state.isEmpty {
-            filtered = filtered.filter {
-                profileByID[$0.userID]?.state.caseInsensitiveCompare(state) == .orderedSame
+            if let repetitionCount = filters.repetitionCount {
+                filtered = filtered.filter { $0.repetitions == repetitionCount }
             }
-        }
-        if let sexCategory = filters.sexCategory {
-            filtered = filtered.filter { profileByID[$0.userID]?.sexCategory == sexCategory }
-        }
-        if let ageGroup = filters.ageGroup, !ageGroup.isEmpty {
-            filtered = filtered.filter { profileByID[$0.userID]?.ageGroup == ageGroup }
-        }
-        if let experienceLevel = filters.experienceLevel {
-            filtered = filtered.filter { profileByID[$0.userID]?.experienceLevel == experienceLevel }
-        }
-        if let weightClassID = filters.weightClassID {
-            filtered = filtered.filter { lift in
-                guard let profile = profileByID[lift.userID] else { return false }
-                return RankingCalculator.weightClass(
-                    for: lift.bodyweightAtLift,
-                    sexCategory: profile.sexCategory,
-                    classes: weightClasses
-                )?.id == weightClassID
+            if let status = filters.verificationLevel {
+                let evidenceStatus: LiftEvidenceStatus = status == .selfReported ? .selfReported : .videoBacked
+                filtered = filtered.filter { $0.resolvedEvidenceStatus == evidenceStatus }
             }
-        }
-        filtered = filtered.filter { isLift($0, inTimeRange: filters.timeRange) }
+            if let gymID = filters.gymID {
+                filtered = filtered.filter { $0.gymID == gymID }
+            }
+            if let city = filters.city, !city.isEmpty {
+                filtered = filtered.filter {
+                    profileByID[$0.userID]?.city.caseInsensitiveCompare(city) == .orderedSame
+                }
+            }
+            if let state = filters.state, !state.isEmpty {
+                filtered = filtered.filter {
+                    profileByID[$0.userID]?.state.caseInsensitiveCompare(state) == .orderedSame
+                }
+            }
+            if let sexCategory = filters.sexCategory {
+                filtered = filtered.filter { profileByID[$0.userID]?.sexCategory == sexCategory }
+            }
+            if let ageGroup = filters.ageGroup, !ageGroup.isEmpty {
+                filtered = filtered.filter { profileByID[$0.userID]?.ageGroup == ageGroup }
+            }
+            if let experienceLevel = filters.experienceLevel {
+                filtered = filtered.filter { profileByID[$0.userID]?.experienceLevel == experienceLevel }
+            }
+            if let weightClassID = filters.weightClassID {
+                filtered = filtered.filter { lift in
+                    guard let profile = profileByID[lift.userID] else { return false }
+                    return RankingCalculator.weightClass(
+                        for: lift.bodyweightAtLift,
+                        sexCategory: profile.sexCategory,
+                        classes: weightClasses
+                    )?.id == weightClassID
+                }
+            }
+            filtered = filtered.filter { isLift($0, inTimeRange: filters.timeRange) }
 
-        return RankingCalculator.leaderboardEntries(
-            profiles: repository.profiles,
-            lifts: filtered,
-            rankingType: filters.rankingType,
-            verifiedOnly: verifiedOnly,
-            currentUserID: repository.currentProfile.id,
-            exerciseID: filters.exerciseID
-        )
+            entries = RankingCalculator.leaderboardEntries(
+                profiles: repository.profiles,
+                lifts: filtered,
+                rankingType: filters.rankingType,
+                verifiedOnly: verifiedOnly,
+                currentUserID: repository.currentProfile.id,
+                exerciseID: filters.exerciseID
+            )
+        }
+
+        cachedLeaderboardSignature = signature
+        cachedLeaderboardEntries = entries
+        return entries
     }
 
     func selectLeaderboardExercise(_ exerciseID: String?) {
@@ -553,6 +574,16 @@ final class CompetitionStore: ObservableObject {
             return true
         }
     }
+}
+
+private struct LeaderboardCacheSignature: Equatable {
+    let snapshotDate: Date
+    let filters: LeaderboardFilters
+    let verifiedOnly: Bool
+    let currentUserID: UUID
+    let lifts: [LiftSubmission]
+    let profiles: [UserProfile]
+    let remoteEntries: [LeaderboardEntry]?
 }
 
 extension CompetitionStore: WorkoutPRLiftSubmitting {
