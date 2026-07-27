@@ -144,9 +144,11 @@ extension DemoRepository {
     private func earnedAchievementTitles() -> [String] {
         let stats = computedStatistics()
         let bodyweightKilograms = RankingCalculator.poundsToKilograms(currentProfile.bodyweightPounds)
-        let maxBench = maxVerifiedOrCompletedOneRepKilograms(for: "bench")
-        let maxSquat = maxVerifiedOrCompletedOneRepKilograms(for: "squat")
-        let maxDeadlift = maxVerifiedOrCompletedOneRepKilograms(for: "deadlift")
+        let userLifts = currentUserLifts
+        let strengthMaxes = verifiedOrCompletedOneRepKilogramsByExercise(userLifts: userLifts)
+        let maxBench = strengthMaxes["bench"] ?? 0
+        let maxSquat = strengthMaxes["squat"] ?? 0
+        let maxDeadlift = strengthMaxes["deadlift"] ?? 0
         let powerliftingTotal = maxBench + maxSquat + maxDeadlift
         var titles: [String] = []
         func add(_ title: String, when condition: Bool) { if condition { titles.append(title) } }
@@ -163,9 +165,9 @@ extension DemoRepository {
         add("300 Workouts", when: stats.totalWorkouts >= 300)
         add("500 Workouts", when: stats.totalWorkouts >= 500)
         add("1,000 Workouts", when: stats.totalWorkouts >= 1_000)
-        add("First Lift Logged", when: !currentUserLifts.isEmpty)
-        add("3 Lifts Logged", when: currentUserLifts.count >= 3)
-        add("10 Lifts Logged", when: currentUserLifts.count >= 10)
+        add("First Lift Logged", when: !userLifts.isEmpty)
+        add("3 Lifts Logged", when: userLifts.count >= 3)
+        add("10 Lifts Logged", when: userLifts.count >= 10)
         add("First Verified Lift", when: stats.verifiedLiftCount >= 1)
         add("Five Verified Lifts", when: stats.verifiedLiftCount >= 5)
         add("Ten Verified Lifts", when: stats.verifiedLiftCount >= 10)
@@ -228,12 +230,15 @@ extension DemoRepository {
         for tier in StrengthTier.allCases where tier != .unranked && tier <= strengthTier {
             add("\(tier.label) Rival", when: true)
         }
-        add("Bodyweight Logged", when: bodyweightEntries.contains { $0.actual != nil })
-        add("4 Bodyweight Logs", when: bodyweightEntries.filter { $0.actual != nil }.count >= 4)
-        add("12 Bodyweight Logs", when: bodyweightEntries.filter { $0.actual != nil }.count >= 12)
-        add("18 Bodyweight Logs", when: bodyweightEntries.filter { $0.actual != nil }.count >= 18)
-        add("26 Bodyweight Logs", when: bodyweightEntries.filter { $0.actual != nil }.count >= 26)
-        add("52 Bodyweight Logs", when: bodyweightEntries.filter { $0.actual != nil }.count >= 52)
+        let actualBodyweightEntryCount = bodyweightEntries.reduce(0) { count, entry in
+            count + (entry.actual == nil ? 0 : 1)
+        }
+        add("Bodyweight Logged", when: actualBodyweightEntryCount >= 1)
+        add("4 Bodyweight Logs", when: actualBodyweightEntryCount >= 4)
+        add("12 Bodyweight Logs", when: actualBodyweightEntryCount >= 12)
+        add("18 Bodyweight Logs", when: actualBodyweightEntryCount >= 18)
+        add("26 Bodyweight Logs", when: actualBodyweightEntryCount >= 26)
+        add("52 Bodyweight Logs", when: actualBodyweightEntryCount >= 52)
         add("3-Day Workout Streak", when: stats.currentStreak >= 3)
         add("7-Day Workout Streak", when: stats.currentStreak >= 7)
         add("14-Day Workout Streak", when: stats.currentStreak >= 14)
@@ -261,18 +266,25 @@ extension DemoRepository {
         return titles
     }
 
-    private func maxVerifiedOrCompletedOneRepKilograms(for rankingExerciseID: String) -> Double {
-        let liftBest = currentUserLifts.filter { $0.exerciseID == rankingExerciseID && $0.repetitions == 1 }.map(\.normalizedWeightKilograms).max() ?? 0
-        let workoutBest = completedWorkouts.flatMap { workout in
-            workout.completedWorkingSets.compactMap { log -> Double? in
+    private func verifiedOrCompletedOneRepKilogramsByExercise(userLifts: [LiftSubmission]) -> [String: Double] {
+        let trackedExerciseIDs: Set<String> = ["bench", "squat", "deadlift"]
+        var bestByExercise: [String: Double] = [:]
+        for lift in userLifts where lift.repetitions == 1 && trackedExerciseIDs.contains(lift.exerciseID) {
+            bestByExercise[lift.exerciseID] = max(bestByExercise[lift.exerciseID] ?? 0, lift.normalizedWeightKilograms)
+        }
+        for workout in completedWorkouts {
+            let exerciseByID = Dictionary(uniqueKeysWithValues: workout.exercises.map { ($0.id, $0) })
+            for log in workout.completedWorkingSets {
                 guard log.reps == 1,
-                      let exercise = workout.exercises.first(where: { $0.id == log.prescriptionID }),
-                      exercise.rankingExerciseID == rankingExerciseID,
-                      let weight = log.weight else { return nil }
-                return log.recordedUnit == .kilograms ? weight : RankingCalculator.poundsToKilograms(weight)
+                      let exercise = exerciseByID[log.prescriptionID],
+                      let rankingExerciseID = exercise.rankingExerciseID,
+                      trackedExerciseIDs.contains(rankingExerciseID),
+                      let weight = log.weight else { continue }
+                let kilograms = log.recordedUnit == .kilograms ? weight : RankingCalculator.poundsToKilograms(weight)
+                bestByExercise[rankingExerciseID] = max(bestByExercise[rankingExerciseID] ?? 0, kilograms)
             }
-        }.max() ?? 0
-        return max(liftBest, workoutBest)
+        }
+        return bestByExercise
     }
 
     private var currentUserLifts: [LiftSubmission] {
