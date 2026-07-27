@@ -68,6 +68,30 @@ struct WorkoutSummaryView: View {
             }
     }
 
+    private var projectedStrengthTierSummary: StrengthTierSummary {
+        let workout = appState.activeWorkout
+        let performances = currentWorkoutWorkingSets.compactMap { set -> StrengthLiftPerformance? in
+            guard let workout,
+                  let exercise = workout.exercises.first(where: { $0.id == set.prescriptionID }),
+                  RankingCalculator.strengthTierExerciseIDs.contains(exercise.exerciseID),
+                  let weight = set.weight, weight > 0,
+                  let repetitions = set.reps, (1...10).contains(repetitions) else { return nil }
+            let kilograms = MeasurementFormatting.normalizeToKilograms(weight, unit: set.recordedUnit)
+            return StrengthLiftPerformance(
+                exerciseID: exercise.exerciseID,
+                estimatedOneRepMaxKilograms: RankingCalculator.epleyOneRepMax(
+                    weight: kilograms,
+                    repetitions: repetitions
+                )
+            )
+        }
+        return appState.strengthTierSummary(including: performances)
+    }
+
+    private var advancedStrengthLifts: [LiftTierProgress] {
+        projectedStrengthTierSummary.advancedLifts(comparedTo: appState.strengthTierSummary)
+    }
+
     var body: some View {
         NavigationStack {
             AppBackground {
@@ -126,6 +150,10 @@ struct WorkoutSummaryView: View {
 
                         if !prCandidates.isEmpty {
                             prSubmissionSection
+                        }
+
+                        if !advancedStrengthLifts.isEmpty {
+                            rivalTierProgressSection
                         }
 
                         if !newlyUnlockedAchievements.isEmpty {
@@ -230,6 +258,33 @@ struct WorkoutSummaryView: View {
                 Text("When enabled, only canonical lift PRs with an attached video are posted publicly as Video-backed. PRs without video stay private.")
             }
         }
+    }
+
+    private var rivalTierProgressSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Rival Tier progress", systemImage: "medal.fill")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(Color.liftGold)
+            ForEach(advancedStrengthLifts) { lift in
+                HStack {
+                    Text(lift.exerciseName)
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Text(lift.currentTier.label)
+                        .font(.subheadline.weight(.black))
+                        .foregroundStyle(Color.liftGold)
+                }
+            }
+            if projectedStrengthTierSummary.overallTier > appState.strengthTierSummary.overallTier {
+                Text("Overall Rival Tier advanced to \(projectedStrengthTierSummary.overallTier.label).")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.liftText)
+            }
+        }
+        .padding(14)
+        .background(Color.liftGold.opacity(0.09))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityIdentifier("workoutSummary.rivalTierProgress")
     }
 
     private var prSubmissionSection: some View {

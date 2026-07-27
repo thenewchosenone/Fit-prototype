@@ -51,6 +51,10 @@ final class TrainingProgressStore {
 
     var completedWorkouts: [CompletedWorkout] { repository.completedWorkouts }
     var strengthTierSummary: StrengthTierSummary {
+        strengthTierSummary(including: [])
+    }
+
+    func strengthTierSummary(including additionalPerformances: [StrengthLiftPerformance]) -> StrengthTierSummary {
         var bestEstimatedMaxByExercise: [String: Double] = [:]
         for workout in repository.completedWorkouts {
             for exercise in workout.exercises where RankingCalculator.strengthTierExerciseIDs.contains(exercise.exerciseID) {
@@ -68,7 +72,7 @@ final class TrainingProgressStore {
         }
         let performances = bestEstimatedMaxByExercise.map {
             StrengthLiftPerformance(exerciseID: $0.key, estimatedOneRepMaxKilograms: $0.value)
-        }
+        } + additionalPerformances
         return RankingCalculator.strengthTierSummary(
             performances: performances,
             bodyweightKilograms: RankingCalculator.poundsToKilograms(repository.currentProfile.bodyweightPounds),

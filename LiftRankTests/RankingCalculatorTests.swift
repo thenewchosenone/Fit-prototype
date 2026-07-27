@@ -423,6 +423,29 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertTrue(summary.liftProgress.allSatisfy { $0.progressToNextTier == 1 })
     }
 
+    func testStrengthTierSummaryReportsOnlyAdvancedLifts() {
+        let previous = RankingCalculator.strengthTierSummary(
+            performances: [
+                StrengthLiftPerformance(exerciseID: "squat", estimatedOneRepMaxKilograms: 100),
+                StrengthLiftPerformance(exerciseID: "bench", estimatedOneRepMaxKilograms: 75),
+                StrengthLiftPerformance(exerciseID: "deadlift", estimatedOneRepMaxKilograms: 125)
+            ],
+            bodyweightKilograms: 100,
+            sexCategory: .male
+        )
+        let projected = RankingCalculator.strengthTierSummary(
+            performances: [
+                StrengthLiftPerformance(exerciseID: "squat", estimatedOneRepMaxKilograms: 150),
+                StrengthLiftPerformance(exerciseID: "bench", estimatedOneRepMaxKilograms: 75),
+                StrengthLiftPerformance(exerciseID: "deadlift", estimatedOneRepMaxKilograms: 125)
+            ],
+            bodyweightKilograms: 100,
+            sexCategory: .male
+        )
+
+        XCTAssertEqual(projected.advancedLifts(comparedTo: previous).map(\.exerciseID), ["squat"])
+    }
+
     func testPowerliftingTotal() {
         XCTAssertEqual(RankingCalculator.powerliftingTotal(bench: 245, squat: 275, deadlift: 495), 1015)
     }

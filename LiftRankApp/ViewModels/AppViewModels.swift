@@ -694,6 +694,9 @@ final class AppState: ObservableObject {
     var activeWorkout: ActiveWorkoutState? { activeWorkoutStore.workout }
     var completedWorkouts: [CompletedWorkout] { trainingProgressStore.completedWorkouts }
     var strengthTierSummary: StrengthTierSummary { trainingProgressStore.strengthTierSummary }
+    func strengthTierSummary(including performances: [StrengthLiftPerformance]) -> StrengthTierSummary {
+        trainingProgressStore.strengthTierSummary(including: performances)
+    }
     var pendingWorkoutPRSubmissions: [PendingWorkoutPRSubmission] { workoutPRSubmissionStore.pendingSubmissions }
     var workoutPreferences: WorkoutPreferences { workoutPRSubmissionStore.preferences }
     var workoutProgramTemplates: [WorkoutProgramTemplate] { WorkoutProgramCatalog.templates }

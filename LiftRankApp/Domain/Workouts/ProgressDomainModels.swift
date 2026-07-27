@@ -63,6 +63,13 @@ struct StrengthTierSummary: Hashable {
     var nextTier: StrengthTier? {
         StrengthTier.allCases.first { $0 > overallTier }
     }
+
+    func advancedLifts(comparedTo previous: StrengthTierSummary) -> [LiftTierProgress] {
+        let previousByExercise = Dictionary(uniqueKeysWithValues: previous.liftProgress.map { ($0.exerciseID, $0.currentTier) })
+        return liftProgress.filter { lift in
+            lift.currentTier > (previousByExercise[lift.exerciseID] ?? .unranked)
+        }
+    }
 }
 
 struct PlateauPerformance: Identifiable, Hashable {
