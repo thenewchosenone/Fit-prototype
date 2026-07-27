@@ -2706,6 +2706,19 @@ final class RankingCalculatorTests: XCTestCase {
         logs[0].weight = 225
         logs[0].reps = 5
         repository.updateWorkoutSetLog(logs[0])
+        repository.updateWorkoutSetLog(WorkoutSetLog(
+            id: UUID(),
+            prescriptionID: exercise.id,
+            performedAt: .now,
+            setNumber: 0,
+            weight: 135,
+            reps: 10,
+            rpe: nil,
+            isWarmup: false,
+            isComplete: false,
+            workoutID: store.workout?.id,
+            recordedUnit: .pounds
+        ))
 
         XCTAssertTrue(store.attemptAutomaticCompletion(before: logs[1]))
         XCTAssertEqual(store.completedWorkingSets.map(\.id), [logs[0].id])

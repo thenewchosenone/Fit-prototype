@@ -416,14 +416,14 @@ final class ActiveWorkoutStore {
     @discardableResult
     func attemptAutomaticCompletion(before log: WorkoutSetLog) -> Bool {
         guard let workout else { return false }
-        let logs = repository.workoutSetLogs
-            .filter { $0.workoutID == workout.id && $0.prescriptionID == log.prescriptionID }
-            .sorted { $0.setNumber < $1.setNumber }
-        guard let currentIndex = logs.firstIndex(where: { $0.id == log.id }), currentIndex > 0 else {
-            return false
+        var previous: WorkoutSetLog?
+        for candidate in repository.workoutSetLogs where candidate.workoutID == workout.id && candidate.prescriptionID == log.prescriptionID {
+            guard candidate.setNumber < log.setNumber else { continue }
+            if previous?.setNumber ?? 0 < candidate.setNumber {
+                previous = candidate
+            }
         }
-
-        let previous = logs[currentIndex - 1]
+        guard let previous else { return false }
         let exerciseSnapshot = workout.exercises.first { $0.id == previous.prescriptionID }
         let catalogExercise = exerciseSnapshot.flatMap { snapshot in
             MockData.trainingExerciseLibrary.first { $0.id == snapshot.exerciseID }
