@@ -148,8 +148,14 @@ final class CompetitionStore: ObservableObject {
     }
 
     var overallScore: Double {
-        let best = currentUserLifts.map(\.estimatedOneRepMax).max() ?? 0
-        let recentProgress = currentUserLifts.isEmpty ? 0.0 : 74.0
+        let userLifts = currentUserLifts
+        let total = RankingCalculator.totalForUser(repository.currentProfile.id, lifts: repository.lifts)
+        let relativeTotal = RankingCalculator.relativeTotal(
+            total: total,
+            bodyweight: repository.currentProfile.bodyweightPounds
+        )
+        let best = userLifts.map(\.estimatedOneRepMax).max() ?? 0
+        let recentProgress = userLifts.isEmpty ? 0.0 : 74.0
         return RankingCalculator.overallScore(
             relativeStrength: min(100, relativeTotal * 22),
             absoluteStrength: min(100, best / 6),
