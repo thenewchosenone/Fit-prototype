@@ -2873,7 +2873,7 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(added.setNumber, bench.defaultSets + 1)
         XCTAssertTrue(store.setLogs(for: exercise).contains { $0.id == added.id })
 
-        let candidates = store.prCandidates(existingLifts: [])
+        let candidates = store.prCandidates(existingLifts: [], liftsRevision: repository.liftsRevision)
         XCTAssertEqual(candidates.count, 1)
         XCTAssertEqual(candidates.first?.setID, first.id)
         XCTAssertEqual(candidates.first?.rankingExerciseID, "bench")
