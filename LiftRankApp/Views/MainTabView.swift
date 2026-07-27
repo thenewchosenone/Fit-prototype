@@ -226,10 +226,10 @@ struct AwardsView: View {
         let unlockedAchievements = achievements.filter { unlockedTitles.contains($0.title) }
         let progressAchievements = achievements.filter { !unlockedTitles.contains($0.title) }
         let preferredUnit = appState.currentProfile.preferredUnit
-        let currentUserLifts = appState.currentUserLifts
-        let bestBench = RankingCalculator.bestLift(exerciseID: "bench", submissions: currentUserLifts)
-        let bestSquat = RankingCalculator.bestLift(exerciseID: "squat", submissions: currentUserLifts)
-        let bestDeadlift = RankingCalculator.bestLift(exerciseID: "deadlift", submissions: currentUserLifts)
+        let bestStrengthLifts = appState.bestStrengthLifts
+        let bestBench = bestStrengthLifts["bench"]
+        let bestSquat = bestStrengthLifts["squat"]
+        let bestDeadlift = bestStrengthLifts["deadlift"]
         AppBackground {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {

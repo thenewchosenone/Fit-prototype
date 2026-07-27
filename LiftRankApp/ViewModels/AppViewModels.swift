@@ -874,6 +874,10 @@ final class AppState: ObservableObject {
         competitionStore.currentUserLifts
     }
 
+    var bestStrengthLifts: [String: LiftSubmission] {
+        competitionStore.bestStrengthLifts
+    }
+
     var selectedWorkoutPlan: WorkoutPlan? {
         programStore.plan(id: selectedWorkoutPlanID)
     }

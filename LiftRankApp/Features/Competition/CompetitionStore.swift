@@ -35,6 +35,8 @@ final class CompetitionStore: ObservableObject {
     private var cachedPowerliftingTotalSignature: CurrentUserLiftsSignature?
     private var cachedOverallScore: Double?
     private var cachedOverallScoreSignature: OverallScoreSignature?
+    private var cachedBestStrengthLifts: [String: LiftSubmission]?
+    private var cachedBestStrengthLiftsSignature: CurrentUserLiftsSignature?
 
     init(
         repository: any CompetitionRepository,
@@ -164,6 +166,25 @@ final class CompetitionStore: ObservableObject {
         cachedPowerliftingTotal = total
         cachedPowerliftingTotalSignature = signature
         return total
+    }
+
+    var bestStrengthLifts: [String: LiftSubmission] {
+        let signature = CurrentUserLiftsSignature(
+            currentUserID: repository.currentProfile.id,
+            liftsRevision: repository.liftsRevision
+        )
+        if let cachedBestStrengthLifts, cachedBestStrengthLiftsSignature == signature {
+            return cachedBestStrengthLifts
+        }
+        let lifts = currentUserLifts
+        let best = [
+            "bench": RankingCalculator.bestLift(exerciseID: "bench", submissions: lifts),
+            "squat": RankingCalculator.bestLift(exerciseID: "squat", submissions: lifts),
+            "deadlift": RankingCalculator.bestLift(exerciseID: "deadlift", submissions: lifts)
+        ].compactMapValues { $0 }
+        cachedBestStrengthLifts = best
+        cachedBestStrengthLiftsSignature = signature
+        return best
     }
 
     var relativeTotal: Double {
