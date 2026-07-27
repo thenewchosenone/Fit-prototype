@@ -26,6 +26,8 @@ struct ActiveWorkoutDisplayState: Equatable {
     let exercises: [WorkoutExerciseSnapshot]
     let completedWorkingSets: Int
     let plannedWorkingSets: Int
+    let completedExercises: Int
+    let totalVolume: Double
     let progressByExerciseID: [UUID: ActiveWorkoutExerciseProgress]
 }
 
@@ -58,6 +60,8 @@ final class ActiveWorkoutStore {
                 exercises: [],
                 completedWorkingSets: 0,
                 plannedWorkingSets: 0,
+                completedExercises: 0,
+                totalVolume: 0,
                 progressByExerciseID: [:]
             )
         }
@@ -68,6 +72,8 @@ final class ActiveWorkoutStore {
         var progressByExerciseID: [UUID: ActiveWorkoutExerciseProgress] = [:]
         var completedWorkingSets = 0
         var plannedWorkingSets = 0
+        var completedExerciseIDs: Set<UUID> = []
+        var totalVolume = 0.0
 
         for exercise in exercises {
             let workingLogs = (logsByExerciseID[exercise.id] ?? []).filter { !$0.isWarmup }
@@ -75,6 +81,10 @@ final class ActiveWorkoutStore {
             let completed = workingLogs.filter(\.isComplete).count
             completedWorkingSets += completed
             plannedWorkingSets += planned
+            if completed > 0 { completedExerciseIDs.insert(exercise.id) }
+            totalVolume += workingLogs.filter(\.isComplete).reduce(0) { total, log in
+                total + trackingAwareVolume(for: log, workout: workout)
+            }
             progressByExerciseID[exercise.id] = ActiveWorkoutExerciseProgress(
                 completedWorkingSets: completed,
                 plannedWorkingSets: planned
@@ -85,6 +95,8 @@ final class ActiveWorkoutStore {
             exercises: exercises,
             completedWorkingSets: completedWorkingSets,
             plannedWorkingSets: plannedWorkingSets,
+            completedExercises: completedExerciseIDs.count,
+            totalVolume: totalVolume,
             progressByExerciseID: progressByExerciseID
         )
     }

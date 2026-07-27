@@ -5,6 +5,7 @@ struct PrescriptionTrackView: View {
     let exercise: WorkoutExerciseSnapshot
     @State private var restEndsAt: Date?
     @State private var showingExerciseInfo = false
+    @State private var cachedPreviousLogsBySetNumber: [Int: WorkoutSetLog] = [:]
     @FocusState private var focusedInput: WorkoutSetInputFocus?
 
     var body: some View {
@@ -19,8 +20,9 @@ struct PrescriptionTrackView: View {
                         VStack(alignment: .leading, spacing: 10) {
                             let logs = activeLogs
                             let completedLogs = completedLogs(in: logs)
-                            let previousLogs = previousLogsBySetNumber(for: logs)
-                            let progress = appState.activeWorkoutExerciseProgress(for: exercise)
+                            let previousLogs = cachedPreviousLogsBySetNumber
+                            let progress = appState.activeWorkoutDisplayState.progressByExerciseID[exercise.id]
+                                ?? appState.activeWorkoutExerciseProgress(for: exercise)
                             VStack(alignment: .leading, spacing: 12) {
                                 HStack(spacing: 12) {
                                     ExerciseCatalogIcon(exercise: catalogExercise)
@@ -130,7 +132,14 @@ struct PrescriptionTrackView: View {
         }
         .onAppear {
             ensureTargetSetsExist()
+            refreshPreviousLogs()
             restoreRestTimer()
+        }
+        .onChange(of: activeLogs.map(\.setNumber)) {
+            refreshPreviousLogs()
+        }
+        .onChange(of: appState.completedWorkouts.count) {
+            refreshPreviousLogs()
         }
     }
 
@@ -162,6 +171,10 @@ struct PrescriptionTrackView: View {
         logs.reduce(0) { total, log in
             total + setVolume(log)
         }
+    }
+
+    private func refreshPreviousLogs() {
+        cachedPreviousLogsBySetNumber = previousLogsBySetNumber(for: activeLogs)
     }
 
     private func previousLogsBySetNumber(for logs: [WorkoutSetLog]) -> [Int: WorkoutSetLog] {

@@ -286,12 +286,11 @@ struct WorkoutSessionRunView: View {
             ProgressView(value: Double(completedSetCount), total: Double(max(1, plannedSetCount)))
                 .tint(Color.liftBlue)
 
-            let summary = appState.activeWorkoutSummary()
             HStack(spacing: 14) {
-                Label("\(summary?.completedExercises ?? 0)/\(summary?.totalExercises ?? 0) exercises", systemImage: "dumbbell.fill")
+                Label("\(displayState.completedExercises)/\(displayState.exercises.count) exercises", systemImage: "dumbbell.fill")
                 Label("\(completedSetCount)/\(plannedSetCount) sets", systemImage: "checkmark.circle.fill")
                 Spacer()
-                Text("\(Int(summary?.totalVolume ?? 0)) \(workout.unit.shortLabel)")
+                Text("\(Int(displayState.totalVolume)) \(workout.unit.shortLabel)")
                     .monospacedDigit()
             }
             .font(.caption.weight(.semibold))
