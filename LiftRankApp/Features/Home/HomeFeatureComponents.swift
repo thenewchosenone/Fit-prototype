@@ -398,13 +398,14 @@ extension HomeView {
     }
 
     var recentPRs: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let recentLifts = Array(appState.currentUserLifts.prefix(3))
+        return VStack(alignment: .leading, spacing: 12) {
             dashboardSectionHeader("Recent PRs", actionTitle: "Submit lift") {
                 appState.showingSubmitSheet = true
             }
 
             VStack(spacing: 0) {
-                ForEach(Array(appState.currentUserLifts.prefix(3).enumerated()), id: \.element.id) { index, lift in
+                ForEach(Array(recentLifts.enumerated()), id: \.element.id) { index, lift in
                     Button {
                         selectedRecentPR = lift
                     } label: {
@@ -440,7 +441,7 @@ extension HomeView {
                     .accessibilityLabel("Open \(lift.exerciseName) PR, \(MeasurementFormatting.formatRecordedWeight(lift.weight, unit: lift.unit)), \(lift.resolvedEvidenceStatus.displayName)")
                     .accessibilityHint(liftHasVideo(lift) ? "Shows PR video and attempt details" : "Shows the workout set and attempt details")
 
-                    if index < min(2, appState.currentUserLifts.count - 1) {
+                    if index < recentLifts.count - 1 {
                         Divider()
                             .overlay(Color.liftSeparator)
                     }
