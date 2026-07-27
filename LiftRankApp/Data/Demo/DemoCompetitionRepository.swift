@@ -128,16 +128,17 @@ extension DemoRepository {
     }
 
     func refreshAchievementUnlocks(now: Date = .now) {
-        let existingByTitle = Dictionary(uniqueKeysWithValues: achievementUnlocks.map { ($0.title, $0) })
-        var refreshed: [AchievementUnlock] = []
+        var refreshedByTitle = achievementUnlocks.reduce(into: [String: AchievementUnlock]()) { result, unlock in
+            result[unlock.title] = unlock
+        }
         for title in earnedAchievementTitles() {
-            refreshed.append(existingByTitle[title] ?? AchievementUnlock(
+            refreshedByTitle[title] = refreshedByTitle[title] ?? AchievementUnlock(
                 id: title.lowercased().replacingOccurrences(of: " ", with: "-"),
                 title: title,
                 unlockedAt: now
-            ))
+            )
         }
-        let sortedUnlocks = refreshed.sorted { $0.unlockedAt > $1.unlockedAt }
+        let sortedUnlocks = refreshedByTitle.values.sorted { $0.unlockedAt > $1.unlockedAt }
         if achievementUnlocks != sortedUnlocks {
             achievementUnlocks = sortedUnlocks
         }

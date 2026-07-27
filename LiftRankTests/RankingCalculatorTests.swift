@@ -2025,6 +2025,20 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
+    func testAchievementRefreshPreservesPreviouslyUnlockedAwards() {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        repository.lifts = []
+        repository.completedWorkouts = []
+        repository.achievementUnlocks = [
+            AchievementUnlock(id: "first-workout", title: "First Workout", unlockedAt: .now)
+        ]
+
+        repository.refreshAchievementUnlocks()
+
+        XCTAssertTrue(repository.achievementUnlocks.contains { $0.title == "First Workout" })
+    }
+
+    @MainActor
     func testVolumeAwardsNormalizeRecordedUnitsToKilograms() {
         let poundsRepository = DemoRepository()
         var poundsWorkout = makeCompletedWorkout(completedAt: .now)
