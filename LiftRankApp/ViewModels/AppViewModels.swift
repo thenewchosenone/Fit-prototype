@@ -698,6 +698,7 @@ final class AppState: ObservableObject {
         return statistics
     }
     var notifications: [NotificationItem] { notificationStore.notifications }
+    var sortedNotifications: [NotificationItem] { notificationStore.sortedNotifications }
     var unreadNotificationCount: Int { notificationStore.unreadCount }
     var workoutPlans: [WorkoutPlan] { repository.workoutPlans }
     var workoutPhases: [WorkoutPhase] { repository.workoutPhases }

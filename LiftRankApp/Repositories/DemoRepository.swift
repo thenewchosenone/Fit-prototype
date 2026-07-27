@@ -13,7 +13,7 @@ final class DemoRepository: ObservableObject {
     @Published var lifts: [LiftSubmission] { didSet { liftsRevision &+= 1 } }
     @Published var challenges: [Challenge]
     @Published var achievements: [Achievement]
-    @Published var notifications: [NotificationItem]
+    @Published var notifications: [NotificationItem] { didSet { notificationsRevision &+= 1 } }
     @Published var workoutPlans: [WorkoutPlan]
     @Published var workoutPhases: [WorkoutPhase]
     @Published var workoutWeeks: [WorkoutWeek]
@@ -46,6 +46,7 @@ final class DemoRepository: ObservableObject {
     private let seedDemoData: Bool
     private(set) var liftsRevision = 0
     private(set) var workoutSetLogsRevision = 0
+    private(set) var notificationsRevision = 0
 
     init(
         workoutPersistenceStore: WorkoutPersistenceStore? = nil,

@@ -187,6 +187,7 @@ protocol ProfileRepository: AnyObject {
 protocol NotificationRepository: AnyObject {
     var currentProfile: UserProfile { get }
     var notifications: [NotificationItem] { get set }
+    var notificationsRevision: Int { get }
     var notificationChanges: AnyPublisher<Void, Never> { get }
 }
 

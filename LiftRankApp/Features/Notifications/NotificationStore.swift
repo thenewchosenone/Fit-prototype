@@ -8,6 +8,10 @@ final class NotificationStore: ObservableObject {
     private var notificationService: (any NotificationService)?
     private var cancellable: AnyCancellable?
     private var cachedUserID: UUID
+    private var cachedUnreadCountRevision: Int?
+    private var cachedUnreadCount: Int?
+    private var cachedSortedNotificationsRevision: Int?
+    private var cachedSortedNotifications: [NotificationItem]?
 
     init(
         repository: any NotificationRepository,
@@ -63,7 +67,26 @@ final class NotificationStore: ObservableObject {
     }
 
     var notifications: [NotificationItem] { repository.notifications }
-    var unreadCount: Int { notifications.lazy.filter { !$0.isRead }.count }
+    var sortedNotifications: [NotificationItem] {
+        let revision = repository.notificationsRevision
+        if let cachedSortedNotifications, cachedSortedNotificationsRevision == revision {
+            return cachedSortedNotifications
+        }
+        let sorted = repository.notifications.sorted { $0.createdAt > $1.createdAt }
+        cachedSortedNotifications = sorted
+        cachedSortedNotificationsRevision = revision
+        return sorted
+    }
+    var unreadCount: Int {
+        let revision = repository.notificationsRevision
+        if let cachedUnreadCount, cachedUnreadCountRevision == revision {
+            return cachedUnreadCount
+        }
+        let count = repository.notifications.lazy.filter { !$0.isRead }.count
+        cachedUnreadCount = count
+        cachedUnreadCountRevision = revision
+        return count
+    }
 
     func replaceNotifications(_ notifications: [NotificationItem]) {
         repository.notifications = notifications.filter(isEnabled)
@@ -72,6 +95,7 @@ final class NotificationStore: ObservableObject {
     func clear() {
         repository.notifications = []
         cachedUserID = repository.currentProfile.id
+        clearNotificationCaches()
     }
 
     func markRead(_ notificationID: UUID) {
@@ -135,7 +159,15 @@ final class NotificationStore: ObservableObject {
     private func resetAccountScopedCacheIfNeeded() {
         guard cachedUserID != repository.currentProfile.id else { return }
         cachedUserID = repository.currentProfile.id
+        clearNotificationCaches()
         repository.notifications = []
+    }
+
+    private func clearNotificationCaches() {
+        cachedUnreadCount = nil
+        cachedUnreadCountRevision = nil
+        cachedSortedNotifications = nil
+        cachedSortedNotificationsRevision = nil
     }
 
     private static func persistedDeviceID() -> String {

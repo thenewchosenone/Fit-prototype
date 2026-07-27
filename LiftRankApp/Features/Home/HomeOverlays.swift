@@ -285,7 +285,7 @@ struct HomeNotificationCenterView: View {
                         if appState.notifications.isEmpty {
                             emptyState
                         } else {
-                            ForEach(appState.notifications.sorted(by: { $0.createdAt > $1.createdAt })) { notification in
+                            ForEach(appState.sortedNotifications) { notification in
                                 Button {
                                     appState.openNotification(notification)
                                     dismiss()
