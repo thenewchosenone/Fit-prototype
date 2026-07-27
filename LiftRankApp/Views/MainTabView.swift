@@ -9,23 +9,20 @@ struct MainTabView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            ZStack {
-                tabRoot(.home) {
-                    NavigationStack { HomeView() }
-                }
-                tabRoot(.leaderboards) {
-                    NavigationStack { LeaderboardsView() }
-                }
-                tabRoot(.track) {
-                    TrainingTrackerView(
-                        startOnProgress: appState.trainingTrackerStartOnProgress,
-                        isEmbeddedInTab: true
-                    )
-                }
-                tabRoot(.profile) {
-                    NavigationStack { MeHubView() }
-                }
+            TabView(selection: $router.selectedTab) {
+                NavigationStack { HomeView() }
+                    .tag(AppTab.home)
+                NavigationStack { LeaderboardsView() }
+                    .tag(AppTab.leaderboards)
+                TrainingTrackerView(
+                    startOnProgress: appState.trainingTrackerStartOnProgress,
+                    isEmbeddedInTab: true
+                )
+                .tag(AppTab.track)
+                NavigationStack { MeHubView() }
+                    .tag(AppTab.profile)
             }
+            .toolbar(.hidden, for: .tabBar)
             .ignoresSafeArea(.keyboard)
             .safeAreaInset(edge: .bottom) {
                 FloatingTabBar(
@@ -48,16 +45,6 @@ struct MainTabView: View {
                 AuthenticationView().environmentObject(appState)
             }
         }
-    }
-
-    @ViewBuilder
-    private func tabRoot<Content: View>(_ tab: AppTab, @ViewBuilder content: () -> Content) -> some View {
-        let isSelected = router.selectedTab == tab
-        content()
-            .opacity(isSelected ? 1 : 0)
-            .allowsHitTesting(isSelected)
-            .accessibilityHidden(!isSelected)
-            .zIndex(isSelected ? 1 : 0)
     }
 
     private var tabItems: [FloatingTabItem] {
