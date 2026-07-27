@@ -41,6 +41,7 @@ final class DemoRepository: ObservableObject {
     @Published var rankingHistory: [RankingHistorySnapshot]
     private let workoutPersistenceStore: WorkoutPersistenceStore
     private var persistenceCancellables = Set<AnyCancellable>()
+    private var pendingPersistenceTask: Task<Void, Never>?
     private var isRestoringWorkoutSnapshot = false
     private let seedDemoData: Bool
 
@@ -201,12 +202,27 @@ final class DemoRepository: ObservableObject {
             $rankingHistory.dropFirst().map { _ in () }.eraseToAnyPublisher()
         ]
         Publishers.MergeMany(publishers)
-            .sink { [weak self] in self?.persistWorkoutSnapshot() }
+            .sink { [weak self] in self?.scheduleWorkoutSnapshotPersistence() }
             .store(in: &persistenceCancellables)
+    }
+
+    private func scheduleWorkoutSnapshotPersistence() {
+        guard !isRestoringWorkoutSnapshot else { return }
+        pendingPersistenceTask?.cancel()
+        pendingPersistenceTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                self?.pendingPersistenceTask = nil
+                self?.persistWorkoutSnapshot()
+            }
+        }
     }
 
     func persistWorkoutSnapshot() {
         guard !isRestoringWorkoutSnapshot else { return }
+        pendingPersistenceTask?.cancel()
+        pendingPersistenceTask = nil
         workoutPersistenceStore.saveSnapshot(
             WorkoutPersistenceSnapshot(
                 schemaVersion: WorkoutPersistenceSnapshot.currentVersion,

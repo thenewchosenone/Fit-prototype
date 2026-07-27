@@ -692,10 +692,14 @@ final class AppState: ObservableObject {
     var strainEntries: [StrainEntry] { trainingProgressStore.strainEntries }
     var injuryEntries: [InjuryEntry] { trainingProgressStore.injuryEntries }
     var activeWorkout: ActiveWorkoutState? { activeWorkoutStore.workout }
+    var activeWorkoutDisplayState: ActiveWorkoutDisplayState { activeWorkoutStore.displayState }
     var completedWorkouts: [CompletedWorkout] { trainingProgressStore.completedWorkouts }
     var strengthTierSummary: StrengthTierSummary { trainingProgressStore.strengthTierSummary }
     func strengthTierSummary(including performances: [StrengthLiftPerformance]) -> StrengthTierSummary {
         trainingProgressStore.strengthTierSummary(including: performances)
+    }
+    func persistLocalWorkoutSnapshot() {
+        repository.persistWorkoutSnapshot()
     }
     var pendingWorkoutPRSubmissions: [PendingWorkoutPRSubmission] { workoutPRSubmissionStore.pendingSubmissions }
     var workoutPreferences: WorkoutPreferences { workoutPRSubmissionStore.preferences }

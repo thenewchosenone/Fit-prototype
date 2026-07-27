@@ -9,6 +9,7 @@ struct LiftRankApp: App {
     private let modelContainer: ModelContainer?
     private let localDataError: String?
     @StateObject private var appState: AppState
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("liftrank.appearance") private var appearanceValue = LiftAppearance.system.rawValue
 
     init() {
@@ -70,6 +71,10 @@ struct LiftRankApp: App {
         .onReceive(NotificationCenter.default.publisher(for: .liftRankDidReceivePushToken)) { notification in
             guard let token = notification.object as? String else { return }
             Task { await appState.registerPushToken(token) }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase != .active else { return }
+            appState.persistLocalWorkoutSnapshot()
         }
     }
 }

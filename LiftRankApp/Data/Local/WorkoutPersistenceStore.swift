@@ -12,6 +12,7 @@ protocol WorkoutPersistenceStore: AnyObject {
 @MainActor
 final class InMemoryWorkoutPersistenceStore: WorkoutPersistenceStore {
     private(set) var snapshot: WorkoutPersistenceSnapshot?
+    private(set) var saveCount = 0
     var legacyRecords: [LegacyWorkoutRecordValue]
 
     init(snapshot: WorkoutPersistenceSnapshot? = nil, legacyRecords: [LegacyWorkoutRecordValue] = []) {
@@ -20,11 +21,15 @@ final class InMemoryWorkoutPersistenceStore: WorkoutPersistenceStore {
     }
 
     func loadSnapshot() -> WorkoutPersistenceSnapshot? { snapshot }
-    func saveSnapshot(_ snapshot: WorkoutPersistenceSnapshot) { self.snapshot = snapshot }
+    func saveSnapshot(_ snapshot: WorkoutPersistenceSnapshot) {
+        saveCount += 1
+        self.snapshot = snapshot
+    }
     func legacyWorkoutRecords() -> [LegacyWorkoutRecordValue] { legacyRecords }
 
     func reset() {
         snapshot = nil
+        saveCount = 0
         legacyRecords = []
     }
 }

@@ -39,6 +39,8 @@ final class TrainingProgressStore {
     private let repository: any TrainingProgressRepository
     private let calendar: Calendar
     private var cachedUserID: UUID
+    private var cachedStrengthTierSummary: StrengthTierSummary?
+    private var cachedStrengthTierSignature: StrengthTierSignature?
 
     init(
         repository: any TrainingProgressRepository,
@@ -51,10 +53,25 @@ final class TrainingProgressStore {
 
     var completedWorkouts: [CompletedWorkout] { repository.completedWorkouts }
     var strengthTierSummary: StrengthTierSummary {
-        strengthTierSummary(including: [])
+        let signature = StrengthTierSignature(
+            completedWorkouts: repository.completedWorkouts,
+            profile: repository.currentProfile
+        )
+        if let cachedStrengthTierSummary, cachedStrengthTierSignature == signature {
+            return cachedStrengthTierSummary
+        }
+        let summary = calculateStrengthTierSummary(including: [])
+        cachedStrengthTierSignature = signature
+        cachedStrengthTierSummary = summary
+        return summary
     }
 
     func strengthTierSummary(including additionalPerformances: [StrengthLiftPerformance]) -> StrengthTierSummary {
+        guard !additionalPerformances.isEmpty else { return strengthTierSummary }
+        return calculateStrengthTierSummary(including: additionalPerformances)
+    }
+
+    private func calculateStrengthTierSummary(including additionalPerformances: [StrengthLiftPerformance]) -> StrengthTierSummary {
         let performances = RankingCalculator.strengthPerformances(from: repository.completedWorkouts) + additionalPerformances
         return RankingCalculator.strengthTierSummary(
             performances: performances,
@@ -103,6 +120,8 @@ final class TrainingProgressStore {
     private func resetAccountScopedEntriesIfNeeded() {
         guard cachedUserID != repository.currentProfile.id else { return }
         cachedUserID = repository.currentProfile.id
+        cachedStrengthTierSummary = nil
+        cachedStrengthTierSignature = nil
         repository.clearTrainingHealthEntries()
     }
 
@@ -384,5 +403,59 @@ final class TrainingProgressStore {
             return "Legs"
         }
         return "Push"
+    }
+}
+
+private struct StrengthTierSignature: Equatable {
+    let bodyweightPounds: Double
+    let sexCategory: SexCategory
+    let workoutValues: [WorkoutValue]
+
+    init(completedWorkouts: [CompletedWorkout], profile: UserProfile) {
+        bodyweightPounds = profile.bodyweightPounds
+        sexCategory = profile.sexCategory
+        workoutValues = completedWorkouts.map { WorkoutValue(workout: $0) }
+    }
+
+    struct WorkoutValue: Equatable {
+        let id: UUID
+        let completedAt: Date
+        let exercises: [ExerciseValue]
+        let sets: [SetValue]
+
+        init(workout: CompletedWorkout) {
+            id = workout.id
+            completedAt = workout.completedAt
+            exercises = workout.exercises.map {
+                ExerciseValue(id: $0.id, exerciseID: $0.exerciseID, rankingExerciseID: $0.rankingExerciseID)
+            }
+            sets = workout.sets.map {
+                SetValue(
+                    id: $0.id,
+                    prescriptionID: $0.prescriptionID,
+                    weight: $0.weight,
+                    reps: $0.reps,
+                    isWarmup: $0.isWarmup,
+                    isComplete: $0.isComplete,
+                    recordedUnit: $0.recordedUnit
+                )
+            }
+        }
+    }
+
+    struct ExerciseValue: Equatable {
+        let id: UUID
+        let exerciseID: String
+        let rankingExerciseID: String?
+    }
+
+    struct SetValue: Equatable {
+        let id: UUID
+        let prescriptionID: UUID
+        let weight: Double?
+        let reps: Int?
+        let isWarmup: Bool
+        let isComplete: Bool
+        let recordedUnit: UnitSystem
     }
 }

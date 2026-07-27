@@ -31,9 +31,10 @@ struct WorkoutSessionRunView: View {
     @State private var showSummaryAfterSheetDismiss = false
 
     private var workout: ActiveWorkoutState? { appState.activeWorkout }
-    private var exercises: [WorkoutExerciseSnapshot] { workout?.exercises.sorted { $0.order < $1.order } ?? [] }
-    private var completedSetCount: Int { appState.activeWorkoutCompletedWorkingSets.count }
-    private var plannedSetCount: Int { appState.activeWorkoutPlannedWorkingSetCount }
+    private var displayState: ActiveWorkoutDisplayState { appState.activeWorkoutDisplayState }
+    private var exercises: [WorkoutExerciseSnapshot] { displayState.exercises }
+    private var completedSetCount: Int { displayState.completedWorkingSets }
+    private var plannedSetCount: Int { displayState.plannedWorkingSets }
 
     var body: some View {
         NavigationStack {
@@ -61,7 +62,8 @@ struct WorkoutSessionRunView: View {
                                     }
 
                                     ForEach(exercises) { exercise in
-                                        let progress = appState.activeWorkoutExerciseProgress(for: exercise)
+                                        let progress = displayState.progressByExerciseID[exercise.id]
+                                            ?? appState.activeWorkoutExerciseProgress(for: exercise)
                                         ExerciseSwipeActionRow(
                                             isEnabled: true,
                                             showsSubstituteAction: !progress.isComplete,

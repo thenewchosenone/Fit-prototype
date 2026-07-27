@@ -2365,6 +2365,70 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
+    func testWorkoutSetEditsCoalesceSnapshotPersistence() async throws {
+        let persistence = InMemoryWorkoutPersistenceStore()
+        let repository = DemoRepository(workoutPersistenceStore: persistence, seedDemoData: false)
+        let store = ActiveWorkoutStore(repository: repository)
+        let workout = try XCTUnwrap(store.startFreestyle(
+            name: "Coalesced Logging",
+            gymID: nil,
+            bodyweight: 200,
+            unit: .pounds
+        ))
+        let exercise = try XCTUnwrap(MockData.trainingExerciseLibrary.first { $0.id == "barbell_bench_press" })
+        store.addExercises([exercise])
+        var log = try XCTUnwrap(repository.workoutSetLogs.first { $0.workoutID == workout.id })
+        repository.persistWorkoutSnapshot()
+        let baselineSaveCount = persistence.saveCount
+
+        log.reps = 5
+        store.updateSet(log)
+        log.weight = 185
+        store.updateSet(log)
+        log.rpe = 8
+        store.updateSet(log)
+
+        try await Task.sleep(for: .milliseconds(500))
+        XCTAssertEqual(persistence.saveCount, baselineSaveCount + 1)
+
+        log.weight = 190
+        store.updateSet(log)
+        repository.persistWorkoutSnapshot()
+        XCTAssertEqual(persistence.saveCount, baselineSaveCount + 2)
+    }
+
+    @MainActor
+    func testActiveWorkoutDisplayStateTracksSetProgress() throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore(), seedDemoData: false)
+        let store = ActiveWorkoutStore(repository: repository)
+        let workout = try XCTUnwrap(store.startFreestyle(
+            name: "Display State",
+            gymID: nil,
+            bodyweight: 200,
+            unit: .pounds
+        ))
+        let exercise = try XCTUnwrap(MockData.trainingExerciseLibrary.first { $0.id == "back_squat" })
+        store.addExercises([exercise])
+        let activeExercise = try XCTUnwrap(store.workout?.exercises.first)
+        let log = try XCTUnwrap(repository.workoutSetLogs.first { $0.workoutID == workout.id })
+
+        XCTAssertEqual(store.displayState.exercises.map(\.id), [activeExercise.id])
+        XCTAssertEqual(store.displayState.completedWorkingSets, 0)
+        XCTAssertEqual(store.displayState.plannedWorkingSets, activeExercise.targetSets)
+        XCTAssertEqual(store.displayState.progressByExerciseID[activeExercise.id]?.completedWorkingSets, 0)
+
+        _ = store.applySetCompletion(log, isComplete: true, source: .manual)
+
+        XCTAssertEqual(store.displayState.completedWorkingSets, 1)
+        XCTAssertEqual(store.displayState.progressByExerciseID[activeExercise.id]?.completedWorkingSets, 1)
+
+        store.deleteSet(log)
+
+        XCTAssertEqual(store.displayState.completedWorkingSets, 0)
+        XCTAssertEqual(store.displayState.progressByExerciseID[activeExercise.id]?.completedWorkingSets, 0)
+    }
+
+    @MainActor
     func testProgramStoreOwnsSelectedPlanProjectionsAndLifecycle() throws {
         let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
         let createdAt = Date(timeIntervalSince1970: 1_900_200_000)

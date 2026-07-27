@@ -283,6 +283,17 @@ struct AwardsView: View {
                         .buttonStyle(.borderedProminent)
                         .tint(Color.liftGold)
                         .accessibilityIdentifier("awards.shareRivalTier")
+                    } else {
+                        Button {
+                            prepareRivalTierShareImage(summary: tierSummary)
+                        } label: {
+                            Label("Prepare Rival Tier card", systemImage: "square.and.arrow.up")
+                                .font(.headline.weight(.bold))
+                                .frame(maxWidth: .infinity, minHeight: 50)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color.liftGold)
+                        .accessibilityIdentifier("awards.shareRivalTier")
                     }
 
                     VStack(alignment: .leading, spacing: 12) {
@@ -332,15 +343,19 @@ struct AwardsView: View {
         .navigationTitle("Awards")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("awards.screen")
-        .task(id: tierSummary) {
-            let renderer = ImageRenderer(content: RivalTierShareCard(
-                profile: appState.currentProfile,
-                summary: tierSummary,
-                preferredUnit: appState.currentProfile.preferredUnit
-            ))
-            renderer.scale = 2
-            rivalTierShareImage = renderer.uiImage.map(Image.init(uiImage:))
+        .onChange(of: tierSummary) { _, _ in
+            rivalTierShareImage = nil
         }
+    }
+
+    private func prepareRivalTierShareImage(summary: StrengthTierSummary) {
+        let renderer = ImageRenderer(content: RivalTierShareCard(
+            profile: appState.currentProfile,
+            summary: summary,
+            preferredUnit: appState.currentProfile.preferredUnit
+        ))
+        renderer.scale = 2
+        rivalTierShareImage = renderer.uiImage.map(Image.init(uiImage:))
     }
 
     private func strengthLiftRow(_ lift: LiftTierProgress) -> some View {

@@ -22,6 +22,13 @@ struct ActiveWorkoutExerciseProgress: Equatable {
     }
 }
 
+struct ActiveWorkoutDisplayState: Equatable {
+    let exercises: [WorkoutExerciseSnapshot]
+    let completedWorkingSets: Int
+    let plannedWorkingSets: Int
+    let progressByExerciseID: [UUID: ActiveWorkoutExerciseProgress]
+}
+
 @MainActor
 final class ActiveWorkoutStore {
     private let repository: any ActiveWorkoutRepository
@@ -43,6 +50,43 @@ final class ActiveWorkoutStore {
     var workout: ActiveWorkoutState? {
         resetAccountScopedDraftIfNeeded()
         return repository.activeWorkout
+    }
+
+    var displayState: ActiveWorkoutDisplayState {
+        guard let workout else {
+            return ActiveWorkoutDisplayState(
+                exercises: [],
+                completedWorkingSets: 0,
+                plannedWorkingSets: 0,
+                progressByExerciseID: [:]
+            )
+        }
+
+        let exercises = workout.exercises.sorted { $0.order < $1.order }
+        let activeLogs = repository.workoutSetLogs.filter { $0.workoutID == workout.id }
+        let logsByExerciseID = Dictionary(grouping: activeLogs, by: \.prescriptionID)
+        var progressByExerciseID: [UUID: ActiveWorkoutExerciseProgress] = [:]
+        var completedWorkingSets = 0
+        var plannedWorkingSets = 0
+
+        for exercise in exercises {
+            let workingLogs = (logsByExerciseID[exercise.id] ?? []).filter { !$0.isWarmup }
+            let planned = workingLogs.isEmpty ? exercise.targetSets : workingLogs.count
+            let completed = workingLogs.filter(\.isComplete).count
+            completedWorkingSets += completed
+            plannedWorkingSets += planned
+            progressByExerciseID[exercise.id] = ActiveWorkoutExerciseProgress(
+                completedWorkingSets: completed,
+                plannedWorkingSets: planned
+            )
+        }
+
+        return ActiveWorkoutDisplayState(
+            exercises: exercises,
+            completedWorkingSets: completedWorkingSets,
+            plannedWorkingSets: plannedWorkingSets,
+            progressByExerciseID: progressByExerciseID
+        )
     }
 
     @discardableResult
@@ -194,6 +238,7 @@ final class ActiveWorkoutStore {
     func discard() {
         repository.discardActiveWorkout()
         restNotificationScheduler.cancel()
+        repository.persistWorkoutSnapshot()
     }
 
     func deleteCompletedWorkout(_ workout: CompletedWorkout) {
@@ -238,6 +283,7 @@ final class ActiveWorkoutStore {
             return nil
         }
         restNotificationScheduler.cancel()
+        repository.persistWorkoutSnapshot()
         return completed
     }
 

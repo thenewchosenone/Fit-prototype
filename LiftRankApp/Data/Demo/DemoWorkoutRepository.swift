@@ -410,7 +410,6 @@ extension DemoRepository {
         } else {
             workoutSetLogs.append(log)
         }
-        persistWorkoutSnapshot()
     }
 
     @discardableResult
@@ -452,7 +451,6 @@ extension DemoRepository {
         log.completionSource = isComplete ? source : nil
         log.hasTriggeredRestTimer = isComplete
         workoutSetLogs[index] = log
-        persistWorkoutSnapshot()
         return log
     }
 

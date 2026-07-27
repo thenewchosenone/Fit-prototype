@@ -199,6 +199,14 @@ struct LoopingGIFView: UIViewRepresentable {
         }
     }
 
+    static func dismantleUIView(_ uiView: UIImageView, coordinator: Coordinator) {
+        uiView.stopAnimating()
+        uiView.animationImages = nil
+        uiView.image = nil
+        coordinator.animation = nil
+        coordinator.loadedURL = nil
+    }
+
     final class Coordinator {
         var loadedURL: URL?
         fileprivate var animation: GIFAnimation?
