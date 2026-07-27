@@ -150,12 +150,12 @@ struct PrescriptionTrackView: View {
 
     private var keyboardActionTitle: String {
         guard let focusedInput else { return "Next" }
-        return WorkoutSetInputNavigator.next(after: focusedInput, in: activeLogs, trackingKind: trackingKind) == nil ? "Done" : "Next"
+        return WorkoutSetInputNavigator.next(after: focusedInput, in: activeLogs, trackingKind: trackingKind, alreadyOrdered: true) == nil ? "Done" : "Next"
     }
 
     private func advanceKeyboardFocus() {
         guard let focusedInput else { return }
-        guard let nextInput = WorkoutSetInputNavigator.next(after: focusedInput, in: activeLogs, trackingKind: trackingKind) else {
+        guard let nextInput = WorkoutSetInputNavigator.next(after: focusedInput, in: activeLogs, trackingKind: trackingKind, alreadyOrdered: true) else {
             self.focusedInput = nil
             Haptics.light()
             return

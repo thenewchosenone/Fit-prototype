@@ -776,9 +776,13 @@ struct WorkoutSetInputFocus: Hashable {
 }
 
 enum WorkoutSetInputNavigator {
-    static func orderedFocuses(for logs: [WorkoutSetLog], trackingKind: ExerciseTrackingKind = .weightReps) -> [WorkoutSetInputFocus] {
-        let sortedLogs = logs.sorted { $0.setNumber < $1.setNumber }
-        return sortedLogs.flatMap { log in
+    static func orderedFocuses(
+        for logs: [WorkoutSetLog],
+        trackingKind: ExerciseTrackingKind = .weightReps,
+        alreadyOrdered: Bool = false
+    ) -> [WorkoutSetInputFocus] {
+        let orderedLogs = alreadyOrdered ? logs : logs.sorted { $0.setNumber < $1.setNumber }
+        return orderedLogs.flatMap { log in
             if trackingKind.requiresWeight {
                 return [
                     WorkoutSetInputFocus(logID: log.id, field: .reps),
@@ -789,8 +793,13 @@ enum WorkoutSetInputNavigator {
         }
     }
 
-    static func next(after current: WorkoutSetInputFocus, in logs: [WorkoutSetLog], trackingKind: ExerciseTrackingKind = .weightReps) -> WorkoutSetInputFocus? {
-        let focuses = orderedFocuses(for: logs, trackingKind: trackingKind)
+    static func next(
+        after current: WorkoutSetInputFocus,
+        in logs: [WorkoutSetLog],
+        trackingKind: ExerciseTrackingKind = .weightReps,
+        alreadyOrdered: Bool = false
+    ) -> WorkoutSetInputFocus? {
+        let focuses = orderedFocuses(for: logs, trackingKind: trackingKind, alreadyOrdered: alreadyOrdered)
         guard let index = focuses.firstIndex(of: current), focuses.indices.contains(index + 1) else {
             return nil
         }
