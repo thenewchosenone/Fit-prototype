@@ -31,20 +31,17 @@ struct WorkoutSessionRunView: View {
     @State private var showSummaryAfterSheetDismiss = false
 
     private var workout: ActiveWorkoutState? { appState.activeWorkout }
-    private var displayState: ActiveWorkoutDisplayState { appState.activeWorkoutDisplayState }
-    private var exercises: [WorkoutExerciseSnapshot] { displayState.exercises }
-    private var completedSetCount: Int { displayState.completedWorkingSets }
-    private var plannedSetCount: Int { displayState.plannedWorkingSets }
 
     var body: some View {
         NavigationStack {
             AppBackground {
                 if let workout {
+                    let displayState = appState.activeWorkoutDisplayState
                     VStack(spacing: 0) {
-                        activeHeader(workout)
+                        activeHeader(workout, displayState: displayState)
                         ScrollView {
                             VStack(alignment: .leading, spacing: 16) {
-                                if exercises.isEmpty {
+                                if displayState.exercises.isEmpty {
                                     emptyCard
                                 } else {
                                     HStack {
@@ -56,12 +53,12 @@ struct WorkoutSessionRunView: View {
                                                 .font(.caption.weight(.bold))
                                                 .foregroundStyle(Color.liftBlue)
                                         }
-                                        Text("\(completedSetCount)/\(plannedSetCount) working sets")
+                                        Text("\(displayState.completedWorkingSets)/\(displayState.plannedWorkingSets) working sets")
                                             .font(.caption.weight(.bold))
                                             .foregroundStyle(Color.liftMuted)
                                     }
 
-                                    ForEach(exercises) { exercise in
+                                    ForEach(displayState.exercises) { exercise in
                                         let progress = displayState.progressByExerciseID[exercise.id]
                                             ?? appState.activeWorkoutExerciseProgress(for: exercise)
                                         ExerciseSwipeActionRow(
@@ -212,7 +209,7 @@ struct WorkoutSessionRunView: View {
         return MeasurementFormatting.longClockText(Int(workout.elapsedDuration(at: date)))
     }
 
-    private func activeHeader(_ workout: ActiveWorkoutState) -> some View {
+    private func activeHeader(_ workout: ActiveWorkoutState, displayState: ActiveWorkoutDisplayState) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Button { dismiss() } label: {
@@ -283,12 +280,12 @@ struct WorkoutSessionRunView: View {
                     .foregroundStyle(Color.liftGold)
             }
 
-            ProgressView(value: Double(completedSetCount), total: Double(max(1, plannedSetCount)))
+            ProgressView(value: Double(displayState.completedWorkingSets), total: Double(max(1, displayState.plannedWorkingSets)))
                 .tint(Color.liftBlue)
 
             HStack(spacing: 14) {
                 Label("\(displayState.completedExercises)/\(displayState.exercises.count) exercises", systemImage: "dumbbell.fill")
-                Label("\(completedSetCount)/\(plannedSetCount) sets", systemImage: "checkmark.circle.fill")
+                Label("\(displayState.completedWorkingSets)/\(displayState.plannedWorkingSets) sets", systemImage: "checkmark.circle.fill")
                 Spacer()
                 Text("\(Int(displayState.totalVolume)) \(workout.unit.shortLabel)")
                     .monospacedDigit()
