@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct FloatingTabItem: Identifiable {
-    let id = UUID()
+    var id: String { tab.map { String(describing: $0) } ?? "utility-\(title)" }
     let tab: AppTab?
     let icon: String
     let title: String

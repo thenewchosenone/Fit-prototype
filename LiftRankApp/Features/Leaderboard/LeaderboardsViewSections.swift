@@ -2,13 +2,16 @@ import SwiftUI
 
 extension LeaderboardsView {
     var featureBody: some View {
-        AppBackground {
+        let entries = visibleEntries
+        let currentEntry = allEntries.first { $0.profile.id == appState.currentProfile.id }
+
+        return AppBackground {
             VStack(spacing: 0) {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                             LeaderboardMetricStrip(
-                                rank: RankingFormatting.leaderboardRankText(rank: currentUserEntry?.rank),
+                                rank: RankingFormatting.leaderboardRankText(rank: currentEntry?.rank),
                                 lifters: allEntries.count,
                                 ranking: appState.leaderboardFilters.rankingType.rawValue,
                                 nextUpdate: appState.nextLeaderboardUpdateDate(referenceDate: .now)
@@ -34,14 +37,14 @@ extension LeaderboardsView {
                                     .padding(.bottom, 12)
                             }
 
-                            if visibleEntries.isEmpty {
+                            if entries.isEmpty {
                                 emptyState
                                     .padding(.horizontal, 16)
                                     .padding(.top, 12)
                             } else {
                                 Section {
                                     VStack(spacing: 0) {
-                                        ForEach(visibleEntries) { entry in
+                                        ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                                             Button {
                                                 appState.selectedProfile = entry.profile
                                             } label: {
@@ -59,7 +62,7 @@ extension LeaderboardsView {
                                             .accessibilityValue(entry.profile.id == appState.currentProfile.id ? "Current user" : "Other athlete")
                                             .id(entry.profile.id)
 
-                                            if entry.id != visibleEntries.last?.id {
+                                            if index < entries.count - 1 {
                                                 Divider()
                                                     .overlay(Color.white.opacity(0.07))
                                                     .padding(.leading, 72)
@@ -68,7 +71,7 @@ extension LeaderboardsView {
                                     }
                                     .background(Color.liftCard.opacity(0.44))
                                 } header: {
-                                    LeaderboardTableHeader(resultCount: visibleEntries.count, valueTitle: valueColumnTitle)
+                                    LeaderboardTableHeader(resultCount: entries.count, valueTitle: valueColumnTitle)
                                 }
                             }
                         }
