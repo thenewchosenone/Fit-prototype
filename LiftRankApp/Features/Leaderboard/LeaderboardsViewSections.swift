@@ -1,7 +1,18 @@
 import SwiftUI
 
 extension LeaderboardsView {
+    @ViewBuilder
     var featureBody: some View {
+        if appState.router.selectedTab == .leaderboards {
+            leaderboardContent
+        } else {
+            AppBackground {
+                Color.clear
+            }
+        }
+    }
+
+    private var leaderboardContent: some View {
         let leaderboardEntries = allEntries
         let entries = visibleEntries(from: leaderboardEntries)
         let currentEntry = leaderboardEntries.first { $0.profile.id == appState.currentProfile.id }
@@ -87,6 +98,7 @@ extension LeaderboardsView {
                     }
                 }
             }
+        }
             .navigationTitle("Leaderboards")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -136,32 +148,31 @@ extension LeaderboardsView {
             } message: {
                 Text("Enter the exact number of repetitions to include.")
             }
-        }
-        .onAppear {
-            if appState.router.requestsLeaderboardSearch {
+            .onAppear {
+                if appState.router.requestsLeaderboardSearch {
+                    isSearchVisible = true
+                    appState.router.requestsLeaderboardSearch = false
+                }
+            }
+            .onChange(of: appState.router.requestsLeaderboardSearch) { _, requested in
+                guard requested else { return }
                 isSearchVisible = true
                 appState.router.requestsLeaderboardSearch = false
             }
-        }
-        .onChange(of: appState.router.requestsLeaderboardSearch) { _, requested in
-            guard requested else { return }
-            isSearchVisible = true
-            appState.router.requestsLeaderboardSearch = false
-        }
-        .task(id: searchText) {
-            let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard query.count >= 2 else {
-                athleteSearchResults = []
-                return
+            .task(id: searchText) {
+                let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard query.count >= 2 else {
+                    athleteSearchResults = []
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled else { return }
+                athleteSearchResults = await appState.searchAthletes(query)
             }
-            try? await Task.sleep(for: .milliseconds(250))
-            guard !Task.isCancelled else { return }
-            athleteSearchResults = await appState.searchAthletes(query)
-        }
-        .task(id: appState.leaderboardRequestKey) {
-            guard lastRefreshedLeaderboardRequestKey != appState.leaderboardRequestKey else { return }
-            lastRefreshedLeaderboardRequestKey = appState.leaderboardRequestKey
-            await appState.refreshLeaderboard()
-        }
+            .task(id: appState.leaderboardRequestKey) {
+                guard lastRefreshedLeaderboardRequestKey != appState.leaderboardRequestKey else { return }
+                lastRefreshedLeaderboardRequestKey = appState.leaderboardRequestKey
+                await appState.refreshLeaderboard()
+            }
     }
 }
