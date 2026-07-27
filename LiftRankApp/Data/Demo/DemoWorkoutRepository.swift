@@ -413,11 +413,19 @@ extension DemoRepository {
     }
 
     @discardableResult
-    func addWorkoutSetLog(prescriptionID: UUID, setNumber: Int? = nil, workoutID: UUID? = nil, unit: UnitSystem = .pounds) -> WorkoutSetLog {
+    func addWorkoutSetLog(
+        prescriptionID: UUID,
+        setNumber: Int? = nil,
+        workoutID: UUID? = nil,
+        unit: UnitSystem = .pounds,
+        persistImmediately: Bool = true
+    ) -> WorkoutSetLog {
         let nextNumber = setNumber ?? ((workoutSetLogs.filter { $0.prescriptionID == prescriptionID && $0.workoutID == workoutID }.map(\.setNumber).max() ?? 0) + 1)
         let log = WorkoutSetLog(id: UUID(), prescriptionID: prescriptionID, performedAt: .now, setNumber: nextNumber, weight: nil, reps: nil, rpe: nil, isWarmup: false, isComplete: false, workoutID: workoutID, recordedUnit: unit)
         workoutSetLogs.append(log)
-        persistWorkoutSnapshot()
+        if persistImmediately {
+            persistWorkoutSnapshot()
+        }
         return log
     }
 

@@ -226,14 +226,15 @@ final class ActiveWorkoutStore {
     }
 
     @discardableResult
-    func addSet(to exercise: WorkoutExerciseSnapshot) -> WorkoutSetLog? {
+    func addSet(to exercise: WorkoutExerciseSnapshot, persistImmediately: Bool = true) -> WorkoutSetLog? {
         guard let workout else { return nil }
         let nextSetNumber = (setLogs(for: exercise).map(\.setNumber).max() ?? 0) + 1
         return repository.addWorkoutSetLog(
             prescriptionID: exercise.id,
             setNumber: nextSetNumber,
             workoutID: workout.id,
-            unit: workout.unit
+            unit: workout.unit,
+            persistImmediately: persistImmediately
         )
     }
 

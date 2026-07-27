@@ -44,7 +44,8 @@ protocol ActiveWorkoutRepository: AnyObject {
         prescriptionID: UUID,
         setNumber: Int?,
         workoutID: UUID?,
-        unit: UnitSystem
+        unit: UnitSystem,
+        persistImmediately: Bool
     ) -> WorkoutSetLog
 
     func deleteWorkoutSetLog(_ log: WorkoutSetLog)

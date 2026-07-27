@@ -106,12 +106,18 @@ extension AppState {
     @discardableResult
     func addSetLog(to prescription: WorkoutExercisePrescription) -> WorkoutSetLog {
         let nextActiveSet = (activeSetLogs(for: prescription).map(\.setNumber).max() ?? 0) + 1
-        return repository.addWorkoutSetLog(prescriptionID: prescription.id, setNumber: nextActiveSet)
+        return repository.addWorkoutSetLog(
+            prescriptionID: prescription.id,
+            setNumber: nextActiveSet,
+            workoutID: nil,
+            unit: .pounds,
+            persistImmediately: true
+        )
     }
 
     @discardableResult
-    func addSetLog(to exercise: WorkoutExerciseSnapshot) -> WorkoutSetLog? {
-        activeWorkoutStore.addSet(to: exercise)
+    func addSetLog(to exercise: WorkoutExerciseSnapshot, persistImmediately: Bool = true) -> WorkoutSetLog? {
+        activeWorkoutStore.addSet(to: exercise, persistImmediately: persistImmediately)
     }
 
     func deleteSetLog(_ log: WorkoutSetLog) {
