@@ -74,7 +74,7 @@ final class TrainingProgressStore {
     var completedWorkouts: [CompletedWorkout] { repository.completedWorkouts }
     var strengthTierSummary: StrengthTierSummary {
         let signature = StrengthTierSignature(
-            completedWorkouts: repository.completedWorkouts,
+            completedWorkoutsRevision: repository.completedWorkoutsRevision,
             profile: repository.currentProfile
         )
         if let cachedStrengthTierSummary, cachedStrengthTierSignature == signature {
@@ -182,7 +182,7 @@ final class TrainingProgressStore {
     func workoutStreak(referenceDate: Date) -> Int {
         let signature = WorkoutStreakSignature(
             referenceDay: calendar.startOfDay(for: referenceDate),
-            completedWorkouts: repository.completedWorkouts
+            completedWorkoutsRevision: repository.completedWorkoutsRevision
         )
         if let cachedWorkoutStreak,
            cachedWorkoutStreakSignature == signature {
@@ -495,76 +495,22 @@ final class TrainingProgressStore {
 private struct StrengthTierSignature: Equatable {
     let bodyweightPounds: Double
     let sexCategory: SexCategory
-    let workoutValues: [WorkoutValue]
+    let completedWorkoutsRevision: Int
 
-    init(completedWorkouts: [CompletedWorkout], profile: UserProfile) {
+    init(completedWorkoutsRevision: Int, profile: UserProfile) {
         bodyweightPounds = profile.bodyweightPounds
         sexCategory = profile.sexCategory
-        workoutValues = completedWorkouts.map { WorkoutValue(workout: $0) }
-    }
-
-    struct WorkoutValue: Equatable {
-        let id: UUID
-        let completedAt: Date
-        let exercises: [ExerciseValue]
-        let sets: [SetValue]
-
-        init(workout: CompletedWorkout) {
-            id = workout.id
-            completedAt = workout.completedAt
-            exercises = workout.exercises.map {
-                ExerciseValue(id: $0.id, exerciseID: $0.exerciseID, rankingExerciseID: $0.rankingExerciseID)
-            }
-            sets = workout.sets.map {
-                SetValue(
-                    id: $0.id,
-                    prescriptionID: $0.prescriptionID,
-                    weight: $0.weight,
-                    reps: $0.reps,
-                    isWarmup: $0.isWarmup,
-                    isComplete: $0.isComplete,
-                    recordedUnit: $0.recordedUnit
-                )
-            }
-        }
-    }
-
-    struct ExerciseValue: Equatable {
-        let id: UUID
-        let exerciseID: String
-        let rankingExerciseID: String?
-    }
-
-    struct SetValue: Equatable {
-        let id: UUID
-        let prescriptionID: UUID
-        let weight: Double?
-        let reps: Int?
-        let isWarmup: Bool
-        let isComplete: Bool
-        let recordedUnit: UnitSystem
+        self.completedWorkoutsRevision = completedWorkoutsRevision
     }
 }
 
 private struct WorkoutStreakSignature: Equatable {
     let referenceDay: Date
-    let workoutValues: [WorkoutValue]
+    let completedWorkoutsRevision: Int
 
-    init(referenceDay: Date, completedWorkouts: [CompletedWorkout]) {
+    init(referenceDay: Date, completedWorkoutsRevision: Int) {
         self.referenceDay = referenceDay
-        self.workoutValues = completedWorkouts.map { WorkoutValue(workout: $0) }
-    }
-
-    struct WorkoutValue: Equatable {
-        let id: UUID
-        let completedAt: Date
-        let completedWorkingSetCount: Int
-
-        init(workout: CompletedWorkout) {
-            id = workout.id
-            completedAt = workout.completedAt
-            completedWorkingSetCount = workout.completedWorkingSets.count
-        }
+        self.completedWorkoutsRevision = completedWorkoutsRevision
     }
 }
 

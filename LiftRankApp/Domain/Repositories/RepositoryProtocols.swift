@@ -137,6 +137,7 @@ protocol TrainingProgressRepository: AnyObject {
     var workoutSetLogs: [WorkoutSetLog] { get }
     var workoutEntries: [WorkoutExerciseEntry] { get }
     var completedWorkouts: [CompletedWorkout] { get }
+    var completedWorkoutsRevision: Int { get }
     var bodyweightEntries: [BodyweightEntry] { get }
     var strainEntries: [StrainEntry] { get }
     var injuryEntries: [InjuryEntry] { get }
