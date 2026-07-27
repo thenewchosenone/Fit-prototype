@@ -234,8 +234,14 @@ struct WorkoutSessionRunView: View {
 
                 Spacer()
 
-                TimelineView(.periodic(from: .now, by: 5)) { context in
-                    Text(elapsedText(workout, at: context.date))
+                if workout.pausedAt == nil {
+                    TimelineView(.periodic(from: .now, by: 5)) { context in
+                        Text(elapsedText(workout, at: context.date))
+                            .font(.subheadline.weight(.black).monospacedDigit())
+                            .foregroundStyle(Color.liftBlue)
+                    }
+                } else {
+                    Text(elapsedText(workout, at: workout.pausedAt ?? .now))
                         .font(.subheadline.weight(.black).monospacedDigit())
                         .foregroundStyle(Color.liftBlue)
                 }
