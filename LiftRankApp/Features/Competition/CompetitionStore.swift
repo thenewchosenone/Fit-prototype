@@ -29,6 +29,12 @@ final class CompetitionStore: ObservableObject {
     private var achievementRefreshTask: Task<Void, Never>?
     private var cachedLeaderboardEntries: [LeaderboardEntry]?
     private var cachedLeaderboardSignature: LeaderboardCacheSignature?
+    private var cachedCurrentUserLifts: [LiftSubmission]?
+    private var cachedCurrentUserLiftsSignature: CurrentUserLiftsSignature?
+    private var cachedPowerliftingTotal: Double?
+    private var cachedPowerliftingTotalSignature: CurrentUserLiftsSignature?
+    private var cachedOverallScore: Double?
+    private var cachedOverallScoreSignature: OverallScoreSignature?
 
     init(
         repository: any CompetitionRepository,
@@ -127,7 +133,17 @@ final class CompetitionStore: ObservableObject {
     var lifts: [LiftSubmission] { repository.lifts }
 
     var currentUserLifts: [LiftSubmission] {
-        repository.lifts.filter { $0.userID == repository.currentProfile.id }
+        let signature = CurrentUserLiftsSignature(
+            currentUserID: repository.currentProfile.id,
+            lifts: repository.lifts
+        )
+        if let cachedCurrentUserLifts, cachedCurrentUserLiftsSignature == signature {
+            return cachedCurrentUserLifts
+        }
+        let userLifts = repository.lifts.filter { $0.userID == repository.currentProfile.id }
+        cachedCurrentUserLifts = userLifts
+        cachedCurrentUserLiftsSignature = signature
+        return userLifts
     }
 
     var pendingReviewLifts: [LiftSubmission] {
@@ -137,7 +153,17 @@ final class CompetitionStore: ObservableObject {
     }
 
     var powerliftingTotal: Double {
-        RankingCalculator.totalForUser(repository.currentProfile.id, lifts: repository.lifts)
+        let signature = CurrentUserLiftsSignature(
+            currentUserID: repository.currentProfile.id,
+            lifts: repository.lifts
+        )
+        if let cachedPowerliftingTotal, cachedPowerliftingTotalSignature == signature {
+            return cachedPowerliftingTotal
+        }
+        let total = RankingCalculator.totalForUser(repository.currentProfile.id, lifts: repository.lifts)
+        cachedPowerliftingTotal = total
+        cachedPowerliftingTotalSignature = signature
+        return total
     }
 
     var relativeTotal: Double {
@@ -148,19 +174,30 @@ final class CompetitionStore: ObservableObject {
     }
 
     var overallScore: Double {
+        let signature = OverallScoreSignature(
+            currentUserID: repository.currentProfile.id,
+            bodyweightPounds: repository.currentProfile.bodyweightPounds,
+            lifts: repository.lifts
+        )
+        if let cachedOverallScore, cachedOverallScoreSignature == signature {
+            return cachedOverallScore
+        }
         let userLifts = currentUserLifts
-        let total = RankingCalculator.totalForUser(repository.currentProfile.id, lifts: repository.lifts)
+        let total = powerliftingTotal
         let relativeTotal = RankingCalculator.relativeTotal(
             total: total,
             bodyweight: repository.currentProfile.bodyweightPounds
         )
         let best = userLifts.map(\.estimatedOneRepMax).max() ?? 0
         let recentProgress = userLifts.isEmpty ? 0.0 : 74.0
-        return RankingCalculator.overallScore(
+        let score = RankingCalculator.overallScore(
             relativeStrength: min(100, relativeTotal * 22),
             absoluteStrength: min(100, best / 6),
             recentProgress: recentProgress
         )
+        cachedOverallScore = score
+        cachedOverallScoreSignature = signature
+        return score
     }
 
     func leaderboardSnapshotDate(referenceDate: Date) -> Date {
@@ -619,6 +656,48 @@ private struct LeaderboardCacheSignature: Equatable {
     let lifts: [LiftSubmission]
     let profiles: [UserProfile]
     let remoteEntries: [LeaderboardEntry]?
+}
+
+private struct CurrentUserLiftsSignature: Equatable {
+    let currentUserID: UUID
+    private let lifts: [LiftSignature]
+
+    init(currentUserID: UUID, lifts: [LiftSubmission]) {
+        self.currentUserID = currentUserID
+        self.lifts = lifts.map(LiftSignature.init)
+    }
+
+    private struct LiftSignature: Equatable {
+        let id: UUID
+        let userID: UUID
+        let exerciseID: String
+        let repetitions: Int
+        let estimatedOneRepMax: Double
+        let normalizedWeightKilograms: Double
+        let updatedAt: Date
+
+        init(lift: LiftSubmission) {
+            self.id = lift.id
+            self.userID = lift.userID
+            self.exerciseID = lift.exerciseID
+            self.repetitions = lift.repetitions
+            self.estimatedOneRepMax = lift.estimatedOneRepMax
+            self.normalizedWeightKilograms = lift.normalizedWeightKilograms
+            self.updatedAt = lift.updatedAt
+        }
+    }
+}
+
+private struct OverallScoreSignature: Equatable {
+    let currentUserID: UUID
+    let bodyweightPounds: Double
+    private let lifts: CurrentUserLiftsSignature
+
+    init(currentUserID: UUID, bodyweightPounds: Double, lifts: [LiftSubmission]) {
+        self.currentUserID = currentUserID
+        self.bodyweightPounds = bodyweightPounds
+        self.lifts = CurrentUserLiftsSignature(currentUserID: currentUserID, lifts: lifts)
+    }
 }
 
 extension CompetitionStore: WorkoutPRLiftSubmitting {
