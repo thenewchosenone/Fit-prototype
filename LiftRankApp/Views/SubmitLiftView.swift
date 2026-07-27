@@ -43,6 +43,7 @@ struct SubmitLiftView: View {
     @State private var isVideoPickerReady = false
     @State private var showingResult = false
     @State private var submittedLift: LiftSubmission?
+    @State private var isSubmitting = false
     @State private var plateLoads: [EditablePlateLoad] = []
     @State private var barbellWeight = 45.0
     @State private var plateLoadingWasEdited = false
@@ -81,8 +82,11 @@ struct SubmitLiftView: View {
                         videoCard
                         guidanceCard
                         PrimaryButton(title: "Submit lift", symbolName: "paperplane.fill") {
+                            guard !isSubmitting else { return }
+                            isSubmitting = true
                             Task {
                                 submittedLift = await appState.submitLift(exercise: exercise, weight: weight, unit: unit, reps: repetitions, isActual: isActualOneRepMax, bodyweight: bodyweight, date: performedAt, gymID: gymID, equipment: equipment, visibility: visibility, videoURL: selectedVideoURL, caption: caption, requestVerification: requestVerification)
+                                isSubmitting = false
                                 if submittedLift != nil {
                                     showingResult = true
                                 } else {
@@ -92,6 +96,7 @@ struct SubmitLiftView: View {
                         }
                         .accessibilityIdentifier("lift.submit")
                         .disabled(
+                            isSubmitting ||
                             isPreparingVideo ||
                             selectedGym == nil ||
                             !appState.isGymJoined(gymID) ||
