@@ -208,12 +208,12 @@ struct AwardsView: View {
     @EnvironmentObject private var appState: AppState
     @State private var rivalTierShareImage: Image?
 
-    private var unlockedTitles: Set<String> { Set(appState.achievementUnlocks.map(\.title)) }
-    private var unlockedAchievements: [Achievement] { appState.achievements.filter { unlockedTitles.contains($0.title) } }
-    private var progressAchievements: [Achievement] { appState.achievements.filter { !unlockedTitles.contains($0.title) } }
-
     var body: some View {
         let tierSummary = appState.strengthTierSummary
+        let achievements = appState.achievements
+        let unlockedTitles = Set(appState.achievementUnlocks.map(\.title))
+        let unlockedAchievements = achievements.filter { unlockedTitles.contains($0.title) }
+        let progressAchievements = achievements.filter { !unlockedTitles.contains($0.title) }
         AppBackground {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -225,7 +225,7 @@ struct AwardsView: View {
                                 .font(.system(size: 44, weight: .black, design: .rounded))
                             Text("unlocked").font(.headline)
                         }
-                        ProgressView(value: Double(unlockedAchievements.count), total: Double(max(1, appState.achievements.count)))
+                        ProgressView(value: Double(unlockedAchievements.count), total: Double(max(1, achievements.count)))
                             .tint(.white)
                         Text("Celebrate consistent training, personal records, and ranking milestones.")
                             .font(.subheadline)
