@@ -31,12 +31,38 @@ struct ActiveWorkoutDisplayState: Equatable {
     let progressByExerciseID: [UUID: ActiveWorkoutExerciseProgress]
 }
 
+private struct ActiveWorkoutDisplayStateSignature: Equatable {
+    struct ExerciseSignature: Equatable {
+        let id: UUID
+        let order: Int
+        let targetSets: Int
+    }
+
+    struct SetLogSignature: Equatable {
+        let id: UUID
+        let prescriptionID: UUID
+        let setNumber: Int
+        let weight: Double?
+        let reps: Int?
+        let isWarmup: Bool
+        let isComplete: Bool
+        let recordedUnit: UnitSystem
+    }
+
+    let workoutID: UUID?
+    let unit: UnitSystem?
+    let exercises: [ExerciseSignature]
+    let setLogs: [SetLogSignature]
+}
+
 @MainActor
 final class ActiveWorkoutStore {
     private let repository: any ActiveWorkoutRepository
     private let now: () -> Date
     private let restNotificationScheduler: any WorkoutRestNotificationScheduling
     private var cachedUserID: UUID
+    private var cachedDisplayStateSignature: ActiveWorkoutDisplayStateSignature?
+    private var cachedDisplayState: ActiveWorkoutDisplayState?
 
     init(
         repository: any ActiveWorkoutRepository,
@@ -68,6 +94,34 @@ final class ActiveWorkoutStore {
 
         let exercises = workout.exercises.sorted { $0.order < $1.order }
         let activeLogs = repository.workoutSetLogs.filter { $0.workoutID == workout.id }
+        let signature = ActiveWorkoutDisplayStateSignature(
+            workoutID: workout.id,
+            unit: workout.unit,
+            exercises: exercises.map {
+                ActiveWorkoutDisplayStateSignature.ExerciseSignature(
+                    id: $0.id,
+                    order: $0.order,
+                    targetSets: $0.targetSets
+                )
+            },
+            setLogs: activeLogs
+                .map {
+                    ActiveWorkoutDisplayStateSignature.SetLogSignature(
+                        id: $0.id,
+                        prescriptionID: $0.prescriptionID,
+                        setNumber: $0.setNumber,
+                        weight: $0.weight,
+                        reps: $0.reps,
+                        isWarmup: $0.isWarmup,
+                        isComplete: $0.isComplete,
+                        recordedUnit: $0.recordedUnit
+                    )
+                }
+        )
+        if let cachedDisplayState, cachedDisplayStateSignature == signature {
+            return cachedDisplayState
+        }
+
         let logsByExerciseID = Dictionary(grouping: activeLogs, by: \.prescriptionID)
         var progressByExerciseID: [UUID: ActiveWorkoutExerciseProgress] = [:]
         var completedWorkingSets = 0
@@ -91,7 +145,7 @@ final class ActiveWorkoutStore {
             )
         }
 
-        return ActiveWorkoutDisplayState(
+        let displayState = ActiveWorkoutDisplayState(
             exercises: exercises,
             completedWorkingSets: completedWorkingSets,
             plannedWorkingSets: plannedWorkingSets,
@@ -99,6 +153,9 @@ final class ActiveWorkoutStore {
             totalVolume: totalVolume,
             progressByExerciseID: progressByExerciseID
         )
+        cachedDisplayState = displayState
+        cachedDisplayStateSignature = signature
+        return displayState
     }
 
     @discardableResult
