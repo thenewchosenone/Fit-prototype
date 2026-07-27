@@ -5,6 +5,7 @@ struct PrescriptionTrackView: View {
     let exercise: WorkoutExerciseSnapshot
     @State private var restEndsAt: Date?
     @State private var showingExerciseInfo = false
+    @State private var activeLogs: [WorkoutSetLog] = []
     @State private var cachedPreviousLogsBySetNumber: [Int: WorkoutSetLog] = [:]
     @FocusState private var focusedInput: WorkoutSetInputFocus?
 
@@ -132,19 +133,19 @@ struct PrescriptionTrackView: View {
         }
         .onAppear {
             ensureTargetSetsExist()
-            refreshPreviousLogs()
+            refreshActiveLogs()
+            refreshPreviousLogs(for: activeLogs)
             restoreRestTimer()
         }
-        .onChange(of: activeLogs.map(\.setNumber)) {
-            refreshPreviousLogs()
+        .onChange(of: appState.workoutSetLogs) {
+            let previousSetNumbers = activeLogs.map(\.setNumber)
+            refreshActiveLogs()
+            guard previousSetNumbers != activeLogs.map(\.setNumber) else { return }
+            refreshPreviousLogs(for: activeLogs)
         }
         .onChange(of: appState.completedWorkouts.count) {
-            refreshPreviousLogs()
+            refreshPreviousLogs(for: activeLogs)
         }
-    }
-
-    private var activeLogs: [WorkoutSetLog] {
-        appState.setLogs(for: exercise)
     }
 
     private var keyboardActionTitle: String {
@@ -173,8 +174,12 @@ struct PrescriptionTrackView: View {
         }
     }
 
-    private func refreshPreviousLogs() {
-        cachedPreviousLogsBySetNumber = previousLogsBySetNumber(for: activeLogs)
+    private func refreshActiveLogs() {
+        activeLogs = appState.setLogs(for: exercise)
+    }
+
+    private func refreshPreviousLogs(for logs: [WorkoutSetLog]) {
+        cachedPreviousLogsBySetNumber = previousLogsBySetNumber(for: logs)
     }
 
     private func previousLogsBySetNumber(for logs: [WorkoutSetLog]) -> [Int: WorkoutSetLog] {
