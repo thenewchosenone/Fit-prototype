@@ -237,7 +237,7 @@ struct WorkoutSessionRunView: View {
 
                 Spacer()
 
-                TimelineView(.periodic(from: .now, by: 1)) { context in
+                TimelineView(.periodic(from: .now, by: 5)) { context in
                     Text(elapsedText(workout, at: context.date))
                         .font(.subheadline.weight(.black).monospacedDigit())
                         .foregroundStyle(Color.liftBlue)
