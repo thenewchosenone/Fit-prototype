@@ -162,7 +162,7 @@ struct AuthenticationView: View {
                             .focused($focusedField, equals: .email)
                             .onSubmit { focusedField = .password }
                             .padding(16)
-                            .background(Color.liftSurface, in: RoundedRectangle(cornerRadius: 16))
+                            .background(Color.liftCard, in: RoundedRectangle(cornerRadius: 16))
 
                         SecureField("Password", text: $password)
                             .textContentType(isCreatingAccount ? .newPassword : .password)
@@ -170,7 +170,7 @@ struct AuthenticationView: View {
                             .focused($focusedField, equals: .password)
                             .onSubmit { authenticate() }
                             .padding(16)
-                            .background(Color.liftSurface, in: RoundedRectangle(cornerRadius: 16))
+                            .background(Color.liftCard, in: RoundedRectangle(cornerRadius: 16))
                     }
 
                     if let error = account.errorMessage {
@@ -182,7 +182,7 @@ struct AuthenticationView: View {
                     } else if let status = account.statusMessage {
                         Label(status, systemImage: "checkmark.circle.fill")
                             .font(.subheadline)
-                            .foregroundStyle(Color.liftMint)
+                            .foregroundStyle(Color.liftGreen)
                             .multilineTextAlignment(.center)
                     }
 
