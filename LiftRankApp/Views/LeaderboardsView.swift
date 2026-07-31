@@ -42,13 +42,7 @@ struct LeaderboardsView: View {
         if appState.leaderboardFilters.exerciseID != nil { count += 1 }
         if appState.leaderboardFilters.gymID != nil { count += 1 }
         if appState.leaderboardFilters.city != nil || appState.leaderboardFilters.state != nil { count += 1 }
-        if appState.leaderboardFilters.sexCategory != nil { count += 1 }
-        if appState.leaderboardFilters.ageGroup != nil { count += 1 }
         if appState.leaderboardFilters.weightClassID != nil { count += 1 }
-        if appState.leaderboardFilters.experienceLevel != nil { count += 1 }
-        if appState.leaderboardFilters.verificationLevel != nil { count += 1 }
-        if appState.leaderboardFilters.repetitionCount != nil { count += 1 }
-        if appState.leaderboardFilters.timeRange != "All time" { count += 1 }
         return count
     }
 
@@ -78,7 +72,15 @@ struct LeaderboardsView: View {
                                     .transition(.move(edge: .top).combined(with: .opacity))
                             }
 
-                            if visibleEntries.isEmpty {
+                            if appState.isLoadingPublicLeaderboard && !appState.hasLoadedPublicLeaderboard {
+                                loadingState
+                                    .padding(.horizontal, 16)
+                                    .padding(.top, 12)
+                            } else if let error = appState.publicLeaderboardError {
+                                errorState(error)
+                                    .padding(.horizontal, 16)
+                                    .padding(.top, 12)
+                            } else if visibleEntries.isEmpty {
                                 emptyState
                                     .padding(.horizontal, 16)
                                     .padding(.top, 12)
@@ -138,6 +140,9 @@ struct LeaderboardsView: View {
                     }
                     .accessibilityLabel(isSearchVisible ? "Hide leaderboard search" : "Search leaderboard")
                 }
+            }
+            .task(id: appState.leaderboardQueryKey) {
+                await appState.refreshPublicLeaderboard()
             }
             .sheet(item: $activeSelector) { selector in
                 LeaderboardOptionSheet(
@@ -207,37 +212,6 @@ struct LeaderboardsView: View {
                 LeaderboardFilterControl(title: "Exercise", value: exerciseLabel, symbol: "dumbbell.fill") {
                     activeSelector = .exercise
                 }
-                if appState.leaderboardFilters.exerciseID != nil {
-                    LeaderboardFilterControl(title: "Reps", value: repetitionLabel, symbol: "number") {
-                        activeSelector = .repetitions
-                    }
-                }
-                LeaderboardFilterControl(title: "Age", value: appState.leaderboardFilters.ageGroup ?? "All", symbol: "person.text.rectangle") {
-                    activeSelector = .age
-                }
-                LeaderboardFilterControl(title: "Time", value: appState.leaderboardFilters.timeRange, symbol: "calendar") {
-                    activeSelector = .timeRange
-                }
-                LeaderboardFilterControl(title: "Status", value: verificationLabel, symbol: "checkmark.seal.fill") {
-                    activeSelector = .verification
-                }
-                Button {
-                    Haptics.light()
-                    appState.showingLeaderboardFilters = true
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "slider.horizontal.3")
-                        if activeFilterCount > 0 { Text("\(activeFilterCount)") }
-                    }
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.liftBlue)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .padding(.horizontal, 4)
-                    .background(Color.liftCardRaised)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("More filters, \(activeFilterCount) active")
             }
             .padding(.horizontal, 16)
         }
@@ -274,7 +248,7 @@ struct LeaderboardsView: View {
                     .foregroundStyle(Color.liftBlue)
                 Text("No ranked lifters")
                     .font(.headline)
-                Text("Adjust filters or clear search to broaden this leaderboard.")
+                Text("Only approved, video-backed lifts appear. Adjust scope, exercise, or search to broaden this leaderboard.")
                     .font(.subheadline)
                     .foregroundStyle(Color.liftMuted)
                 HStack {
@@ -291,6 +265,36 @@ struct LeaderboardsView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(Color.liftBlue)
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var loadingState: some View {
+        LiftCard {
+            HStack(spacing: 12) {
+                ProgressView().tint(Color.liftBlue)
+                Text("Loading the verified leaderboard...")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func errorState(_ message: String) -> some View {
+        LiftCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Leaderboard unavailable", systemImage: "exclamationmark.triangle.fill")
+                    .font(.headline)
+                    .foregroundStyle(Color.liftRed)
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.liftMuted)
+                Button("Try again") {
+                    Task { await appState.refreshPublicLeaderboard() }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color.liftBlue)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

@@ -115,26 +115,144 @@ struct MainTabView: View {
 
 struct AuthenticationView: View {
     @EnvironmentObject private var appState: AppState
+    @ObservedObject private var account = SupabaseMobileSync.shared
+    @State private var email = ""
+    @State private var password = ""
+    @State private var isCreatingAccount = false
+    @FocusState private var focusedField: Field?
+
+    private enum Field {
+        case email
+        case password
+    }
+
+    private var canSubmit: Bool {
+        email.contains("@") && password.count >= 6 && !account.isBusy
+    }
 
     var body: some View {
         AppBackground {
-            VStack(spacing: 22) {
-                Spacer()
-                Image(systemName: "lock.shield.fill")
-                    .font(.system(size: 64, weight: .bold))
+            ScrollView {
+                VStack(spacing: 22) {
+                    Spacer(minLength: 72)
+
+                    ZStack {
+                        Circle()
+                            .fill(Color.liftBlue.opacity(0.14))
+                            .frame(width: 104, height: 104)
+                        Image(systemName: "lock.shield.fill")
+                            .font(.system(size: 50, weight: .bold))
+                            .foregroundStyle(Color.liftBlue)
+                    }
+
+                    VStack(spacing: 8) {
+                        Text("Lift Rivals")
+                            .font(.largeTitle.bold())
+                        Text(isCreatingAccount ? "Create your shared app and website account." : "Use the same account on mobile and the web.")
+                            .foregroundStyle(Color.liftMuted)
+                            .multilineTextAlignment(.center)
+                    }
+
+                    VStack(spacing: 14) {
+                        TextField("Email address", text: $email)
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.emailAddress)
+                            .textContentType(.emailAddress)
+                            .submitLabel(.next)
+                            .focused($focusedField, equals: .email)
+                            .onSubmit { focusedField = .password }
+                            .padding(16)
+                            .background(Color.liftCard, in: RoundedRectangle(cornerRadius: 16))
+
+                        SecureField("Password", text: $password)
+                            .textContentType(isCreatingAccount ? .newPassword : .password)
+                            .submitLabel(.go)
+                            .focused($focusedField, equals: .password)
+                            .onSubmit { authenticate() }
+                            .padding(16)
+                            .background(Color.liftCard, in: RoundedRectangle(cornerRadius: 16))
+                    }
+
+                    if let error = account.errorMessage {
+                        Label(error, systemImage: "exclamationmark.triangle.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                            .accessibilityLabel("Authentication error: (error)")
+                    } else if let status = account.statusMessage {
+                        Label(status, systemImage: "checkmark.circle.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.liftGreen)
+                            .multilineTextAlignment(.center)
+                    }
+
+                    Button(action: authenticate) {
+                        HStack {
+                            if account.isBusy {
+                                ProgressView()
+                                    .tint(.black)
+                            }
+                            Text(account.isBusy ? "Connecting..." : (isCreatingAccount ? "Create account" : "Sign in"))
+                                .fontWeight(.bold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.liftBlue)
+                    .foregroundStyle(.black)
+                    .disabled(!canSubmit)
+
+                    Button(isCreatingAccount ? "Already have an account? Sign in" : "New to Lift Rivals? Create an account") {
+                        isCreatingAccount.toggle()
+                        focusedField = .email
+                    }
+                    .fontWeight(.semibold)
                     .foregroundStyle(Color.liftBlue)
-                Text("LiftRank")
-                    .font(.largeTitle.bold())
-                Text("Demo mode runs locally without Supabase credentials.")
+                    .frame(minHeight: 44)
+
+                    Button("Continue offline") {
+                        appState.showingAuthentication = false
+                    }
                     .foregroundStyle(Color.liftMuted)
-                    .multilineTextAlignment(.center)
-                PrimaryButton(title: "Continue in Demo Mode", symbolName: "person.crop.circle.badge.checkmark") {
-                    appState.showingAuthentication = false
-                    Haptics.success()
+                    .frame(minHeight: 44)
+
+                    Text("Profile and completed workout data sync only after successful Supabase authentication. Offline activity remains on this device.")
+                        .font(.footnote)
+                        .foregroundStyle(Color.liftMuted)
+                        .multilineTextAlignment(.center)
+
+                    Spacer(minLength: 32)
                 }
-                Spacer()
+                .padding(.horizontal, 24)
+                .frame(maxWidth: 520)
+                .frame(maxWidth: .infinity)
             }
-            .padding()
+        }
+        .onAppear { focusedField = .email }
+    }
+
+    private func authenticate() {
+        guard canSubmit else { return }
+        Task {
+            let succeeded: Bool
+            if isCreatingAccount {
+                succeeded = await account.signUp(
+                    email: email.trimmingCharacters(in: .whitespacesAndNewlines),
+                    password: password,
+                    repository: appState.repository
+                )
+            } else {
+                succeeded = await account.signIn(
+                    email: email.trimmingCharacters(in: .whitespacesAndNewlines),
+                    password: password,
+                    repository: appState.repository
+                )
+            }
+            if succeeded {
+                appState.showingAuthentication = false
+                Haptics.success()
+            }
         }
     }
 }
