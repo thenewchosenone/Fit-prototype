@@ -147,9 +147,10 @@ final class SupabaseMobileSync: ObservableObject {
             if !workouts.isEmpty {
                 try await syncWorkouts(workouts)
             }
+            let workoutSuffix = workouts.count == 1 ? "" : "s"
             statusMessage = workouts.isEmpty
                 ? "Profile synced."
-                : "Profile and (workouts.count) completed workout(workouts.count == 1 ? "" : "s") synced."
+                : "Profile and \(workouts.count) completed workout\(workoutSuffix) synced."
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -212,7 +213,7 @@ final class SupabaseMobileSync: ObservableObject {
             method: "GET",
             queryItems: [
                 URLQueryItem(name: "select", value: "payload"),
-                URLQueryItem(name: "user_id", value: "eq.(current.userID.uuidString)"),
+                URLQueryItem(name: "user_id", value: "eq.\(current.userID.uuidString)"),
                 URLQueryItem(name: "limit", value: "1")
             ],
             bearer: current.accessToken
@@ -274,7 +275,7 @@ final class SupabaseMobileSync: ObservableObject {
         let cleanUsername = profile.username.trimmingCharacters(in: CharacterSet(charactersIn: "@"))
         let payload: [String: Any] = [
             "username": cleanUsername,
-            "handle": cleanUsername.isEmpty ? "" : "@(cleanUsername)",
+            "handle": cleanUsername.isEmpty ? "" : "@\(cleanUsername)",
             "displayName": profile.displayName,
             "ageGroup": profile.ageGroup,
             "sexCategory": profile.sexCategory.rawValue,
@@ -339,7 +340,7 @@ final class SupabaseMobileSync: ObservableObject {
             let day = dayKey(feedback.completedAt)
 
             return [
-                "id": "(session.id.uuidString)-(day)",
+                "id": "\(session.id.uuidString)-\(day)",
                 "name": session.name,
                 "completedAt": isoFormatter.string(from: feedback.completedAt),
                 "durationSeconds": Int(duration),
@@ -356,7 +357,7 @@ final class SupabaseMobileSync: ObservableObject {
         }
 
         let legacyGroups = Dictionary(grouping: repository.workoutEntries.filter(.isDone)) {
-            "($0.planID.uuidString)|(dayKey($0.date))|($0.workout)"
+            "\($0.planID.uuidString)|\(dayKey($0.date))|\($0.workout)"
         }
         let legacyPayloads = legacyGroups.values.compactMap { entries -> [String: Any]? in
             guard let first = entries.first else { return nil }
@@ -385,7 +386,7 @@ final class SupabaseMobileSync: ObservableObject {
                 .replacingOccurrences(of: " ", with: "-")
 
             return [
-                "id": "legacy-(first.planID.uuidString)-(dayKey(completedAt))-(safeName)",
+                "id": "legacy-\(first.planID.uuidString)-\(dayKey(completedAt))-\(safeName)",
                 "name": first.workout,
                 "completedAt": isoFormatter.string(from: completedAt),
                 "durationSeconds": 0,
@@ -470,7 +471,7 @@ final class SupabaseMobileSync: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue(publishableKey, forHTTPHeaderField: "apikey")
-        request.setValue("Bearer (bearer ?? publishableKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(bearer ?? publishableKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let body {
@@ -482,7 +483,7 @@ final class SupabaseMobileSync: ObservableObject {
         guard (200..<300).contains(http.statusCode) else {
             let apiError = try? decoder.decode(APIError.self, from: data)
             throw SyncError.server(
-                apiError?.message ?? apiError?.errorDescription ?? apiError?.error ?? "The Lift Rivals server returned (http.statusCode)."
+                apiError?.message ?? apiError?.errorDescription ?? apiError?.error ?? "The Lift Rivals server returned \(http.statusCode)."
             )
         }
         return data
