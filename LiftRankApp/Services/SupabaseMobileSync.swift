@@ -361,7 +361,7 @@ final class SupabaseMobileSync: ObservableObject {
         }
         let legacyPayloads = legacyGroups.values.compactMap { entries -> [String: Any]? in
             guard let first = entries.first else { return nil }
-            let allSets = entries.flatMap { entry in
+            let allSets: [[String: Any]] = entries.flatMap { entry -> [[String: Any]] in
                 entry.sets.map { set in
                     [
                         "id": set.id.uuidString,
@@ -377,7 +377,7 @@ final class SupabaseMobileSync: ObservableObject {
             }
             let completedAt = entries.map(\.date).max() ?? first.date
             let totalVolume = entries.reduce(0) { $0 + $1.volume }
-            let bestSet = allSets.max { lhs, rhs in
+            let bestSet: [String: Any]? = allSets.max { (lhs: [String: Any], rhs: [String: Any]) in
                 let lhsVolume = (number(lhs["weight"]) ?? 0) * (number(lhs["reps"]) ?? 0)
                 let rhsVolume = (number(rhs["weight"]) ?? 0) * (number(rhs["reps"]) ?? 0)
                 return lhsVolume < rhsVolume
