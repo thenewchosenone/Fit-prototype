@@ -325,13 +325,13 @@ final class SupabaseMobileSync: ObservableObject {
             let prescriptions = repository.workoutPrescriptions
                 .filter { $0.sessionID == session.id }
                 .sorted { $0.order < $1.order }
-            let prescriptionIDs = Set(prescriptions.map(.id))
+            let prescriptionIDs = Set(prescriptions.map(\.id))
             let logs = repository.workoutSetLogs.filter {
                 prescriptionIDs.contains($0.prescriptionID) &&
                     $0.isComplete &&
                     Calendar.current.isDate($0.performedAt, inSameDayAs: feedback.completedAt)
             }
-            let completedIDs = Set(logs.map(.prescriptionID))
+            let completedIDs = Set(logs.map(\.prescriptionID))
             let totalVolume = logs.reduce(0) { $0 + $1.volume }
             let best = logs.max { $0.volume < $1.volume }
             let firstLog = logs.map(.performedAt).min()
@@ -356,7 +356,7 @@ final class SupabaseMobileSync: ObservableObject {
             ]
         }
 
-        let legacyGroups = Dictionary(grouping: repository.workoutEntries.filter(.isDone)) {
+        let legacyGroups = Dictionary(grouping: repository.workoutEntries.filter(\.isDone)) {
             "\($0.planID.uuidString)|\(dayKey($0.date))|\($0.workout)"
         }
         let legacyPayloads = legacyGroups.values.compactMap { entries -> [String: Any]? in
