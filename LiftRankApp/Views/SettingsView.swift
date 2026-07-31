@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
-    @Environment(.dismiss) private var dismiss
+    @Environment(\.dismiss) private var dismiss
     @ObservedObject private var account = SupabaseMobileSync.shared
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = true
     @State private var preferredUnit = UnitSystem.pounds
