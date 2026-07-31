@@ -6,10 +6,12 @@ struct SettingsView: View {
     @ObservedObject private var account = SupabaseMobileSync.shared
     @AppStorage("didCompleteOnboarding") private var didCompleteOnboarding = true
     @State private var preferredUnit = UnitSystem.pounds
-    @State private var privateProfile = false
+    @AppStorage("privateProfile") private var privateProfile = false
     @State private var hideBodyweight = false
     @State private var hideExactAge = false
     @State private var hideLocation = false
+    @State private var hideGym = false
+    @State private var hideLiftVideos = false
     @State private var allowComments = true
     @State private var notificationPreferences = true
     @State private var appearance = "Dark"
@@ -65,6 +67,8 @@ struct SettingsView: View {
                         Toggle("Hide bodyweight", isOn: $hideBodyweight)
                         Toggle("Hide exact age", isOn: $hideExactAge)
                         Toggle("Hide location", isOn: $hideLocation)
+                        Toggle("Hide gym", isOn: $hideGym)
+                        Toggle("Hide lift videos", isOn: $hideLiftVideos)
                         Toggle("Allow comments", isOn: $allowComments)
                     }
                     Section("Notifications") {
@@ -107,6 +111,8 @@ struct SettingsView: View {
             hideBodyweight = profile.hideBodyweight
             hideExactAge = profile.hideExactAge
             hideLocation = profile.hideCity
+            hideGym = profile.hideGym
+            hideLiftVideos = profile.hideLiftVideos
         }
     }
 
@@ -116,6 +122,8 @@ struct SettingsView: View {
         profile.hideBodyweight = hideBodyweight
         profile.hideExactAge = hideExactAge
         profile.hideCity = hideLocation
+        profile.hideGym = hideGym
+        profile.hideLiftVideos = hideLiftVideos
         appState.updateProfile(profile)
         Task {
             await account.pushCurrentState(from: appState.repository)
