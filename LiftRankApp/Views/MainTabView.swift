@@ -258,7 +258,7 @@ struct AuthenticationView: View {
 }
 
 struct ReportLiftView: View {
-    @Environment(.dismiss) private var dismiss
+    @Environment(\.dismiss) private var dismiss
     @State private var reason = "Incorrect weight"
     @State private var note = ""
 
