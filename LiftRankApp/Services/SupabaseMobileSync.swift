@@ -51,6 +51,42 @@ final class SupabaseMobileSync: ObservableObject {
         }
     }
 
+    private struct PublicLeaderboardRow: Decodable {
+        let rank: Int
+        let athleteID: UUID
+        let publicDisplayName: String
+        let handle: String?
+        let city: String?
+        let region: String?
+        let gymID: UUID?
+        let gymName: String?
+        let latestLiftID: UUID
+        let latestExercise: String
+        let latestWeight: Double
+        let latestUnit: String
+        let latestVerification: String?
+        let score: Double
+        let verifiedLiftCount: Int
+
+        enum CodingKeys: String, CodingKey {
+            case rank
+            case athleteID = "athlete_id"
+            case publicDisplayName = "public_display_name"
+            case handle
+            case city
+            case region
+            case gymID = "gym_id"
+            case gymName = "gym_name"
+            case latestLiftID = "latest_lift_id"
+            case latestExercise = "latest_exercise"
+            case latestWeight = "latest_weight"
+            case latestUnit = "latest_unit"
+            case latestVerification = "latest_verification"
+            case score
+            case verifiedLiftCount = "verified_lift_count"
+        }
+    }
+
     private enum SyncError: LocalizedError {
         case invalidConfiguration
         case invalidResponse
@@ -155,6 +191,30 @@ final class SupabaseMobileSync: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    func fetchPublicLeaderboard(
+        filters: LeaderboardFilters,
+        currentProfile: UserProfile
+    ) async throws -> [LeaderboardEntry] {
+        var body: [String: Any] = [
+            "ranking_type": rankingTypeKey(filters.rankingType),
+            "verified_only": true
+        ]
+        if let city = filters.city, !city.isEmpty { body["target_city"] = city }
+        if let gymID = filters.gymID { body["target_gym_id"] = gymID.uuidString }
+        if let exerciseID = filters.exerciseID, !exerciseID.isEmpty { body["target_exercise_id"] = exerciseID }
+        if let weightClassID = filters.weightClassID, !weightClassID.isEmpty {
+            body["target_bodyweight_class"] = weightClassID
+        }
+
+        let data = try await request(
+            path: "rest/v1/rpc/get_public_leaderboard_v3",
+            method: "POST",
+            body: body
+        )
+        let rows = try decoder.decode([PublicLeaderboardRow].self, from: data)
+        return rows.map { leaderboardEntry(from: $0, rankingType: filters.rankingType, currentProfile: currentProfile) }
     }
 
     private func authenticate(
@@ -417,6 +477,117 @@ final class SupabaseMobileSync: ObservableObject {
             }
     }
 
+    private func leaderboardEntry(
+        from row: PublicLeaderboardRow,
+        rankingType: RankingType,
+        currentProfile: UserProfile
+    ) -> LeaderboardEntry {
+        let unit: UnitSystem = row.latestUnit.lowercased().hasPrefix("kg") ? .kilograms : .pounds
+        let normalizedKilograms = unit == .kilograms
+            ? row.latestWeight
+            : RankingCalculator.poundsToKilograms(row.latestWeight)
+        let score = rankingType == .absolute || rankingType == .total
+            ? RankingCalculator.poundsToKilograms(row.score)
+            : row.score
+        let fallbackGymID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+        let gymID = row.gymID ?? fallbackGymID
+        let cleanHandle = row.handle?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "@"))
+        let generatedHandle = row.publicDisplayName
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "")
+        let username = "@\((cleanHandle?.isEmpty == false ? cleanHandle : nil) ?? generatedHandle)"
+        let profile = row.athleteID == currentProfile.id
+            ? currentProfile
+            : UserProfile(
+                id: row.athleteID,
+                username: username,
+                displayName: row.publicDisplayName,
+                ageGroup: "Public",
+                sexCategory: .open,
+                heightInches: 0,
+                bodyweightPounds: 0,
+                preferredUnit: unit,
+                city: row.city ?? "",
+                state: row.region ?? "",
+                primaryGymID: gymID,
+                primaryGymName: row.gymName ?? "Gym hidden",
+                yearsExperience: 0,
+                experienceLevel: .beginner,
+                profileImageName: "person.crop.circle.fill",
+                followers: 0,
+                following: 0,
+                hideExactAge: true,
+                hideBodyweight: true,
+                hideCity: row.city == nil,
+                hideGym: row.gymName == nil,
+                hideLiftVideos: false
+            )
+        let lift = LiftSubmission(
+            id: row.latestLiftID,
+            userID: row.athleteID,
+            exerciseID: exerciseID(from: row.latestExercise),
+            exerciseName: row.latestExercise,
+            weight: row.latestWeight,
+            unit: unit,
+            normalizedWeightKilograms: normalizedKilograms,
+            repetitions: 1,
+            isActualOneRepMax: true,
+            estimatedOneRepMax: normalizedKilograms,
+            bodyweightAtLift: 0,
+            bodyweightMultiple: 0,
+            equipmentType: .raw,
+            variation: "",
+            gymID: gymID,
+            performedAt: Date(timeIntervalSince1970: 0),
+            localVideoURL: nil,
+            remoteVideoURL: nil,
+            caption: "",
+            verificationStatus: verificationStatus(from: row.latestVerification),
+            visibility: .publicLift,
+            createdAt: Date(timeIntervalSince1970: 0),
+            updatedAt: Date(timeIntervalSince1970: 0)
+        )
+        return LeaderboardEntry(
+            rank: row.rank,
+            profile: profile,
+            lift: lift,
+            rankMovement: 0,
+            score: score,
+            powerliftingBreakdown: nil
+        )
+    }
+
+    private func rankingTypeKey(_ rankingType: RankingType) -> String {
+        switch rankingType {
+        case .absolute: return "absolute"
+        case .poundForPound: return "pfp"
+        case .total: return "total"
+        case .relativeTotal: return "relative_total"
+        case .mostImproved: return "most_improved"
+        }
+    }
+
+    private func exerciseID(from name: String) -> String {
+        let lowercased = name.lowercased()
+        if lowercased.contains("squat") { return "squat" }
+        if lowercased.contains("bench") { return "bench" }
+        if lowercased.contains("deadlift") { return "deadlift" }
+        return lowercased
+            .replacingOccurrences(of: " ", with: "-")
+            .replacingOccurrences(of: "_", with: "-")
+    }
+
+    private func verificationStatus(from value: String?) -> VerificationStatus {
+        switch value?.lowercased() {
+        case "community verified": return .communityVerified
+        case "competition verified": return .competitionVerified
+        case "moderator verified", "video verified": return .moderatorVerified
+        default: return .moderatorVerified
+        }
+    }
+
     private func prescriptionPayload(_ prescription: WorkoutExercisePrescription) -> [String: Any] {
         [
             "id": prescription.id.uuidString,
@@ -472,7 +643,9 @@ final class SupabaseMobileSync: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue(publishableKey, forHTTPHeaderField: "apikey")
-        request.setValue("Bearer \(bearer ?? publishableKey)", forHTTPHeaderField: "Authorization")
+        if let bearer {
+            request.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
+        }
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let body {
