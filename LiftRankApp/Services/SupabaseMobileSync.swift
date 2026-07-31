@@ -334,8 +334,8 @@ final class SupabaseMobileSync: ObservableObject {
             let completedIDs = Set(logs.map(\.prescriptionID))
             let totalVolume = logs.reduce(0) { $0 + $1.volume }
             let best = logs.max { $0.volume < $1.volume }
-            let firstLog = logs.map(.performedAt).min()
-            let lastLog = logs.map(.performedAt).max()
+            let firstLog = logs.map(\.performedAt).min()
+            let lastLog = logs.map(\.performedAt).max()
             let duration = max(0, lastLog?.timeIntervalSince(firstLog ?? lastLog ?? feedback.completedAt) ?? 0)
             let day = dayKey(feedback.completedAt)
 
@@ -375,7 +375,7 @@ final class SupabaseMobileSync: ObservableObject {
                     ] as [String: Any]
                 }
             }
-            let completedAt = entries.map(.date).max() ?? first.date
+            let completedAt = entries.map(\.date).max() ?? first.date
             let totalVolume = entries.reduce(0) { $0 + $1.volume }
             let bestSet = allSets.max {
                 (number($0["weight"]) ?? 0) * (number($0["reps"]) ?? 0) <
