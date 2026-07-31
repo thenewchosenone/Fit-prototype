@@ -344,7 +344,7 @@ final class SupabaseMobileSync: ObservableObject {
                 "totalVolume": totalVolume,
                 "effort": feedback.effort,
                 "notes": feedback.notes,
-                "bestSet": best.map(setPayload) ?? NSNull(),
+                "bestSet": best.map { setPayload($0) as Any } ?? (NSNull() as Any),
                 "prescriptions": prescriptions.map(prescriptionPayload),
                 "setLogs": logs.map(setPayload)
             ]
@@ -388,7 +388,7 @@ final class SupabaseMobileSync: ObservableObject {
                 "totalExercises": entries.count,
                 "totalSets": allSets.count,
                 "totalVolume": totalVolume,
-                "bestSet": bestSet ?? NSNull(),
+                "bestSet": bestSet.map { $0 as Any } ?? (NSNull() as Any),
                 "prescriptions": entries.enumerated().map { index, entry in
                     [
                         "id": entry.id.uuidString,
