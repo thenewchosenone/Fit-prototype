@@ -267,7 +267,7 @@ struct ReportLiftView: View {
             AppBackground {
                 Form {
                     Picker("Reason", selection: $reason) {
-                        ForEach(["Incorrect weight", "Duplicate submission", "Edited or unclear video", "Incorrect exercise"], id: .self) {
+                        ForEach(["Incorrect weight", "Duplicate submission", "Edited or unclear video", "Incorrect exercise"], id: \.self) {
                             Text($0).tag($0)
                         }
                     }
