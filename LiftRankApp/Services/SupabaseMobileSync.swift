@@ -95,7 +95,7 @@ final class SupabaseMobileSync: ObservableObject {
                 setSignedInState(stored)
             }
             try await hydrateProfile(into: repository)
-            try await pushCurrentState(from: repository)
+            await pushCurrentState(from: repository)
         } catch {
             clearSession()
             setSignedOutState()
@@ -181,7 +181,7 @@ final class SupabaseMobileSync: ObservableObject {
             saveSession(newSession)
             setSignedInState(newSession)
             try await hydrateProfile(into: repository)
-            try await pushCurrentState(from: repository)
+            await pushCurrentState(from: repository)
             statusMessage = "Connected to your Lift Rivals account."
             return true
         } catch {
@@ -377,9 +377,10 @@ final class SupabaseMobileSync: ObservableObject {
             }
             let completedAt = entries.map(\.date).max() ?? first.date
             let totalVolume = entries.reduce(0) { $0 + $1.volume }
-            let bestSet = allSets.max {
-                (number($0["weight"]) ?? 0) * (number($0["reps"]) ?? 0) <
-                    (number($1["weight"]) ?? 0) * (number($1["reps"]) ?? 0)
+            let bestSet = allSets.max { lhs, rhs in
+                let lhsVolume = (number(lhs["weight"]) ?? 0) * (number(lhs["reps"]) ?? 0)
+                let rhsVolume = (number(rhs["weight"]) ?? 0) * (number(rhs["reps"]) ?? 0)
+                return lhsVolume < rhsVolume
             }
             let safeName = first.workout
                 .lowercased()
