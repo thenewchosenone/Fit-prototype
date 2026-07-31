@@ -264,6 +264,9 @@ final class SupabaseMobileSync: ObservableObject {
         if let value = payload["hideCity"] as? Bool { profile.hideCity = value }
         if let value = payload["hideGym"] as? Bool { profile.hideGym = value }
         if let value = payload["hideLiftVideos"] as? Bool { profile.hideLiftVideos = value }
+        if let value = payload["isPublicProfile"] as? Bool {
+            UserDefaults.standard.set(!value, forKey: "privateProfile")
+        }
     }
 
     private func syncProfile(_ profile: UserProfile) async throws {
@@ -287,6 +290,8 @@ final class SupabaseMobileSync: ObservableObject {
             "experienceLevel": profile.experienceLevel.rawValue,
             "discipline": "General Strength",
             "profileImageName": profile.profileImageName,
+            "isPublicProfile": !UserDefaults.standard.bool(forKey: "privateProfile"),
+            "showLiftVideos": !profile.hideLiftVideos,
             "hideExactAge": profile.hideExactAge,
             "hideBodyweight": profile.hideBodyweight,
             "hideCity": profile.hideCity,
