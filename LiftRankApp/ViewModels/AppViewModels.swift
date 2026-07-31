@@ -33,6 +33,10 @@ final class AppState: ObservableObject {
     @Published var verifiedOnly = true
     @Published var uploadProgress = 0.0
     @Published var lastSubmissionResult: LiftSubmission?
+    @Published private(set) var publicLeaderboardEntries: [LeaderboardEntry] = []
+    @Published private(set) var isLoadingPublicLeaderboard = false
+    @Published private(set) var hasLoadedPublicLeaderboard = false
+    @Published private(set) var publicLeaderboardError: String?
     private var cancellables = Set<AnyCancellable>()
 
     lazy var authService = MockAuthenticationService(repository: repository)
@@ -216,7 +220,42 @@ final class AppState: ObservableObject {
         return Calendar.current.date(byAdding: .day, value: 1, to: snapshotDate) ?? snapshotDate
     }
 
+    var leaderboardQueryKey: String {
+        [
+            leaderboardFilters.rankingType.rawValue,
+            leaderboardFilters.exerciseID ?? "",
+            leaderboardFilters.city ?? "",
+            leaderboardFilters.gymID?.uuidString ?? "",
+            leaderboardFilters.weightClassID ?? ""
+        ].joined(separator: "|")
+    }
+
+    func refreshPublicLeaderboard() async {
+        isLoadingPublicLeaderboard = true
+        publicLeaderboardError = nil
+        defer { isLoadingPublicLeaderboard = false }
+
+        do {
+            let entries = try await SupabaseMobileSync.shared.fetchPublicLeaderboard(
+                filters: leaderboardFilters,
+                currentProfile: currentProfile
+            )
+            guard !Task.isCancelled else { return }
+            publicLeaderboardEntries = entries
+            hasLoadedPublicLeaderboard = true
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled else { return }
+            publicLeaderboardError = error.localizedDescription
+            hasLoadedPublicLeaderboard = true
+        }
+    }
+
     func leaderboardEntries(referenceDate: Date = .now) -> [LeaderboardEntry] {
+        if hasLoadedPublicLeaderboard {
+            return publicLeaderboardEntries
+        }
         let snapshotDate = leaderboardSnapshotDate(referenceDate: referenceDate)
         var filtered = repository.lifts.filter { $0.createdAt < snapshotDate }
         let profileByID = Dictionary(uniqueKeysWithValues: repository.profiles.map { ($0.id, $0) })
