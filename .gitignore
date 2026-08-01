@@ -1,5 +1,6 @@
 node_modules/
 dist/
+build/
 coverage/
 playwright-report/
 test-results/
@@ -12,3 +13,7 @@ tmp/
 supabase/.temp/
 xcuserdata/
 *.xcuserstate
+AppIconConcepts/
+AppStorePromo/FromSimulator/
+AppStorePromo/Leaderboard/
+AppStoreSubmission/

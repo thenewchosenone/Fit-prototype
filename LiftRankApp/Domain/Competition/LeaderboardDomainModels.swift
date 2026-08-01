@@ -38,6 +38,7 @@ struct LeaderboardFilters: Hashable {
     var weightClassID: String?
     var experienceLevel: ExperienceLevel?
     var gymID: UUID?
+    var cityID: UUID?
     var city: String?
     var state: String?
     var country: String?

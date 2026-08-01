@@ -39,14 +39,7 @@ struct RecentPRDetailView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         attemptHeader
 
-                        if let mediaID = lift.demoMediaID {
-                            DemoMediaCard(
-                                title: lift.exerciseName,
-                                subtitle: MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions),
-                                mediaID: mediaID,
-                                badge: "PR Video"
-                            )
-                        } else if let playbackURL {
+                        if let playbackURL {
                             VStack(alignment: .leading, spacing: 10) {
                                 Text("PR video")
                                     .font(.headline.weight(.bold))
@@ -74,8 +67,8 @@ struct RecentPRDetailView: View {
 
                         if let setContext {
                             workoutSetCard(setContext)
-                        } else if lift.demoMediaID == nil && playbackURL == nil &&
-                                    lift.videoAssetID == nil && lift.localVideoURL == nil && lift.remoteVideoURL == nil {
+                        } else if playbackURL == nil && lift.videoAssetID == nil &&
+                                    lift.localVideoURL == nil && lift.remoteVideoURL == nil {
                             LiftEmptyState(
                                 title: "Workout set unavailable",
                                 message: "This PR was not linked to a completed workout and has no video attached.",
@@ -98,7 +91,6 @@ struct RecentPRDetailView: View {
                 }
             }
             .task(id: lift.id) {
-                guard lift.demoMediaID == nil else { return }
                 isResolvingPlayback = true
                 playbackURL = await appState.competitionStore.playbackURL(for: lift)
                 isResolvingPlayback = false

@@ -5,11 +5,7 @@ extension TrainingTrackerView {
     var featureBody: some View {
         NavigationStack {
             AppBackground {
-                if !isEmbeddedInTab || appState.router.selectedTab == .track {
-                    trackerContent
-                } else {
-                    Color.clear
-                }
+                trackerContent
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(item: $selectedLibraryExercise) { exercise in
@@ -136,7 +132,7 @@ extension TrainingTrackerView {
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 12)
-                    .padding(.bottom, isEmbeddedInTab ? 132 : 36)
+                    .padding(.bottom, isEmbeddedInTab ? 168 : 36)
                 }
                 .id(segment)
                 .scrollIndicators(.hidden)
@@ -344,7 +340,33 @@ extension TrainingTrackerView {
                 }
                 .environmentObject(appState)
             } else {
-                TrackerMessageCard(title: "No scheduled workout", message: "Create a workout day inside Plans or start freestyle now.")
+                LiftCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "calendar.badge.exclamationmark")
+                                .font(.headline.weight(.bold))
+                                .foregroundStyle(Color.liftBlue)
+                                .frame(width: 36, height: 36)
+                                .background(Color.liftBlue.opacity(0.12))
+                                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("No scheduled workout")
+                                    .font(.headline.weight(.bold))
+                                Text("Add a workout day to this plan or train freestyle.")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                        }
+
+                        Button {
+                            withAnimation(.snappy) { segment = .plans }
+                        } label: {
+                            Label("Add workout day", systemImage: "calendar.badge.plus")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(LiftCompactProminentButtonStyle())
+                    }
+                }
             }
 
             Button {

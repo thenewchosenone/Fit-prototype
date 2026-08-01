@@ -11,7 +11,9 @@ protocol AuthenticationService {
     func handleAuthCallback(_ url: URL) async throws -> AccountSession
     func updatePassword(_ password: String) async throws
     func signInWithApple(identityToken: String, nonce: String) async throws -> AccountSession
+#if DEBUG
     func signInDemo() async throws -> UserProfile
+#endif
     func signOut() async throws
 }
 
@@ -26,6 +28,8 @@ protocol ProfileService {
     func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String
     func downloadProfileAvatar(avatarPath: String) async throws -> ProfileAvatarDownload?
     func removeProfileAvatar(avatarPath: String?) async throws
+    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry]) async throws -> [BodyweightEntry]
+    func saveBodyweightEntry(_ entry: BodyweightEntry) async throws
 }
 
 struct ProfileAvatarDownload: Equatable {

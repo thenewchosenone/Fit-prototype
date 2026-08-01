@@ -14,6 +14,7 @@ extension TrainingTrackerView {
                 return $0.value > $1.value
             }
         let bodyweightEntries = recentBodyweightEntries
+        let weekCompletion = selectedWeek.map(appState.weekCompletion(for:))
 
         return VStack(alignment: .leading, spacing: 14) {
             Text("Progress")
@@ -30,21 +31,22 @@ extension TrainingTrackerView {
             }
 
             if let week = selectedWeek {
+                let completion = weekCompletion ?? 0
                 VStack(alignment: .leading, spacing: 9) {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("\(week.title) completion")
                                 .font(.subheadline.weight(.bold))
-                            Text("\(Int(appState.weekCompletion(for: week) * 100))% of exercises completed")
+                            Text("\(Int(completion * 100))% of exercises completed")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
                         }
                         Spacer()
-                        Text("\(Int(appState.weekCompletion(for: week) * 100))%")
+                        Text("\(Int(completion * 100))%")
                             .font(.headline.weight(.black).monospacedDigit())
                             .foregroundStyle(Color.liftGreen)
                     }
-                    ProgressView(value: appState.weekCompletion(for: week))
+                    ProgressView(value: completion)
                         .tint(Color.liftGreen)
                 }
                 .padding(14)
@@ -162,6 +164,7 @@ extension TrainingTrackerView {
         .onAppear {
             syncProgressExerciseSelection()
             syncWorkoutHistorySelection()
+            Task { await appState.synchronizeCompletedWorkoutHistory() }
         }
         .onChange(of: appState.completedWorkoutsRevision) {
             syncProgressExerciseSelection()
@@ -582,49 +585,68 @@ extension TrainingTrackerView {
             .frame(height: 34)
             .background(Color.liftCardRaised.opacity(0.7))
 
-            ForEach(Array(entries.enumerated()), id: \.offset) { index, row in
-                let formattedBodyweight = MeasurementFormatting.formatBodyweightOrDash(
-                    row.actual,
-                    preferredUnit: appState.currentProfile.preferredUnit
-                )
-
-                Button {
-                    selectedBodyweightEntry = row
-                } label: {
-                    HStack(spacing: 8) {
-                        Text("\(row.week)")
-                            .frame(width: 48, alignment: .leading)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(row.targetDate, style: .date)
-                                .lineLimit(1)
-                            if !row.notes.isEmpty {
-                                Text("Has notes")
-                                    .font(.caption2)
-                                    .foregroundStyle(Color.liftBlue)
-                            }
-                        }
+            if entries.isEmpty {
+                HStack(spacing: 8) {
+                    Text("--")
+                        .frame(width: 48, alignment: .leading)
+                    Text("Log bodyweight to fill this table")
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        Text(formattedBodyweight)
-                            .font(.subheadline.weight(.semibold).monospacedDigit())
-                            .frame(width: 76, alignment: .trailing)
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(Color.liftMuted)
-                            .frame(width: 28)
-                    }
-                    .font(.subheadline)
-                    .foregroundStyle(Color.liftText)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: 56)
-                    .contentShape(Rectangle())
+                    Text("--")
+                        .frame(width: 76, alignment: .trailing)
+                    Image(systemName: "minus")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.clear)
+                        .frame(width: 28)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Week \(row.week), \(formattedBodyweight), edit")
+                .font(.subheadline)
+                .foregroundStyle(Color.liftMuted)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 52)
+            } else {
+                ForEach(Array(entries.enumerated()), id: \.offset) { index, row in
+                    let formattedBodyweight = MeasurementFormatting.formatBodyweightOrDash(
+                        row.actual,
+                        preferredUnit: appState.currentProfile.preferredUnit
+                    )
 
-                if index < entries.count - 1 {
-                    Divider()
-                        .overlay(Color.white.opacity(0.07))
-                        .padding(.leading, 68)
+                    Button {
+                        selectedBodyweightEntry = row
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text("\(row.week)")
+                                .frame(width: 48, alignment: .leading)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(row.targetDate, style: .date)
+                                    .lineLimit(1)
+                                if !row.notes.isEmpty {
+                                    Text("Has notes")
+                                        .font(.caption2)
+                                        .foregroundStyle(Color.liftBlue)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            Text(formattedBodyweight)
+                                .font(.subheadline.weight(.semibold).monospacedDigit())
+                                .frame(width: 76, alignment: .trailing)
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Color.liftMuted)
+                                .frame(width: 28)
+                        }
+                        .font(.subheadline)
+                        .foregroundStyle(Color.liftText)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 56)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Week \(row.week), \(formattedBodyweight), edit")
+
+                    if index < entries.count - 1 {
+                        Divider()
+                            .overlay(Color.white.opacity(0.07))
+                            .padding(.leading, 68)
+                    }
                 }
             }
         }

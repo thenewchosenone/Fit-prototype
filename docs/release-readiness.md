@@ -9,6 +9,16 @@
 
 This document records evidence for the 11-phase public-launch plan. A phase is complete only when its automated gates pass and any external verification is explicitly recorded.
 
+## Submitted archive baseline - July 29, 2026
+
+- The preserved local archive was created July 24 at 11:53 PM ET for `Lift Rivals 1.0.0`; its bundled build number is `2`.
+- Xcode Organizer records successful validation and upload to App Store Connect, with upload metadata for builds `3` and `4`. Future uploads must use a build number greater than `4`.
+- The archived Release app resolves the production Supabase project `ikjgbsrlriqiusuvezco` and contains only its public publishable client key.
+- The archived app bundle is approximately 11 MB and includes three demo leaderboard GIFs. Current source removes those resources from future Release bundles.
+- The archive's arm64 dSYM UUID is `C9327D2A-E3B1-330B-9624-7AE1F607781E`; the archived executable SHA-256 is `707fd1580c6f0af372098473c14da8387640e406e7ab40f385299c967dc23349`.
+- The latest committed revision before archive creation was `3f1ad6a95b1917bdac83fba7ae3c272d435048f9` (`Alpha Appstore launch version`). Because the archive does not embed a Git revision and the historical working-tree state is unavailable, treat this as the likely source baseline rather than a cryptographically proven match.
+- Release evidence now records the exact Git revision and clean/dirty source state so future archives can be reproduced without this ambiguity.
+
 ## Phase 1 baseline — July 18, 2026
 
 - Working branch: `codex/ios-app`; existing uncommitted product and Supabase work was preserved.

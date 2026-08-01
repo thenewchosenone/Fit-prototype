@@ -17,24 +17,38 @@ extension ProfileView {
         )
     }
 
+    func refreshVisibleProfileLifts() {
+        visibleProfileLifts = profileLifts
+    }
+
     var header: some View {
-        LiftCard {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 14) {
+        LiftCard(padding: 14, radius: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 12) {
                     Button {
                         if isCurrentUser { showingPhotoManager = true }
                     } label: {
-                        ProfileAvatar(profile: profile, size: UIScreen.main.bounds.width < 380 ? 84 : 96)
+                        ProfileAvatar(profile: profile, size: 72)
                     }
                     .buttonStyle(.plain)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(profile.displayName)
-                            .font(.title2.weight(.bold))
+                            .font(.title3.weight(.bold))
                         Text("@\(profile.username)")
                             .font(.subheadline)
                             .foregroundStyle(Color.liftMuted)
                     }
                     Spacer()
+                    if isCurrentUser {
+                        HStack(spacing: 8) {
+                            NativeIconButton(symbolName: "camera.fill", accessibilityLabel: "Change profile photo") {
+                                showingPhotoManager = true
+                            }
+                            NativeIconButton(symbolName: "pencil", accessibilityLabel: "Edit Profile") {
+                                appState.showingEditProfile = true
+                            }
+                        }
+                    }
                 }
                 Label(identityLocation, systemImage: profile.hideGym && profile.hideCity ? "eye.slash" : "location")
                     .font(.subheadline)
@@ -43,24 +57,6 @@ extension ProfileView {
                 Text("\(profile.hideBodyweight ? "Weight class hidden" : weightClassName) • \(displayedExperienceLevel.rawValue)")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
-                if isCurrentUser {
-                    HStack(spacing: 10) {
-                        Button {
-                            showingPhotoManager = true
-                        } label: {
-                            Label("Change photo", systemImage: "camera.fill")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(LiftSecondaryButtonStyle())
-                        Button {
-                            appState.showingEditProfile = true
-                        } label: {
-                            Label("Edit Profile", systemImage: "pencil")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(LiftSecondaryButtonStyle())
-                    }
-                }
             }
         }
     }
@@ -176,14 +172,31 @@ extension ProfileView {
             CompactSectionHeader(title: "Progress")
             LiftCard {
                 if chartPoints.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("No strength history yet")
-                            .font(.headline.weight(.bold))
-                        Text("Submit verified lifts to build this progress chart.")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
+                    HStack(spacing: 12) {
+                        Image(systemName: "chart.xyaxis.line")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.liftBlue)
+                            .frame(width: 38, height: 38)
+                            .background(Color.liftBlue.opacity(0.14))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("No strength history yet")
+                                .font(.subheadline.weight(.bold))
+                            Text("Submit verified lifts to build this progress chart.")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                        }
+                        Spacer(minLength: 4)
+                        if isCurrentUser {
+                            Button("Submit lift") {
+                                appState.showingSubmitSheet = true
+                            }
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.liftBlue)
+                            .frame(minHeight: LiftDesign.minimumTouchTarget)
+                        }
                     }
-                    .frame(maxWidth: .infinity, minHeight: 190, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     Chart(chartPoints) { point in
                         LineMark(x: .value("Month", point.label), y: .value("Max", point.value))
@@ -206,60 +219,76 @@ extension ProfileView {
         VStack(alignment: .leading, spacing: 10) {
             CompactSectionHeader(title: "Achievements")
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                ForEach(appState.achievements.prefix(12)) { achievement in
+                ForEach(profileAchievementPreview) { achievement in
                     HStack(spacing: 9) {
-                        HStack {
-                            Image(systemName: achievement.symbolName)
-                                .foregroundStyle(unlocked(achievement) ? Color.liftGold : Color.liftMuted)
-                            Text(achievement.title)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(unlocked(achievement) ? Color.liftText : Color.liftMuted)
-                        }
+                        Image(systemName: achievement.symbolName)
+                            .foregroundStyle(unlocked(achievement) ? Color.liftGold : Color.liftMuted)
+                        Text(achievement.title)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(unlocked(achievement) ? Color.liftText : Color.liftMuted)
                     }
-                    .padding(12)
-                    .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-                    .liftSurface(radius: 12)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                    .liftSurface(radius: 10)
+                    .accessibilityIdentifier(unlocked(achievement) ? "profile.achievement.unlocked" : "profile.achievement.locked")
                 }
             }
         }
     }
 
+    var profileAchievementPreview: [Achievement] {
+        let unlockedAchievements = appState.achievements.filter(unlocked)
+        let lockedAchievements = appState.achievements.filter { !unlocked($0) }
+        return unlockedAchievements + Array(lockedAchievements.prefix(4))
+    }
+
     func recentSubmissions(profileLifts: [LiftSubmission]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             CompactSectionHeader(title: "Recent submissions")
-            VStack(spacing: 0) {
-                ForEach(Array(profileLifts.prefix(5).enumerated()), id: \.offset) { index, lift in
-                    HStack {
-                VStack(alignment: .leading) {
-                    Text(lift.exerciseName)
-                        .font(.headline)
-                    Text(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true))
-                        .foregroundStyle(Color.liftMuted)
-                }
-                        Spacer()
-                        VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus)
-                        if !isCurrentUser {
-                            Menu {
-                                Button("Report lift", role: .destructive) {
-                                    appState.selectedReportLift = lift
-                                }
-                                .accessibilityIdentifier("profile.reportLift")
-                            } label: {
-                                Image(systemName: "ellipsis.circle")
+            if profileLifts.isEmpty {
+                LiftEmptyState(
+                    title: "No submissions yet",
+                    message: isCurrentUser ? "Submit a lift to start your public history." : "This athlete has not shared a lift.",
+                    symbolName: "dumbbell.fill",
+                    actionTitle: isCurrentUser ? "Submit lift" : nil,
+                    action: isCurrentUser ? { appState.showingSubmitSheet = true } : nil,
+                    compact: true
+                )
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(profileLifts.prefix(5).enumerated()), id: \.offset) { index, lift in
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(lift.exerciseName)
+                                    .font(.headline)
+                                Text(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true))
                                     .foregroundStyle(Color.liftMuted)
                             }
-                            .accessibilityLabel("Lift options")
-                            .accessibilityIdentifier("profile.liftOptions.\(lift.id.uuidString)")
+                            Spacer()
+                            VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus)
+                            if !isCurrentUser {
+                                Menu {
+                                    Button("Report lift", role: .destructive) {
+                                        appState.selectedReportLift = lift
+                                    }
+                                    .accessibilityIdentifier("profile.reportLift")
+                                } label: {
+                                    Image(systemName: "ellipsis.circle")
+                                        .foregroundStyle(Color.liftMuted)
+                                }
+                                .accessibilityLabel("Lift options")
+                                .accessibilityIdentifier("profile.liftOptions.\(lift.id.uuidString)")
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 66)
+                        if index < min(4, profileLifts.count - 1) {
+                            Divider().overlay(Color.liftSeparator).padding(.leading, 14)
                         }
                     }
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: 66)
-                    if index < min(4, profileLifts.count - 1) {
-                        Divider().overlay(Color.liftSeparator).padding(.leading, 14)
-                    }
                 }
+                .liftSurface()
             }
-            .liftSurface()
         }
     }
 

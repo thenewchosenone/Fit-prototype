@@ -57,7 +57,9 @@ final class SupabaseAuthenticationService: AuthenticationService {
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
+#if DEBUG
     func signInDemo() async throws -> UserProfile { MockData.emptyProfile }
+#endif
 
     func signOut() async throws {
         do { try await client.auth.signOut() }
@@ -165,6 +167,20 @@ struct ProfileCardDTO: Codable {
     }
 }
 
+private struct BodyweightRecordDTO: Codable {
+    let id: UUID
+    let userID: UUID
+    let weight: Double
+    let recordedAt: Date
+    let notes: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, weight, notes
+        case userID = "user_id"
+        case recordedAt = "recorded_at"
+    }
+}
+
 @MainActor
 final class SupabaseProfileService: ProfileService {
     private let client: SupabaseClient
@@ -183,6 +199,83 @@ final class SupabaseProfileService: ProfileService {
     func currentProfile() async throws -> UserProfile {
         let remote = try await authenticatedProfile()
         return userProfile(remote)
+    }
+
+    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry]) async throws -> [BodyweightEntry] {
+        do {
+            let userID = try await client.auth.session.user.id
+            let localRecords = localEntries.compactMap { entry -> BodyweightRecordDTO? in
+                guard let weight = entry.actual, weight > 0 else { return nil }
+                return BodyweightRecordDTO(
+                    id: entry.id,
+                    userID: userID,
+                    weight: weight,
+                    recordedAt: entry.targetDate,
+                    notes: entry.notes
+                )
+            }
+            let pageSize = 500
+            var records: [BodyweightRecordDTO] = []
+            var offset = 0
+            while true {
+                let page: [BodyweightRecordDTO] = try await client.from("bodyweight_records")
+                    .select()
+                    .eq("user_id", value: userID)
+                    .order("recorded_at", ascending: true)
+                    .order("id")
+                    .range(from: offset, to: offset + pageSize - 1)
+                    .execute()
+                    .value
+                records.append(contentsOf: page)
+                guard page.count == pageSize else { break }
+                offset += pageSize
+            }
+            let remoteByID = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+            let pendingRecords = localRecords.filter { local in
+                guard let remote = remoteByID[local.id] else { return true }
+                return abs(local.weight - remote.weight) > 0.000_1 ||
+                    abs(local.recordedAt.timeIntervalSince(remote.recordedAt)) > 0.001 ||
+                    local.notes != remote.notes
+            }
+            if !pendingRecords.isEmpty {
+                try await client.from("bodyweight_records")
+                    .upsert(pendingRecords, onConflict: "id")
+                    .execute()
+            }
+            var mergedByID = remoteByID
+            for record in localRecords { mergedByID[record.id] = record }
+            let merged = mergedByID.values.sorted {
+                if $0.recordedAt == $1.recordedAt {
+                    return $0.id.uuidString < $1.id.uuidString
+                }
+                return $0.recordedAt < $1.recordedAt
+            }
+            return merged.enumerated().map { index, record in
+                BodyweightEntry(
+                    id: record.id,
+                    week: index + 1,
+                    targetDate: record.recordedAt,
+                    actual: record.weight,
+                    notes: record.notes
+                )
+            }
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func saveBodyweightEntry(_ entry: BodyweightEntry) async throws {
+        guard let weight = entry.actual, weight > 0 else { return }
+        do {
+            let record = BodyweightRecordDTO(
+                id: entry.id,
+                userID: try await client.auth.session.user.id,
+                weight: weight,
+                recordedAt: entry.targetDate,
+                notes: entry.notes
+            )
+            try await client.from("bodyweight_records")
+                .upsert(record, onConflict: "id")
+                .execute()
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {
@@ -269,6 +362,10 @@ final class SupabaseProfileService: ProfileService {
                 fileURL: thumbnailURL,
                 options: FileOptions(cacheControl: "3600", contentType: "image/jpeg", upsert: true)
             )
+            try await client.from("profiles")
+                .update(ProfileAvatarPathUpdate(avatarPath: normalizedPath))
+                .eq("id", value: try await client.auth.session.user.id)
+                .execute()
             return normalizedPath
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }

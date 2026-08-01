@@ -30,15 +30,52 @@ final class SupabaseLiftService: LiftService {
 
     func submissions() async throws -> [LiftSubmission] {
         do {
-            let rows: [CompetitiveLiftDTO] = try await client
+            let pageSize = 500
+            let recentRows: [CompetitiveLiftDTO] = try await client
                 .from("lift_submissions")
                 .select()
                 .order("performed_at", ascending: false)
+                .order("id")
+                .limit(pageSize)
+                .execute()
+                .value
+            let userID = try await client.auth.session.user.id
+            var ownRows: [CompetitiveLiftDTO] = []
+            var offset = 0
+            while true {
+                let page: [CompetitiveLiftDTO] = try await client
+                    .from("lift_submissions")
+                    .select()
+                    .eq("user_id", value: userID)
+                    .order("performed_at", ascending: false)
+                    .order("id")
+                    .range(from: offset, to: offset + pageSize - 1)
+                    .execute()
+                    .value
+                ownRows.append(contentsOf: page)
+                guard page.count == pageSize else { break }
+                offset += pageSize
+            }
+            var seenIDs = Set<UUID>()
+            return (recentRows + ownRows).compactMap { row in
+                guard seenIDs.insert(row.id).inserted else { return nil }
+                return row.submission
+            }
+        }
+        catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func submissions(ids: [UUID]) async throws -> [LiftSubmission] {
+        guard !ids.isEmpty else { return [] }
+        do {
+            let rows: [CompetitiveLiftDTO] = try await client
+                .from("lift_submissions")
+                .select()
+                .in("id", values: ids.map(\.uuidString))
                 .execute()
                 .value
             return rows.compactMap(\.submission)
-        }
-        catch { throw SupabaseServiceErrorMapper.map(error) }
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
     func submit(_ submission: LiftSubmission) async throws -> LiftSubmission {

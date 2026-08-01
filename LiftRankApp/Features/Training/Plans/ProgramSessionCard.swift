@@ -12,14 +12,16 @@ struct ProgramSessionCard: View {
         LiftCard {
             let prescriptions = appState.prescriptions(for: session)
             VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top) {
+                HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("\(session.day) · \(session.name)")
                             .font(.headline)
+                            .fixedSize(horizontal: false, vertical: true)
                         Text("\(prescriptions.count) exercises - \(appState.completedPrescriptionCount(for: session)) complete")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     Spacer()
                     Menu {
                         Button(role: .destructive, action: onDelete) {

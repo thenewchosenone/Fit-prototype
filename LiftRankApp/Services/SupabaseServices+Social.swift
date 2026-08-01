@@ -42,7 +42,7 @@ final class SupabaseSocialService: SocialService {
     func unblock(userID: UUID) async throws { try await rpc("unblock_user", userID) }
     func blocks() async throws -> [UserBlockRecord] {
         do {
-            let rows: [BlockDTO] = try await client.from("user_blocks").select().order("created_at", ascending: false).execute().value
+            let rows: [BlockDTO] = try await client.from("user_blocks").select().order("created_at", ascending: false).limit(500).execute().value
             return rows.map { .init(blockerID: $0.blockerID, blockedID: $0.blockedID, createdAt: $0.createdAt) }
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }

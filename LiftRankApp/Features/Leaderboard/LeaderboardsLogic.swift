@@ -178,28 +178,43 @@ extension LeaderboardsView {
     }
 
     var emptyState: some View {
-        LiftCard {
+        let hasSearch = !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasFilters = activeFilterCount > 0
+        return LiftCard {
             VStack(alignment: .leading, spacing: 12) {
                 Image(systemName: "list.number")
                     .font(.largeTitle)
                     .foregroundStyle(Color.liftBlue)
                 Text("No ranked lifters")
                     .font(.headline)
-                Text("Adjust filters or clear search to broaden this leaderboard.")
+                Text(hasSearch
+                     ? "No lifters match this search. Try another name, gym, city, or exercise."
+                     : hasFilters
+                        ? "No lifters match the active filters. Broaden or reset them to continue."
+                        : "No eligible lifts have reached this leaderboard yet.")
                     .font(.subheadline)
                     .foregroundStyle(Color.liftMuted)
                 HStack {
-                    Button("Clear Search") {
-                        searchText = ""
-                        Haptics.light()
+                    if hasSearch {
+                        Button("Clear search") {
+                            searchText = ""
+                            Haptics.light()
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(Color.liftBlue)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(Color.liftBlue)
 
-                    Button("Reset Filters") {
-                        resetFilters()
+                    if hasFilters {
+                        Button("Reset filters") {
+                            resetFilters()
+                        }
+                        .buttonStyle(LiftCompactProminentButtonStyle())
+                    } else if !hasSearch {
+                        Button("Submit a lift") {
+                            appState.showingSubmitSheet = true
+                        }
+                        .buttonStyle(LiftCompactProminentButtonStyle())
                     }
-                    .buttonStyle(LiftCompactProminentButtonStyle())
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -214,6 +229,10 @@ extension LeaderboardsView {
     }
 
     var scopeLabel: String {
+        if let gymID = appState.leaderboardFilters.gymID,
+           let gym = appState.gyms.first(where: { $0.id == gymID }) {
+            return gym.name
+        }
         if appState.leaderboardFilters.city == appState.currentProfile.city { return "My city" }
         if appState.leaderboardFilters.weightClassID == bodyweightClass?.id { return "My class" }
         return isGlobalScope ? "Global" : "Custom"
@@ -236,7 +255,15 @@ extension LeaderboardsView {
                 .init(id: "city", title: "My city", subtitle: "\(appState.currentProfile.city), \(appState.currentProfile.state)", symbol: "mappin.and.ellipse"),
                 .init(id: "class", title: "My weight class", subtitle: bodyweightClass.map { RankingFormatting.weightClassDisplayName($0, preferredUnit: appState.currentProfile.preferredUnit) }, symbol: "person.crop.rectangle.stack")
             ]
-            return broadScopes
+            let gymScopes = appState.gyms.map { gym in
+                LeaderboardOption(
+                    id: "gym:\(gym.id.uuidString)",
+                    title: gym.name,
+                    subtitle: [gym.city, gym.state].filter { !$0.isEmpty }.joined(separator: ", "),
+                    symbol: "building.2"
+                )
+            }
+            return broadScopes + gymScopes
         case .exercise:
             return [.init(id: "all", title: "All exercises", symbol: "dumbbell.fill")] + MockData.exercises.map {
                 .init(id: $0.id, title: $0.name, symbol: $0.symbolName)
@@ -272,6 +299,7 @@ extension LeaderboardsView {
     func selectedOptionID(for selector: LeaderboardSelector) -> String {
         switch selector {
         case .scope:
+            if let gymID = appState.leaderboardFilters.gymID { return "gym:\(gymID.uuidString)" }
             if appState.leaderboardFilters.city == appState.currentProfile.city { return "city" }
             if appState.leaderboardFilters.weightClassID == bodyweightClass?.id { return "class" }
             return "global"
@@ -292,15 +320,21 @@ extension LeaderboardsView {
         switch selector {
         case .scope:
             appState.leaderboardFilters.gymID = nil
+            appState.leaderboardFilters.cityID = nil
             appState.leaderboardFilters.city = nil
             appState.leaderboardFilters.state = nil
+            appState.leaderboardFilters.country = nil
             appState.leaderboardFilters.weightClassID = nil
             if optionID == "city" {
+                appState.leaderboardFilters.cityID = appState.currentProfile.cityID
                 appState.leaderboardFilters.city = appState.currentProfile.city
                 appState.leaderboardFilters.state = appState.currentProfile.state
             } else if optionID == "class" {
                 appState.leaderboardFilters.sexCategory = appState.currentProfile.sexCategory
                 appState.leaderboardFilters.weightClassID = bodyweightClass?.id
+            } else if optionID.hasPrefix("gym:"),
+                      let gymID = UUID(uuidString: String(optionID.dropFirst(4))) {
+                appState.leaderboardFilters.gymID = gymID
             }
         case .exercise:
             appState.selectLeaderboardExercise(optionID == "all" ? nil : optionID)

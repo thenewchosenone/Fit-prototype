@@ -56,9 +56,12 @@ struct WorkoutSummaryView: View {
     }
 
     private var newlyUnlockedAchievements: [AchievementUnlock] {
-        let unlockedTitles = Set(appState.achievementUnlocks.map(\.title))
-        return projectedAchievementTitles()
-            .filter { !unlockedTitles.contains($0) }
+        let alreadyEarnedTitles = Set(currentAchievementTitles())
+            .union(Set(appState.achievementUnlocks.map(\.title)))
+        return Self.newlyUnlockedTitles(
+            projected: projectedAchievementTitles(),
+            alreadyEarned: alreadyEarnedTitles
+        )
             .map {
                 AchievementUnlock(
                     id: $0.lowercased().replacingOccurrences(of: " ", with: "-"),
@@ -66,6 +69,13 @@ struct WorkoutSummaryView: View {
                     unlockedAt: .now
                 )
             }
+    }
+
+    static func newlyUnlockedTitles(
+        projected: [String],
+        alreadyEarned: Set<String>
+    ) -> [String] {
+        projected.filter { !alreadyEarned.contains($0) }
     }
 
     private var projectedStrengthTierSummary: StrengthTierSummary {
@@ -456,6 +466,20 @@ struct WorkoutSummaryView: View {
         addRepetitionMilestones(to: &titles, count: repetitions)
         addTrainingHourMilestones(to: &titles, seconds: trainingTime)
         addVolumeMilestones(to: &titles, kilograms: volumeKilograms)
+
+        return titles.filter { title in
+            appState.achievements.contains { $0.title == title }
+        }
+    }
+
+    private func currentAchievementTitles() -> [String] {
+        let stats = appState.competitiveStatistics
+        var titles: [String] = []
+
+        addWorkoutMilestones(to: &titles, count: stats.totalWorkouts)
+        addRepetitionMilestones(to: &titles, count: stats.totalWorkingSetRepetitions)
+        addTrainingHourMilestones(to: &titles, seconds: stats.totalActiveTrainingTime)
+        addVolumeMilestones(to: &titles, kilograms: stats.lifetimeWorkingSetVolume)
 
         return titles.filter { title in
             appState.achievements.contains { $0.title == title }

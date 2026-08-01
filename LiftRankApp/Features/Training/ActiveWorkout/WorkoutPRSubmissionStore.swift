@@ -36,6 +36,7 @@ final class WorkoutPRSubmissionStore {
         self.now = now
         self.makeID = makeID
         self.cachedUserID = repository.currentProfile.id
+        pruneLocalVideos()
     }
 
     var pendingSubmissions: [PendingWorkoutPRSubmission] {
@@ -99,6 +100,11 @@ final class WorkoutPRSubmissionStore {
         try videoStore.save(data, fileExtension: fileExtension)
     }
 
+    func clearAccountScopedMedia() {
+        repository.pendingWorkoutPRSubmissions.forEach { videoStore.remove($0.localVideoURL) }
+        videoStore.prune(retaining: [], olderThan: .distantFuture)
+    }
+
     private func submit(
         _ candidate: WorkoutPRCandidate,
         workout: CompletedWorkout,
@@ -154,6 +160,7 @@ final class WorkoutPRSubmissionStore {
             pending.submissionID = submission.id
             pending.lastError = nil
             repository.linkSubmission(submission.id, to: workout.id)
+            videoStore.remove(videoURL)
         } else {
             pending.state = .failed
             pending.lastError = "Upload could not be completed. It will remain available to retry."
@@ -164,9 +171,34 @@ final class WorkoutPRSubmissionStore {
 
     private func resetAccountScopedQueueIfNeeded() {
         guard cachedUserID != repository.currentProfile.id else { return }
+        clearAccountScopedMedia()
         cachedUserID = repository.currentProfile.id
         repository.clearPendingPRSubmissions()
         repository.workoutPreferences = WorkoutPreferences()
         repository.persistWorkoutSnapshot()
+    }
+
+    private func pruneLocalVideos() {
+        for var pending in repository.pendingWorkoutPRSubmissions where pending.state == .uploading {
+            pending.state = .failed
+            pending.lastError = "The previous upload was interrupted. It is available to retry."
+            pending.updatedAt = now()
+            repository.upsertPendingPRSubmission(pending)
+        }
+        let retryCutoff = now().addingTimeInterval(-30 * 24 * 60 * 60)
+        let expired = repository.pendingWorkoutPRSubmissions.filter {
+            $0.state != .submitted && $0.updatedAt < retryCutoff
+        }
+        expired.forEach { videoStore.remove($0.localVideoURL) }
+        repository.pendingWorkoutPRSubmissions
+            .filter { $0.state == .submitted }
+            .forEach { videoStore.remove($0.localVideoURL) }
+        if !expired.isEmpty {
+            repository.removePendingPRSubmissions(ids: Set(expired.map(\.id)))
+        }
+        let retained = Set(repository.pendingWorkoutPRSubmissions.compactMap {
+            $0.state == .pending || $0.state == .failed ? $0.localVideoURL : nil
+        })
+        videoStore.prune(retaining: retained, olderThan: now().addingTimeInterval(-24 * 60 * 60))
     }
 }

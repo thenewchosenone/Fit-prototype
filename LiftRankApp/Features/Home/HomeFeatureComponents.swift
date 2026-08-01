@@ -404,45 +404,75 @@ extension HomeView {
             }
 
             VStack(spacing: 0) {
-                ForEach(Array(recentLifts.enumerated()), id: \.element.id) { index, lift in
+                if recentLifts.isEmpty {
                     Button {
-                        selectedRecentPR = lift
+                        appState.showingSubmitSheet = true
                     } label: {
-                        HStack(spacing: 13) {
-                            Image(systemName: liftSymbol(for: lift.exerciseName))
-                                .font(.headline)
+                        HStack(spacing: 12) {
+                            Image(systemName: "trophy.fill")
                                 .foregroundStyle(Color.liftGold)
-                                .frame(width: 42, height: 42)
-                                .background(Color.liftGold.opacity(0.11))
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(lift.exerciseName)
+                                .frame(width: 38, height: 38)
+                                .background(Color.liftGold.opacity(0.12))
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Log your first PR")
                                     .font(.subheadline.weight(.bold))
                                     .foregroundStyle(Color.liftText)
-                                Text(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true))
+                                Text("Submit a lift to start tracking personal records.")
                                     .font(.caption)
                                     .foregroundStyle(Color.liftMuted)
-                                VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus, compact: true)
-                                    .padding(.top, 3)
                             }
-
                             Spacer(minLength: 8)
-
-                            Image(systemName: "chevron.right")
+                            Image(systemName: "arrow.right")
                                 .font(.caption.weight(.bold))
-                                .foregroundStyle(Color.liftMuted)
+                                .foregroundStyle(Color.liftBlue)
                         }
-                        .padding(.vertical, 11)
+                        .padding(.vertical, 8)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Open \(lift.exerciseName) PR, \(MeasurementFormatting.formatRecordedWeight(lift.weight, unit: lift.unit)), \(lift.resolvedEvidenceStatus.displayName)")
-                    .accessibilityHint(liftHasVideo(lift) ? "Shows PR video and attempt details" : "Shows the workout set and attempt details")
+                    .accessibilityIdentifier("home.recentPRs.emptyAction")
+                } else {
+                    ForEach(Array(recentLifts.enumerated()), id: \.element.id) { index, lift in
+                        Button {
+                            selectedRecentPR = lift
+                        } label: {
+                            HStack(spacing: 13) {
+                                Image(systemName: liftSymbol(for: lift.exerciseName))
+                                    .font(.headline)
+                                    .foregroundStyle(Color.liftGold)
+                                    .frame(width: 42, height: 42)
+                                    .background(Color.liftGold.opacity(0.11))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                    if index < recentLifts.count - 1 {
-                        Divider()
-                            .overlay(Color.liftSeparator)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(lift.exerciseName)
+                                        .font(.subheadline.weight(.bold))
+                                        .foregroundStyle(Color.liftText)
+                                    Text(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true))
+                                        .font(.caption)
+                                        .foregroundStyle(Color.liftMuted)
+                                    VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus, compact: true)
+                                        .padding(.top, 3)
+                                }
+
+                                Spacer(minLength: 8)
+
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                            .padding(.vertical, 11)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Open \(lift.exerciseName) PR, \(MeasurementFormatting.formatRecordedWeight(lift.weight, unit: lift.unit)), \(lift.resolvedEvidenceStatus.displayName)")
+                        .accessibilityHint(liftHasVideo(lift) ? "Shows PR video and attempt details" : "Shows the workout set and attempt details")
+
+                        if index < recentLifts.count - 1 {
+                            Divider()
+                                .overlay(Color.liftSeparator)
+                        }
                     }
                 }
             }
@@ -453,8 +483,7 @@ extension HomeView {
     }
 
     func liftHasVideo(_ lift: LiftSubmission) -> Bool {
-        lift.demoMediaID != nil || lift.videoAssetID != nil ||
-            lift.localVideoURL != nil || lift.remoteVideoURL != nil
+        lift.videoAssetID != nil || lift.localVideoURL != nil || lift.remoteVideoURL != nil
     }
 
     func liftSymbol(for exerciseName: String) -> String {
@@ -624,7 +653,7 @@ extension HomeView {
     private var homeContent: some View {
         AppBackground {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+                LazyVStack(alignment: .leading, spacing: 18) {
                     header
                     workoutStatus
                     balancedOverview
@@ -640,6 +669,9 @@ extension HomeView {
             .scrollIndicators(.hidden)
         }
         .toolbar(.hidden, for: .navigationBar)
+        .onAppear {
+            appState.recordLaunchReadyIfNeeded()
+        }
         .sheet(isPresented: $showingNotifications) {
             HomeNotificationCenterView()
                 .environmentObject(appState)

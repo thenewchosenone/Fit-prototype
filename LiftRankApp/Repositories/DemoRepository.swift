@@ -43,27 +43,26 @@ final class DemoRepository: ObservableObject {
     private var persistenceCancellables = Set<AnyCancellable>()
     private var pendingPersistenceTask: Task<Void, Never>?
     private var isRestoringWorkoutSnapshot = false
-    private let seedDemoData: Bool
+    private var isUITesting: Bool {
+        ProcessInfo.processInfo.arguments.contains { $0.hasPrefix("-uiTesting") }
+    }
     private(set) var liftsRevision = 0
     private(set) var workoutSetLogsRevision = 0
     private(set) var notificationsRevision = 0
     private(set) var completedWorkoutsRevision = 0
 
     init(
-        workoutPersistenceStore: WorkoutPersistenceStore? = nil,
-        seedDemoData: Bool = true
+        workoutPersistenceStore: WorkoutPersistenceStore? = nil
     ) {
-        self.seedDemoData = seedDemoData
         self.workoutPersistenceStore = workoutPersistenceStore ?? InMemoryWorkoutPersistenceStore()
-        let seeded = MockData.seededCompetitionData()
         currentProfile = MockData.emptyProfile
-        profiles = seedDemoData ? seeded.profiles : []
+        profiles = []
         gyms = []
         joinedGymIDs = []
-        lifts = seedDemoData ? seeded.lifts : []
-        challenges = seedDemoData ? MockData.challenges : []
+        lifts = []
+        challenges = []
         achievements = MockData.achievements
-        workoutPlans = seedDemoData ? MockData.workoutPlans : []
+        workoutPlans = []
         workoutPhases = []
         workoutWeeks = []
         workoutSessions = []
@@ -71,8 +70,8 @@ final class DemoRepository: ObservableObject {
         workoutSetLogs = []
         workoutFeedback = []
         customTrainingExercises = []
-        workoutEntries = seedDemoData ? MockData.workoutEntries : []
-        bodyweightEntries = seedDemoData ? MockData.bodyweightEntries : []
+        workoutEntries = []
+        bodyweightEntries = []
         strainEntries = []
         injuryEntries = []
         activeWorkout = nil
@@ -91,22 +90,19 @@ final class DemoRepository: ObservableObject {
         notifications = []
         rebuildProgramBuilderDataFromEntries()
         restoreWorkoutSnapshotOrImportLegacy()
-        ensureDefaultWorkoutPlan()
-        refreshAchievementUnlocks()
         bindWorkoutPersistence()
         persistWorkoutSnapshot()
     }
 
     func reset() {
-        let seeded = MockData.seededCompetitionData()
         currentProfile = MockData.emptyProfile
-        profiles = seedDemoData ? seeded.profiles : []
+        profiles = []
         gyms = []
         joinedGymIDs = []
-        lifts = seedDemoData ? seeded.lifts : []
-        challenges = seedDemoData ? MockData.challenges : []
+        lifts = []
+        challenges = []
         achievements = MockData.achievements
-        workoutPlans = seedDemoData ? MockData.workoutPlans : []
+        workoutPlans = []
         workoutPhases = []
         workoutWeeks = []
         workoutSessions = []
@@ -114,8 +110,8 @@ final class DemoRepository: ObservableObject {
         workoutSetLogs = []
         workoutFeedback = []
         customTrainingExercises = []
-        workoutEntries = seedDemoData ? MockData.workoutEntries : []
-        bodyweightEntries = seedDemoData ? MockData.bodyweightEntries : []
+        workoutEntries = []
+        bodyweightEntries = []
         strainEntries = []
         injuryEntries = []
         activeWorkout = nil
@@ -133,7 +129,6 @@ final class DemoRepository: ObservableObject {
         rankingHistory = []
         rebuildProgramBuilderDataFromEntries()
         workoutPersistenceStore.reset()
-        ensureDefaultWorkoutPlan()
         refreshAchievementUnlocks()
         persistWorkoutSnapshot()
     }
@@ -211,7 +206,7 @@ final class DemoRepository: ObservableObject {
     }
 
     private func scheduleWorkoutSnapshotPersistence() {
-        guard !isRestoringWorkoutSnapshot else { return }
+        guard !isRestoringWorkoutSnapshot, !isUITesting else { return }
         pendingPersistenceTask?.cancel()
         pendingPersistenceTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(350))
@@ -224,7 +219,7 @@ final class DemoRepository: ObservableObject {
     }
 
     func persistWorkoutSnapshot() {
-        guard !isRestoringWorkoutSnapshot else { return }
+        guard !isRestoringWorkoutSnapshot, !isUITesting else { return }
         pendingPersistenceTask?.cancel()
         pendingPersistenceTask = nil
         workoutPersistenceStore.saveSnapshot(
@@ -303,10 +298,8 @@ final class DemoRepository: ObservableObject {
             workoutPlanProgressionSettings = snapshot.planProgressionSettings ?? []
             achievementUnlocks = snapshot.achievementUnlocks ?? []
             rankingHistory = snapshot.rankingHistory ?? []
-            purgeSeededWorkoutData()
-            refreshAchievementUnlocks()
+            migrateSeededWorkoutData(from: snapshot.schemaVersion)
             isRestoringWorkoutSnapshot = false
-            persistWorkoutSnapshot()
             return
         }
 
@@ -317,89 +310,65 @@ final class DemoRepository: ObservableObject {
         persistWorkoutSnapshot()
     }
 
-    private func purgeSeededWorkoutData() {
-        let bundledPlanIDs = Set(MockData.workoutPlans.map(\.id)).union([PersonalWorkoutPlanCatalog.planID])
-        let seededPlanIDs = Set(workoutPlans.filter { plan in
-            bundledPlanIDs.contains(plan.id) ||
-                plan.name.localizedCaseInsensitiveContains("Robert") ||
-                plan.name.localizedCaseInsensitiveContains("Hypertrophy")
+    private func migrateSeededWorkoutData(from schemaVersion: Int) {
+        let markerWorkoutIDs = Set(completedWorkouts.filter {
+            $0.notes.contains(Self.personalWorkoutDemoMarker)
         }.map(\.id))
-        let seededWorkoutIDs = Set(completedWorkouts.filter { workout in
-            workout.notes.contains(Self.personalWorkoutDemoMarker) ||
-                workout.sourcePlanID.map { planID in seededPlanIDs.contains(planID) || bundledPlanIDs.contains(planID) } == true ||
-                workout.notes == "Imported from previous workout history."
-        }.map(\.id))
-        let seededWeekIDs = Set(workoutWeeks.filter { seededPlanIDs.contains($0.planID) }.map(\.id))
-        let seededSessionIDs = Set(workoutSessions.filter {
-            seededWeekIDs.contains($0.weekID) ||
-                $0.name.localizedCaseInsensitiveContains("Strength Focus") ||
-                $0.name.localizedCaseInsensitiveContains("Hypertrophy")
-        }.map(\.id))
-
-        completedWorkouts.removeAll { seededWorkoutIDs.contains($0.id) }
+        completedWorkouts.removeAll { markerWorkoutIDs.contains($0.id) }
         workoutSetLogs.removeAll { log in
-            if let workoutID = log.workoutID, seededWorkoutIDs.contains(workoutID) { return true }
-            return seededSessionIDs.contains(log.prescriptionID)
+            log.workoutID.map(markerWorkoutIDs.contains) == true
         }
-        workoutFeedback.removeAll { seededSessionIDs.contains($0.sessionID) }
-        workoutPlanProgressionSettings.removeAll { seededPlanIDs.contains($0.planID) }
-        workoutPrescriptions.removeAll { seededSessionIDs.contains($0.sessionID) }
-        workoutSessions.removeAll { seededWeekIDs.contains($0.weekID) || seededSessionIDs.contains($0.id) }
-        workoutWeeks.removeAll { seededWeekIDs.contains($0.id) }
-        workoutPhases.removeAll { seededPlanIDs.contains($0.planID) }
-        workoutPlans.removeAll { seededPlanIDs.contains($0.id) }
-        workoutEntries.removeAll()
         bodyweightEntries.removeAll { $0.notes.contains(Self.personalWorkoutDemoMarker) }
         pendingCompletedWorkoutUploads.removeAll { snapshot in
-            seededWorkoutIDs.contains(snapshot.id) ||
+            markerWorkoutIDs.contains(snapshot.id) ||
                 String(data: snapshot.payload, encoding: .utf8)?.contains(Self.personalWorkoutDemoMarker) == true
         }
+
+        guard schemaVersion < WorkoutPersistenceSnapshot.seedCleanupVersion else { return }
+
+        var untouchedSeedPlanIDs = Set<UUID>()
+        if isUntouchedDefaultWorkoutPlanSeed() {
+            untouchedSeedPlanIDs.insert(MockData.defaultWorkoutPlanID)
+        }
+        if isUntouchedPersonalWorkoutPlanSeed() {
+            untouchedSeedPlanIDs.insert(PersonalWorkoutPlanCatalog.planID)
+        }
+        removeWorkoutPlanGraphs(planIDs: untouchedSeedPlanIDs)
     }
 
-    private func ensureDefaultWorkoutPlan() {
-        guard seedDemoData, workoutPlans.isEmpty else { return }
-
+    private func isUntouchedDefaultWorkoutPlanSeed() -> Bool {
         let planID = MockData.defaultWorkoutPlanID
-        let phaseID = UUID()
-        let weekID = UUID()
-        let sessionID = UUID()
-        let prescriptionID = UUID()
-        let plan = WorkoutPlan(
-            id: planID,
-            name: "Strength Foundations",
-            createdAt: .now,
-            goal: "Build strength and muscle."
-        )
-        let phase = WorkoutPhase(
-            id: phaseID,
-            planID: planID,
-            name: "Base Phase",
-            order: 0,
-            goal: "Build strength and muscle.",
-            durationWeeks: 1
-        )
-        let week = WorkoutWeek(
-            id: weekID,
-            planID: planID,
-            phaseID: phaseID,
-            weekNumber: 1,
-            title: "Week 1",
-            notes: ""
-        )
-        let session = WorkoutSession(
-            id: sessionID,
-            weekID: weekID,
-            day: "Monday",
-            name: "Strength Session",
-            order: 0,
-            notes: ""
-        )
-        let exercise = MockData.trainingExerciseLibrary.first {
-            $0.id == "barbell_bench_press"
-        } ?? MockData.trainingExerciseLibrary[0]
-        let prescription = WorkoutExercisePrescription(
-            id: prescriptionID,
-            sessionID: sessionID,
+        guard let plan = workoutPlans.first(where: { $0.id == planID }),
+              plan.name == "Strength Foundations",
+              plan.goal == "Build strength and muscle.",
+              plan.notes.isEmpty,
+              plan.isActive,
+              workoutPlans.filter({ $0.id == planID }).count == 1,
+              workoutEntries.allSatisfy({ $0.planID != planID }),
+              completedWorkouts.allSatisfy({ $0.sourcePlanID != planID }),
+              activeWorkout?.sourcePlanID != planID,
+              workoutPlanProgressionSettings.allSatisfy({ $0.planID != planID }) else { return false }
+
+        let phases = workoutPhases.filter { $0.planID == planID }
+        guard phases.count == 1, let phase = phases.first,
+              phase.name == "Base Phase", phase.order == 0,
+              phase.goal == "Build strength and muscle.", phase.durationWeeks == 1 else { return false }
+        let weeks = workoutWeeks.filter { $0.planID == planID }
+        guard weeks.count == 1, let week = weeks.first,
+              week.phaseID == phase.id, week.weekNumber == 1,
+              week.title == "Week 1", week.notes.isEmpty else { return false }
+        let sessions = workoutSessions.filter { $0.weekID == week.id }
+        guard sessions.count == 1, let session = sessions.first,
+              session.day == "Monday", session.name == "Strength Session",
+              session.order == 0, session.notes.isEmpty,
+              workoutFeedback.allSatisfy({ $0.sessionID != session.id }),
+              activeWorkout?.sourceSessionID != session.id else { return false }
+        let prescriptions = workoutPrescriptions.filter { $0.sessionID == session.id }
+        guard prescriptions.count == 1, let prescription = prescriptions.first,
+              let exercise = MockData.trainingExerciseLibrary.first(where: { $0.id == "barbell_bench_press" }) else { return false }
+        let expectedPrescription = WorkoutExercisePrescription(
+            id: prescription.id,
+            sessionID: session.id,
             exerciseID: exercise.id,
             exerciseName: exercise.name,
             bodyPart: exercise.bodyPart,
@@ -411,30 +380,110 @@ final class DemoRepository: ObservableObject {
             notes: "",
             muscleProfile: exercise.resolvedMuscleProfile
         )
-        workoutPlans = [plan]
-        workoutPhases = [phase]
-        workoutWeeks = [week]
-        workoutSessions = [session]
-        workoutPrescriptions = [prescription]
-        workoutSetLogs = [WorkoutSetLog(
-            id: UUID(),
-            prescriptionID: prescriptionID,
-            performedAt: Calendar.current.date(byAdding: .day, value: -1, to: .now) ?? .now,
-            setNumber: 1,
-            weight: 135,
-            reps: 8,
-            rpe: 7,
-            isWarmup: false,
-            isComplete: true,
-            recordedUnit: .pounds
-        )]
+        guard prescription == expectedPrescription else { return false }
+        let logs = workoutSetLogs.filter { $0.prescriptionID == prescription.id }
+        guard logs.count == 1, let log = logs.first else { return false }
+        return log.workoutID == nil && log.setNumber == 1 && log.weight == 135 &&
+            log.reps == 8 && log.rpe == 7 && !log.isWarmup && log.isComplete &&
+            log.recordedUnit == .pounds && log.completionSource == nil &&
+            !log.hasTriggeredRestTimer && !log.suppressAutoCompletion
     }
 
-    /// Populates the private demo routine with a realistic, deterministic
-    /// twelve-week training history. This is only invoked by explicit DEBUG
-    /// demo mode and is idempotent so seeded workouts can never multiply.
-    func seedPersonalWorkoutDemoHistory(referenceDate: Date = .now) {
-        _ = referenceDate
+    private func isUntouchedPersonalWorkoutPlanSeed() -> Bool {
+        let planID = PersonalWorkoutPlanCatalog.planID
+        guard let plan = workoutPlans.first(where: { $0.id == planID }),
+              workoutPlans.filter({ $0.id == planID }).count == 1 else { return false }
+        let expected = PersonalWorkoutPlanCatalog.makeSeed(createdAt: plan.createdAt)
+        guard plan == expected.plan,
+              workoutEntries.allSatisfy({ $0.planID != planID }),
+              completedWorkouts.allSatisfy({ $0.sourcePlanID != planID }),
+              activeWorkout?.sourcePlanID != planID else { return false }
+
+        let actualPhases = workoutPhases.filter { $0.planID == planID }.sorted { $0.order < $1.order }
+        guard actualPhases.count == expected.phases.count else { return false }
+        var phaseIDs: [UUID: UUID] = [:]
+        for (actual, expectedPhase) in zip(actualPhases, expected.phases) {
+            var normalized = actual
+            normalized.id = expectedPhase.id
+            guard normalized == expectedPhase else { return false }
+            phaseIDs[actual.id] = expectedPhase.id
+        }
+
+        let actualWeeks = workoutWeeks.filter { $0.planID == planID }.sorted { $0.weekNumber < $1.weekNumber }
+        guard actualWeeks.count == expected.weeks.count else { return false }
+        var weekIDs: [UUID: UUID] = [:]
+        for (actual, expectedWeek) in zip(actualWeeks, expected.weeks) {
+            var normalized = actual
+            normalized.id = expectedWeek.id
+            normalized.phaseID = phaseIDs[actual.phaseID] ?? actual.phaseID
+            guard normalized == expectedWeek else { return false }
+            weekIDs[actual.id] = expectedWeek.id
+        }
+
+        let weekNumberByID = Dictionary(uniqueKeysWithValues: actualWeeks.map { ($0.id, $0.weekNumber) })
+        let actualSessions = workoutSessions.filter { weekIDs[$0.weekID] != nil }.sorted {
+            (weekNumberByID[$0.weekID] ?? 0, $0.order) < (weekNumberByID[$1.weekID] ?? 0, $1.order)
+        }
+        guard actualSessions.count == expected.sessions.count else { return false }
+        var sessionIDs: [UUID: UUID] = [:]
+        for (actual, expectedSession) in zip(actualSessions, expected.sessions) {
+            var normalized = actual
+            normalized.id = expectedSession.id
+            normalized.weekID = weekIDs[actual.weekID] ?? actual.weekID
+            guard normalized == expectedSession else { return false }
+            sessionIDs[actual.id] = expectedSession.id
+        }
+
+        let sessionOrderByID = Dictionary(uniqueKeysWithValues: actualSessions.enumerated().map { ($0.element.id, $0.offset) })
+        let actualPrescriptions = workoutPrescriptions.filter { sessionIDs[$0.sessionID] != nil }.sorted {
+            (sessionOrderByID[$0.sessionID] ?? 0, $0.order) < (sessionOrderByID[$1.sessionID] ?? 0, $1.order)
+        }
+        guard actualPrescriptions.count == expected.prescriptions.count else { return false }
+        for (actual, expectedPrescription) in zip(actualPrescriptions, expected.prescriptions) {
+            var normalized = actual
+            normalized.id = expectedPrescription.id
+            normalized.sessionID = sessionIDs[actual.sessionID] ?? actual.sessionID
+            guard normalized == expectedPrescription else { return false }
+        }
+
+        let sessionIDSet = Set(actualSessions.map(\.id))
+        let prescriptionIDSet = Set(actualPrescriptions.map(\.id))
+        return workoutSetLogs.allSatisfy { !prescriptionIDSet.contains($0.prescriptionID) } &&
+            workoutFeedback.allSatisfy { !sessionIDSet.contains($0.sessionID) } &&
+            activeWorkout.map { !sessionIDSet.contains($0.sourceSessionID ?? UUID()) } != false &&
+            workoutPlanProgressionSettings.allSatisfy {
+                $0.planID != planID || $0.sourceTemplateID == "private_bts_beginner_12"
+            }
+    }
+
+    private func removeWorkoutPlanGraphs(planIDs: Set<UUID>) {
+        guard !planIDs.isEmpty else { return }
+        let weekIDs = Set(workoutWeeks.filter { planIDs.contains($0.planID) }.map(\.id))
+        let sessionIDs = Set(workoutSessions.filter { weekIDs.contains($0.weekID) }.map(\.id))
+        let prescriptionIDs = Set(workoutPrescriptions.filter { sessionIDs.contains($0.sessionID) }.map(\.id))
+        let workoutIDs = Set(completedWorkouts.filter {
+            $0.sourcePlanID.map(planIDs.contains) == true ||
+                $0.sourceSessionID.map(sessionIDs.contains) == true
+        }.map(\.id))
+
+        completedWorkouts.removeAll { workoutIDs.contains($0.id) }
+        workoutSetLogs.removeAll {
+            prescriptionIDs.contains($0.prescriptionID) || $0.workoutID.map(workoutIDs.contains) == true
+        }
+        workoutFeedback.removeAll { sessionIDs.contains($0.sessionID) }
+        workoutPlanProgressionSettings.removeAll { planIDs.contains($0.planID) }
+        workoutPrescriptions.removeAll { sessionIDs.contains($0.sessionID) }
+        workoutSessions.removeAll { sessionIDs.contains($0.id) }
+        workoutWeeks.removeAll { weekIDs.contains($0.id) }
+        workoutPhases.removeAll { planIDs.contains($0.planID) }
+        workoutPlans.removeAll { planIDs.contains($0.id) }
+        workoutEntries.removeAll { planIDs.contains($0.planID) }
+        pendingCompletedWorkoutUploads.removeAll { workoutIDs.contains($0.id) }
+        planIDs.forEach {
+            workoutPlanSyncRevisions.removeValue(forKey: $0)
+            workoutPlanLastSyncedPayloads.removeValue(forKey: $0)
+            pendingRemoteWorkoutPlanDeletions.remove($0)
+        }
     }
 
     /// Removes only the deterministic private-history seed and its dependent

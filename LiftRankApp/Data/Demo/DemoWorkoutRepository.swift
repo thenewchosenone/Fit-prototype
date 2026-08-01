@@ -347,6 +347,11 @@ extension DemoRepository {
         persistWorkoutSnapshot()
     }
 
+    func removePendingPRSubmissions(ids: Set<UUID>) {
+        pendingWorkoutPRSubmissions.removeAll { ids.contains($0.id) }
+        persistWorkoutSnapshot()
+    }
+
     func clearPendingPRSubmissions() {
         pendingWorkoutPRSubmissions.removeAll()
         persistWorkoutSnapshot()

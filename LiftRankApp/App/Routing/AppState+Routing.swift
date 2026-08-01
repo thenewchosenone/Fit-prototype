@@ -39,8 +39,17 @@ extension AppState {
         set { router.setSheet(.moderatorReview, isPresented: newValue) }
     }
     var showingSettings: Bool {
-        get { router.sheet == .settings }
-        set { router.setSheet(.settings, isPresented: newValue) }
+        get { if case .settings = router.sheet { return true }; return false }
+        set {
+            if newValue {
+                router.sheet = .settings(nil)
+            } else if case .settings = router.sheet {
+                router.sheet = nil
+            }
+        }
+    }
+    func openSettings(_ section: SettingsSection? = nil) {
+        router.sheet = .settings(section)
     }
     var showingRequestGym: Bool {
         get { router.sheet == .requestGym }

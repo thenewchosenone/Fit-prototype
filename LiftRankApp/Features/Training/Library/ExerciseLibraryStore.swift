@@ -103,19 +103,32 @@ struct ExerciseLibraryFilterSelection: Equatable {
 @MainActor
 final class ExerciseLibraryStore {
     private let repository: any ExerciseRepository
-    private let bundledExercises: [TrainingExerciseCatalogItem]
+    private let bundledExercisesProvider: () -> [TrainingExerciseCatalogItem]
+    private var cachedBundledExercises: [TrainingExerciseCatalogItem]?
     private let makeID: () -> UUID
     private var cachedUserID: UUID
 
     init(
         repository: any ExerciseRepository,
-        bundledExercises: [TrainingExerciseCatalogItem] = MockData.trainingExerciseLibrary,
+        bundledExercises: @escaping () -> [TrainingExerciseCatalogItem] = { MockData.trainingExerciseLibrary },
         makeID: @escaping () -> UUID = { UUID() }
     ) {
         self.repository = repository
-        self.bundledExercises = bundledExercises
+        self.bundledExercisesProvider = bundledExercises
         self.makeID = makeID
         self.cachedUserID = repository.currentProfile.id
+    }
+
+    func prewarmBundledExercises() {
+        guard cachedBundledExercises == nil else { return }
+        let provider = bundledExercisesProvider
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let exercises = provider()
+            DispatchQueue.main.async {
+                guard let self, self.cachedBundledExercises == nil else { return }
+                self.cachedBundledExercises = exercises
+            }
+        }
     }
 
     var customExercises: [TrainingExerciseCatalogItem] {
@@ -126,6 +139,13 @@ final class ExerciseLibraryStore {
     var exercises: [TrainingExerciseCatalogItem] {
         resetAccountScopedExercisesIfNeeded()
         return bundledExercises + repository.customTrainingExercises
+    }
+
+    private var bundledExercises: [TrainingExerciseCatalogItem] {
+        if let cachedBundledExercises { return cachedBundledExercises }
+        let exercises = bundledExercisesProvider()
+        cachedBundledExercises = exercises
+        return exercises
     }
 
     func search(

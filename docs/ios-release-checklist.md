@@ -4,7 +4,7 @@
 
 - `MARKETING_VERSION` is the user-visible semantic version. Patch releases fix defects, minor releases add compatible product changes, and major releases may change established behavior.
 - `CURRENT_PROJECT_VERSION` is the App Store build number. Increase it for every archive uploaded to App Store Connect; never reuse an uploaded number.
-- The current release candidate is `1.0.0 (2)`.
+- The archived app bundle is `1.0.0 (2)`. Xcode Organizer records successful App Store uploads from that archive as builds `3` and `4`; the next upload must use a build number greater than `4`.
 
 ## Required release gate
 

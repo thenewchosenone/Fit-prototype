@@ -24,13 +24,12 @@ struct LiftRankApp: App {
             localDataError = nil
             let workoutStore = SwiftDataWorkoutPersistenceStore(context: container.mainContext)
             _appState = StateObject(wrappedValue: AppState(repository: DemoRepository(
-                workoutPersistenceStore: workoutStore,
-                seedDemoData: false
+                workoutPersistenceStore: workoutStore
             )))
         } catch {
             modelContainer = nil
             localDataError = error.localizedDescription
-            _appState = StateObject(wrappedValue: AppState(repository: DemoRepository(seedDemoData: false)))
+            _appState = StateObject(wrappedValue: AppState(repository: DemoRepository()))
         }
     }
 

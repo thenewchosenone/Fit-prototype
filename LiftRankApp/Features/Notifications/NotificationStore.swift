@@ -35,16 +35,8 @@ final class NotificationStore: ObservableObject {
         let userID = repository.currentProfile.id
         resetAccountScopedCacheIfNeeded()
         guard let notificationService else { return }
-        guard let notifications = try? await notificationService.notifications() else {
-            if repository.currentProfile.id != userID {
-                resetAccountScopedCacheIfNeeded()
-            }
-            return
-        }
-        guard repository.currentProfile.id == userID else {
-            resetAccountScopedCacheIfNeeded()
-            return
-        }
+        guard let notifications = try? await notificationService.notifications() else { return }
+        guard repository.currentProfile.id == userID else { return }
         replaceNotifications(notifications)
     }
 

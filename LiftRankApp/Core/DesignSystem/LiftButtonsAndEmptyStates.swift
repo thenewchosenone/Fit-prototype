@@ -9,9 +9,13 @@ struct LiftPrimaryButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity)
             .frame(minHeight: 58)
             .padding(.horizontal, 16)
-            .foregroundStyle(isEnabled ? Color.liftOnAccent : Color.liftTextDisabled)
-            .background(isEnabled ? Color.liftLime.opacity(configuration.isPressed ? 0.82 : 1) : Color.liftLime.opacity(0.35))
+            .foregroundStyle(isEnabled ? Color.liftOnAccent : Color.liftMuted)
+            .background(isEnabled ? Color.liftLime.opacity(configuration.isPressed ? 0.82 : 1) : Color.liftSurfaceSecondary)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(isEnabled ? Color.clear : Color.liftSurfaceBorder, lineWidth: 1)
+            }
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
             .animation(LiftMotion.quick, value: configuration.isPressed)
     }

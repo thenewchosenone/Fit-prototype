@@ -317,13 +317,13 @@ struct LeaderboardOptionSheet: View {
     let options: [LeaderboardOption]
     let selectedID: String
     var isSearchable = false
-    var searchPrompt = "Search gyms"
+    var searchPrompt = "Search options"
     var emptyTitle = "No options found"
     var emptyMessage = "Try another search."
     var dismissOnSelection = true
     let onSelect: (String) -> Void
     @State private var searchText = ""
-    @State private var isSearchPresented = true
+    @FocusState private var isSearchFocused: Bool
 
     private var visibleOptions: [LeaderboardOption] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -333,7 +333,40 @@ struct LeaderboardOptionSheet: View {
         }
     }
 
+    @ViewBuilder
     var body: some View {
+        if isSearchable {
+            searchableSheetContent
+        } else {
+            sheetContent
+        }
+    }
+
+    @ViewBuilder
+    private var searchableSheetContent: some View {
+        if #available(iOS 18.0, *) {
+            sheetContent
+                .searchable(
+                    text: $searchText,
+                    placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: searchPrompt
+                )
+                .searchFocused($isSearchFocused)
+                .task {
+                    await Task.yield()
+                    isSearchFocused = true
+                }
+        } else {
+            sheetContent
+                .searchable(
+                    text: $searchText,
+                    placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: searchPrompt
+                )
+        }
+    }
+
+    private var sheetContent: some View {
         NavigationStack {
             AppBackground {
                 ScrollView {
@@ -383,24 +416,13 @@ struct LeaderboardOptionSheet: View {
                                 Divider().overlay(Color.white.opacity(0.07)).padding(.leading, 56)
                             }
                         }
+                        .padding(.bottom, 12)
                     }
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(
-                text: $searchText,
-                isPresented: Binding(
-                    get: { isSearchable && isSearchPresented },
-                    set: { isSearchPresented = $0 }
-                ),
-                prompt: searchPrompt
-            )
-            .onChange(of: isSearchPresented) { _, isPresented in
-                if !isPresented {
-                    searchText = ""
-                }
-            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

@@ -76,9 +76,10 @@ final class SupabaseLeaderboardService: LeaderboardService {
 
             let rows: [RankedLiftIDDTO] = try await client
                 .rpc("get_ranked_lift_ids", params: params)
+                .limit(200)
                 .execute()
                 .value
-            let submissions = try await SupabaseLiftService(client: client).submissions()
+            let submissions = try await SupabaseLiftService(client: client).submissions(ids: rows.map(\.liftID))
             let lifts = Dictionary(uniqueKeysWithValues: submissions.map { ($0.id, $0) })
 
             var entries: [LeaderboardEntry] = []

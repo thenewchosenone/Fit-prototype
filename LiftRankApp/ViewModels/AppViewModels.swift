@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import os
 import SwiftUI
 import UIKit
 import UserNotifications
@@ -7,6 +8,25 @@ import UserNotifications
 @MainActor
 final class AppState: ObservableObject {
     static let maximumJoinedGyms = 3
+    private static let launchLog = OSLog(subsystem: "com.liftrank.app", category: "Launch")
+#if DEBUG
+    private static let uiTestGymFixture = Gym(
+        id: UUID(uuidString: "C0000000-0000-0000-0000-000000000063")!,
+        name: "Crunch Fitness - South Beach",
+        city: "Miami Beach",
+        state: "Florida",
+        memberCount: 0,
+        verifiedLiftCount: 0
+    )
+    private static let uiTestSearchGymFixture = Gym(
+        id: UUID(uuidString: "C0000000-0000-0000-0000-000000000064")!,
+        name: "Crunch Fitness - Cutler Bay",
+        city: "Cutler Bay",
+        state: "Florida",
+        memberCount: 0,
+        verifiedLiftCount: 0
+    )
+#endif
     let profilePhotoStore: ProfilePhotoStore = LocalProfilePhotoStore.shared
     let repository: DemoRepository
     @Published var selectedWorkoutPlanID = MockData.defaultWorkoutPlanID
@@ -30,6 +50,9 @@ final class AppState: ObservableObject {
     private var cachedCompetitiveStatistics: CompetitiveStatistics?
     private var cachedCompetitiveStatisticsSignature: CompetitiveStatisticsSignature?
     private var forwardedObjectWillChangeTask: Task<Void, Never>?
+    private var postAuthenticationRefreshTask: Task<Void, Never>?
+    private let launchSignpostID: OSSignpostID
+    private var didRecordLaunchReady = false
 
     private let launchServiceContainer: AppServiceContainer
     private(set) var serviceContainer: AppServiceContainer!
@@ -65,6 +88,9 @@ final class AppState: ObservableObject {
     }
 
     init(repository: DemoRepository? = nil, serviceContainer: AppServiceContainer? = nil) {
+        let launchSignpostID = OSSignpostID(log: Self.launchLog)
+        os_signpost(.begin, log: Self.launchLog, name: "LiftRank launch", signpostID: launchSignpostID)
+        self.launchSignpostID = launchSignpostID
         let resolvedRepository = repository ?? DemoRepository()
         let resolvedServiceContainer = serviceContainer ?? AppServiceContainer.make(repository: resolvedRepository)
         self.launchServiceContainer = resolvedServiceContainer
@@ -119,6 +145,7 @@ final class AppState: ObservableObject {
         )
         self.analyticsStore = AnalyticsStore(service: resolvedServiceContainer.analytics)
         self.serviceContainer = resolvedServiceContainer
+        self.exerciseLibraryStore.prewarmBundledExercises()
         self.repository.objectWillChange
             .sink { [weak self] _ in
                 self?.scheduleForwardedObjectWillChange()
@@ -139,6 +166,13 @@ final class AppState: ObservableObject {
                 self?.scheduleForwardedObjectWillChange()
             }
             .store(in: &cancellables)
+    }
+
+    func recordLaunchReadyIfNeeded() {
+        guard !didRecordLaunchReady,
+              accountStatus == .authenticated || accountStatus == .demo else { return }
+        didRecordLaunchReady = true
+        os_signpost(.end, log: Self.launchLog, name: "LiftRank launch", signpostID: launchSignpostID)
     }
 
     private func scheduleForwardedObjectWillChange() {
@@ -171,6 +205,10 @@ final class AppState: ObservableObject {
         set { competitionStore.uploadProgress = newValue }
     }
 
+    func refreshAchievementUnlocks() {
+        repository.refreshAchievementUnlocks()
+    }
+
     var lastSubmissionResult: LiftSubmission? {
         get { competitionStore.lastSubmissionResult }
         set { competitionStore.lastSubmissionResult = newValue }
@@ -197,6 +235,15 @@ final class AppState: ObservableObject {
             serviceContainer = .demo(repository: repository)
             accountStatus = .signedOut
             return
+        }
+        if ProcessInfo.processInfo.arguments.contains("-uiTestingRestoredAuthenticatedAccount") {
+            installServiceContainer(.demo(repository: repository))
+            var profile = MockData.demoProfile
+            profile.username = "restored_lifter"
+            profile.displayName = "Restored Lifter"
+            repository.currentProfile = profile
+            repository.profiles = [profile]
+            profileStore.saveProfile(profile)
         }
         if ProcessInfo.processInfo.arguments.contains("-uiTestingAuthenticatedAccount") {
             installServiceContainer(.demo(repository: repository))
@@ -228,15 +275,15 @@ final class AppState: ObservableObject {
         }
         if ProcessInfo.processInfo.arguments.contains("-uiTestingDemoMode") {
             await enterDemoMode()
-            if ProcessInfo.processInfo.arguments.contains("-uiTestingGymFixture"),
-               let gym = MockData.gyms.first {
-                repository.gyms = MockData.gyms
+            if ProcessInfo.processInfo.arguments.contains("-uiTestingGymFixture") {
+                let gym = Self.uiTestGymFixture
+                repository.gyms = [gym, Self.uiTestSearchGymFixture]
                 repository.joinedGymIDs = [gym.id]
                 repository.currentProfile.primaryGymID = gym.id
                 repository.currentProfile.primaryGymName = gym.name
             }
-            if ProcessInfo.processInfo.arguments.contains("-uiTestingCompetitionFixture"),
-               let gym = MockData.gyms.first {
+            if ProcessInfo.processInfo.arguments.contains("-uiTestingCompetitionFixture") {
+                let gym = Self.uiTestGymFixture
                 var athlete = MockData.demoProfile
                 athlete.id = UUID(uuidString: "A0000000-0000-0000-0000-000000000001")!
                 athlete.username = "launch_lifter"
@@ -247,7 +294,7 @@ final class AppState: ObservableObject {
                 athlete.primaryGymID = gym.id
                 athlete.primaryGymName = gym.name
                 repository.profiles = [athlete]
-                repository.gyms = [gym]
+                repository.gyms = [gym, Self.uiTestSearchGymFixture]
                 let athleteLift = LiftSubmission(
                     id: UUID(uuidString: "A0000000-0000-0000-0000-000000000002")!,
                     userID: athlete.id,
@@ -265,7 +312,7 @@ final class AppState: ObservableObject {
                     variation: "Competition",
                     gymID: gym.id,
                     performedAt: .now,
-                    demoMediaID: "demo-leaderboard-bench",
+                    remoteVideoURL: URL(string: "https://example.test/lift-video.mp4"),
                     caption: "Focused launch fixture",
                     verificationStatus: .videoVerified,
                     visibility: .publicLift,
@@ -399,12 +446,12 @@ final class AppState: ObservableObject {
     }
 
     func enterDemoMode() async {
+#if DEBUG
         guard Self.allowsDemoMode else {
             accountMessage = "Demo mode is unavailable in production builds."
             accountStatus = sessionStore.isAuthenticationConfigured ? .signedOut : .configurationRequired
             return
         }
-        repository.seedPersonalWorkoutDemoHistory()
         selectedWorkoutPlanID = PersonalWorkoutPlanCatalog.planID
         installServiceContainer(.demo(repository: repository))
         do {
@@ -417,6 +464,10 @@ final class AppState: ObservableObject {
             accountMessage = userMessage(error)
             accountStatus = sessionStore.isAuthenticationConfigured ? .signedOut : .configurationRequired
         }
+#else
+        accountMessage = "Demo mode is unavailable in production builds."
+        accountStatus = sessionStore.isAuthenticationConfigured ? .signedOut : .configurationRequired
+#endif
     }
 
     func signOutAccount() async {
@@ -427,8 +478,10 @@ final class AppState: ObservableObject {
         sessionStore.clearRemoteAccountState()
         accountSocialStore.clear()
         notificationStore.clear()
+        workoutPRSubmissionStore.clearAccountScopedMedia()
+        postAuthenticationRefreshTask?.cancel()
         repository.clearLocalUserData()
-        profilePhotoStore.clearMemoryCache()
+        profilePhotoStore.removeNamespace(.authenticated)
         accountStatus = sessionStore.isAuthenticationConfigured ? .signedOut : .configurationRequired
     }
 
@@ -462,6 +515,7 @@ final class AppState: ObservableObject {
             guard self.isAuthenticated, !self.isDemoMode else { throw LiftRankServiceError.permissionDenied }
             await self.notificationStore.revokeCurrentDevice()
             try await self.sessionStore.deleteAuthenticatedAccount()
+            self.workoutPRSubmissionStore.clearAccountScopedMedia()
             self.repository.clearLocalUserData()
             self.profilePhotoStore.removeNamespace(.authenticated)
             self.sessionStore.clearRemoteAccountState()
@@ -522,12 +576,48 @@ final class AppState: ObservableObject {
     }
 
     private func loadAuthenticatedAccount() async throws {
-        if let userID = accountSession?.userID, repository.currentProfile.id != userID {
+        guard let accountUserID = accountSession?.userID else { throw LiftRankServiceError.sessionExpired }
+        if repository.currentProfile.id != accountUserID {
+            workoutPRSubmissionStore.clearAccountScopedMedia()
             repository.clearLocalUserData()
         }
-        let profile = try await profileStore.loadAuthenticatedProfile(
+        let pendingAvatarPath = profilePhotoStore.pendingUploadPath(
+            userID: accountUserID,
+            mode: .authenticated
+        )
+        let profile = try await profileStore.fetchAuthenticatedProfile()
+        guard accountSession?.userID == accountUserID,
+              profile.id == accountUserID else { throw LiftRankServiceError.sessionExpired }
+        profileStore.applyAuthenticatedProfile(
+            profile,
             retainingDemoProfiles: sessionStore.usesDemoAuthenticationService
         )
+        if profile.avatarPath == nil, let pendingAvatarPath {
+            var localProfile = repository.currentProfile
+            localProfile.avatarPath = pendingAvatarPath
+            profileStore.saveProfile(localProfile)
+            do {
+                localProfile.avatarPath = try await uploadProfilePhotoIfNeeded(avatarPath: pendingAvatarPath)
+                guard accountSession?.userID == accountUserID,
+                      repository.currentProfile.id == accountUserID else {
+                    throw LiftRankServiceError.sessionExpired
+                }
+                profileStore.saveProfile(localProfile)
+            } catch {
+                guard accountSession?.userID == accountUserID,
+                      repository.currentProfile.id == accountUserID else {
+                    throw LiftRankServiceError.sessionExpired
+                }
+                accountMessage = userMessage(error)
+            }
+        } else if let remoteAvatarPath = profile.avatarPath {
+            profilePhotoStore.markUploadComplete(avatarPath: remoteAvatarPath)
+        }
+        guard accountSession?.userID == accountUserID,
+              repository.currentProfile.id == accountUserID else {
+            throw LiftRankServiceError.sessionExpired
+        }
+        repository.persistWorkoutSnapshot()
         authenticatedPrivacy = profile.privacy
         if profile.onboardingCompleted {
             try await refreshLegalAcceptanceStatus()
@@ -539,11 +629,58 @@ final class AppState: ObservableObject {
             outstandingLegalDocuments = []
             accountStatus = .needsOnboarding
         }
+        guard accountSession?.userID == accountUserID,
+              repository.currentProfile.id == accountUserID else { throw LiftRankServiceError.sessionExpired }
+        schedulePostAuthenticationRefresh(for: accountUserID)
+    }
+
+    private func schedulePostAuthenticationRefresh(for userID: UUID) {
+        guard accountStatus == .authenticated else { return }
+        postAuthenticationRefreshTask?.cancel()
+        postAuthenticationRefreshTask = Task { [weak self] in
+            await Task.yield()
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            await self?.runPostAuthenticationRefresh(for: userID)
+        }
+    }
+
+    private func runPostAuthenticationRefresh(for userID: UUID) async {
+        guard accountSession?.userID == userID,
+              repository.currentProfile.id == userID,
+              accountStatus == .authenticated,
+              !Task.isCancelled else { return }
+        if ProcessInfo.processInfo.arguments.contains("-uiTestingStartupWorkoutSync") {
+            await synchronizeCompletedWorkoutHistory()
+        }
+        await synchronizeAuthenticatedBodyweightEntries(for: userID)
+        guard accountSession?.userID == userID,
+              repository.currentProfile.id == userID,
+              accountStatus == .authenticated,
+              !Task.isCancelled else { return }
         await cacheAuthenticatedProfilePhotoIfNeeded()
-        await refreshRemoteSocialState()
-        await refreshProductionLaunchData()
-        await synchronizeCompletedWorkoutHistory()
-        await synchronizeWorkoutPlans()
+    }
+
+    private func synchronizeAuthenticatedBodyweightEntries(for userID: UUID) async {
+        do {
+            let entries = try await profileStore.synchronizeBodyweightEntries(repository.bodyweightEntries)
+            guard accountSession?.userID == userID,
+                  repository.currentProfile.id == userID,
+                  accountStatus == .authenticated else {
+                throw LiftRankServiceError.sessionExpired
+            }
+            repository.bodyweightEntries = entries
+            if let latestWeight = repository.bodyweightEntries.last?.actual {
+                var localProfile = repository.currentProfile
+                localProfile.bodyweightPounds = latestWeight
+                profileStore.saveProfile(localProfile)
+            }
+            repository.persistWorkoutSnapshot()
+        } catch {
+            guard accountSession?.userID == userID,
+                  repository.currentProfile.id == userID,
+                  accountStatus == .authenticated else { return }
+            accountMessage = userMessage(error)
+        }
     }
 
     private func refreshLegalAcceptanceStatus() async throws {

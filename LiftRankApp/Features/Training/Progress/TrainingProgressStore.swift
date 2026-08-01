@@ -61,6 +61,8 @@ final class TrainingProgressStore {
     private var cachedWorkoutStreakSignature: WorkoutStreakSignature?
     private var cachedHomeWeeklySummary: HomeWeeklySummary?
     private var cachedHomeWeeklySummarySignature: HomeWeeklySummarySignature?
+    private var cachedWeeklyVolumeByBodyPart: [String: Double]?
+    private var cachedWeeklyVolumeByBodyPartSignature: WeeklyVolumeByBodyPartSignature?
 
     init(
         repository: any TrainingProgressRepository,
@@ -146,6 +148,8 @@ final class TrainingProgressStore {
         cachedWorkoutStreakSignature = nil
         cachedHomeWeeklySummary = nil
         cachedHomeWeeklySummarySignature = nil
+        cachedWeeklyVolumeByBodyPart = nil
+        cachedWeeklyVolumeByBodyPartSignature = nil
         repository.clearTrainingHealthEntries()
     }
 
@@ -156,20 +160,20 @@ final class TrainingProgressStore {
     }
 
     func completedPrescriptionCount(for session: WorkoutSession) -> Int {
-        let prescriptions = prescriptions(for: session)
+        let prescriptionIDs = Set(prescriptions(for: session).map(\.id))
         let completedIDs = Set(repository.workoutSetLogs.filter { log in
-            log.isComplete && !log.isWarmup && prescriptions.contains { $0.id == log.prescriptionID }
+            log.isComplete && !log.isWarmup && prescriptionIDs.contains(log.prescriptionID)
         }.map(\.prescriptionID))
         return completedIDs.count
     }
 
     func weekCompletion(for week: WorkoutWeek) -> Double {
-        let plannedPrescriptions = sessions(for: week).flatMap { prescriptions(for: $0) }
-        guard !plannedPrescriptions.isEmpty else { return 0 }
+        let plannedPrescriptionIDs = Set(sessions(for: week).flatMap { prescriptions(for: $0).map(\.id) })
+        guard !plannedPrescriptionIDs.isEmpty else { return 0 }
         let completedIDs = Set(repository.workoutSetLogs.filter { log in
-            log.isComplete && !log.isWarmup && plannedPrescriptions.contains { $0.id == log.prescriptionID }
+            log.isComplete && !log.isWarmup && plannedPrescriptionIDs.contains(log.prescriptionID)
         }.map(\.prescriptionID))
-        return Double(completedIDs.count) / Double(plannedPrescriptions.count)
+        return Double(completedIDs.count) / Double(plannedPrescriptionIDs.count)
     }
 
     func lastCompletedWorkoutDate() -> Date? {
@@ -230,12 +234,24 @@ final class TrainingProgressStore {
         guard let week = calendar.dateInterval(of: .weekOfYear, for: referenceDate) else {
             return volumeByBodyPart(workouts: repository.completedWorkouts, preferredUnit: preferredUnit)
         }
-        return volumeByBodyPart(
+        let signature = WeeklyVolumeByBodyPartSignature(
+            week: week,
+            preferredUnit: preferredUnit,
+            completedWorkoutsRevision: repository.completedWorkoutsRevision
+        )
+        if let cachedWeeklyVolumeByBodyPart,
+           cachedWeeklyVolumeByBodyPartSignature == signature {
+            return cachedWeeklyVolumeByBodyPart
+        }
+        let volume = volumeByBodyPart(
             workouts: repository.completedWorkouts.filter {
                 $0.completedAt >= week.start && $0.completedAt < week.end
             },
             preferredUnit: preferredUnit
         )
+        cachedWeeklyVolumeByBodyPart = volume
+        cachedWeeklyVolumeByBodyPartSignature = signature
+        return volume
     }
 
     func homeWeeklySummary(
@@ -510,6 +526,24 @@ private struct WorkoutStreakSignature: Equatable {
 
     init(referenceDay: Date, completedWorkoutsRevision: Int) {
         self.referenceDay = referenceDay
+        self.completedWorkoutsRevision = completedWorkoutsRevision
+    }
+}
+
+private struct WeeklyVolumeByBodyPartSignature: Equatable {
+    let weekStart: Date
+    let weekEnd: Date
+    let preferredUnit: UnitSystem
+    let completedWorkoutsRevision: Int
+
+    init(
+        week: DateInterval,
+        preferredUnit: UnitSystem,
+        completedWorkoutsRevision: Int
+    ) {
+        self.weekStart = week.start
+        self.weekEnd = week.end
+        self.preferredUnit = preferredUnit
         self.completedWorkoutsRevision = completedWorkoutsRevision
     }
 }

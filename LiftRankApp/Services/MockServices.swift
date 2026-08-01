@@ -10,7 +10,18 @@ final class MockAuthenticationService: AuthenticationService {
         self.repository = repository
     }
 
-    func restoreSession() async throws -> AccountSession? { nil }
+    func restoreSession() async throws -> AccountSession? {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTestingRestoredAuthenticatedAccount") {
+            return AccountSession(
+                userID: repository.currentProfile.id,
+                email: "restored@example.test",
+                expiresAt: .now.addingTimeInterval(3_600)
+            )
+        }
+#endif
+        return nil
+    }
     func signUp(email: String, password: String) async throws -> AccountSession { throw LiftRankServiceError.invalidCredentials }
     func signIn(email: String, password: String) async throws -> AccountSession { throw LiftRankServiceError.invalidCredentials }
     func requestPasswordReset(email: String) async throws {}
@@ -27,6 +38,8 @@ final class MockProfileService: ProfileService {
     private let repository: DemoRepository
     init(repository: DemoRepository) { self.repository = repository }
     func currentProfile() async throws -> UserProfile { repository.currentProfile }
+    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry]) async throws -> [BodyweightEntry] { localEntries }
+    func saveBodyweightEntry(_ entry: BodyweightEntry) async throws {}
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {
         repository.currentProfile = profile
         if let index = repository.profiles.firstIndex(where: { $0.id == profile.id }) {
@@ -315,7 +328,22 @@ final class MockWorkoutSyncService: WorkoutSyncService {
 
 struct MockAnalyticsService: AnalyticsService { func track(_ event: AnalyticsEventRecord) async {} }
 struct MockLegalAcceptanceService: LegalAcceptanceService {
-    func acceptances() async throws -> [LegalAcceptanceRecord] { [] }
+    func acceptances() async throws -> [LegalAcceptanceRecord] {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTestingRestoredAuthenticatedAccount") {
+            return LegalDocument.current.map {
+                LegalAcceptanceRecord(
+                    id: UUID(),
+                    userID: UUID(uuidString: "00000000-0000-0000-0000-000000000000")!,
+                    documentKind: $0.kind.rawValue,
+                    documentVersion: $0.version,
+                    acceptedAt: .now
+                )
+            }
+        }
+#endif
+        return []
+    }
     func accept(documents: [LegalDocument]) async throws {}
 }
 struct MockAccountDeletionService: AccountDeletionService { func deleteAccount() async throws {} }

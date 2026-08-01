@@ -22,7 +22,7 @@ enum ProfileLiftVideoLibrary {
 
 private extension LiftSubmission {
     var hasVideoReference: Bool {
-        demoMediaID != nil || videoAssetID != nil || localVideoURL != nil || remoteVideoURL != nil
+        videoAssetID != nil || localVideoURL != nil || remoteVideoURL != nil
     }
 }
 
@@ -57,7 +57,8 @@ struct ProfileLiftVideosSection: View {
                 LiftEmptyState(
                     title: "Lift videos hidden",
                     message: "This lifter keeps submitted videos private.",
-                    symbolName: "eye.slash"
+                    symbolName: "eye.slash",
+                    compact: true
                 )
             } else if videoLifts.isEmpty {
                 LiftEmptyState(
@@ -65,7 +66,8 @@ struct ProfileLiftVideosSection: View {
                     message: isCurrentUser
                         ? "Attach a video when you submit a lift and it will appear here."
                         : "This athlete has not shared a lift video.",
-                    symbolName: "video.badge.plus"
+                    symbolName: "video.badge.plus",
+                    compact: true
                 )
             } else {
                 VStack(spacing: 0) {
@@ -140,14 +142,7 @@ private struct ProfileLiftVideoDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .liftSurface()
 
-                        if let mediaID = lift.demoMediaID {
-                            DemoMediaCard(
-                                title: lift.exerciseName,
-                                subtitle: MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions),
-                                mediaID: mediaID,
-                                badge: "Lift video"
-                            )
-                        } else if let playbackURL {
+                        if let playbackURL {
                             ManagedVideoPlayer(url: playbackURL)
                                 .frame(height: 320)
                                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -179,7 +174,6 @@ private struct ProfileLiftVideoDetailView: View {
                 }
             }
             .task(id: lift.id) {
-                guard lift.demoMediaID == nil else { return }
                 isResolvingPlayback = true
                 playbackURL = await appState.competitionStore.playbackURL(for: lift)
                 isResolvingPlayback = false
@@ -357,7 +351,7 @@ struct EditProfileView: View {
                 ) { id in
                     select(id, for: selector)
                 }
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.large])
             }
             .sheet(isPresented: $showingPhotoManager, onDismiss: {
                 draft = appState.currentProfile

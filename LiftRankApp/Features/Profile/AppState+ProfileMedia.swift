@@ -13,11 +13,20 @@ extension AppState {
         profileStore.saveProfile(profile)
         repository.persistWorkoutSnapshot()
         guard isAuthenticated, !isDemoMode else { return }
+        let userID = profile.id
         Task {
             do {
+                guard accountSession?.userID == userID,
+                      repository.currentProfile.id == userID else { return }
+                try await profileStore.saveBodyweightEntry(entry)
+                guard accountSession?.userID == userID,
+                      repository.currentProfile.id == userID else { return }
                 _ = try await profileStore.updateProfile(profile)
+                guard accountSession?.userID == userID,
+                      repository.currentProfile.id == userID else { return }
                 repository.persistWorkoutSnapshot()
             } catch {
+                guard accountSession?.userID == userID else { return }
                 accountMessage = userMessage(error)
             }
         }
@@ -67,6 +76,11 @@ extension AppState {
                           mutation == profilePhotoMutation else { return }
                     profile.avatarPath = uploadedAvatarPath
                     _ = try await profileStore.updateProfile(profile)
+                    profilePhotoStore.markUploadComplete(avatarPath: avatarPath)
+                    profilePhotoStore.markUploadComplete(avatarPath: uploadedAvatarPath)
+                    if uploadedAvatarPath != avatarPath {
+                        profilePhotoStore.remove(avatarPath: avatarPath)
+                    }
                     repository.persistWorkoutSnapshot()
                 } catch {
                     accountMessage = userMessage(error)
@@ -122,6 +136,8 @@ extension AppState {
                 thumbnailData: download.thumbnailData,
                 avatarPath: avatarPath
             )
+            profilePhotoStore.markUploadComplete(avatarPath: avatarPath)
+            objectWillChange.send()
             repository.persistWorkoutSnapshot()
         } catch {
             accountMessage = userMessage(error)
@@ -129,8 +145,10 @@ extension AppState {
     }
 
     func uploadProfilePhotoIfNeeded(avatarPath: String?) async throws -> String? {
-        guard isAuthenticated, !isDemoMode, let avatarPath else { return avatarPath }
-        let userID = currentProfile.id
+        guard !isDemoMode,
+              let userID = accountSession?.userID,
+              userID == currentProfile.id,
+              let avatarPath else { return avatarPath }
         guard let fileURLs = profilePhotoStore.fileURLs(for: avatarPath) else { return avatarPath }
         guard repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
         let uploadedAvatarPath = try await profileStore.uploadProfileAvatar(
@@ -149,6 +167,11 @@ extension AppState {
             )
         }
         guard repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
+        profilePhotoStore.markUploadComplete(avatarPath: avatarPath)
+        profilePhotoStore.markUploadComplete(avatarPath: uploadedAvatarPath)
+        if uploadedAvatarPath != avatarPath {
+            profilePhotoStore.remove(avatarPath: avatarPath)
+        }
         return uploadedAvatarPath
     }
 

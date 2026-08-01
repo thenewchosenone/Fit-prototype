@@ -1,4 +1,3 @@
-import ImageIO
 import AVKit
 import Foundation
 import SwiftUI
@@ -8,6 +7,8 @@ protocol ProfilePhotoStore: AnyObject {
     func thumbnail(for avatarPath: String?) -> UIImage?
     func image(for avatarPath: String?) -> UIImage?
     func fileURLs(for avatarPath: String?) -> ProfilePhotoFileURLs?
+    func pendingUploadPath(userID: UUID, mode: AccountMode) -> String?
+    func markUploadComplete(avatarPath: String?)
     @discardableResult
     func save(image: UIImage, userID: UUID, mode: AccountMode) throws -> String
     func cache(fullImageData: Data, thumbnailData: Data?, avatarPath: String) throws
@@ -26,7 +27,10 @@ final class LocalProfilePhotoStore: ProfilePhotoStore {
 
     private let cache = NSCache<NSString, UIImage>()
 
-    private init() {}
+    private init() {
+        cache.countLimit = 8
+        cache.totalCostLimit = 24 * 1_024 * 1_024
+    }
 
     func thumbnail(for avatarPath: String?) -> UIImage? {
         loadVariant("thumb", avatarPath: avatarPath)
@@ -59,9 +63,33 @@ final class LocalProfilePhotoStore: ProfilePhotoStore {
         }
         try fullData.write(to: fullURL, options: .atomic)
         try thumbData.write(to: thumbURL, options: .atomic)
-        cache.setObject(full, forKey: "\(relative)-full" as NSString)
-        cache.setObject(thumb, forKey: "\(relative)-thumb" as NSString)
+        if mode == .authenticated {
+            try Data("pending".utf8).write(
+                to: directory.appendingPathComponent("pending-upload"),
+                options: .atomic
+            )
+        }
+        cache.setObject(full, forKey: "\(relative)-full" as NSString, cost: full.memoryCost)
+        cache.setObject(thumb, forKey: "\(relative)-thumb" as NSString, cost: thumb.memoryCost)
         return relative
+    }
+
+    func pendingUploadPath(userID: UUID, mode: AccountMode) -> String? {
+        guard mode == .authenticated else { return nil }
+        let avatarPath = Self.avatarPath(userID: userID, mode: mode)
+        guard let directory = try? directoryURL().appendingPathComponent(avatarPath, isDirectory: true),
+              FileManager.default.fileExists(atPath: directory.appendingPathComponent("pending-upload").path),
+              FileManager.default.fileExists(atPath: directory.appendingPathComponent("avatar-full.jpg").path),
+              FileManager.default.fileExists(atPath: directory.appendingPathComponent("avatar-thumb.jpg").path)
+        else { return nil }
+        return avatarPath
+    }
+
+    func markUploadComplete(avatarPath: String?) {
+        guard let avatarPath,
+              let directory = try? directoryURL().appendingPathComponent(avatarPath, isDirectory: true)
+        else { return }
+        try? FileManager.default.removeItem(at: directory.appendingPathComponent("pending-upload"))
     }
 
     func cache(fullImageData: Data, thumbnailData: Data?, avatarPath: String) throws {
@@ -70,10 +98,10 @@ final class LocalProfilePhotoStore: ProfilePhotoStore {
         try fullImageData.write(to: directory.appendingPathComponent("avatar-full.jpg"), options: .atomic)
         try (thumbnailData ?? fullImageData).write(to: directory.appendingPathComponent("avatar-thumb.jpg"), options: .atomic)
         if let full = UIImage(data: fullImageData) {
-            cache.setObject(full, forKey: "\(avatarPath)-full" as NSString)
+            cache.setObject(full, forKey: "\(avatarPath)-full" as NSString, cost: full.memoryCost)
         }
         if let thumb = UIImage(data: thumbnailData ?? fullImageData) {
-            cache.setObject(thumb, forKey: "\(avatarPath)-thumb" as NSString)
+            cache.setObject(thumb, forKey: "\(avatarPath)-thumb" as NSString, cost: thumb.memoryCost)
         }
     }
 
@@ -101,7 +129,7 @@ final class LocalProfilePhotoStore: ProfilePhotoStore {
         if let cached = cache.object(forKey: cacheKey) { return cached }
         guard let url = fileURL(for: avatarPath, variant: variant),
               let image = UIImage(contentsOfFile: url.path) else { return nil }
-        cache.setObject(image, forKey: cacheKey)
+        cache.setObject(image, forKey: cacheKey, cost: image.memoryCost)
         return image
     }
 
@@ -134,122 +162,8 @@ final class LocalProfilePhotoStore: ProfilePhotoStore {
     }
 }
 
-final class BundledDemoMediaLibrary {
-    static let shared = BundledDemoMediaLibrary()
-
-    private init() {}
-
-    func url(for mediaID: String?) -> URL? {
-        guard let mediaID else { return nil }
-        return Bundle.main.url(forResource: mediaID, withExtension: "gif", subdirectory: "DemoMedia")
-            ?? Bundle.main.url(forResource: mediaID, withExtension: "gif")
-    }
-}
-
-struct LoopingGIFView: UIViewRepresentable {
-    let url: URL
-    @Binding var isPlaying: Bool
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeUIView(context: Context) -> UIImageView {
-        let view = UIImageView()
-        view.clipsToBounds = true
-        view.contentMode = .scaleAspectFill
-        view.backgroundColor = .clear
-        return view
-    }
-
-    func updateUIView(_ uiView: UIImageView, context: Context) {
-        if context.coordinator.loadedURL != url {
-            context.coordinator.loadedURL = url
-            context.coordinator.animation = GIFAnimationDecoder.decode(url: url)
-        }
-
-        guard let animation = context.coordinator.animation else {
-            uiView.image = nil
-            uiView.animationImages = nil
-            uiView.stopAnimating()
-            return
-        }
-
-        if reduceMotion {
-            uiView.stopAnimating()
-            uiView.animationImages = nil
-            uiView.image = animation.frames.first
-            return
-        }
-
-        if uiView.animationImages == nil {
-            uiView.image = animation.frames.first
-            uiView.animationImages = animation.frames
-            uiView.animationDuration = animation.duration
-            uiView.animationRepeatCount = 0
-        }
-
-        if isPlaying {
-            if !uiView.isAnimating {
-                uiView.startAnimating()
-            }
-        } else {
-            uiView.stopAnimating()
-        }
-    }
-
-    static func dismantleUIView(_ uiView: UIImageView, coordinator: Coordinator) {
-        uiView.stopAnimating()
-        uiView.animationImages = nil
-        uiView.image = nil
-        coordinator.animation = nil
-        coordinator.loadedURL = nil
-    }
-
-    final class Coordinator {
-        var loadedURL: URL?
-        fileprivate var animation: GIFAnimation?
-    }
-}
-
-private struct GIFAnimation {
-    let frames: [UIImage]
-    let duration: TimeInterval
-}
-
-private enum GIFAnimationDecoder {
-    static func decode(url: URL) -> GIFAnimation? {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
-        let frameCount = CGImageSourceGetCount(source)
-        guard frameCount > 0 else { return nil }
-
-        var frames: [UIImage] = []
-        frames.reserveCapacity(frameCount)
-        var duration: TimeInterval = 0
-
-        for index in 0..<frameCount {
-            guard let cgImage = CGImageSourceCreateImageAtIndex(source, index, nil) else { continue }
-            frames.append(UIImage(cgImage: cgImage))
-            duration += frameDuration(source: source, index: index)
-        }
-
-        guard !frames.isEmpty else { return nil }
-        return GIFAnimation(frames: frames, duration: max(duration, 0.1))
-    }
-
-    private static func frameDuration(source: CGImageSource, index: Int) -> TimeInterval {
-        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any],
-              let gifProperties = properties[kCGImagePropertyGIFDictionary] as? [CFString: Any] else {
-            return 0.1
-        }
-
-        let unclamped = gifProperties[kCGImagePropertyGIFUnclampedDelayTime] as? Double
-        let clamped = gifProperties[kCGImagePropertyGIFDelayTime] as? Double
-        let delay = unclamped ?? clamped ?? 0.1
-        return delay > 0.01 ? delay : 0.1
-    }
+private extension UIImage {
+    var memoryCost: Int { Int(size.width * scale * size.height * scale * 4) }
 }
 
 struct ManagedVideoPlayer: View {
@@ -278,117 +192,6 @@ struct ManagedVideoPlayer: View {
         player?.pause()
         player = AVPlayer(url: url)
         loadedURL = url
-    }
-}
-
-struct DemoMediaCard: View {
-    let title: String
-    let subtitle: String
-    let mediaID: String
-    var badge: String = "Demo Media"
-
-    @State private var isPlaying = true
-    @State private var showingFullscreen = false
-
-    var body: some View {
-        if let url = BundledDemoMediaLibrary.shared.url(for: mediaID) {
-            LiftCard {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(title)
-                                .font(.headline.weight(.bold))
-                            Text(subtitle)
-                                .font(.caption)
-                                .foregroundStyle(Color.liftMuted)
-                        }
-                        Spacer()
-                        Text(badge.uppercased())
-                            .font(.caption2.weight(.black))
-                            .tracking(0.8)
-                            .foregroundStyle(Color.liftBlue)
-                    }
-
-                    Button {
-                        showingFullscreen = true
-                    } label: {
-                        ZStack(alignment: .topTrailing) {
-                            LoopingGIFView(url: url, isPlaying: $isPlaying)
-                                .frame(height: 180)
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(.white)
-                                .padding(8)
-                                .background(Color.black.opacity(0.48))
-                                .clipShape(Circle())
-                                .padding(10)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("\(title) demo media")
-
-                    HStack {
-                        Button(isPlaying ? "Pause" : "Play") {
-                            isPlaying.toggle()
-                        }
-                        .buttonStyle(LiftSecondaryButtonStyle())
-                        Spacer()
-                        Text("Silent looping preview")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
-                    }
-                }
-            }
-            .fullScreenCover(isPresented: $showingFullscreen) {
-                DemoMediaFullScreenView(title: title, subtitle: subtitle, url: url, isPlaying: $isPlaying)
-            }
-        }
-    }
-}
-
-private struct DemoMediaFullScreenView: View {
-    @Environment(\.dismiss) private var dismiss
-    let title: String
-    let subtitle: String
-    let url: URL
-    @Binding var isPlaying: Bool
-
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            Color.black.ignoresSafeArea()
-            VStack(spacing: 16) {
-                VStack(spacing: 4) {
-                    Text(title)
-                        .font(.title3.weight(.bold))
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(Color.white.opacity(0.72))
-                }
-                .padding(.top, 24)
-
-                LoopingGIFView(url: url, isPlaying: $isPlaying)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    .padding()
-
-                Text("Demo Media")
-                    .font(.caption.weight(.bold))
-                    .tracking(0.9)
-                    .foregroundStyle(Color.liftBlue)
-                    .padding(.bottom, 28)
-            }
-
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title)
-                    .foregroundStyle(.white)
-                    .padding()
-            }
-            .accessibilityLabel("Close demo media")
-        }
     }
 }
 

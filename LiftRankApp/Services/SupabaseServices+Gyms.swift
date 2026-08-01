@@ -8,7 +8,21 @@ final class SupabaseGymService: GymService {
 
     func gyms() async throws -> [Gym] {
         do {
-            let rows: [GymDTO] = try await client.from("gyms").select("id,name,city,region").eq("status", value: "active").order("name").execute().value
+            let pageSize = 500
+            var rows: [GymDTO] = []
+            var offset = 0
+            while true {
+                let page: [GymDTO] = try await client.from("gyms")
+                    .select("id,name,city,region")
+                    .eq("status", value: "active")
+                    .order("name")
+                    .order("id")
+                    .range(from: offset, to: offset + pageSize - 1)
+                    .execute().value
+                rows.append(contentsOf: page)
+                guard page.count == pageSize else { break }
+                offset += pageSize
+            }
             return rows.map { Gym(id: $0.id, name: $0.name, city: $0.city ?? "", state: $0.region ?? "", memberCount: 0, verifiedLiftCount: 0) }
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }

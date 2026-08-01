@@ -13,7 +13,7 @@ enum AppSheet: Identifiable, Hashable {
     case leaderboardFilters
     case editProfile
     case moderatorReview
-    case settings
+    case settings(SettingsSection?)
     case requestGym
     case reportLift(LiftSubmission)
     case profile(UserProfile)
@@ -25,7 +25,7 @@ enum AppSheet: Identifiable, Hashable {
         case .leaderboardFilters: return "leaderboard-filters"
         case .editProfile: return "edit-profile"
         case .moderatorReview: return "moderator-review"
-        case .settings: return "settings"
+        case .settings(let section): return "settings-\(section?.rawValue ?? "all")"
         case .requestGym: return "request-gym"
         case .reportLift(let lift): return "report-lift-\(lift.id)"
         case .profile(let profile): return "profile-\(profile.id)"

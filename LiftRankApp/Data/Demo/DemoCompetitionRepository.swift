@@ -138,7 +138,12 @@ extension DemoRepository {
                 unlockedAt: now
             )
         }
-        let sortedUnlocks = refreshedByTitle.values.sorted { $0.unlockedAt > $1.unlockedAt }
+        let sortedUnlocks = refreshedByTitle.values.sorted {
+            if $0.unlockedAt != $1.unlockedAt {
+                return $0.unlockedAt > $1.unlockedAt
+            }
+            return $0.title < $1.title
+        }
         if achievementUnlocks != sortedUnlocks {
             achievementUnlocks = sortedUnlocks
         }

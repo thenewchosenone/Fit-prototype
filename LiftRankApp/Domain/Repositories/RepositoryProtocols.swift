@@ -213,6 +213,7 @@ protocol WorkoutSyncRepository: AnyObject {
     var pendingRemoteWorkoutPlanDeletions: Set<UUID> { get set }
 
     func clearAccountScopedWorkoutHistory()
+    func refreshAchievementUnlocks(now: Date)
     func persistWorkoutSnapshot()
 }
 
@@ -224,6 +225,7 @@ protocol WorkoutPRSubmissionRepository: AnyObject {
     var workoutPreferences: WorkoutPreferences { get set }
 
     func upsertPendingPRSubmission(_ pending: PendingWorkoutPRSubmission)
+    func removePendingPRSubmissions(ids: Set<UUID>)
     func clearPendingPRSubmissions()
     func linkSubmission(_ submissionID: UUID, to workoutID: UUID)
     func persistWorkoutSnapshot()

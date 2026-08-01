@@ -44,54 +44,62 @@ final class WorkoutSyncStore {
 
         let deletedIDs = repository.deletedCompletedWorkoutIDs
         for deletedID in deletedIDs {
-            guard repository.currentProfile.id == userID else {
-                resetAccountScopedDataIfNeeded()
-                return
-            }
+            guard repository.currentProfile.id == userID else { return }
             do {
                 try await service.deleteCompletedWorkout(id: deletedID)
+                guard repository.currentProfile.id == userID else { return }
                 repository.deletedCompletedWorkoutIDs.remove(deletedID)
-            } catch { }
+            } catch {
+                guard repository.currentProfile.id == userID else { return }
+            }
         }
 
-        var remaining: [CompletedWorkoutSnapshot] = []
-        for snapshot in repository.pendingCompletedWorkoutUploads {
-            guard repository.currentProfile.id == userID else {
-                resetAccountScopedDataIfNeeded()
-                return
+        let pendingUploads = repository.pendingCompletedWorkoutUploads
+        for snapshot in pendingUploads {
+            guard repository.currentProfile.id == userID else { return }
+            do {
+                try await service.uploadCompletedWorkout(snapshot)
+                guard repository.currentProfile.id == userID else { return }
+                if let index = repository.pendingCompletedWorkoutUploads.firstIndex(where: { $0.id == snapshot.id }),
+                   repository.pendingCompletedWorkoutUploads[index] == snapshot {
+                    repository.pendingCompletedWorkoutUploads.remove(at: index)
+                }
+            } catch {
+                guard repository.currentProfile.id == userID else { return }
             }
-            do { try await service.uploadCompletedWorkout(snapshot) }
-            catch { remaining.append(snapshot) }
         }
-        repository.pendingCompletedWorkoutUploads = remaining
 
         guard let remote = try? await service.completedWorkouts(since: nil) else {
-            if repository.currentProfile.id != userID {
-                resetAccountScopedDataIfNeeded()
-            }
+            guard repository.currentProfile.id == userID else { return }
             repository.persistWorkoutSnapshot()
             return
         }
-        guard repository.currentProfile.id == userID else {
-            resetAccountScopedDataIfNeeded()
-            return
-        }
+        guard repository.currentProfile.id == userID else { return }
         for snapshot in remote where snapshot.ownerID == userID
-            && !repository.deletedCompletedWorkoutIDs.contains(snapshot.id)
-            && !repository.completedWorkouts.contains(where: { $0.id == snapshot.id }) {
+            && !repository.deletedCompletedWorkoutIDs.contains(snapshot.id) {
             guard let workout = try? decoder.decode(CompletedWorkout.self, from: snapshot.payload) else { continue }
-            repository.completedWorkouts.append(workout)
+            if let index = repository.completedWorkouts.firstIndex(where: { $0.id == snapshot.id }) {
+                guard !repository.pendingCompletedWorkoutUploads.contains(where: { $0.id == snapshot.id }) else { continue }
+                repository.completedWorkouts[index] = workout
+            } else {
+                repository.completedWorkouts.append(workout)
+            }
         }
+        repository.completedWorkouts.sort { $0.completedAt > $1.completedAt }
         repository.persistWorkoutSnapshot()
     }
 
     func synchronizeDeletedCompletedWorkout(id: UUID) async {
         resetAccountScopedDataIfNeeded()
+        let userID = repository.currentProfile.id
         guard repository.deletedCompletedWorkoutIDs.contains(id) else { return }
         do {
             try await service.deleteCompletedWorkout(id: id)
+            guard repository.currentProfile.id == userID else { return }
             repository.deletedCompletedWorkoutIDs.remove(id)
-        } catch { }
+        } catch {
+            guard repository.currentProfile.id == userID else { return }
+        }
         repository.persistWorkoutSnapshot()
     }
 
@@ -100,19 +108,16 @@ final class WorkoutSyncStore {
         let userID = repository.currentProfile.id
 
         for planID in repository.pendingRemoteWorkoutPlanDeletions {
-            guard repository.currentProfile.id == userID else {
-                resetAccountScopedDataIfNeeded()
-                return
-            }
+            guard repository.currentProfile.id == userID else { return }
             do {
                 try await service.deletePlan(id: planID)
+                guard repository.currentProfile.id == userID else { return }
                 repository.pendingRemoteWorkoutPlanDeletions.remove(planID)
-            } catch { }
+            } catch {
+                guard repository.currentProfile.id == userID else { return }
+            }
         }
-        guard repository.currentProfile.id == userID else {
-            resetAccountScopedDataIfNeeded()
-            return
-        }
+        guard repository.currentProfile.id == userID else { return }
         guard var remoteByID = try? await service.plans().reduce(
             into: [UUID: WorkoutPlanDocument](),
             { result, document in
@@ -121,18 +126,12 @@ final class WorkoutSyncStore {
                 }
             }
         ) else {
-            if repository.currentProfile.id != userID {
-                resetAccountScopedDataIfNeeded()
-            }
             return
         }
-        guard repository.currentProfile.id == userID else {
-            resetAccountScopedDataIfNeeded()
-            return
-        }
-        let seededIDs = Set(MockData.workoutPlans.map(\.id)).union([PersonalWorkoutPlanCatalog.planID])
+        guard repository.currentProfile.id == userID else { return }
+        let localOnlyPlanIDs = Set([PersonalWorkoutPlanCatalog.planID])
 
-        for plan in repository.workoutPlans where !seededIDs.contains(plan.id) {
+        for plan in repository.workoutPlans where !localOnlyPlanIDs.contains(plan.id) {
             guard let payload = payload(planID: plan.id), let data = try? encoder.encode(payload) else { continue }
             let knownRevision = repository.workoutPlanSyncRevisions[plan.id]
             let lastPayload = repository.workoutPlanLastSyncedPayloads[plan.id]
@@ -170,10 +169,7 @@ final class WorkoutSyncStore {
                     document,
                     expectedRevision: knownRevision ?? remote.revision
                 )
-                guard repository.currentProfile.id == userID else {
-                    resetAccountScopedDataIfNeeded()
-                    return
-                }
+                guard repository.currentProfile.id == userID else { return }
                 if let result {
                     apply(result)
                     if case let .saved(saved) = result { remoteByID[saved.id] = saved }
@@ -188,10 +184,7 @@ final class WorkoutSyncStore {
                     updatedAt: .now
                 )
                 let result = try? await service.savePlan(document, expectedRevision: 0)
-                guard repository.currentProfile.id == userID else {
-                    resetAccountScopedDataIfNeeded()
-                    return
-                }
+                guard repository.currentProfile.id == userID else { return }
                 if let result {
                     apply(result)
                 }
@@ -216,14 +209,14 @@ final class WorkoutSyncStore {
         repository.deletedCompletedWorkoutIDs.removeAll()
         repository.clearAccountScopedWorkoutHistory()
 
-        let seededPlanIDs = Set(MockData.workoutPlans.map(\.id)).union([PersonalWorkoutPlanCatalog.planID])
-        let removedPlanIDs = Set(repository.workoutPlans.map(\.id).filter { !seededPlanIDs.contains($0) })
+        let localOnlyPlanIDs = Set([PersonalWorkoutPlanCatalog.planID])
+        let removedPlanIDs = Set(repository.workoutPlans.map(\.id).filter { !localOnlyPlanIDs.contains($0) })
         let removedWeekIDs = Set(repository.workoutWeeks.filter { removedPlanIDs.contains($0.planID) }.map(\.id))
         let removedSessionIDs = Set(repository.workoutSessions.filter { removedWeekIDs.contains($0.weekID) }.map(\.id))
         repository.workoutPlans.removeAll { removedPlanIDs.contains($0.id) }
         repository.workoutPhases.removeAll { removedPlanIDs.contains($0.planID) }
-        repository.workoutWeeks.removeAll { removedPlanIDs.contains($0.id) }
-        repository.workoutSessions.removeAll { removedWeekIDs.contains($0.id) }
+        repository.workoutWeeks.removeAll { removedPlanIDs.contains($0.planID) }
+        repository.workoutSessions.removeAll { removedWeekIDs.contains($0.weekID) }
         repository.workoutPrescriptions.removeAll { removedSessionIDs.contains($0.sessionID) }
         repository.workoutPlanProgressionSettings.removeAll { removedPlanIDs.contains($0.planID) }
         repository.workoutPlanSyncRevisions.removeAll()
@@ -244,16 +237,10 @@ final class WorkoutSyncStore {
         repository.persistWorkoutSnapshot()
         do {
             try await service.deletePlan(id: planID)
-            guard repository.currentProfile.id == userID else {
-                resetAccountScopedDataIfNeeded()
-                return
-            }
+            guard repository.currentProfile.id == userID else { return }
             repository.pendingRemoteWorkoutPlanDeletions.remove(planID)
         } catch {
-            guard repository.currentProfile.id == userID else {
-                resetAccountScopedDataIfNeeded()
-                return
-            }
+            guard repository.currentProfile.id == userID else { return }
         }
         repository.persistWorkoutSnapshot()
     }

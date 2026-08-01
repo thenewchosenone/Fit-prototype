@@ -327,7 +327,8 @@ struct WorkoutPreferences: Codable, Hashable {
 }
 
 struct WorkoutPersistenceSnapshot: Codable, Hashable {
-    static let currentVersion = 9
+    static let seedCleanupVersion = 10
+    static let currentVersion = 11
 
     var schemaVersion: Int
     var currentProfile: UserProfile? = nil

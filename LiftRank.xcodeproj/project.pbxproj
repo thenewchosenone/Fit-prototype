@@ -36,8 +36,8 @@
 		100000000000000000000202 /* Services/SupabaseServices+Leaderboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000202 /* Services/SupabaseServices+Leaderboard.swift */; };
 		100000000000000000000027 /* Services/AppServiceContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000029 /* Services/AppServiceContainer.swift */; };
 		100000000000000000000028 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000001 /* Supabase */; };
+		100000000000000000000160 /* MuscleMap in Frameworks */ = {isa = PBXBuildFile; productRef = B00000000000000000000002 /* MuscleMap */; };
 		100000000000000000000029 /* BackendFoundationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000030 /* BackendFoundationTests.swift */; };
-		100000000000000000000030 /* Resources/DemoMedia in Resources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000031 /* Resources/DemoMedia */; };
 		100000000000000000000031 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000032 /* Assets.xcassets */; };
 		100000000000000000000032 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000033 /* PrivacyInfo.xcprivacy */; };
 		100000000000000000000033 /* LiftRankUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000034 /* LiftRankUITests.swift */; };
@@ -201,7 +201,6 @@
 		200000000000000000000290 /* Services/SupabaseServices+Gyms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+Gyms.swift"; sourceTree = "<group>"; };
 		200000000000000000000029 /* Services/AppServiceContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppServiceContainer.swift; sourceTree = "<group>"; };
 		200000000000000000000030 /* BackendFoundationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendFoundationTests.swift; sourceTree = "<group>"; };
-		200000000000000000000031 /* Resources/DemoMedia */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Resources/DemoMedia; sourceTree = "<group>"; };
 		200000000000000000000032 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		200000000000000000000033 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		200000000000000000000034 /* LiftRankUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiftRankUITests.swift; sourceTree = "<group>"; };
@@ -302,6 +301,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				100000000000000000000028 /* Supabase in Frameworks */,
+				100000000000000000000160 /* MuscleMap in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -459,7 +459,6 @@
 				200000000000000000000102 /* Features/Training/Plans/WorkoutSyncStore.swift */,
 				200000000000000000000024 /* MockData/PopularExerciseCatalog.swift */,
 				200000000000000000000026 /* MockData/WorkoutProgramCatalog.swift */,
-				200000000000000000000031 /* Resources/DemoMedia */,
 				200000000000000000000032 /* Assets.xcassets */,
 				200000000000000000000033 /* PrivacyInfo.xcprivacy */,
 				200000000000000000000036 /* Info.plist */,
@@ -513,6 +512,7 @@
 			name = LiftRank;
 			packageProductDependencies = (
 				B00000000000000000000001 /* Supabase */,
+				B00000000000000000000002 /* MuscleMap */,
 			);
 			productName = LiftRank;
 			productReference = 200000000000000000000020 /* LiftRank.app */;
@@ -588,6 +588,7 @@
 			mainGroup = 500000000000000000000001;
 			packageReferences = (
 				A00000000000000000000001 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				A00000000000000000000002 /* XCRemoteSwiftPackageReference "MuscleMap" */,
 			);
 			productRefGroup = 500000000000000000000004 /* Products */;
 			projectDirPath = "";
@@ -605,7 +606,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				100000000000000000000030 /* Resources/DemoMedia in Resources */,
 				100000000000000000000031 /* Assets.xcassets in Resources */,
 				100000000000000000000032 /* PrivacyInfo.xcprivacy in Resources */,
 			);
@@ -886,8 +886,10 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CLANG_ENABLE_CODE_COVERAGE = NO;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_CODE_COVERAGE = NO;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -949,7 +951,13 @@
 				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 32TGWTQNP8;
-				ENABLE_PREVIEWS = YES;
+				CLANG_ENABLE_CODE_COVERAGE = NO;
+				ENABLE_CODE_COVERAGE = NO;
+				ENABLE_PREVIEWS = NO;
+				EXCLUDED_SOURCE_FILE_NAMES = (
+					MockServices.swift,
+					Previews.swift,
+				);
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LiftRankApp/Info.plist;
 				APS_ENVIRONMENT = production;
@@ -1102,6 +1110,14 @@
 				version = 2.51.0;
 			};
 		};
+		A00000000000000000000002 /* XCRemoteSwiftPackageReference "MuscleMap" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/melihcolpan/MuscleMap.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.6.4;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1109,6 +1125,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A00000000000000000000001 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
+		};
+		B00000000000000000000002 /* MuscleMap */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A00000000000000000000002 /* XCRemoteSwiftPackageReference "MuscleMap" */;
+			productName = MuscleMap;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

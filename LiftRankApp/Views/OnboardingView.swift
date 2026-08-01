@@ -1231,29 +1231,32 @@ enum LaunchLocationCatalog {
     ) -> [LocationCitySuggestion] {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty,
-              let country = countries.first(where: { $0.code == countryCode }),
-              let region = country.regions.first(where: { $0.name == regionName }) else { return [] }
+              let country = countries.first(where: { $0.code == countryCode }) else { return [] }
 
         let normalizedQuery = trimmedQuery.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-        return region.cities
-            .filter { city in
-                let normalizedCity = city.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+        let regions = regionName.isEmpty
+            ? country.regions
+            : country.regions.filter { $0.name == regionName }
+        return regions
+            .flatMap { region in region.cities.map { (region: region, city: $0) } }
+            .filter { item in
+                let normalizedCity = item.city.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
                 return normalizedCity.hasPrefix(normalizedQuery) || normalizedCity.contains(normalizedQuery)
             }
             .sorted { lhs, rhs in
-                let normalizedLeft = lhs.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-                let normalizedRight = rhs.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+                let normalizedLeft = lhs.city.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+                let normalizedRight = rhs.city.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
                 let leftStarts = normalizedLeft.hasPrefix(normalizedQuery)
                 let rightStarts = normalizedRight.hasPrefix(normalizedQuery)
                 if leftStarts != rightStarts { return leftStarts }
-                return lhs < rhs
+                return lhs.city < rhs.city
             }
             .prefix(limit)
-            .map {
+            .map { item in
                 LocationCitySuggestion(
                     canonicalID: nil,
-                    city: $0,
-                    region: region.name,
+                    city: item.city,
+                    region: item.region.name,
                     countryCode: country.code,
                     countryName: country.name,
                     population: nil

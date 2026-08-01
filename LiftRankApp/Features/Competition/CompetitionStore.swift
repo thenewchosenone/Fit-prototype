@@ -87,15 +87,9 @@ final class CompetitionStore: ObservableObject {
             remoteLeaderboardEntries = nil
         }
         guard let submissions = try? await liftService.submissions() else {
-            if repository.currentProfile.id != userID {
-                resetProductionDataIfNeeded()
-            }
             return
         }
-        guard repository.currentProfile.id == userID else {
-            resetProductionDataIfNeeded()
-            return
-        }
+        guard repository.currentProfile.id == userID else { return }
         repository.lifts = submissions
         hasLoadedProductionData = true
         await refreshLeaderboard()
@@ -113,18 +107,12 @@ final class CompetitionStore: ObservableObject {
                 filters: requestFilters,
                 verifiedOnly: requestVerifiedOnly
             )
-            guard repository.currentProfile.id == userID else {
-                resetProductionDataIfNeeded()
-                return
-            }
+            guard repository.currentProfile.id == userID else { return }
             guard leaderboardRequestID == requestID else { return }
             remoteLeaderboardEntries = entries
             leaderboardError = nil
         } catch {
-            guard repository.currentProfile.id == userID else {
-                resetProductionDataIfNeeded()
-                return
-            }
+            guard repository.currentProfile.id == userID else { return }
             guard leaderboardRequestID == requestID else { return }
             if remoteLeaderboardEntries == nil {
                 remoteLeaderboardEntries = []
@@ -476,20 +464,15 @@ final class CompetitionStore: ObservableObject {
         do {
             submission = try await liftService.submit(submission)
         } catch {
+            guard repository.currentProfile.id == userID else { return nil }
             setLastSubmissionResult(nil)
             return nil
         }
-        guard repository.currentProfile.id == userID else {
-            resetProductionDataIfNeeded()
-            return nil
-        }
+        guard repository.currentProfile.id == userID else { return nil }
 
         let movementName = submission.competitiveMovement?.rawValue ?? "noncanonical"
         await track(.prSubmitted, userID: userID, properties: ["movement": movementName])
-        guard repository.currentProfile.id == userID else {
-            resetProductionDataIfNeeded()
-            return nil
-        }
+        guard repository.currentProfile.id == userID else { return nil }
         submission.localVideoURL = videoURL
 
         if let videoURL, let mediaUploadService {
@@ -511,29 +494,33 @@ final class CompetitionStore: ObservableObject {
                 submission.verificationStatus = .videoVerified
                 submission.remoteVideoURL = try? await mediaUploadService.signedPlaybackURL(assetID: asset.id)
                 guard repository.currentProfile.id == userID else {
-                    activeUploadID = nil
-                    resetProductionDataIfNeeded()
+                    if activeUploadID == uploadID { activeUploadID = nil }
                     return nil
                 }
-                activeUploadID = nil
-                setUploadProgress(1)
+                if activeUploadID == uploadID {
+                    activeUploadID = nil
+                    setUploadProgress(1)
+                }
                 await track(.videoBackedPRSubmitted, userID: userID, properties: ["movement": movementName])
             } catch {
+                guard repository.currentProfile.id == userID else {
+                    if activeUploadID == uploadID { activeUploadID = nil }
+                    return nil
+                }
                 // The lift remains submitted as self-reported when evidence upload fails.
-                activeUploadID = nil
                 submission.evidenceStatus = .selfReported
                 submission.verificationStatus = .selfReported
                 submission.videoAssetID = nil
                 submission.localVideoURL = nil
                 submission.remoteVideoURL = nil
-                setUploadProgress(0)
+                if activeUploadID == uploadID {
+                    activeUploadID = nil
+                    setUploadProgress(0)
+                }
             }
         }
 
-        guard repository.currentProfile.id == userID else {
-            resetProductionDataIfNeeded()
-            return nil
-        }
+        guard repository.currentProfile.id == userID else { return nil }
         upsert(submission, refreshAchievements: false)
         scheduleAchievementRefresh()
         return submission
@@ -549,10 +536,7 @@ final class CompetitionStore: ObservableObject {
 
         if let assetID = lift.videoAssetID, let mediaUploadService {
             if let signedURL = try? await mediaUploadService.signedPlaybackURL(assetID: assetID) {
-                guard repository.currentProfile.id == userID else {
-                    resetProductionDataIfNeeded()
-                    return lift.remoteVideoURL
-                }
+                guard repository.currentProfile.id == userID else { return nil }
                 var updated = lift
                 updated.remoteVideoURL = signedURL
                 upsert(updated)
@@ -574,19 +558,17 @@ final class CompetitionStore: ObservableObject {
                 status: status,
                 note: note
               ) else { return nil }
-        guard repository.currentProfile.id == userID else {
-            resetProductionDataIfNeeded()
-            return nil
-        }
+        guard repository.currentProfile.id == userID else { return nil }
         upsert(updated)
         return updated
     }
 
     func report(_ lift: LiftSubmission, reason: LiftReportReason, note: String) async -> Bool {
-        guard lift.userID != repository.currentProfile.id, let liftService else { return false }
+        let userID = repository.currentProfile.id
+        guard lift.userID != userID, let liftService else { return false }
         do {
             try await liftService.report(liftID: lift.id, reason: reason, note: note)
-            return true
+            return repository.currentProfile.id == userID
         } catch {
             return false
         }
@@ -606,10 +588,12 @@ final class CompetitionStore: ObservableObject {
 
     private func scheduleAchievementRefresh() {
         achievementRefreshTask?.cancel()
+        let userID = repository.currentProfile.id
         achievementRefreshTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             guard let self, !Task.isCancelled else { return }
             self.achievementRefreshTask = nil
+            guard self.repository.currentProfile.id == userID else { return }
             self.repository.refreshAchievementUnlocks(now: self.now())
         }
     }
@@ -627,13 +611,17 @@ final class CompetitionStore: ObservableObject {
 
     private func resetProductionDataIfNeeded() {
         guard productionUserID != repository.currentProfile.id else { return }
+        let isAccountChange = productionUserID != nil
         productionUserID = repository.currentProfile.id
         hasLoadedProductionData = false
         repository.lifts = []
-        repository.achievementUnlocks = []
-        repository.rankingHistory = []
+        if isAccountChange {
+            repository.achievementUnlocks = []
+            repository.rankingHistory = []
+        }
         remoteLeaderboardEntries = nil
         leaderboardRequestID = nil
+        activeUploadID = nil
         achievementRefreshTask?.cancel()
         achievementRefreshTask = nil
         setLastSubmissionResult(nil)

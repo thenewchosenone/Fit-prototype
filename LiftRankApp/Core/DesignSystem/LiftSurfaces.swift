@@ -20,19 +20,27 @@ struct AppBackground<Content: View>: View {
 
 struct LiftCard<Content: View>: View {
     let content: Content
+    let padding: CGFloat
+    let radius: CGFloat
 
-    init(@ViewBuilder content: () -> Content) {
+    init(
+        padding: CGFloat = 16,
+        radius: CGFloat = LiftDesign.cardRadius,
+        @ViewBuilder content: () -> Content
+    ) {
         self.content = content()
+        self.padding = padding
+        self.radius = radius
     }
 
     var body: some View {
         content
-            .padding(16)
+            .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.liftCard)
-            .clipShape(RoundedRectangle(cornerRadius: LiftDesign.cardRadius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: LiftDesign.cardRadius, style: .continuous)
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .stroke(Color.liftSurfaceBorder, lineWidth: 1)
             }
     }
@@ -42,10 +50,16 @@ struct ProfileAvatar: View {
     let profile: UserProfile
     var size: CGFloat = 44
 
+    private var localImage: UIImage? {
+        let image = LocalProfilePhotoStore.shared.thumbnail(for: profile.avatarPath) ??
+            LocalProfilePhotoStore.shared.image(for: profile.avatarPath)
+        guard let image, image.size.width > 0, image.size.height > 0 else { return nil }
+        return image
+    }
+
     var body: some View {
         ZStack {
-            if let image = LocalProfilePhotoStore.shared.thumbnail(for: profile.avatarPath) ??
-                LocalProfilePhotoStore.shared.image(for: profile.avatarPath) {
+            if let image = localImage {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
@@ -378,37 +392,71 @@ struct LiftEmptyState: View {
     var symbolName = "tray"
     var actionTitle: String?
     var action: (() -> Void)?
+    var compact = false
 
+    @ViewBuilder
     var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: symbolName)
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(Color.liftLime)
-                .frame(width: 48, height: 48)
-                .background(Color.liftLime.opacity(0.14))
-                .clipShape(Circle())
-            Text(title)
-                .font(.headline)
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(Color.liftTextSecondary)
-                .multilineTextAlignment(.center)
-            if let actionTitle, let action {
-                Button(actionTitle, action: action)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.liftLime)
-                    .frame(minHeight: LiftDesign.minimumTouchTarget)
+        if compact {
+            HStack(spacing: 12) {
+                emptyStateIcon(size: 38, font: .subheadline.weight(.semibold))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.weight(.bold))
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(Color.liftTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 4)
+                if let actionTitle, let action {
+                    Button(actionTitle, action: action)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.liftLime)
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
+                }
             }
+            .padding(14)
+            .background(Color.liftCard)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.liftSurfaceBorder, lineWidth: 1)
+            )
+        } else {
+            VStack(spacing: 10) {
+                emptyStateIcon(size: 48, font: .title2.weight(.semibold))
+                Text(title)
+                    .font(.headline)
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.liftTextSecondary)
+                    .multilineTextAlignment(.center)
+                if let actionTitle, let action {
+                    Button(actionTitle, action: action)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color.liftLime)
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(24)
+            .background(Color.liftCard)
+            .clipShape(RoundedRectangle(cornerRadius: LiftDesign.cardRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: LiftDesign.cardRadius, style: .continuous)
+                    .stroke(Color.liftSurfaceBorder, lineWidth: 1)
+            )
+            .accessibilityElement(children: .combine)
         }
-        .frame(maxWidth: .infinity)
-        .padding(24)
-        .background(Color.liftCard)
-        .clipShape(RoundedRectangle(cornerRadius: LiftDesign.cardRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: LiftDesign.cardRadius, style: .continuous)
-                .stroke(Color.liftSurfaceBorder, lineWidth: 1)
-        )
-        .accessibilityElement(children: .combine)
+    }
+
+    private func emptyStateIcon(size: CGFloat, font: Font) -> some View {
+        Image(systemName: symbolName)
+            .font(font)
+            .foregroundStyle(Color.liftLime)
+            .frame(width: size, height: size)
+            .background(Color.liftLime.opacity(0.14))
+            .clipShape(Circle())
     }
 }
 

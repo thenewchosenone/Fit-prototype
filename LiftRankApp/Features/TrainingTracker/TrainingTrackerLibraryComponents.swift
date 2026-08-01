@@ -117,7 +117,9 @@ struct ExerciseLibraryFilterSheet: View {
     private func filterToggle(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                Text(title).lineLimit(1)
+                Text(title)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
                 if selected { Image(systemName: "checkmark") }
             }
             .font(.caption.weight(.bold))
@@ -126,6 +128,10 @@ struct ExerciseLibraryFilterSheet: View {
             .frame(maxWidth: .infinity, minHeight: 40)
             .background(selected ? Color.liftBlue : Color.liftCard)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(selected ? Color.liftBlue.opacity(0.65) : Color.white.opacity(0.06), lineWidth: 1)
+            }
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])

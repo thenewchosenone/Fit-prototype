@@ -8,7 +8,21 @@ final class SupabaseExerciseCatalogService: ExerciseCatalogService {
 
     func activeExercises() async throws -> [CatalogExercise] {
         do {
-            let rows: [ExerciseDTO] = try await client.from("exercises").select("id,display_name,status,ranking_movement").eq("status", value: "active").order("display_name").execute().value
+            let pageSize = 500
+            var rows: [ExerciseDTO] = []
+            var offset = 0
+            while true {
+                let page: [ExerciseDTO] = try await client.from("exercises")
+                    .select("id,display_name,status,ranking_movement")
+                    .eq("status", value: "active")
+                    .order("display_name")
+                    .order("id")
+                    .range(from: offset, to: offset + pageSize - 1)
+                    .execute().value
+                rows.append(contentsOf: page)
+                guard page.count == pageSize else { break }
+                offset += pageSize
+            }
             return rows.map { CatalogExercise(id: $0.id, displayName: $0.displayName, status: $0.status, rankingMovement: $0.rankingMovement, metadata: [:]) }
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }

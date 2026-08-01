@@ -197,92 +197,6 @@ enum MockData {
         TrainingExerciseCatalogItem(id: "farmers_carry", name: "Farmer's Carry", bodyPart: "Full Body", workoutCategory: "Conditioning", defaultSets: 3, defaultReps: "30-60 sec", symbolName: "figure.strengthtraining.functional", equipment: "Dumbbell")
     ]
 
-    static let crunchGyms: [Gym] = [
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000001")!, name: "Crunch Fitness - Altamonte Springs", city: "Altamonte Springs", state: "Florida", memberCount: 180, verifiedLiftCount: 260),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000002")!, name: "Crunch Fitness - Apollo Beach", city: "Apollo Beach", state: "Florida", memberCount: 197, verifiedLiftCount: 291),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000003")!, name: "Crunch Fitness - Apopka", city: "Apopka", state: "Florida", memberCount: 214, verifiedLiftCount: 322),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000004")!, name: "Crunch Fitness - Belle Isle", city: "Orlando", state: "Florida", memberCount: 231, verifiedLiftCount: 353),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000005")!, name: "Crunch Fitness - Bloomingdale", city: "Valrico", state: "Florida", memberCount: 248, verifiedLiftCount: 384),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000006")!, name: "Crunch Fitness - Boy Scout", city: "Fort Myers", state: "Florida", memberCount: 265, verifiedLiftCount: 415),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000007")!, name: "Crunch Fitness - Bradenton", city: "Bradenton", state: "Florida", memberCount: 282, verifiedLiftCount: 446),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000008")!, name: "Crunch Fitness - Brandon", city: "Brandon", state: "Florida", memberCount: 299, verifiedLiftCount: 477),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000009")!, name: "Crunch Fitness - Cape Coral", city: "Cape Coral", state: "Florida", memberCount: 316, verifiedLiftCount: 508),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000010")!, name: "Crunch Fitness - Carrollwood", city: "Tampa", state: "Florida", memberCount: 193, verifiedLiftCount: 539),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000011")!, name: "Crunch Fitness - Casselberry", city: "Casselberry", state: "Florida", memberCount: 210, verifiedLiftCount: 570),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000012")!, name: "Crunch Fitness - Channelside", city: "Tampa", state: "Florida", memberCount: 227, verifiedLiftCount: 601),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000013")!, name: "Crunch Fitness - Clermont", city: "Clermont", state: "Florida", memberCount: 244, verifiedLiftCount: 632),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000014")!, name: "Crunch Fitness - Coral Ridge", city: "Coral Springs", state: "Florida", memberCount: 261, verifiedLiftCount: 663),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000015")!, name: "Crunch Fitness - Coral Springs", city: "Coral Springs", state: "Florida", memberCount: 278, verifiedLiftCount: 694),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000016")!, name: "Crunch Fitness - Countryside", city: "Clearwater", state: "Florida", memberCount: 295, verifiedLiftCount: 725),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000017")!, name: "Crunch Fitness - Cutler Bay", city: "Cutler Bay", state: "Florida", memberCount: 312, verifiedLiftCount: 756),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000018")!, name: "Crunch Fitness - Daytona Beach", city: "Daytona Beach", state: "Florida", memberCount: 189, verifiedLiftCount: 267),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000019")!, name: "Crunch Fitness - Deltona", city: "Deltona", state: "Florida", memberCount: 206, verifiedLiftCount: 298),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000020")!, name: "Crunch Fitness - Doral", city: "Miami", state: "Florida", memberCount: 223, verifiedLiftCount: 329),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000021")!, name: "Crunch Fitness - Dr. Phillips", city: "Orlando", state: "Florida", memberCount: 240, verifiedLiftCount: 360),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000022")!, name: "Crunch Fitness - East Colonial", city: "Orlando", state: "Florida", memberCount: 257, verifiedLiftCount: 391),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000023")!, name: "Crunch Fitness - East Sarasota", city: "Sarasota", state: "Florida", memberCount: 274, verifiedLiftCount: 422),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000024")!, name: "Crunch Fitness - Fort Myers", city: "Fort Myers", state: "Florida", memberCount: 291, verifiedLiftCount: 453),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000025")!, name: "Crunch Fitness - Gainesville", city: "Gainesville", state: "Florida", memberCount: 308, verifiedLiftCount: 484),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000026")!, name: "Crunch Fitness - Greenacres", city: "Greenacres", state: "Florida", memberCount: 185, verifiedLiftCount: 515),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000027")!, name: "Crunch Fitness - Haines City", city: "Haines City", state: "Florida", memberCount: 202, verifiedLiftCount: 546),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000028")!, name: "Crunch Fitness - Hallandale", city: "Hallandale Beach", state: "Florida", memberCount: 219, verifiedLiftCount: 577),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000029")!, name: "Crunch Fitness - Harbour Village", city: "Jacksonville", state: "Florida", memberCount: 236, verifiedLiftCount: 608),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000030")!, name: "Crunch Fitness - Hillsborough", city: "Tampa", state: "Florida", memberCount: 253, verifiedLiftCount: 639),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000031")!, name: "Crunch Fitness - Homestead", city: "Homestead", state: "Florida", memberCount: 270, verifiedLiftCount: 670),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000032")!, name: "Crunch Fitness - Kirkman", city: "Orlando", state: "Florida", memberCount: 287, verifiedLiftCount: 701),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000033")!, name: "Crunch Fitness - Kissimmee", city: "Kissimmee", state: "Florida", memberCount: 304, verifiedLiftCount: 732),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000034")!, name: "Crunch Fitness - Kissimmee West", city: "Kissimmee", state: "Florida", memberCount: 181, verifiedLiftCount: 763),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000035")!, name: "Crunch Fitness - Lake Mary", city: "Lake Mary", state: "Florida", memberCount: 198, verifiedLiftCount: 274),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000036")!, name: "Crunch Fitness - Lake Nona", city: "Orlando", state: "Florida", memberCount: 215, verifiedLiftCount: 305),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000037")!, name: "Crunch Fitness - Lake Worth", city: "Lake Worth", state: "Florida", memberCount: 232, verifiedLiftCount: 336),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000038")!, name: "Crunch Fitness - Lakeland", city: "Lakeland", state: "Florida", memberCount: 249, verifiedLiftCount: 367),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000039")!, name: "Crunch Fitness - Lakewood Ranch", city: "Bradenton", state: "Florida", memberCount: 266, verifiedLiftCount: 398),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000040")!, name: "Crunch Fitness - Land O'Lakes", city: "Land O' Lakes", state: "Florida", memberCount: 283, verifiedLiftCount: 429),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000041")!, name: "Crunch Fitness - Maitland", city: "Maitland", state: "Florida", memberCount: 300, verifiedLiftCount: 460),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000042")!, name: "Crunch Fitness - Miami Gardens", city: "Miami Gardens", state: "Florida", memberCount: 317, verifiedLiftCount: 491),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000043")!, name: "Crunch Fitness - Naples", city: "Naples", state: "Florida", memberCount: 194, verifiedLiftCount: 522),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000044")!, name: "Crunch Fitness - Oakland Park", city: "Oakland Park", state: "Florida", memberCount: 211, verifiedLiftCount: 553),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000045")!, name: "Crunch Fitness - Ocoee", city: "Ocoee", state: "Florida", memberCount: 228, verifiedLiftCount: 584),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000046")!, name: "Crunch Fitness - Orange Park", city: "Orange Park", state: "Florida", memberCount: 245, verifiedLiftCount: 615),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000047")!, name: "Crunch Fitness - Orlando Park", city: "Orlando", state: "Florida", memberCount: 262, verifiedLiftCount: 646),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000048")!, name: "Crunch Fitness - Palm Beach Gardens", city: "Palm Beach Gardens", state: "Florida", memberCount: 279, verifiedLiftCount: 677),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000049")!, name: "Crunch Fitness - Palm Harbor", city: "Palm Harbor", state: "Florida", memberCount: 296, verifiedLiftCount: 708),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000050")!, name: "Crunch Fitness - Parrish", city: "Parrish", state: "Florida", memberCount: 313, verifiedLiftCount: 739),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000051")!, name: "Crunch Fitness - Pembroke Pines", city: "Pembroke Pines", state: "Florida", memberCount: 190, verifiedLiftCount: 770),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000052")!, name: "Crunch Fitness - Pensacola", city: "Pensacola", state: "Florida", memberCount: 207, verifiedLiftCount: 281),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000053")!, name: "Crunch Fitness - Plantation", city: "Plantation", state: "Florida", memberCount: 224, verifiedLiftCount: 312),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000054")!, name: "Crunch Fitness - Poinciana", city: "Kissimmee", state: "Florida", memberCount: 241, verifiedLiftCount: 343),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000055")!, name: "Crunch Fitness - Pompano Beach", city: "Pompano Beach", state: "Florida", memberCount: 258, verifiedLiftCount: 374),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000056")!, name: "Crunch Fitness - Port St. Lucie", city: "Port St. Lucie", state: "Florida", memberCount: 275, verifiedLiftCount: 405),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000057")!, name: "Crunch Fitness - Regency Park", city: "Jacksonville", state: "Florida", memberCount: 292, verifiedLiftCount: 436),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000058")!, name: "Crunch Fitness - Riverview", city: "Riverview", state: "Florida", memberCount: 309, verifiedLiftCount: 467),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000059")!, name: "Crunch Fitness - Sarasota Bee Ridge", city: "Sarasota", state: "Florida", memberCount: 186, verifiedLiftCount: 498),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000060")!, name: "Crunch Fitness - Sarasota University", city: "Sarasota", state: "Florida", memberCount: 203, verifiedLiftCount: 529),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000061")!, name: "Crunch Fitness - Seminole", city: "Seminole", state: "Florida", memberCount: 220, verifiedLiftCount: 560),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000062")!, name: "Crunch Fitness - Six Mile", city: "Fort Myers", state: "Florida", memberCount: 237, verifiedLiftCount: 591),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000063")!, name: "Crunch Fitness - South Beach", city: "Miami Beach", state: "Florida", memberCount: 254, verifiedLiftCount: 622),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000064")!, name: "Crunch Fitness - South Tampa", city: "Tampa", state: "Florida", memberCount: 271, verifiedLiftCount: 653),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000065")!, name: "Crunch Fitness - St Cloud FL", city: "St. Cloud", state: "Florida", memberCount: 288, verifiedLiftCount: 684),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000066")!, name: "Crunch Fitness - St. Pete Northeast", city: "St Petersburg", state: "Florida", memberCount: 305, verifiedLiftCount: 715),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000067")!, name: "Crunch Fitness - Stuart", city: "Stuart", state: "Florida", memberCount: 182, verifiedLiftCount: 746),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000068")!, name: "Crunch Fitness - Sunrise", city: "Sunrise", state: "Florida", memberCount: 199, verifiedLiftCount: 777),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000069")!, name: "Crunch Fitness - Tallahassee", city: "Tallahassee", state: "Florida", memberCount: 216, verifiedLiftCount: 288),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000070")!, name: "Crunch Fitness - Tamarac", city: "Tamarac", state: "Florida", memberCount: 233, verifiedLiftCount: 319),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000071")!, name: "Crunch Fitness - Tampa Palms", city: "Tampa", state: "Florida", memberCount: 250, verifiedLiftCount: 350),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000072")!, name: "Crunch Fitness - Trinity", city: "New Port Richey", state: "Florida", memberCount: 267, verifiedLiftCount: 381),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000073")!, name: "Crunch Fitness - Tyrone", city: "St. Petersburg", state: "Florida", memberCount: 284, verifiedLiftCount: 412),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000074")!, name: "Crunch Fitness - Wellington", city: "Wellington", state: "Florida", memberCount: 301, verifiedLiftCount: 443),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000075")!, name: "Crunch Fitness - Wesley Chapel", city: "Wesley Chapel", state: "Florida", memberCount: 318, verifiedLiftCount: 474),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000076")!, name: "Crunch Fitness - West Melbourne", city: "Melbourne", state: "Florida", memberCount: 195, verifiedLiftCount: 505),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000077")!, name: "Crunch Fitness - West Pembroke", city: "Pembroke Pines", state: "Florida", memberCount: 212, verifiedLiftCount: 536),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000078")!, name: "Crunch Fitness - Wickham", city: "Melbourne", state: "Florida", memberCount: 229, verifiedLiftCount: 567),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000079")!, name: "Crunch Fitness - Winter Garden", city: "Winter Garden", state: "Florida", memberCount: 246, verifiedLiftCount: 598),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000080")!, name: "Crunch Fitness - Winter Park", city: "Winter Park", state: "Florida", memberCount: 263, verifiedLiftCount: 629),
-        Gym(id: UUID(uuidString: "C0000000-0000-0000-0000-000000000081")!, name: "Crunch Fitness - Winter Springs", city: "Winter Springs", state: "Florida", memberCount: 280, verifiedLiftCount: 660)
-    ]
-
-    static var gyms: [Gym] { crunchGyms }
-
     static let maleWeightClasses = WeightClassCatalog.male
     static let femaleWeightClasses = WeightClassCatalog.female
     static var weightClasses: [WeightClass] { WeightClassCatalog.all }
@@ -340,8 +254,6 @@ enum MockData {
         hideLiftVideos: false
     )
 
-    static let challenges: [Challenge] = []
-
     static let achievements: [Achievement] = [
         ("First Workout", "Finish your first workout.", "figure.strengthtraining.traditional"),
         ("2 Workouts", "Complete 2 workouts.", "calendar.badge.plus"),
@@ -354,7 +266,7 @@ enum MockData {
         ("100 Workouts", "Complete 100 workouts.", "crown.fill"),
         ("200 Workouts", "Complete 200 workouts.", "star.circle.fill"),
         ("300 Workouts", "Complete 300 workouts.", "star.square.fill"),
-        ("500 Workouts", "Complete 500 workouts.", "crown.circle.fill"),
+        ("500 Workouts", "Complete 500 workouts.", "crown.fill"),
         ("1,000 Workouts", "Complete 1,000 workouts.", "laurel.leading"),
         ("First Lift Logged", "Log your first ranked lift.", "plus.circle.fill"),
         ("3 Lifts Logged", "Log three ranked lifts.", "3.circle.fill"),
@@ -451,17 +363,4 @@ enum MockData {
         ("Profile Complete", "Complete your profile details.", "person.crop.circle.fill.badge.checkmark")
     ].map { Achievement(id: UUID(), title: $0.0, description: $0.1, symbolName: $0.2) }
 
-    static let workoutPlans: [WorkoutPlan] = []
-
-    static var workoutEntries: [WorkoutExerciseEntry] {
-        []
-    }
-
-    static var bodyweightEntries: [BodyweightEntry] {
-        []
-    }
-
-    static func seededCompetitionData() -> (profiles: [UserProfile], lifts: [LiftSubmission]) {
-        ([], [])
-    }
 }

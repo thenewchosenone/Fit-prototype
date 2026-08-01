@@ -104,6 +104,7 @@ enum LiftDesign {
     static let spacing24: CGFloat = 24
     static let screenHorizontalPadding: CGFloat = 22
     static let minimumTouchTarget: CGFloat = 44
+    static let floatingTabBarContentClearance: CGFloat = 104
 }
 
 enum LiftMotion {

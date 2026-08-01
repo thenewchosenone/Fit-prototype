@@ -139,6 +139,7 @@ struct AppServiceContainer {
         )
     }
 
+#if DEBUG
     static func demo(repository: DemoRepository) -> AppServiceContainer {
         AppServiceContainer(
             features: .resolved(for: nil),
@@ -154,10 +155,11 @@ struct AppServiceContainer {
             workoutSync: MockWorkoutSyncService(), analytics: MockAnalyticsService(), legalAcceptances: MockLegalAcceptanceService(), accountDeletion: MockAccountDeletionService()
         )
     }
+#endif
 }
 
 /// Production features fail explicitly when configuration is absent. This keeps
-/// release builds from silently presenting seeded users or rankings.
+/// release builds from silently presenting local demo users or rankings.
 @MainActor
 final class UnavailableLaunchService: LiftService, LeaderboardService, SocialService, VerificationService, MediaUploadService, NotificationService, WorkoutSyncService, AnalyticsService, LegalAcceptanceService, AccountDeletionService {
     private var error: LiftRankServiceError { .configurationMissing }
@@ -191,7 +193,7 @@ final class UnavailableLaunchService: LiftService, LeaderboardService, SocialSer
     func deleteAccount() async throws { throw error }
 }
 
-/// Keeps an unconfigured build from exposing seeded profile, gym, or exercise
+/// Keeps an unconfigured build from exposing local profile, gym, or exercise
 /// data through production service boundaries. Demo data is only
 /// installed after an explicit switch to `AppServiceContainer.demo`.
 @MainActor
@@ -207,6 +209,8 @@ final class UnavailableAccountDataService: ProfileService, GymService, GymMember
     func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String { throw error }
     func downloadProfileAvatar(avatarPath: String) async throws -> ProfileAvatarDownload? { throw error }
     func removeProfileAvatar(avatarPath: String?) async throws { throw error }
+    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry]) async throws -> [BodyweightEntry] { throw error }
+    func saveBodyweightEntry(_ entry: BodyweightEntry) async throws { throw error }
 
     func gyms() async throws -> [Gym] { throw error }
     func memberships() async throws -> [GymMembershipRecord] { throw error }
@@ -229,6 +233,8 @@ final class UnconfiguredAuthenticationService: AuthenticationService {
     func signIn(email: String, password: String) async throws -> AccountSession { throw LiftRankServiceError.configurationMissing }
     func requestPasswordReset(email: String) async throws { throw LiftRankServiceError.configurationMissing }
     func signInWithApple(identityToken: String, nonce: String) async throws -> AccountSession { throw LiftRankServiceError.configurationMissing }
+#if DEBUG
     func signInDemo() async throws -> UserProfile { repository.currentProfile }
+#endif
     func signOut() async throws {}
 }

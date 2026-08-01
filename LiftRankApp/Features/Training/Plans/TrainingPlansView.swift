@@ -235,12 +235,7 @@ struct TrainingPlansView: View {
                             selectedProgramTemplate = template
                         } label: {
                             HStack(spacing: 12) {
-                                Image(systemName: template.category == .powerlifting ? "trophy.fill" : "figure.strengthtraining.traditional")
-                                    .font(.subheadline.weight(.bold))
-                                    .foregroundStyle(Color.liftBlue)
-                                    .frame(width: 42, height: 42)
-                                    .background(Color.liftBlue.opacity(0.12))
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                programIcon(for: template)
 
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(template.name)
@@ -293,6 +288,51 @@ struct TrainingPlansView: View {
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
+        }
+    }
+
+    private func programIcon(for template: WorkoutProgramTemplate) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.liftBlue.opacity(0.22), Color.liftGreen.opacity(0.09)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            Circle()
+                .fill(Color.liftBlue.opacity(0.08))
+                .frame(width: 34, height: 34)
+
+            Image(systemName: programSymbolName(for: template))
+                .font(.system(size: 20, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(Color.liftBlue)
+        }
+        .frame(width: 46, height: 46)
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.liftBlue.opacity(0.20), lineWidth: 1)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func programSymbolName(for template: WorkoutProgramTemplate) -> String {
+        switch template.category {
+        case .bodybuilding:
+            return template.id.contains("upper_lower")
+                ? "rectangle.split.2x1.fill"
+                : "arrow.triangle.branch"
+        case .powerlifting:
+            return "scalemass.fill"
+        case .cablesOnly:
+            return "cable.connector.horizontal"
+        case .freeWeightsOnly:
+            return "dumbbell.fill"
+        case .general:
+            return "figure.strengthtraining.functional"
         }
     }
 }

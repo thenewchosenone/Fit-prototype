@@ -7,7 +7,20 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
 
     func plans() async throws -> [WorkoutPlanDocument] {
         do {
-            let rows: [WorkoutPlanDocumentDTO] = try await client.from("workout_plan_documents").select().execute().value
+            let pageSize = 100
+            var rows: [WorkoutPlanDocumentDTO] = []
+            var offset = 0
+            while true {
+                let page: [WorkoutPlanDocumentDTO] = try await client.from("workout_plan_documents")
+                    .select()
+                    .order("updated_at", ascending: false)
+                    .order("id")
+                    .range(from: offset, to: offset + pageSize - 1)
+                    .execute().value
+                rows.append(contentsOf: page)
+                guard page.count == pageSize else { break }
+                offset += pageSize
+            }
             return rows.compactMap(\.document)
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
@@ -58,9 +71,21 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
 
     func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot] {
         do {
-            var query = client.from("completed_workout_snapshots").select()
-            if let since { query = query.gt("completed_at", value: since) }
-            let rows: [CompletedWorkoutSnapshotDTO] = try await query.execute().value
+            let pageSize = 200
+            var rows: [CompletedWorkoutSnapshotDTO] = []
+            var offset = 0
+            while true {
+                var query = client.from("completed_workout_snapshots").select()
+                if let since { query = query.gt("completed_at", value: since) }
+                let page: [CompletedWorkoutSnapshotDTO] = try await query
+                    .order("completed_at", ascending: true)
+                    .order("id")
+                    .range(from: offset, to: offset + pageSize - 1)
+                    .execute().value
+                rows.append(contentsOf: page)
+                guard page.count == pageSize else { break }
+                offset += pageSize
+            }
             return rows.compactMap(\.snapshot)
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }

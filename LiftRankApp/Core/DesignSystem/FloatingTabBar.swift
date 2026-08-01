@@ -23,7 +23,7 @@ struct FloatingTabBar: View {
                         utilityAction?()
                     } label: {
                         Image(systemName: item.icon)
-                            .font(.system(size: 18, weight: .bold))
+                            .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(Color.liftOnAccent)
                             .frame(width: 48, height: 48)
                             .background(Color.liftLime)
@@ -35,18 +35,16 @@ struct FloatingTabBar: View {
                 } else {
                     Button {
                         Haptics.light()
-                        withAnimation(LiftMotion.quick) {
-                            if let tab = item.tab {
-                                selection = tab
-                            }
+                        if let tab = item.tab {
+                            selection = tab
                         }
                     } label: {
-                        VStack(spacing: 5) {
+                        VStack(spacing: 3) {
                             Image(systemName: item.icon)
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.system(size: 15, weight: .semibold))
                                 .foregroundStyle(item.tab == selection ? Color.liftLime : Color.liftTextSecondary)
                             Text(item.title)
-                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .font(.system(size: 9, weight: .bold, design: .rounded))
                                 .tracking(0.3)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.75)
@@ -54,7 +52,7 @@ struct FloatingTabBar: View {
                                 .foregroundStyle(item.tab == selection ? Color.liftLime : Color.liftTextSecondary)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
+                        .padding(.vertical, 8)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -67,14 +65,14 @@ struct FloatingTabBar: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(Color.liftSurfaceElevated)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
                         .stroke(Color.liftSurfaceBorder, lineWidth: 1)
                 )
         )
         .padding(.horizontal, 14)
-        .padding(.bottom, 8)
+        .padding(.bottom, 6)
     }
 }

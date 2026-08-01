@@ -668,7 +668,7 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(store.profiles.map(\.id), [userID])
     }
 
-    func testProfileStoreKeepsLocalAvatarWhenRemoteProfileHasNoAvatarYet() {
+    func testProfileStoreTreatsRemoteAvatarRemovalAsAuthoritative() {
         let repository = DemoRepository()
         var local = repository.currentProfile
         local.avatarPath = "local-profile-photos/member-thumb.jpg"
@@ -696,7 +696,50 @@ final class BackendFoundationTests: XCTestCase {
 
         store.applyAuthenticatedProfile(remote, retainingDemoProfiles: false)
 
-        XCTAssertEqual(store.currentProfile.avatarPath, "local-profile-photos/member-thumb.jpg")
+        XCTAssertNil(store.currentProfile.avatarPath)
+    }
+
+    func testPendingAuthenticatedAvatarUploadRetriesDuringAccountLoad() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let userID = UUID()
+        let avatarPath = "\(userID.uuidString.lowercased())/avatar"
+        LocalProfilePhotoStore.shared.remove(avatarPath: avatarPath)
+        let image = try XCTUnwrap(UIImage(systemName: "person.crop.circle.fill"))
+        let savedPath = try LocalProfilePhotoStore.shared.save(
+            image: image,
+            userID: userID,
+            mode: .authenticated
+        )
+        XCTAssertEqual(
+            LocalProfilePhotoStore.shared.pendingUploadPath(userID: userID, mode: .authenticated),
+            savedPath
+        )
+        let session = AccountSession(
+            userID: userID,
+            email: "avatar-retry@example.test",
+            expiresAt: .now.addingTimeInterval(3_600)
+        )
+        let service = TestProfileService(profile: AuthenticatedProfile(
+            id: userID, username: "avatar_retry", displayName: "Avatar Retry", bio: "",
+            avatarPath: nil, onboardingCompleted: true, preferredUnit: .pounds, birthDate: nil,
+            sexCategory: .open, heightCentimeters: nil, city: nil, region: nil, countryCode: "US",
+            yearsExperience: nil, experienceLevel: .beginner, privacy: ProfilePrivacySettings()
+        ))
+        let appState = AppState(repository: repository, serviceContainer: AppServiceContainer(
+            authentication: TestSessionAuthenticationService(session: session),
+            profile: service,
+            gyms: MockGymService(repository: repository),
+            gymMemberships: MockGymMembershipService(repository: repository),
+            exercises: MockExerciseCatalogService(),
+            legalAcceptances: TestSessionLegalAcceptanceService(userID: userID)
+        ))
+
+        await appState.signIn(email: session.email ?? "avatar-retry@example.test", password: "password")
+
+        XCTAssertEqual(service.uploadedAvatarPaths, [savedPath])
+        XCTAssertEqual(appState.currentProfile.avatarPath, savedPath)
+        XCTAssertNil(LocalProfilePhotoStore.shared.pendingUploadPath(userID: userID, mode: .authenticated))
+        LocalProfilePhotoStore.shared.remove(avatarPath: avatarPath)
     }
 
     func testProfileStoreOwnsRemoteEditedProfilePersistence() async throws {
@@ -843,6 +886,81 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(appState.bodyweightEntries.last?.actual, 212)
         XCTAssertEqual(service.profile.bodyweightPounds, 212)
         XCTAssertEqual(service.updateProfileCount, 1)
+        XCTAssertEqual(service.savedBodyweightEntries.last?.actual, 212)
+    }
+
+    func testBodyweightHistorySyncFailureDoesNotSignOutAuthenticatedAccount() async {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let userID = UUID()
+        let session = AccountSession(
+            userID: userID,
+            email: "bodyweight-sync@example.test",
+            expiresAt: .now.addingTimeInterval(3_600)
+        )
+        let service = TestProfileService(profile: AuthenticatedProfile(
+            id: userID, username: "bodyweight_sync", displayName: "Bodyweight Sync", bio: "",
+            avatarPath: nil, onboardingCompleted: true, preferredUnit: .pounds, birthDate: nil,
+            sexCategory: .open, heightCentimeters: nil, bodyweightPounds: 205,
+            city: nil, region: nil, countryCode: "US", yearsExperience: nil,
+            experienceLevel: .beginner, privacy: ProfilePrivacySettings()
+        ))
+        service.bodyweightSyncError = LiftRankServiceError.server("Bodyweight history unavailable")
+        let appState = AppState(repository: repository, serviceContainer: AppServiceContainer(
+            authentication: TestSessionAuthenticationService(session: session),
+            profile: service,
+            gyms: MockGymService(repository: repository),
+            gymMemberships: MockGymMembershipService(repository: repository),
+            exercises: MockExerciseCatalogService(),
+            legalAcceptances: TestSessionLegalAcceptanceService(userID: userID)
+        ))
+
+        await appState.signIn(email: session.email ?? "bodyweight-sync@example.test", password: "password")
+
+        XCTAssertTrue(appState.isAuthenticated)
+        XCTAssertNotNil(appState.accountSession)
+        XCTAssertEqual(appState.currentProfile.bodyweightPounds, 205)
+    }
+
+    func testBodyweightUploadDoesNotRestoreSignedOutProfile() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let userID = UUID()
+        let session = AccountSession(
+            userID: userID,
+            email: "bodyweight-race@example.test",
+            expiresAt: .now.addingTimeInterval(3_600)
+        )
+        let service = TestProfileService(profile: AuthenticatedProfile(
+            id: userID, username: "bodyweight_race", displayName: "Bodyweight Race", bio: "",
+            avatarPath: nil, onboardingCompleted: true, preferredUnit: .pounds, birthDate: nil,
+            sexCategory: .open, heightCentimeters: nil, bodyweightPounds: 200,
+            city: nil, region: nil, countryCode: "US", yearsExperience: nil,
+            experienceLevel: .beginner, privacy: ProfilePrivacySettings()
+        ))
+        let appState = AppState(repository: repository, serviceContainer: AppServiceContainer(
+            authentication: TestSessionAuthenticationService(session: session),
+            profile: service,
+            gyms: MockGymService(repository: repository),
+            gymMemberships: MockGymMembershipService(repository: repository),
+            exercises: MockExerciseCatalogService(),
+            legalAcceptances: TestSessionLegalAcceptanceService(userID: userID)
+        ))
+        await appState.signIn(email: session.email ?? "bodyweight-race@example.test", password: "password")
+        service.holdBodyweightSave = true
+
+        appState.updateBodyweight(BodyweightEntry(
+            id: UUID(), week: 1, targetDate: .now, actual: 210, notes: "Pending"
+        ))
+        while !service.bodyweightSaveStarted {
+            await Task.yield()
+        }
+        await appState.signOutAccount()
+        service.releaseBodyweightSave()
+        try await Task.sleep(nanoseconds: 20_000_000)
+
+        XCTAssertEqual(service.updateProfileCount, 0)
+        XCTAssertFalse(appState.isAuthenticated)
+        XCTAssertEqual(repository.currentProfile.id, MockData.emptyProfile.id)
+        XCTAssertTrue(repository.bodyweightEntries.isEmpty)
     }
 
     func testKilogramBodyweightLogStoresPoundsAndDisplaysConsistently() async throws {
@@ -974,7 +1092,8 @@ final class BackendFoundationTests: XCTestCase {
         ))
         let store = ProfileStore(repository: repository, profileService: service)
 
-        let loaded = try await store.loadAuthenticatedProfile(retainingDemoProfiles: false)
+        let loaded = try await store.fetchAuthenticatedProfile()
+        store.applyAuthenticatedProfile(loaded, retainingDemoProfiles: false)
         XCTAssertEqual(loaded.id, userID)
         XCTAssertEqual(store.profiles.map(\.id), [userID])
 
@@ -1194,15 +1313,21 @@ final class BackendFoundationTests: XCTestCase {
         while !service.requestStarted {
             await Task.yield()
         }
-        repository.currentProfile.id = UUID()
+        let newUserID = UUID()
+        repository.currentProfile.id = newUserID
+        let newNotification = NotificationItem(
+            id: UUID(), title: "New account", message: "", kind: "Test",
+            createdAt: .now, isRead: false
+        )
+        repository.notifications = [newNotification]
         service.release()
         await refresh.value
 
-        XCTAssertTrue(store.notifications.isEmpty)
+        XCTAssertEqual(store.notifications, [newNotification])
     }
 
     @MainActor
-    func testNotificationRefreshClearsPreviousUsersCacheWhenResponseFails() async {
+    func testNotificationRefreshFailureDoesNotClearNewUsersCache() async {
         let repository = DemoRepository()
         let oldNotification = NotificationItem(
             id: UUID(), title: "Old account", message: "", kind: "Test",
@@ -1217,11 +1342,17 @@ final class BackendFoundationTests: XCTestCase {
         while !service.requestStarted {
             await Task.yield()
         }
-        repository.currentProfile.id = UUID()
+        let newUserID = UUID()
+        repository.currentProfile.id = newUserID
+        let newNotification = NotificationItem(
+            id: UUID(), title: "New account", message: "", kind: "Test",
+            createdAt: .now, isRead: false
+        )
+        repository.notifications = [newNotification]
         service.release()
         await refresh.value
 
-        XCTAssertTrue(store.notifications.isEmpty)
+        XCTAssertEqual(store.notifications, [newNotification])
     }
 
 
@@ -1421,6 +1552,43 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertNil(state.accountSession)
     }
 
+    func testDelayedAuthenticatedProfileLoadCannotRestoreSignedOutAccount() async {
+        let repository = DemoRepository()
+        let userID = UUID()
+        let restoredSession = AccountSession(
+            userID: userID,
+            email: "delayed-restore@example.test",
+            expiresAt: .now.addingTimeInterval(3_600)
+        )
+        let profileService = TestProfileService(profile: AuthenticatedProfile(
+            id: userID, username: "delayed_restore", displayName: "Delayed Restore", bio: "",
+            avatarPath: nil, onboardingCompleted: true, preferredUnit: .pounds,
+            birthDate: nil, sexCategory: .open, heightCentimeters: nil, city: nil,
+            region: nil, countryCode: "US", yearsExperience: nil,
+            experienceLevel: .beginner, privacy: ProfilePrivacySettings()
+        ))
+        profileService.holdAuthenticatedProfile = true
+        let state = AppState(repository: repository, serviceContainer: AppServiceContainer(
+            authentication: TestSessionAuthenticationService(session: restoredSession),
+            profile: profileService,
+            gyms: MockGymService(repository: repository),
+            gymMemberships: MockGymMembershipService(repository: repository),
+            exercises: MockExerciseCatalogService(),
+            legalAcceptances: TestSessionLegalAcceptanceService(userID: userID)
+        ))
+
+        let restore = Task { await state.restoreAccount() }
+        while !profileService.authenticatedProfileStarted { await Task.yield() }
+        await state.signOutAccount()
+        profileService.releaseAuthenticatedProfile()
+        await restore.value
+
+        XCTAssertEqual(state.accountStatus, .signedOut)
+        XCTAssertNil(state.accountSession)
+        XCTAssertNotEqual(state.currentProfile.id, userID)
+        XCTAssertFalse(state.profiles.contains { $0.id == userID })
+    }
+
     func testExplicitDemoSelectionIsIsolated() async {
         let state = makeState(session: nil, onboardingCompleted: false)
         await state.restoreAccount()
@@ -1484,10 +1652,16 @@ final class BackendFoundationTests: XCTestCase {
         }
 
         repository.currentProfile.id = UUID()
+        let newGym = Gym(
+            id: UUID(), name: "New account gym", city: "Miami", state: "Florida",
+            memberCount: 1, verifiedLiftCount: 0
+        )
+        profileStore.replaceGymDirectory([newGym], memberships: [])
         socialService.release()
         await update.value
 
         XCTAssertTrue(store.blocks.isEmpty)
+        XCTAssertEqual(profileStore.gyms, [newGym])
     }
 
     @MainActor
@@ -1513,6 +1687,7 @@ final class BackendFoundationTests: XCTestCase {
         }
 
         repository.currentProfile.id = UUID()
+        store.clear()
         socialService.releaseWithFailure()
         await refresh.value
 
@@ -1672,10 +1847,15 @@ final class BackendFoundationTests: XCTestCase {
             await Task.yield()
         }
         repository.currentProfile.id = UUID()
+        let newGym = Gym(
+            id: UUID(), name: "New account gym", city: "Miami", state: "Florida",
+            memberCount: 1, verifiedLiftCount: 0
+        )
+        profileStore.replaceGymDirectory([newGym], memberships: [])
         gymService.release()
         await refresh.value
 
-        XCTAssertTrue(profileStore.gyms.isEmpty)
+        XCTAssertEqual(profileStore.gyms, [newGym])
         XCTAssertTrue(store.gymMemberships.isEmpty)
     }
 
@@ -1718,6 +1898,33 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertTrue(try context.fetch(FetchDescriptor<PersistentWorkoutState>()).isEmpty)
         XCTAssertTrue(try context.fetch(FetchDescriptor<PersistentLiftRecord>()).isEmpty)
         XCTAssertTrue(try context.fetch(FetchDescriptor<PersistentSettings>()).isEmpty)
+    }
+
+    @MainActor
+    func testSwiftDataWorkoutStoreMigratesLegacyJSONAndSkipsIdenticalWrites() throws {
+        let bootstrap = InMemoryWorkoutPersistenceStore()
+        _ = DemoRepository(workoutPersistenceStore: bootstrap)
+        let snapshot = try XCTUnwrap(bootstrap.snapshot)
+        let legacyPayload = try JSONEncoder().encode(snapshot)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: PersistentLiftRecord.self, PersistentSettings.self,
+            PersistentWorkoutRecord.self, PersistentWorkoutState.self,
+            configurations: configuration
+        )
+        let context = container.mainContext
+        context.insert(PersistentWorkoutState(schemaVersion: snapshot.schemaVersion, payload: legacyPayload))
+        try context.save()
+        let store = SwiftDataWorkoutPersistenceStore(context: context)
+
+        XCTAssertEqual(store.loadSnapshot(), snapshot)
+        store.saveSnapshot(snapshot)
+
+        let record = try XCTUnwrap(context.fetch(FetchDescriptor<PersistentWorkoutState>()).first)
+        XCTAssertTrue(record.payload.starts(with: Data("bplist".utf8)))
+        let firstUpdatedAt = record.updatedAt
+        store.saveSnapshot(snapshot)
+        XCTAssertEqual(record.updatedAt, firstUpdatedAt)
     }
 
 
@@ -1833,6 +2040,60 @@ final class BackendFoundationTests: XCTestCase {
 
         let remote = try await service.completedWorkouts(since: nil)
         XCTAssertEqual(remote.map(\.payload), [edited.payload])
+    }
+
+    @MainActor
+    func testWorkoutSyncStorePreservesANewerEditQueuedDuringUpload() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let service = GatedCompletedWorkoutUploadService()
+        let store = WorkoutSyncStore(repository: repository, service: service)
+        let workoutID = UUID()
+        let original = CompletedWorkoutSnapshot(
+            id: workoutID,
+            ownerID: repository.currentProfile.id,
+            payload: Data("original".utf8),
+            completedAt: .now
+        )
+        var edited = original
+        edited.payload = Data("edited".utf8)
+        store.enqueueCompletedWorkout(original)
+
+        let sync = Task { await store.synchronizeCompletedWorkoutHistory() }
+        while !service.requestStarted {
+            await Task.yield()
+        }
+        store.enqueueCompletedWorkout(edited)
+        service.release()
+        await sync.value
+
+        XCTAssertEqual(repository.pendingCompletedWorkoutUploads, [edited])
+    }
+
+    @MainActor
+    func testWorkoutSyncStoreAppliesRemoteEditWhenNoLocalUploadIsPending() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let service = MockWorkoutSyncService()
+        let store = WorkoutSyncStore(repository: repository, service: service)
+        let workout = CompletedWorkout(
+            id: UUID(), source: .freestyle, sourceSessionID: nil, sourcePlanID: nil,
+            name: "Original", dayLabel: "Monday", startedAt: .now.addingTimeInterval(-600),
+            completedAt: .now, duration: 600, effort: 3, notes: "Local", gymID: nil,
+            bodyweight: nil, unit: .pounds, exercises: [], sets: [], linkedSubmissionIDs: []
+        )
+        repository.completedWorkouts = [workout]
+        var edited = workout
+        edited.name = "Remote edit"
+        edited.notes = "Updated elsewhere"
+        try await service.uploadCompletedWorkout(CompletedWorkoutSnapshot(
+            id: edited.id,
+            ownerID: repository.currentProfile.id,
+            payload: try JSONEncoder().encode(edited),
+            completedAt: edited.completedAt
+        ))
+
+        await store.synchronizeCompletedWorkoutHistory()
+
+        XCTAssertEqual(repository.completedWorkouts, [edited])
     }
 
     @MainActor
@@ -1993,10 +2254,7 @@ final class BackendFoundationTests: XCTestCase {
 
     @MainActor
     func testWorkoutSyncStoreIgnoresPlanOwnedByAnotherAccount() async throws {
-        let repository = DemoRepository(
-            workoutPersistenceStore: InMemoryWorkoutPersistenceStore(),
-            seedDemoData: false
-        )
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
         let plan = WorkoutPlan(id: UUID(), name: "Other account plan", createdAt: .now)
         let payload = try JSONEncoder().encode(WorkoutPlanSyncPayload(
             plan: plan, phases: [], weeks: [], sessions: [], prescriptions: [], progression: nil
@@ -2132,7 +2390,7 @@ final class BackendFoundationTests: XCTestCase {
         service.release()
         await deletion.value
 
-        XCTAssertTrue(repository.pendingRemoteWorkoutPlanDeletions.isEmpty)
+        XCTAssertEqual(repository.pendingRemoteWorkoutPlanDeletions, Set([nextAccountPlanID]))
     }
 
     func testCompletedWorkoutUploadIsIdempotentAndRejectsSeededData() async throws {
@@ -2304,6 +2562,34 @@ private final class GatedAthleteSearchService: SocialService {
 }
 
 @MainActor
+private final class GatedCompletedWorkoutUploadService: WorkoutSyncService {
+    var requestStarted = false
+    private var snapshots: [CompletedWorkoutSnapshot] = []
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    func plans() async throws -> [WorkoutPlanDocument] { [] }
+    func savePlan(_ document: WorkoutPlanDocument, expectedRevision: Int) async throws -> WorkoutSyncResult {
+        throw LiftRankServiceError.configurationMissing
+    }
+    func deletePlan(id: UUID) async throws {}
+    func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot] { snapshots }
+    func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws {
+        requestStarted = true
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+        snapshots.removeAll { $0.id == snapshot.id }
+        snapshots.append(snapshot)
+    }
+    func deleteCompletedWorkout(id: UUID) async throws {}
+
+    func release() {
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
+@MainActor
 private final class GatedCompletedWorkoutSyncService: WorkoutSyncService {
     var requestStarted = false
     private let snapshotsToReturn: [CompletedWorkoutSnapshot]
@@ -2445,6 +2731,11 @@ private final class TestProfileService: ProfileService {
     private(set) var uploadedAvatarPaths: [String] = []
     private(set) var downloadedAvatarPaths: [String] = []
     private(set) var removedAvatarPaths: [String?] = []
+    private(set) var savedBodyweightEntries: [BodyweightEntry] = []
+    var bodyweightSyncError: Error?
+    var holdBodyweightSave = false
+    private(set) var bodyweightSaveStarted = false
+    private var bodyweightSaveRelease: CheckedContinuation<Void, Never>?
     var holdAvatarUpload = false
     private(set) var avatarUploadStarted = false
     private var avatarUploadRelease: CheckedContinuation<Void, Never>?
@@ -2543,5 +2834,23 @@ private final class TestProfileService: ProfileService {
     }
     func removeProfileAvatar(avatarPath: String?) async throws {
         removedAvatarPaths.append(avatarPath)
+    }
+    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry]) async throws -> [BodyweightEntry] {
+        if let bodyweightSyncError { throw bodyweightSyncError }
+        return localEntries
+    }
+    func saveBodyweightEntry(_ entry: BodyweightEntry) async throws {
+        if holdBodyweightSave {
+            bodyweightSaveStarted = true
+            await withCheckedContinuation { continuation in
+                bodyweightSaveRelease = continuation
+            }
+        }
+        savedBodyweightEntries.removeAll { $0.id == entry.id }
+        savedBodyweightEntries.append(entry)
+    }
+    func releaseBodyweightSave() {
+        bodyweightSaveRelease?.resume()
+        bodyweightSaveRelease = nil
     }
 }

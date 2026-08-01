@@ -1,6 +1,15 @@
 {
-  "originHash" : "ccc727310637079b7355ccf59e7d153c26677020c1a43e177b78cc9df7963c0f",
+  "originHash" : "d2fe530aa853ff2cdd2085f209dec815a89ce051fa8362364e6bb3d53941cc21",
   "pins" : [
+    {
+      "identity" : "musclemap",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/melihcolpan/MuscleMap.git",
+      "state" : {
+        "revision" : "7dc03071e03052e8bd4f6351e9176994cd28aa7d",
+        "version" : "1.6.4"
+      }
+    },
     {
       "identity" : "supabase-swift",
       "kind" : "remoteSourceControl",

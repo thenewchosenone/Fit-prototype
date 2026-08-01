@@ -2,8 +2,7 @@ import SwiftUI
 
 extension ProfileView {
     var featureBody: some View {
-        let visibleProfileLifts = profileLifts
-        return AppBackground {
+        AppBackground {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
@@ -13,7 +12,7 @@ extension ProfileView {
                     athleteDetails(profileLifts: visibleProfileLifts)
                 }
                 .padding()
-                .padding(.bottom, isCurrentUser ? 96 : 24)
+                .padding(.bottom, 24)
             }
             .sheet(isPresented: $showingPhotoManager) {
                 ProfilePhotoManagerView()
@@ -31,13 +30,12 @@ extension ProfileView {
                         .accessibilityLabel("Submit a lift")
                     }
                     ToolbarItem(placement: .topBarTrailing) {
-                        Menu {
-                            Button("Edit Profile") { appState.showingEditProfile = true }
-                            Button("Settings") { appState.showingSettings = true }
+                        Button {
+                            appState.showingSettings = true
                         } label: {
-                            Image(systemName: "ellipsis.circle.fill")
+                            Image(systemName: "gearshape.circle.fill")
                         }
-                        .accessibilityLabel("Profile options")
+                        .accessibilityLabel("Open settings")
                     }
                 } else {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -53,6 +51,12 @@ extension ProfileView {
                     }
                 }
             }
+        }
+        .task(id: profile.id) {
+            refreshVisibleProfileLifts()
+        }
+        .onChange(of: appState.repository.liftsRevision) { _, _ in
+            refreshVisibleProfileLifts()
         }
     }
 }

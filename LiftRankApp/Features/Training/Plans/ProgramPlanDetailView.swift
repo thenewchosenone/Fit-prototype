@@ -87,8 +87,12 @@ struct ProgramPlanDetailView: View {
             }
 
             if detailTab == "Weeks" {
-                weekNavigator
-                weekSessions
+                if appState.selectedPlanWeeks.isEmpty {
+                    emptyWeeksState
+                } else {
+                    weekNavigator
+                    weekSessions
+                }
             } else if detailTab == "Overview" {
                 overview
             } else {
@@ -201,12 +205,52 @@ struct ProgramPlanDetailView: View {
         selectedWeekID = appState.selectedPlanWeeks[destination].id
     }
 
+    private var emptyWeeksState: some View {
+        LiftCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    Image(systemName: "calendar.badge.plus")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(Color.liftBlue)
+                        .frame(width: 38, height: 38)
+                        .background(Color.liftBlue.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Build your first week")
+                            .font(.headline.weight(.bold))
+                        Text("Add a week, then create workout days for it.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                    }
+                }
+
+                Button {
+                    let week = appState.addWeekToSelectedPlan()
+                    selectedWeekID = week.id
+                    detailTab = "Weeks"
+                } label: {
+                    Label("Add Week", systemImage: "plus.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(LiftCompactProminentButtonStyle())
+            }
+        }
+    }
+
     private var weekSessions: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let selectedWeek {
                 let sessions = appState.sessions(for: selectedWeek)
                 if sessions.isEmpty {
-                    TrackerMessageCard(title: "No workout days yet", message: "Add workout days like Monday Push, Tuesday Pull, or Friday Legs.")
+                    LiftCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("No workout days yet")
+                                .font(.headline.weight(.bold))
+                            Text("Add workout days like Monday Push, Tuesday Pull, or Friday Legs.")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                        }
+                    }
                 } else {
                     ForEach(sessions) { session in
                         ProgramSessionCard(session: session, week: selectedWeek, onStart: {

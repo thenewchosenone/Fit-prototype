@@ -13,6 +13,7 @@ metadata_check_script="$ROOT/scripts/check_launch_metadata.sh"
 
 evidence_file="$report_dir/release-evidence.md"
 summary_file="$report_dir/summary.txt"
+source_state_file="$report_dir/source-state.txt"
 
 run_web_frontend="${RUN_WEB_FRONTEND_GATES:-1}"
 run_ios="${RUN_IOS_GATES:-1}"
@@ -32,6 +33,24 @@ command_exists() {
   fi
 
   command -v "$command_name" >/dev/null 2>&1
+}
+
+capture_source_state() {
+  source_revision="unavailable"
+  source_tree_state="unavailable"
+
+  if command_exists git && git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    source_revision="$(git -C "$ROOT" rev-parse HEAD)"
+    git -C "$ROOT" status --short > "$source_state_file"
+    if [[ -s "$source_state_file" ]]; then
+      source_tree_state="dirty"
+    else
+      source_tree_state="clean"
+      printf 'Working tree clean.\n' > "$source_state_file"
+    fi
+  else
+    printf 'Git source metadata unavailable.\n' > "$source_state_file"
+  fi
 }
 
 capture_status() {
@@ -67,16 +86,14 @@ run_step() {
 
   log "\n[$timestamp] START: $label"
 
-  {
-    set +e
-    if command_exists timeout; then
-      timeout "$command_timeout" "$@"
-    else
-      "$@"
-    fi
-    rc=$?
-    set -e
-  } 2>&1 | tee "$step_log"
+  set +e
+  if command_exists timeout; then
+    timeout "$command_timeout" "$@" 2>&1 | tee "$step_log"
+  else
+    "$@" 2>&1 | tee "$step_log"
+  fi
+  rc=${PIPESTATUS[0]}
+  set -e
 
   if [ "$rc" -ne 0 ]; then
     status="fail"
@@ -192,6 +209,7 @@ append_summary() {
 }
 
 printf 'step|status|log\n' > "$summary_file"
+capture_source_state
 
 cat > "$evidence_file" <<EVIDENCE
 # LiftRank publish-readiness evidence
@@ -207,6 +225,12 @@ Working directory: $ROOT
 - Backend gates enabled: $run_backend
 - Strict mode: $strict_mode
 - Timeout per step (s): $command_timeout
+
+## Source state
+
+- Revision: $source_revision
+- Working tree: $source_tree_state
+- Full status: $source_state_file
 EVIDENCE
 
 verify_baseline_scheme

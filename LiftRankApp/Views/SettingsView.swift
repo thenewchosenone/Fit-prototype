@@ -1,6 +1,13 @@
 import SwiftUI
 
+enum SettingsSection: String, Hashable {
+    case units
+    case privacy
+    case notifications
+}
+
 struct SettingsView: View {
+    let initialSection: SettingsSection?
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var preferredUnit = UnitSystem.pounds
@@ -15,15 +22,21 @@ struct SettingsView: View {
     @State private var settingsInfo: SettingsInfoPage?
     @State private var confirmingDeletion = false
 
+    init(initialSection: SettingsSection? = nil) {
+        self.initialSection = initialSection
+    }
+
     var body: some View {
         NavigationStack {
             AppBackground {
-                Form {
+                ScrollViewReader { proxy in
+                    Form {
                     Section("Units") {
                         Picker("Pounds or kilograms", selection: $preferredUnit) {
                             ForEach(UnitSystem.allCases) { Text($0.rawValue.capitalized).tag($0) }
                         }
                     }
+                    .id(SettingsSection.units)
                     Section("Privacy") {
                         Toggle("Private profile", isOn: $privateProfile)
                         Toggle("Hide bodyweight", isOn: $hideBodyweight)
@@ -31,9 +44,11 @@ struct SettingsView: View {
                         Toggle("Hide location", isOn: $hideLocation)
                         Toggle("Allow comments", isOn: $allowComments)
                     }
+                    .id(SettingsSection.privacy)
                     Section("Notifications") {
                         Toggle("Notification preferences", isOn: $notificationPreferences)
                     }
+                    .id(SettingsSection.notifications)
                     Section("Workout Tracking") {
                         Toggle("Automatically submit video-backed PRs", isOn: Binding(
                             get: { appState.workoutPreferences.automaticallySubmitVideoBackedPRs },
@@ -107,6 +122,14 @@ struct SettingsView: View {
                             .disabled(appState.accountOperationInProgress)
                         }
                     }
+                    }
+                    .onAppear {
+                        guard let initialSection else { return }
+                        Task { @MainActor in
+                            await Task.yield()
+                            proxy.scrollTo(initialSection, anchor: .top)
+                        }
+                    }
                 }
                 .scrollContentBackground(.hidden)
             }
@@ -134,7 +157,7 @@ struct SettingsView: View {
                 SettingsInfoView(page: page)
                     .presentationDetents([.medium, .large])
             }
-            .confirmationDialog("Permanently delete your Lift Rivals account?", isPresented: $confirmingDeletion, titleVisibility: .visible) {
+            .alert("Permanently delete your Lift Rivals account?", isPresented: $confirmingDeletion) {
                 Button(appState.accountOperationInProgress ? "Deleting..." : "Delete Account and Local Data", role: .destructive) {
                     Task {
                         await appState.deleteAuthenticatedAccount()

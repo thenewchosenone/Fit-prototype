@@ -3,13 +3,7 @@ import SwiftUI
 extension LeaderboardsView {
     @ViewBuilder
     var featureBody: some View {
-        if appState.router.selectedTab == .leaderboards {
-            leaderboardContent
-        } else {
-            AppBackground {
-                Color.clear
-            }
-        }
+        leaderboardContent
     }
 
     private var leaderboardContent: some View {
@@ -128,7 +122,8 @@ extension LeaderboardsView {
                     title: selector.title,
                     options: options(for: selector),
                     selectedID: selectedOptionID(for: selector),
-                    isSearchable: selector == .scope
+                    isSearchable: selector == .exercise || selector == .scope,
+                    searchPrompt: selector == .exercise ? "Search exercises" : "Search locations or gyms"
                 ) { optionID in
                     apply(optionID, for: selector)
                 }

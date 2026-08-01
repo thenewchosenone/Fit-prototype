@@ -32,9 +32,6 @@ struct ExerciseLibraryDetailView: View {
     private var substitutes: [ExerciseSubstitutionRecommendation] {
         appState.substitutionRecommendations(for: exercise, limit: 5)
     }
-    private var demoMediaID: String? {
-        exercise.demonstrationMediaID
-    }
     private var history: [ExerciseHistoryEntry] { appState.exerciseHistory(for: exercise.id) }
     private var records: ExerciseRecords { appState.exerciseRecords(for: exercise.id) }
 
@@ -42,27 +39,17 @@ struct ExerciseLibraryDetailView: View {
         AppBackground {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if let demoMediaID,
-                       BundledDemoMediaLibrary.shared.url(for: demoMediaID) != nil {
-                        DemoMediaCard(
-                            title: exercise.name,
-                            subtitle: "\(exercise.equipment) • \(exercise.movementPattern.rawValue)",
-                            mediaID: demoMediaID,
-                            badge: "Exercise Demo"
-                        )
-                    } else {
-                        VStack(alignment: .leading, spacing: 10) {
-                            ExerciseMuscleMap(profile: splitProfile, displayStyle: .hero)
-                                .frame(height: 230)
-                                .accessibilityElement(children: .ignore)
-                                .accessibilityLabel(anatomyAccessibilityLabel)
-                            Text("Muscles worked")
-                                .font(.caption)
-                                .foregroundStyle(Color.liftMuted)
-                        }
-                        .padding(14)
-                        .liftSurface()
+                    VStack(alignment: .leading, spacing: 10) {
+                        ExerciseMuscleMap(profile: splitProfile, displayStyle: .hero)
+                            .frame(height: 230)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(anatomyAccessibilityLabel)
+                        Text("Muscles worked")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
                     }
+                    .padding(14)
+                    .liftSurface()
 
                     detailTabs
                     selectedTabContent

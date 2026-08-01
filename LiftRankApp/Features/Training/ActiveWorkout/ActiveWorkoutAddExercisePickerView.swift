@@ -8,6 +8,7 @@ struct ActiveWorkoutAddExercisePickerView: View {
     @State private var selectedEquipment = "All"
     @State private var selectedIDs: Set<String> = []
     @State private var descriptionExercise: TrainingExerciseCatalogItem?
+    @State private var showingCreateExercise = false
 
     private let bodyPartFilters = ["All", "Chest", "Back", "Shoulders", "Arms", "Legs", "Glutes", "Core"]
 
@@ -32,6 +33,7 @@ struct ActiveWorkoutAddExercisePickerView: View {
                     VStack(spacing: 12) {
                         searchField
                         filterBar
+                        createExerciseButton
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
@@ -109,7 +111,38 @@ struct ActiveWorkoutAddExercisePickerView: View {
                     dismissButton: .default(Text("Done"))
                 )
             }
+            .sheet(isPresented: $showingCreateExercise) {
+                LibraryCustomExerciseView { exercise in
+                    appState.addExercisesToActiveWorkout([exercise])
+                    dismiss()
+                }
+                .environmentObject(appState)
+                .presentationDetents([.large])
+            }
         }
+    }
+
+    private var createExerciseButton: some View {
+        Button {
+            showingCreateExercise = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.headline)
+                Text("Create custom exercise")
+                    .font(.subheadline.weight(.bold))
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+            }
+            .foregroundStyle(Color.liftBlue)
+            .padding(.horizontal, 13)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(Color.liftBlue.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("workout.addExercise.createCustom")
     }
 
     private func exerciseDescription(for exercise: TrainingExerciseCatalogItem) -> String {

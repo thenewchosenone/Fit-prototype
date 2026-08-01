@@ -22,11 +22,9 @@ final class ProfileStore: ObservableObject {
         self.profileService = profileService
     }
 
-    func loadAuthenticatedProfile(retainingDemoProfiles: Bool) async throws -> AuthenticatedProfile {
+    func fetchAuthenticatedProfile() async throws -> AuthenticatedProfile {
         guard let profileService else { throw LiftRankServiceError.configurationMissing }
-        let remote = try await profileService.authenticatedProfile()
-        applyAuthenticatedProfile(remote, retainingDemoProfiles: retainingDemoProfiles)
-        return remote
+        return try await profileService.authenticatedProfile()
     }
 
     func saveAuthenticatedProfile(
@@ -34,7 +32,10 @@ final class ProfileStore: ObservableObject {
         retainingDemoProfiles: Bool
     ) async throws -> AuthenticatedProfile {
         guard let profileService else { throw LiftRankServiceError.configurationMissing }
+        let expectedUserID = repository.currentProfile.id
         let remote = try await profileService.saveProfile(draft)
+        guard repository.currentProfile.id == expectedUserID,
+              remote.id == expectedUserID else { throw LiftRankServiceError.sessionExpired }
         applyAuthenticatedProfile(remote, retainingDemoProfiles: retainingDemoProfiles)
         return remote
     }
@@ -77,7 +78,11 @@ final class ProfileStore: ObservableObject {
 
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {
         guard let profileService else { throw LiftRankServiceError.configurationMissing }
+        let expectedUserID = repository.currentProfile.id
+        guard profile.id == expectedUserID else { throw LiftRankServiceError.sessionExpired }
         var saved = try await profileService.updateProfile(profile)
+        guard repository.currentProfile.id == expectedUserID,
+              saved.id == expectedUserID else { throw LiftRankServiceError.sessionExpired }
         saved.avatarPath = profile.avatarPath
         saveProfile(saved)
         return saved
@@ -156,9 +161,18 @@ final class ProfileStore: ObservableObject {
         try await profileService.removeProfileAvatar(avatarPath: avatarPath)
     }
 
+    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry]) async throws -> [BodyweightEntry] {
+        guard let profileService else { throw LiftRankServiceError.configurationMissing }
+        return try await profileService.synchronizeBodyweightEntries(localEntries)
+    }
+
+    func saveBodyweightEntry(_ entry: BodyweightEntry) async throws {
+        guard let profileService else { throw LiftRankServiceError.configurationMissing }
+        try await profileService.saveBodyweightEntry(entry)
+    }
+
     func applyAuthenticatedProfile(_ remote: AuthenticatedProfile, retainingDemoProfiles: Bool) {
         var local = repository.currentProfile
-        let localAvatarPath = local.avatarPath
         local.id = remote.id
         local.username = remote.username
         local.displayName = remote.displayName
@@ -175,7 +189,7 @@ final class ProfileStore: ObservableObject {
         local.hideBodyweight = remote.privacy.bodyweightAudience == .privateProfile
         local.hideCity = remote.privacy.locationAudience == .privateProfile
         local.hideGym = remote.privacy.gymAudience == .privateProfile
-        local.avatarPath = remote.avatarPath ?? localAvatarPath
+        local.avatarPath = remote.avatarPath
 
         repository.currentProfile = local
         if !retainingDemoProfiles {

@@ -5,7 +5,7 @@ import Supabase
 final class SupabaseNotificationService: NotificationService {
     private let client: SupabaseClient
     init(client: SupabaseClient) { self.client = client }
-    func notifications() async throws -> [NotificationItem] { do { let rows:[NotificationDTO]=try await client.from("notifications").select().order("created_at",ascending:false).execute().value;return rows.map(\.notification) } catch { throw SupabaseServiceErrorMapper.map(error) } }
+    func notifications() async throws -> [NotificationItem] { do { let rows:[NotificationDTO]=try await client.from("notifications").select().order("created_at",ascending:false).limit(100).execute().value;return rows.map(\.notification) } catch { throw SupabaseServiceErrorMapper.map(error) } }
     func markRead(notificationID: UUID) async throws { do { try await client.from("notifications").update(["read_at": Date().ISO8601Format()]).eq("id", value: notificationID).execute() } catch { throw SupabaseServiceErrorMapper.map(error) } }
     func registerDevice(_ registration: PushDeviceRegistration) async throws { do { try await client.rpc("register_device_token", params: DeviceTokenParameters(registration:registration)).execute() } catch { throw SupabaseServiceErrorMapper.map(error) } }
     func revokeDevice(deviceID: String) async throws { do { try await client.rpc("revoke_device_token", params: ["target_device_id": deviceID]).execute() } catch { throw SupabaseServiceErrorMapper.map(error) } }

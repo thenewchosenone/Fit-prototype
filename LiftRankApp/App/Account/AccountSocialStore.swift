@@ -50,10 +50,7 @@ final class AccountSocialStore: ObservableObject {
         async let memberships = gymService.memberships()
         let (directory, joined) = try await (gyms, memberships)
 
-        guard repository.currentProfile.id == userID else {
-            resetAccountScopedCacheIfNeeded()
-            return
-        }
+        guard repository.currentProfile.id == userID else { return }
         profileStore.replaceGymDirectory(directory, memberships: joined)
         gymMemberships = joined
     }
@@ -61,16 +58,8 @@ final class AccountSocialStore: ObservableObject {
     func refreshBlocks() async {
         let userID = repository.currentProfile.id
         resetAccountScopedCacheIfNeeded()
-        guard let refreshed = try? await socialService.blocks() else {
-            if repository.currentProfile.id != userID {
-                resetAccountScopedCacheIfNeeded()
-            }
-            return
-        }
-        guard repository.currentProfile.id == userID else {
-            resetAccountScopedCacheIfNeeded()
-            return
-        }
+        guard let refreshed = try? await socialService.blocks() else { return }
+        guard repository.currentProfile.id == userID else { return }
         blocks = refreshed
     }
 
@@ -81,11 +70,14 @@ final class AccountSocialStore: ObservableObject {
     ) async throws -> Bool {
         if profileStore.isGymJoined(gym.id) { return true }
         if authenticated {
+            let userID = repository.currentProfile.id
             guard try await gymMembershipService.join(
                 gym,
                 maximumMemberships: maximumMemberships
             ) else { return false }
+            guard repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
             try await refreshDirectoryAndRelationships()
+            guard repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
             return profileStore.isGymJoined(gym.id)
         }
         return profileStore.joinGym(gym, maximumMemberships: maximumMemberships)
@@ -93,7 +85,9 @@ final class AccountSocialStore: ObservableObject {
 
     func leaveGym(_ gym: Gym, authenticated: Bool) async throws {
         if authenticated {
+            let userID = repository.currentProfile.id
             try await gymMembershipService.leave(gym)
+            guard repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
             try await refreshDirectoryAndRelationships()
         } else {
             profileStore.leaveGym(gym)
@@ -102,7 +96,9 @@ final class AccountSocialStore: ObservableObject {
 
     func setPrimaryGym(_ gym: Gym, authenticated: Bool) async throws {
         if authenticated {
+            let userID = repository.currentProfile.id
             try await gymMembershipService.setPrimary(gym)
+            guard repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
             try await refreshDirectoryAndRelationships()
         } else {
             profileStore.setPrimaryGym(gym)
@@ -122,15 +118,9 @@ final class AccountSocialStore: ObservableObject {
         } else {
             try await socialService.unblock(userID: userID)
         }
-        guard repository.currentProfile.id == ownerID else {
-            resetAccountScopedCacheIfNeeded()
-            return
-        }
+        guard repository.currentProfile.id == ownerID else { return }
         if let refreshed = try? await socialService.blocks() {
-            guard repository.currentProfile.id == ownerID else {
-                resetAccountScopedCacheIfNeeded()
-                return
-            }
+            guard repository.currentProfile.id == ownerID else { return }
             blocks = refreshed
         }
     }

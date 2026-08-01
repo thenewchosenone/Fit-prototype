@@ -100,6 +100,7 @@ final class SessionStore: ObservableObject {
         try await authenticationService.updatePassword(password)
     }
 
+#if DEBUG
     @discardableResult
     func enterDemoAuthentication() async throws -> UserProfile {
         guard let authenticationService else { throw LiftRankServiceError.configurationMissing }
@@ -109,6 +110,7 @@ final class SessionStore: ObservableObject {
         status = .demo
         return profile
     }
+#endif
 
     func signOut() async throws {
         guard let authenticationService else { throw LiftRankServiceError.configurationMissing }
