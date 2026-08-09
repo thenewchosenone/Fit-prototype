@@ -116,6 +116,16 @@ final class MockLiftService: LiftService {
         repository.addLift(submission, refreshAchievements: false)
         return submission
     }
+    func deleteEvidenceFreeSubmission(id: UUID) async throws {
+        guard let lift = repository.lifts.first(where: { $0.id == id }),
+              lift.userID == repository.currentProfile.id else {
+            throw LiftRankServiceError.invalidInput("Submission not found or no longer available.")
+        }
+        guard !lift.requiresCoordinatedRemoval else {
+            throw LiftRankServiceError.invalidInput("Video-backed submissions require the removal workflow so their proof file and public record are removed together.")
+        }
+        repository.lifts.removeAll { $0.id == id }
+    }
     func vote(liftID: UUID, vote: LiftVoteValue?) async throws {}
     func report(liftID: UUID, reason: LiftReportReason, note: String) async throws {}
 }

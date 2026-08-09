@@ -168,6 +168,7 @@ final class UnavailableLaunchService: LiftService, LeaderboardService, SocialSer
     private var error: LiftRankServiceError { .configurationMissing }
     func submissions() async throws -> [LiftSubmission] { throw error }
     func submit(_ submission: LiftSubmission) async throws -> LiftSubmission { throw error }
+    func deleteEvidenceFreeSubmission(id: UUID) async throws { throw error }
     func vote(liftID: UUID, vote: LiftVoteValue?) async throws { throw error }
     func report(liftID: UUID, reason: LiftReportReason, note: String) async throws { throw error }
     func entries(filters: LeaderboardFilters, verifiedOnly: Bool) async throws -> [LeaderboardEntry] { throw error }

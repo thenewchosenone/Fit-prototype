@@ -124,4 +124,15 @@ extension AppState {
         return submission
     }
 
+    func deleteEvidenceFreeSubmission(_ lift: LiftSubmission) async -> String? {
+        do {
+            try await competitionStore.deleteEvidenceFreeSubmission(lift)
+            Haptics.success()
+            return nil
+        } catch {
+            Haptics.warning()
+            return error.localizedDescription
+        }
+    }
+
 }

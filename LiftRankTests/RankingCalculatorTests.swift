@@ -1103,7 +1103,8 @@ final class RankingCalculatorTests: XCTestCase {
             createdAt: performedAt, repetitions: 5, isActualOneRepMax: false,
             competitiveMovement: CompetitiveMovement.barbellBenchPress.rawValue,
             evidenceStatus: "self_reported", moderationStatus: "clear", weightPerHand: false,
-            leaderboardEligibleAt: performedAt, updatedAt: performedAt, videoAssetID: nil
+            leaderboardEligibleAt: performedAt, updatedAt: performedAt, videoAssetID: nil,
+            approvedEvidenceStoragePath: "approved/proof.mov", evidenceStoragePath: nil
         )
 
         let submission = try XCTUnwrap(dto.submission)
@@ -1116,6 +1117,7 @@ final class RankingCalculatorTests: XCTestCase {
             ),
             accuracy: 0.001
         )
+        XCTAssertTrue(submission.requiresCoordinatedRemoval)
     }
 
     @MainActor
@@ -2495,6 +2497,47 @@ final class RankingCalculatorTests: XCTestCase {
 
         XCTAssertEqual(LiftVisibility(rawValue: "Friends"), .friendsLift)
         XCTAssertFalse(lift.isLaunchLeaderboardEligible)
+    }
+
+    @MainActor
+    func testEvidenceFreeOwnerSubmissionCanBePermanentlyDeleted() async throws {
+        let repository = DemoRepository()
+        var lift = makeLift(userID: repository.currentProfile.id, weight: 405)
+        lift.visibility = .privateLift
+        lift.verificationStatus = .selfReported
+        lift.evidenceStatus = .selfReported
+        lift.videoAssetID = nil
+        lift.hasProtectedEvidence = false
+        repository.lifts = [lift]
+        let store = CompetitionStore(
+            repository: repository,
+            liftService: MockLiftService(repository: repository)
+        )
+
+        try await store.deleteEvidenceFreeSubmission(lift)
+
+        XCTAssertFalse(repository.lifts.contains(where: { $0.id == lift.id }))
+    }
+
+    @MainActor
+    func testVideoBackedSubmissionRequiresCoordinatedRemoval() async {
+        let repository = DemoRepository()
+        var lift = makeLift(userID: repository.currentProfile.id, weight: 405)
+        lift.evidenceStatus = .videoBacked
+        lift.videoAssetID = UUID()
+        repository.lifts = [lift]
+        let store = CompetitionStore(
+            repository: repository,
+            liftService: MockLiftService(repository: repository)
+        )
+
+        do {
+            try await store.deleteEvidenceFreeSubmission(lift)
+            XCTFail("Expected protected submission deletion to be blocked.")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("removal workflow"))
+        }
+        XCTAssertTrue(repository.lifts.contains(where: { $0.id == lift.id }))
     }
 
     func testAllSubmissionsIncludesSelfReportedTotal() {

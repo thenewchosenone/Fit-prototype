@@ -84,6 +84,7 @@ struct LiftSubmission: Identifiable, Codable, Hashable {
     var moderationStatus: LiftModerationStatus? = nil
     var videoAssetID: UUID? = nil
     var weightPerHand: Bool? = nil
+    var hasProtectedEvidence: Bool? = nil
 
     var resolvedEvidenceStatus: LiftEvidenceStatus {
         if let evidenceStatus { return evidenceStatus }
@@ -101,6 +102,10 @@ struct LiftSubmission: Identifiable, Codable, Hashable {
         competitiveMovement != nil &&
         resolvedEvidenceStatus == .videoBacked &&
         resolvedModerationStatus == .clear
+    }
+
+    var requiresCoordinatedRemoval: Bool {
+        hasProtectedEvidence == true || videoAssetID != nil || resolvedEvidenceStatus == .videoBacked
     }
 }
 

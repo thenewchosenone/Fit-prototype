@@ -274,7 +274,23 @@ extension ProfileView {
                             }
                             Spacer()
                             VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus)
-                            if !isCurrentUser {
+                            if isCurrentUser {
+                                Menu {
+                                    if lift.requiresCoordinatedRemoval {
+                                        Link("Request removal", destination: submissionRemovalURL(for: lift))
+                                    } else {
+                                        Button("Delete submission", role: .destructive) {
+                                            submissionPendingDeletion = lift
+                                        }
+                                        .disabled(isDeletingSubmission)
+                                    }
+                                } label: {
+                                    Image(systemName: "ellipsis.circle")
+                                        .foregroundStyle(Color.liftMuted)
+                                }
+                                .accessibilityLabel("Submission options")
+                                .accessibilityIdentifier("profile.ownLiftOptions.\(lift.id.uuidString)")
+                            } else {
                                 Menu {
                                     Button("Report lift", role: .destructive) {
                                         appState.selectedReportLift = lift
@@ -298,6 +314,15 @@ extension ProfileView {
                 .liftSurface()
             }
         }
+    }
+
+    func submissionRemovalURL(for lift: LiftSubmission) -> URL {
+        var components = URLComponents(string: "https://liftrivals.com/contact")!
+        components.queryItems = [
+            URLQueryItem(name: "topic", value: "submission-removal"),
+            URLQueryItem(name: "id", value: lift.id.uuidString)
+        ]
+        return components.url!
     }
 
     var profileDivider: some View {
