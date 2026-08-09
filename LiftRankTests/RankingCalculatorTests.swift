@@ -1096,7 +1096,7 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(store.uploadProgress, 0)
     }
 
-    func testRemoteEstimatedLiftReconstructsOneRepMaxFromRepetitions() throws {
+    func testRemoteEstimatedLiftReconstructsOneRepMaxAndMapsApprovedRemovalProtection() throws {
         let performedAt = Date(timeIntervalSince1970: 1_800_000_000)
         let dto = CompetitiveLiftDTO(
             id: UUID(), userID: UUID(), exerciseID: "bench", gymID: UUID().uuidString,
@@ -1106,7 +1106,8 @@ final class RankingCalculatorTests: XCTestCase {
             competitiveMovement: CompetitiveMovement.barbellBenchPress.rawValue,
             evidenceStatus: "self_reported", moderationStatus: "clear", weightPerHand: false,
             leaderboardEligibleAt: performedAt, updatedAt: performedAt, videoAssetID: nil,
-            approvedEvidenceStoragePath: "approved/proof.mov", evidenceStoragePath: nil
+            approvedEvidenceStoragePath: nil, evidenceStoragePath: nil,
+            reviewStatus: "approved", evidencePublic: false
         )
 
         let submission = try XCTUnwrap(dto.submission)

@@ -15,7 +15,7 @@
 - The Swift iOS app in `LiftRankApp/` has Supabase services for authenticated profiles, privacy, bodyweight history, workout plans and completed workouts, gym memberships, lift submissions, public rankings, verification, and media.
 - The complete iOS unit test target is green (270 tests), including canonical leaderboard authority, profile parity, workout synchronization, Friends-only visibility, and guarded submission removal.
 - The complete database migration and policy suite passes against two fresh databases, including the coordinated-removal finalizer and concurrent gym-membership limits.
-- Website validation is green for 15 pages, 6 performance budgets, and 24 parity contracts, including shared removal and approved lift-video privacy.
+- Website validation is green for 15 pages, 6 performance budgets, and 28 parity contracts, including shared removal, protected-record classification, approved lift-video privacy, and bodyweight-history display.
 - The React client in `src/` is a separate browser prototype. Its `store.tsx` state is local/demo-only and must not be used as evidence of native-app synchronization.
 - Profile bios are part of the existing `profiles.bio` contract. The iOS domain model, editor, authenticated save/restore path, and public profile display must all retain that value.
 
@@ -26,7 +26,7 @@
 | Identity and bio | `profiles` | Supabase profile service; bio editable/displayed | Authenticated and public profile reads | Same text after save and refresh |
 | Training experience | `profile_private_details.years_experience` | Editable years plus separately calculated strength level | Authenticated/public profile context | Years are user profile data; strength level remains calculated |
 | Current bodyweight | `profile_private_details.bodyweight_lb` | Profile save/read | Profile read | Current value wins over history |
-| Bodyweight history | `bodyweight_records` | Sync and entry writes | Not an account-history UI yet | History never overrides current profile value |
+| Bodyweight history | `bodyweight_records` | Sync and entry writes | Authenticated account history in the preferred display unit | History never overrides current profile value; stored pounds convert only at the display boundary |
 | Privacy | `profile_privacy` | `public`, `friends`, `gym`, and `private` audience controls | Applied to public/account rendering | Same audience semantics; no legacy hide flag may broaden access |
 | Gym membership | `gym_memberships` | Join/leave/primary services | Reads primary gym and public gym data | Same active primary membership |
 | Workouts | `workout_plan_documents`, `completed_workout_snapshots` | Offline cache plus Supabase synchronization | Reads completed snapshots | Same sessions after refresh; volume excludes warmups/non-weight sets and converts each recorded unit into the workout display unit |
@@ -53,6 +53,7 @@ Preflight: run `./scripts/check_client_environment_parity.sh /absolute/path/to/w
 7. Bio edits made in the app appear on the website and public profile according to profile visibility.
 8. The same verification label and eligibility explanation appears for each lift in both clients.
 9. Approved lift-video visibility saved in the app matches the website account and public proof visibility after refresh.
+10. Bodyweight check-ins saved in the app appear in website history in the preferred unit without overriding current profile bodyweight.
 
 ## Remaining acceptance work
 

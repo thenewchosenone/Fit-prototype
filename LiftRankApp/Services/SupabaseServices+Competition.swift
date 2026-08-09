@@ -197,7 +197,10 @@ struct CompetitiveLiftDTO: Decodable {
     let updatedAt: Date
     let videoAssetID: UUID?
     var approvedEvidenceStoragePath: String? = nil
+    var pendingEvidenceStoragePath: String? = nil
     var evidenceStoragePath: String? = nil
+    var reviewStatus: String? = nil
+    var evidencePublic: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, weight, unit, reps, bodyweight, visibility, verification, caption, repetitions
@@ -215,7 +218,10 @@ struct CompetitiveLiftDTO: Decodable {
         case leaderboardEligibleAt = "leaderboard_eligible_at"
         case videoAssetID = "video_asset_id"
         case approvedEvidenceStoragePath = "approved_evidence_storage_path"
+        case pendingEvidenceStoragePath = "pending_evidence_storage_path"
         case evidenceStoragePath = "evidence_storage_path"
+        case reviewStatus = "review_status"
+        case evidencePublic = "evidence_public"
     }
 
     var submission: LiftSubmission? {
@@ -258,9 +264,13 @@ struct CompetitiveLiftDTO: Decodable {
             moderationStatus: LiftModerationStatus(rawValue: moderationStatus),
             videoAssetID: videoAssetID,
             weightPerHand: weightPerHand,
-            hasProtectedEvidence: videoAssetID != nil ||
+            hasProtectedEvidence: evidenceStatus != LiftEvidenceStatus.selfReported.rawValue ||
+                videoAssetID != nil ||
                 !(approvedEvidenceStoragePath ?? "").isEmpty ||
-                !(evidenceStoragePath ?? "").isEmpty
+                !(pendingEvidenceStoragePath ?? "").isEmpty ||
+                !(evidenceStoragePath ?? "").isEmpty ||
+                reviewStatus?.lowercased() == "approved" ||
+                evidencePublic == true
         )
     }
 }
