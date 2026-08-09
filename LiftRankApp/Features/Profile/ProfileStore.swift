@@ -68,9 +68,13 @@ final class ProfileStore: ObservableObject {
     }
 
     func saveProfile(_ profile: UserProfile, insertIfMissing: Bool = true) {
-        repository.currentProfile = profile
+        if repository.currentProfile != profile {
+            repository.currentProfile = profile
+        }
         if let index = repository.profiles.firstIndex(where: { $0.id == profile.id }) {
-            repository.profiles[index] = profile
+            if repository.profiles[index] != profile {
+                repository.profiles[index] = profile
+            }
         } else if insertIfMissing {
             repository.profiles.insert(profile, at: 0)
         }
@@ -172,6 +176,7 @@ final class ProfileStore: ObservableObject {
     }
 
     func applyAuthenticatedProfile(_ remote: AuthenticatedProfile, retainingDemoProfiles: Bool) {
+        let isSameAccount = repository.currentProfile.id == remote.id
         var local = repository.currentProfile
         local.id = remote.id
         local.username = remote.username
@@ -191,19 +196,30 @@ final class ProfileStore: ObservableObject {
         local.hideGym = remote.privacy.gymAudience == .privateProfile
         local.avatarPath = remote.avatarPath
 
-        repository.currentProfile = local
-        if !retainingDemoProfiles {
-            repository.profiles = [local]
+        if repository.currentProfile != local {
+            repository.currentProfile = local
+        }
+        if !retainingDemoProfiles && !isSameAccount {
+            if repository.profiles != [local] {
+                repository.profiles = [local]
+            }
         } else if let index = repository.profiles.firstIndex(where: { $0.id == local.id }) {
-            repository.profiles[index] = local
+            if repository.profiles[index] != local {
+                repository.profiles[index] = local
+            }
         } else {
             repository.profiles.insert(local, at: 0)
         }
     }
 
     func replaceGymDirectory(_ gyms: [Gym], memberships: [GymMembershipRecord]) {
-        repository.gyms = gyms
-        repository.joinedGymIDs = Set(memberships.filter { $0.leftAt == nil }.map(\.gymID))
+        if repository.gyms != gyms {
+            repository.gyms = gyms
+        }
+        let joinedGymIDs = Set(memberships.filter { $0.leftAt == nil }.map(\.gymID))
+        if repository.joinedGymIDs != joinedGymIDs {
+            repository.joinedGymIDs = joinedGymIDs
+        }
         guard let primaryMembership = memberships.first(where: { $0.isPrimary && $0.leftAt == nil }),
               let primaryGym = gyms.first(where: { $0.id == primaryMembership.gymID }) else {
             clearPrimaryGym()

@@ -69,7 +69,7 @@ struct ProfileAvatar: View {
                 Image(systemName: profile.profileImageName)
                     .resizable()
                     .scaledToFit()
-                    .foregroundStyle(Color.liftLime)
+                    .foregroundStyle(Color.liftAccentText)
                     .padding(size * 0.18)
             }
         }
@@ -235,7 +235,7 @@ struct SectionHeader: View {
                     Text(eyebrow.uppercased())
                         .font(.system(size: 11, weight: .black, design: .rounded))
                         .tracking(0.8)
-                        .foregroundStyle(Color.liftLime)
+                        .foregroundStyle(Color.liftAccentText)
                 }
                 Text(title)
                     .font(.system(size: 26, weight: .heavy, design: .rounded))
@@ -245,7 +245,7 @@ struct SectionHeader: View {
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
                     .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.liftLime)
+                    .foregroundStyle(Color.liftAccentText)
                     .padding(.horizontal, 12)
                     .frame(minHeight: LiftDesign.minimumTouchTarget)
                     .background(Color.liftLime.opacity(0.13))
@@ -269,7 +269,7 @@ struct CompactSectionHeader: View {
                     Text(eyebrow.uppercased())
                         .font(.system(size: 11, weight: .black, design: .rounded))
                         .tracking(0.8)
-                        .foregroundStyle(Color.liftLime)
+                        .foregroundStyle(Color.liftAccentText)
                 }
                 Text(title)
                     .font(.system(size: 20, weight: .bold, design: .rounded))
@@ -279,7 +279,7 @@ struct CompactSectionHeader: View {
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.liftLime)
+                    .foregroundStyle(Color.liftAccentText)
                     .frame(minHeight: LiftDesign.minimumTouchTarget)
             }
         }
@@ -411,7 +411,7 @@ struct LiftEmptyState: View {
                 if let actionTitle, let action {
                     Button(actionTitle, action: action)
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftLime)
+                        .foregroundStyle(Color.liftAccentText)
                         .frame(minHeight: LiftDesign.minimumTouchTarget)
                 }
             }
@@ -434,7 +434,7 @@ struct LiftEmptyState: View {
                 if let actionTitle, let action {
                     Button(actionTitle, action: action)
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Color.liftLime)
+                        .foregroundStyle(Color.liftAccentText)
                         .frame(minHeight: LiftDesign.minimumTouchTarget)
                 }
             }
@@ -453,7 +453,7 @@ struct LiftEmptyState: View {
     private func emptyStateIcon(size: CGFloat, font: Font) -> some View {
         Image(systemName: symbolName)
             .font(font)
-            .foregroundStyle(Color.liftLime)
+            .foregroundStyle(Color.liftAccentText)
             .frame(width: size, height: size)
             .background(Color.liftLime.opacity(0.14))
             .clipShape(Circle())

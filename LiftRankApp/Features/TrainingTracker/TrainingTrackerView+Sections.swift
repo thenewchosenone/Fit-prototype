@@ -165,7 +165,7 @@ extension TrainingTrackerView {
                             .foregroundStyle(Color.liftBlue)
                         Text(selectedPlanName)
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.liftText)
                             .lineLimit(1)
                         Image(systemName: "chevron.down")
                             .font(.caption2.weight(.bold))
@@ -245,7 +245,7 @@ extension TrainingTrackerView {
                         VStack(spacing: 8) {
                             Text(option.rawValue)
                                 .font(.subheadline.weight(segment == option ? .bold : .medium))
-                                .foregroundStyle(segment == option ? .white : Color.liftMuted)
+                                .foregroundStyle(segment == option ? Color.liftText : Color.liftMuted)
                                 .lineLimit(1)
                             Rectangle()
                                 .fill(segment == option ? Color.liftBlue : Color.clear)
@@ -297,7 +297,7 @@ extension TrainingTrackerView {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Browse Workout Programs")
                             .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.liftText)
                         Text("Bodybuilding, powerlifting, cables, free weights, and more")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -424,7 +424,7 @@ extension TrainingTrackerView {
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(plan.name)
                                         .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(Color.liftText)
                                         .lineLimit(1)
                                     Text(plan.goal)
                                         .font(.caption)
@@ -479,7 +479,7 @@ extension TrainingTrackerView {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Browse Workout Programs")
                             .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.liftText)
                         Text("\(appState.workoutProgramTemplates.count) ready-made programs")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -519,7 +519,7 @@ extension TrainingTrackerView {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(template.name)
                                         .font(.subheadline.weight(.bold))
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(Color.liftText)
                                         .multilineTextAlignment(.leading)
                                         .fixedSize(horizontal: false, vertical: true)
 

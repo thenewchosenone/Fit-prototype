@@ -8,7 +8,16 @@ struct WorkoutHistoryCalendarDay: Identifiable, Equatable {
 
 enum WorkoutHistoryCalendarData {
     static func monthStart(for date: Date, calendar: Calendar = .current) -> Date {
-        calendar.dateInterval(of: .month, for: date)?.start ?? calendar.startOfDay(for: date)
+        let components = calendar.dateComponents([.year, .month], from: date)
+        guard let firstDay = calendar.date(from: DateComponents(
+            year: components.year,
+            month: components.month,
+            day: 1,
+            hour: 12
+        )) else {
+            return calendar.startOfDay(for: date)
+        }
+        return calendar.startOfDay(for: firstDay)
     }
 
     static func days(
@@ -26,8 +35,14 @@ enum WorkoutHistoryCalendarData {
         var result = (0..<leadingCount).map {
             WorkoutHistoryCalendarDay(id: $0, date: nil, workoutCount: 0)
         }
+        let monthComponents = calendar.dateComponents([.year, .month], from: monthStart)
         for day in dayRange {
-            guard let date = calendar.date(byAdding: .day, value: day - 1, to: monthStart) else { continue }
+            guard let date = calendar.date(from: DateComponents(
+                year: monthComponents.year,
+                month: monthComponents.month,
+                day: day,
+                hour: 12
+            )) else { continue }
             result.append(
                 WorkoutHistoryCalendarDay(
                     id: result.count,

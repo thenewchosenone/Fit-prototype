@@ -11,6 +11,7 @@ final class CompetitionStore: ObservableObject {
     @Published var lastSubmissionResult: LiftSubmission?
     @Published private(set) var remoteLeaderboardEntries: [LeaderboardEntry]?
     @Published private(set) var leaderboardError: String?
+    @Published private(set) var isLeaderboardLoading = false
 
     private let repository: any CompetitionRepository
     private var liftService: (any LiftService)?
@@ -25,6 +26,8 @@ final class CompetitionStore: ObservableObject {
     private var hasLoadedProductionData = false
     private var productionUserID: UUID?
     private var leaderboardRequestID: UUID?
+    private var loadedLeaderboardFilters: LeaderboardFilters?
+    private var loadedLeaderboardVerifiedOnly: Bool?
     private var activeUploadID: UUID?
     private var achievementRefreshTask: Task<Void, Never>?
     private var cachedLeaderboardEntries: [LeaderboardEntry]?
@@ -37,6 +40,7 @@ final class CompetitionStore: ObservableObject {
     private var cachedOverallScoreSignature: OverallScoreSignature?
     private var cachedBestStrengthLifts: [String: LiftSubmission]?
     private var cachedBestStrengthLiftsSignature: CurrentUserLiftsSignature?
+    private var cachedPlaybackURLs: [UUID: (url: URL, expiresAt: Date)] = [:]
     private let uploadProgressStep = 0.025
 
     init(
@@ -61,6 +65,13 @@ final class CompetitionStore: ObservableObject {
         self.calendar = calendar
         self.now = now
         self.makeID = makeID
+    }
+
+    var isLeaderboardRequestPending: Bool {
+        guard leaderboardService != nil else { return false }
+        return isLeaderboardLoading
+            || loadedLeaderboardFilters != filters
+            || loadedLeaderboardVerifiedOnly != verifiedOnly
     }
 
     func updateServices(
@@ -102,6 +113,7 @@ final class CompetitionStore: ObservableObject {
         leaderboardRequestID = requestID
         let requestFilters = filters
         let requestVerifiedOnly = verifiedOnly
+        isLeaderboardLoading = true
         do {
             let entries = try await leaderboardService.entries(
                 filters: requestFilters,
@@ -109,15 +121,23 @@ final class CompetitionStore: ObservableObject {
             )
             guard repository.currentProfile.id == userID else { return }
             guard leaderboardRequestID == requestID else { return }
+            loadedLeaderboardFilters = requestFilters
+            loadedLeaderboardVerifiedOnly = requestVerifiedOnly
             remoteLeaderboardEntries = entries
             leaderboardError = nil
+            isLeaderboardLoading = false
         } catch {
             guard repository.currentProfile.id == userID else { return }
             guard leaderboardRequestID == requestID else { return }
-            if remoteLeaderboardEntries == nil {
+            let loadedEntriesMatchRequest = loadedLeaderboardFilters == requestFilters
+                && loadedLeaderboardVerifiedOnly == requestVerifiedOnly
+            if !loadedEntriesMatchRequest {
                 remoteLeaderboardEntries = []
             }
+            loadedLeaderboardFilters = requestFilters
+            loadedLeaderboardVerifiedOnly = requestVerifiedOnly
             leaderboardError = error.localizedDescription
+            isLeaderboardLoading = false
         }
     }
 
@@ -211,12 +231,11 @@ final class CompetitionStore: ObservableObject {
     }
 
     func leaderboardSnapshotDate(referenceDate: Date) -> Date {
-        calendar.startOfDay(for: referenceDate)
+        referenceDate
     }
 
     func nextLeaderboardUpdateDate(referenceDate: Date) -> Date {
-        let snapshotDate = leaderboardSnapshotDate(referenceDate: referenceDate)
-        return calendar.date(byAdding: .day, value: 1, to: snapshotDate) ?? snapshotDate
+        referenceDate
     }
 
     func leaderboardEntries(referenceDate: Date) -> [LeaderboardEntry] {
@@ -235,7 +254,11 @@ final class CompetitionStore: ObservableObject {
         }
 
         let entries: [LeaderboardEntry]
-        if let remoteLeaderboardEntries {
+        let remoteEntriesMatchCurrentRequest = loadedLeaderboardFilters == filters
+            && loadedLeaderboardVerifiedOnly == verifiedOnly
+        if leaderboardService != nil && !remoteEntriesMatchCurrentRequest {
+            entries = []
+        } else if let remoteLeaderboardEntries {
             let filtered = remoteLeaderboardEntries.filter { entry in
                 if let repetitionCount = filters.repetitionCount,
                    entry.lift.repetitions != repetitionCount {
@@ -268,11 +291,13 @@ final class CompetitionStore: ObservableObject {
                 )
             }
         } else {
-            var filtered = repository.lifts.filter { $0.leaderboardEligibleAt <= snapshotDate }
+            var filtered = repository.lifts.filter {
+                $0.leaderboardEligibleAt <= snapshotDate && $0.resolvedModerationStatus == .clear
+            }
             let profileByID = Dictionary(uniqueKeysWithValues: repository.profiles.map { ($0.id, $0) })
 
             if let exerciseID = filters.exerciseID {
-                filtered = filtered.filter { $0.exerciseID == exerciseID }
+                filtered = filtered.filter { RankingCalculator.matchesExerciseID($0, exerciseID: exerciseID) }
             }
             if let repetitionCount = filters.repetitionCount {
                 filtered = filtered.filter { $0.repetitions == repetitionCount }
@@ -370,14 +395,14 @@ final class CompetitionStore: ObservableObject {
         isActual: Bool,
         bodyweight: Double,
         date: Date,
-        gymID: UUID,
+        gymID: UUID?,
         equipment: EquipmentType,
         visibility: LiftVisibility,
         videoURL: URL?,
         caption: String,
         requestVerification: Bool
     ) -> LiftSubmission? {
-        guard repository.joinedGymIDs.contains(gymID) else { return nil }
+        if let gymID, !repository.joinedGymIDs.contains(gymID) { return nil }
 
         let oneRep = isActual
             ? weight
@@ -414,7 +439,7 @@ final class CompetitionStore: ObservableObject {
             caption: caption,
             verificationStatus: requestVerification && videoURL != nil ? .videoSubmitted : .selfReported,
             visibility: visibility,
-            leaderboardEligibleAt: nextLeaderboardUpdateDate(referenceDate: timestamp),
+            leaderboardEligibleAt: timestamp,
             createdAt: timestamp,
             updatedAt: timestamp,
             competitiveMovement: movement,
@@ -432,7 +457,7 @@ final class CompetitionStore: ObservableObject {
         isActual: Bool,
         bodyweight: Double,
         date: Date,
-        gymID: UUID,
+        gymID: UUID?,
         equipment: EquipmentType,
         visibility: LiftVisibility,
         videoURL: URL?,
@@ -534,9 +559,19 @@ final class CompetitionStore: ObservableObject {
             }
         }
 
+        if let cached = cachedPlaybackURLs[lift.videoAssetID ?? lift.id], cached.expiresAt > .now {
+            return cached.url
+        }
+
+        if let remoteVideoURL = lift.remoteVideoURL {
+            cachedPlaybackURLs[lift.videoAssetID ?? lift.id] = (remoteVideoURL, .now.addingTimeInterval(240))
+            return remoteVideoURL
+        }
+
         if let assetID = lift.videoAssetID, let mediaUploadService {
             if let signedURL = try? await mediaUploadService.signedPlaybackURL(assetID: assetID) {
                 guard repository.currentProfile.id == userID else { return nil }
+                cachedPlaybackURLs[assetID] = (signedURL, .now.addingTimeInterval(240))
                 var updated = lift
                 updated.remoteVideoURL = signedURL
                 upsert(updated)
@@ -620,7 +655,11 @@ final class CompetitionStore: ObservableObject {
             repository.rankingHistory = []
         }
         remoteLeaderboardEntries = nil
+        cachedPlaybackURLs.removeAll()
         leaderboardRequestID = nil
+        loadedLeaderboardFilters = nil
+        loadedLeaderboardVerifiedOnly = nil
+        isLeaderboardLoading = false
         activeUploadID = nil
         achievementRefreshTask?.cancel()
         achievementRefreshTask = nil

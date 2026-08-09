@@ -72,7 +72,7 @@ struct SettingsView: View {
                         Button("Privacy notice") { settingsInfo = .privacy }
                         Button("Terms of use") { settingsInfo = .terms }
                         Button("Fitness disclaimer") { settingsInfo = .fitnessDisclaimer }
-                        Link("Send feedback", destination: URL(string: "https://github.com/thenewchosenone/Fit-prototype/issues/new")!)
+                        Link("Support", destination: URL(string: "https://liftrivals.com/support")!)
                         LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Prototype")
                         LabeledContent("Build", value: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Local")
                     }

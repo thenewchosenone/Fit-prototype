@@ -71,6 +71,10 @@ extension AppState {
         get { if case .reportLift(let value) = router.sheet { return value }; return nil }
         set { setSelectedSheet(newValue.map(AppSheet.reportLift), matching: { if case .reportLift = $0 { true } else { false } }) }
     }
+    var selectedReportProfile: UserProfile? {
+        get { if case .reportProfile(let value) = router.sheet { return value }; return nil }
+        set { setSelectedSheet(newValue.map(AppSheet.reportProfile), matching: { if case .reportProfile = $0 { true } else { false } }) }
+    }
     private func setSelectedSheet(_ destination: AppSheet?, matching: (AppSheet) -> Bool) {
         if let destination {
             router.sheet = destination

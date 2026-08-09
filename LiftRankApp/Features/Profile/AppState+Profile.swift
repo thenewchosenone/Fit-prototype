@@ -24,6 +24,11 @@ extension AppState {
     }
 
     func saveEditedProfile(_ profile: UserProfile, primaryGym: Gym?, privacy: ProfilePrivacySettings) async -> Bool {
+        guard CommunityContentPolicy.allows(profile.username, profile.displayName) else {
+            accountMessage = CommunityContentPolicy.rejectionMessage
+            Haptics.warning()
+            return false
+        }
         guard beginAccountMutation() else { return false }
         defer { endAccountMutation() }
 

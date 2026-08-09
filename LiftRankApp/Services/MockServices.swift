@@ -127,7 +127,7 @@ final class MockLeaderboardService: LeaderboardService {
     func entries(filters: LeaderboardFilters, verifiedOnly: Bool) async throws -> [LeaderboardEntry] {
         var filtered = repository.lifts
         if let exerciseID = filters.exerciseID {
-            filtered = filtered.filter { $0.exerciseID == exerciseID }
+            filtered = filtered.filter { RankingCalculator.matchesExerciseID($0, exerciseID: exerciseID) }
         }
         if let status = filters.verificationLevel {
             filtered = filtered.filter { $0.verificationStatus == status }
@@ -185,6 +185,9 @@ final class MockSocialService: SocialService {
                 primaryGymName: $0.hideGym ? nil : $0.primaryGymName
             )
         }
+    }
+    func report(userID: UUID, reason: ProfileReportReason, note: String) async throws {
+        guard userID != repository.currentProfile.id else { throw LiftRankServiceError.permissionDenied }
     }
     func block(userID: UUID) async throws {
         guard userID != repository.currentProfile.id,

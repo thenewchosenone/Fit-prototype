@@ -86,6 +86,7 @@ final class WorkoutSyncStore {
             }
         }
         repository.completedWorkouts.sort { $0.completedAt > $1.completedAt }
+        repository.refreshAchievementUnlocks(now: .now)
         repository.persistWorkoutSnapshot()
     }
 

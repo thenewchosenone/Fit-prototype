@@ -56,6 +56,10 @@ extension Color {
 
     static let liftTextPrimary = liftText
     static let liftTextSecondary = liftMuted
+    static let liftAccentText = semantic(
+        light: UIColor(red: 0x52 / 255, green: 0x6A / 255, blue: 0x00 / 255, alpha: 1),
+        dark: UIColor(red: 0xC7 / 255, green: 0xFF / 255, blue: 0x00 / 255, alpha: 1)
+    )
     static let liftTextDisabled = semantic(
         light: UIColor(red: 0xA8 / 255, green: 0xAE / 255, blue: 0xBA / 255, alpha: 1),
         dark: UIColor(red: 0x66 / 255, green: 0x68 / 255, blue: 0x70 / 255, alpha: 1)

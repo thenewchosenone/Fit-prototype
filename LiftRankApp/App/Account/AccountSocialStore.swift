@@ -109,6 +109,13 @@ final class AccountSocialStore: ObservableObject {
         blocks.contains { $0.blockedID == userID }
     }
 
+    func report(_ userID: UUID, reason: ProfileReportReason, note: String) async throws {
+        let ownerID = repository.currentProfile.id
+        guard userID != ownerID else { throw LiftRankServiceError.permissionDenied }
+        try await socialService.report(userID: userID, reason: reason, note: note)
+        guard repository.currentProfile.id == ownerID else { throw LiftRankServiceError.sessionExpired }
+    }
+
     func setBlocked(_ userID: UUID, blocked: Bool) async throws {
         let ownerID = repository.currentProfile.id
         resetAccountScopedCacheIfNeeded()

@@ -64,6 +64,7 @@ protocol GymService {
 @MainActor
 protocol SocialService {
     func searchProfiles(query: String, limit: Int) async throws -> [PublicProfileCard]
+    func report(userID: UUID, reason: ProfileReportReason, note: String) async throws
     func block(userID: UUID) async throws
     func unblock(userID: UUID) async throws
     func blocks() async throws -> [UserBlockRecord]
@@ -144,6 +145,7 @@ extension LiftService {
     func report(liftID: UUID, reason: LiftReportReason, note: String) async throws { throw LiftRankServiceError.configurationMissing }
 }
 extension SocialService {
+    func report(userID: UUID, reason: ProfileReportReason, note: String) async throws { throw LiftRankServiceError.configurationMissing }
     func block(userID: UUID) async throws { throw LiftRankServiceError.configurationMissing }
     func unblock(userID: UUID) async throws { throw LiftRankServiceError.configurationMissing }
     func blocks() async throws -> [UserBlockRecord] { [] }

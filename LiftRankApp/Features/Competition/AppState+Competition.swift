@@ -40,6 +40,10 @@ extension AppState {
         competitionStore.leaderboardEntries(referenceDate: referenceDate)
     }
 
+    var isLeaderboardRequestPending: Bool {
+        competitionStore.isLeaderboardRequestPending
+    }
+
     var leaderboardRequestKey: String {
         let filters = leaderboardFilters
         return [
@@ -65,6 +69,11 @@ extension AppState {
         await competitionStore.refreshLeaderboard()
     }
 
+    func refreshProductionLifts() async {
+        guard isAuthenticated, !isDemoMode else { return }
+        await competitionStore.refreshProductionData()
+    }
+
     func selectLeaderboardExercise(_ exerciseID: String?) {
         competitionStore.selectLeaderboardExercise(exerciseID)
     }
@@ -73,7 +82,12 @@ extension AppState {
         competitionStore.normalizeFilters()
     }
 
-    func submitLift(exercise: Exercise, weight: Double, unit: UnitSystem, reps: Int, isActual: Bool, bodyweight: Double, date: Date, gymID: UUID, equipment: EquipmentType, visibility: LiftVisibility, videoURL: URL?, caption: String, requestVerification: Bool) async -> LiftSubmission? {
+    func submitLift(exercise: Exercise, weight: Double, unit: UnitSystem, reps: Int, isActual: Bool, bodyweight: Double, date: Date, gymID: UUID?, equipment: EquipmentType, visibility: LiftVisibility, videoURL: URL?, caption: String, requestVerification: Bool) async -> LiftSubmission? {
+        guard CommunityContentPolicy.allows(caption) else {
+            accountMessage = CommunityContentPolicy.rejectionMessage
+            Haptics.warning()
+            return nil
+        }
         let submission = await competitionStore.submitLift(
             exercise: exercise,
             weight: weight,
@@ -90,7 +104,7 @@ extension AppState {
             requestVerification: requestVerification
         )
         if submission == nil {
-            accountMessage = "The lift could not be submitted. Check the selected gym and your connection, then try again."
+            accountMessage = "The lift could not be submitted. Check your connection, then try again."
             Haptics.warning()
         } else {
             if videoURL != nil, submission?.evidenceStatus != .videoBacked {

@@ -31,6 +31,31 @@ private struct LeaderboardParameters: Encodable {
         case verifiedOnly = "verified_only"
         case timeRange = "time_range"
     }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        if let exerciseID { try container.encode(exerciseID, forKey: .exerciseID) }
+        else { try container.encodeNil(forKey: .exerciseID) }
+        try container.encode(rankingType, forKey: .rankingType)
+        if let gymID { try container.encode(gymID, forKey: .gymID) }
+        else { try container.encodeNil(forKey: .gymID) }
+        if let city { try container.encode(city, forKey: .city) }
+        else { try container.encodeNil(forKey: .city) }
+        if let region { try container.encode(region, forKey: .region) }
+        else { try container.encodeNil(forKey: .region) }
+        if let country { try container.encode(country, forKey: .country) }
+        else { try container.encodeNil(forKey: .country) }
+        if let ageBand { try container.encode(ageBand, forKey: .ageBand) }
+        else { try container.encodeNil(forKey: .ageBand) }
+        if let sexCategory { try container.encode(sexCategory, forKey: .sexCategory) }
+        else { try container.encodeNil(forKey: .sexCategory) }
+        if let weightMinKG { try container.encode(weightMinKG, forKey: .weightMinKG) }
+        else { try container.encodeNil(forKey: .weightMinKG) }
+        if let weightMaxKG { try container.encode(weightMaxKG, forKey: .weightMaxKG) }
+        else { try container.encodeNil(forKey: .weightMaxKG) }
+        try container.encode(verifiedOnly, forKey: .verifiedOnly)
+        try container.encode(timeRange, forKey: .timeRange)
+    }
 }
 
 private struct RankedLiftIDDTO: Codable {

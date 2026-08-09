@@ -354,6 +354,17 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(RankingCalculator.epleyOneRepMax(weight: 315, repetitions: 1), 315, accuracy: 0.001)
     }
 
+    func testSubmittedCanonicalDeadliftFeedsStrengthProgress() {
+        var lift = makeLift(userID: UUID(), weight: 315, exerciseID: "conventional-deadlift")
+        lift.competitiveMovement = .conventionalDeadlift
+
+        let performances = RankingCalculator.strengthPerformances(fromSubmissions: [lift])
+
+        XCTAssertEqual(performances.count, 1)
+        XCTAssertEqual(performances.first?.exerciseID, "deadlift")
+        XCTAssertEqual(performances.first?.estimatedOneRepMaxKilograms ?? 0, RankingCalculator.poundsToKilograms(315), accuracy: 0.001)
+    }
+
     func testPlateauRequiresThreeWorkoutsWithoutStrengthOrVolumeProgress() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let performances = [
@@ -713,7 +724,7 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
-    func testLeaderboardUsesDailySnapshot() {
+    func testLeaderboardUpdatesImmediately() {
         let appState = AppState()
         appState.repository.profiles = [appState.currentProfile]
         appState.verifiedOnly = false
@@ -725,16 +736,12 @@ final class RankingCalculatorTests: XCTestCase {
         var pendingLift = makeLift(userID: appState.currentProfile.id, weight: 2_000)
         pendingLift.createdAt = snapshotDate.addingTimeInterval(60)
         pendingLift.performedAt = pendingLift.createdAt
-        pendingLift.leaderboardEligibleAt = appState.nextLeaderboardUpdateDate(referenceDate: referenceDate)
+        pendingLift.leaderboardEligibleAt = referenceDate
         appState.repository.lifts.append(pendingLift)
 
         let currentSnapshot = appState.leaderboardEntries(referenceDate: referenceDate)
-        XCTAssertFalse(currentSnapshot.contains { $0.lift.id == pendingLift.id })
-
-        let nextDay = appState.nextLeaderboardUpdateDate(referenceDate: referenceDate).addingTimeInterval(60)
-        let refreshedSnapshot = appState.leaderboardEntries(referenceDate: nextDay)
-        XCTAssertTrue(refreshedSnapshot.contains { $0.lift.id == pendingLift.id })
-        XCTAssertEqual(refreshedSnapshot.first?.lift.id, pendingLift.id)
+        XCTAssertTrue(currentSnapshot.contains { $0.lift.id == pendingLift.id })
+        XCTAssertEqual(currentSnapshot.first?.lift.id, pendingLift.id)
     }
 
     @MainActor
@@ -805,10 +812,7 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(submission.estimatedOneRepMax, RankingCalculator.kilogramsToPounds(100), accuracy: 0.001)
         XCTAssertEqual(submission.evidenceStatus, .selfReported)
         XCTAssertEqual(submission.verificationStatus, .selfReported)
-        let nextSnapshotDate = try XCTUnwrap(
-            calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: referenceDate))
-        )
-        XCTAssertEqual(submission.leaderboardEligibleAt, nextSnapshotDate)
+        XCTAssertEqual(submission.leaderboardEligibleAt, referenceDate)
 
         XCTAssertNil(store.makeSubmission(
             exercise: exercise,
@@ -823,6 +827,22 @@ final class RankingCalculatorTests: XCTestCase {
             visibility: .publicLift,
             videoURL: nil,
             caption: "Invalid gym",
+            requestVerification: false
+        ))
+
+        XCTAssertNotNil(store.makeSubmission(
+            exercise: exercise,
+            weight: 225,
+            unit: .pounds,
+            reps: 1,
+            isActual: true,
+            bodyweight: 200,
+            date: referenceDate,
+            gymID: nil,
+            equipment: .raw,
+            visibility: .publicLift,
+            videoURL: nil,
+            caption: "No gym",
             requestVerification: false
         ))
     }
@@ -1243,6 +1263,21 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertTrue(WorkoutHistoryCalendarData.workouts(on: nil, from: [], calendar: calendar).isEmpty)
     }
 
+    func testWorkoutHistoryCalendarPlacesAugustFirstInItsSaturdayCell() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/New_York"))
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.firstWeekday = 1
+        let august = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 8, day: 15)))
+
+        let days = WorkoutHistoryCalendarData.days(in: august, workouts: [], calendar: calendar)
+
+        let augustFirst = try XCTUnwrap(days.compactMap(\.date).first {
+            calendar.component(.day, from: $0) == 1
+        })
+        XCTAssertEqual(calendar.component(.weekday, from: augustFirst), 7)
+    }
+
     func testWorkoutHistoryWeekdaySymbolsFollowCalendarWeekStart() {
         var sundayStart = Calendar(identifier: .gregorian)
         sundayStart.firstWeekday = 1
@@ -1380,6 +1415,20 @@ final class RankingCalculatorTests: XCTestCase {
         let lower = makeLift(userID: MockData.demoUserID, weight: 225)
         let higher = makeLift(userID: MockData.demoUserID, weight: 315)
         XCTAssertEqual(RankingCalculator.bestLift(exerciseID: "deadlift", submissions: [lower, higher])?.estimatedOneRepMax, 315)
+    }
+
+    func testBestLiftSelectionResolvesCanonicalCompetitiveMovementIDs() {
+        var canonical = makeLift(
+            userID: MockData.demoUserID,
+            weight: 315,
+            exerciseID: "conventional-deadlift"
+        )
+        canonical.competitiveMovement = .conventionalDeadlift
+
+        XCTAssertEqual(
+            RankingCalculator.bestLift(exerciseID: "deadlift", submissions: [canonical])?.estimatedOneRepMax,
+            315
+        )
     }
 
     func testWorkoutVolumeAndEstimatedMax() {
@@ -2429,6 +2478,27 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(all.count, 1)
     }
 
+    func testVideoBackedLiftRanksImmediatelyButReportedLiftIsRemovedWhileUnderReview() {
+        let profile = makeProfile()
+        var lift = makeLift(userID: profile.id, weight: 315, hasVideo: true)
+        lift.evidenceStatus = .videoBacked
+        lift.videoAssetID = UUID()
+        lift.moderationStatus = .clear
+
+        let ranked = RankingCalculator.leaderboardEntries(
+            profiles: [profile], lifts: [lift], rankingType: .absolute,
+            verifiedOnly: true, currentUserID: nil
+        )
+        XCTAssertEqual(ranked.count, 1)
+
+        lift.moderationStatus = .underReview
+        let removedFromRanking = RankingCalculator.leaderboardEntries(
+            profiles: [profile], lifts: [lift], rankingType: .absolute,
+            verifiedOnly: true, currentUserID: nil
+        )
+        XCTAssertTrue(removedFromRanking.isEmpty)
+    }
+
     @MainActor
     func testActiveWorkoutPersistsAcrossRepositoryRelaunch() {
         let store = InMemoryWorkoutPersistenceStore()
@@ -3251,6 +3321,14 @@ final class RankingCalculatorTests: XCTestCase {
 
         XCTAssertEqual(repository.completedWorkouts.map(\.id), [workout.id])
         XCTAssertTrue(repository.achievementUnlocks.contains { $0.title == "First Workout" })
+    }
+
+    func testCommunityContentPolicyAllowsOrdinaryTrainingText() {
+        XCTAssertTrue(CommunityContentPolicy.allows("Strong Session", "Hit a clean personal best today."))
+    }
+
+    func testCommunityContentPolicyRejectsObfuscatedProhibitedText() {
+        XCTAssertFalse(CommunityContentPolicy.allows("That was sh1t"))
     }
 
     @MainActor

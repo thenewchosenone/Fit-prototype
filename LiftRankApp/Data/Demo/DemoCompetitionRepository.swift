@@ -277,8 +277,9 @@ extension DemoRepository {
     private func verifiedOrCompletedOneRepKilogramsByExercise(userLifts: [LiftSubmission]) -> [String: Double] {
         let trackedExerciseIDs: Set<String> = ["bench", "squat", "deadlift"]
         var bestByExercise: [String: Double] = [:]
-        for lift in userLifts where lift.repetitions == 1 && trackedExerciseIDs.contains(lift.exerciseID) {
-            bestByExercise[lift.exerciseID] = max(bestByExercise[lift.exerciseID] ?? 0, lift.normalizedWeightKilograms)
+        for lift in userLifts where lift.repetitions == 1 {
+            guard let exerciseID = trackedExerciseIDs.first(where: { RankingCalculator.matchesExerciseID(lift, exerciseID: $0) }) else { continue }
+            bestByExercise[exerciseID] = max(bestByExercise[exerciseID] ?? 0, lift.normalizedWeightKilograms)
         }
         for workout in completedWorkouts {
             let exerciseByID = Dictionary(uniqueKeysWithValues: workout.exercises.map { ($0.id, $0) })

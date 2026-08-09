@@ -14,7 +14,7 @@ final class SupabaseGymService: GymService {
             while true {
                 let page: [GymDTO] = try await client.from("gyms")
                     .select("id,name,city,region")
-                    .eq("status", value: "active")
+                    .neq("status", value: "archived")
                     .order("name")
                     .order("id")
                     .range(from: offset, to: offset + pageSize - 1)

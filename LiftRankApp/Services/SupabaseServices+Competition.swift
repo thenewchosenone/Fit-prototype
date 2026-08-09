@@ -118,7 +118,7 @@ private struct CompetitiveLiftInsertDTO: Encodable {
     let id: UUID
     let userID: UUID
     let exerciseID: String
-    let gymID: String
+    let gymID: String?
     let weight: Double
     let unit: String
     let reps: Int
@@ -145,7 +145,7 @@ private struct CompetitiveLiftInsertDTO: Encodable {
         id = submission.id
         userID = submission.userID
         exerciseID = submission.competitiveMovement?.canonicalExerciseID ?? submission.exerciseID
-        gymID = submission.gymID.uuidString
+        gymID = submission.gymID?.uuidString
         weight = submission.weight
         unit = submission.unit.shortLabel
         reps = submission.repetitions
@@ -164,7 +164,7 @@ struct CompetitiveLiftDTO: Decodable {
     let id: UUID
     let userID: UUID
     let exerciseID: String
-    let gymID: String
+    let gymID: String?
     let weight: Double
     let unit: String
     let reps: Int
@@ -202,7 +202,7 @@ struct CompetitiveLiftDTO: Decodable {
     }
 
     var submission: LiftSubmission? {
-        guard let gymID = UUID(uuidString: gymID) else { return nil }
+        let gymID = gymID.flatMap(UUID.init(uuidString:))
         let movement = competitiveMovement.flatMap(CompetitiveMovement.init(rawValue:))
         let liftUnit: UnitSystem = unit == "kg" ? .kilograms : .pounds
         let bodyweight = bodyweight ?? 0

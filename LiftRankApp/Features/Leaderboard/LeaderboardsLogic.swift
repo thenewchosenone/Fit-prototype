@@ -234,7 +234,8 @@ extension LeaderboardsView {
             return gym.name
         }
         if appState.leaderboardFilters.city == appState.currentProfile.city { return "My city" }
-        if appState.leaderboardFilters.weightClassID == bodyweightClass?.id { return "My class" }
+        if let bodyweightClass,
+           appState.leaderboardFilters.weightClassID == bodyweightClass.id { return "My class" }
         return isGlobalScope ? "Global" : "Custom"
     }
 
@@ -301,7 +302,8 @@ extension LeaderboardsView {
         case .scope:
             if let gymID = appState.leaderboardFilters.gymID { return "gym:\(gymID.uuidString)" }
             if appState.leaderboardFilters.city == appState.currentProfile.city { return "city" }
-            if appState.leaderboardFilters.weightClassID == bodyweightClass?.id { return "class" }
+            if let bodyweightClass,
+               appState.leaderboardFilters.weightClassID == bodyweightClass.id { return "class" }
             return "global"
         case .exercise: return appState.leaderboardFilters.exerciseID ?? "all"
         case .repetitions: return appState.leaderboardFilters.repetitionCount.map(String.init) ?? "all"

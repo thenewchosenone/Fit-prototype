@@ -917,7 +917,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = LiftRankApp/LiftRankDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 32TGWTQNP8;
 				ENABLE_PREVIEWS = YES;
@@ -929,7 +929,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.liftrank.app;
 				PRODUCT_NAME = LiftRank;
 				LIFTRANK_BACKEND_ENVIRONMENT = staging;
@@ -948,7 +948,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = LiftRankApp/LiftRank.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 32TGWTQNP8;
 				CLANG_ENABLE_CODE_COVERAGE = NO;
@@ -966,11 +966,11 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.liftrank.app;
 				PRODUCT_NAME = LiftRank;
 				LIFTRANK_BACKEND_ENVIRONMENT = production;
-				LIFTRANK_SUPABASE_ANON_KEY = "sb_publishable_YpotEpinEWsC2dI7FIKI";
+				LIFTRANK_SUPABASE_ANON_KEY = "sb_publishable_5dg5sIRy7DCibFdf-_cKlA_WZZmp8yf";
 				LIFTRANK_SUPABASE_URL = "https://ikjgbsrlriqiusuvezco.supabase.co";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;

@@ -85,7 +85,7 @@ extension HomeView {
                 Text(greeting.uppercased())
                     .font(.caption2.weight(.black))
                     .tracking(1.2)
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
                     .lineLimit(2)
                 Text(appState.currentProfile.displayName)
                     .font(.title3.weight(.black))
@@ -180,7 +180,7 @@ extension HomeView {
                     Text("TODAY")
                         .font(.caption2.weight(.black))
                         .tracking(1)
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                     Spacer()
                     Image(systemName: today == nil ? "bed.double.fill" : "play.fill")
                         .font(.caption.weight(.black))
@@ -240,7 +240,7 @@ extension HomeView {
                     Text("STRENGTH")
                         .font(.caption2.weight(.black))
                         .tracking(1)
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                     Spacer()
                     Image(systemName: "medal.fill")
                         .font(.subheadline.weight(.bold))
@@ -266,7 +266,7 @@ extension HomeView {
                     Spacer()
                     Image(systemName: "arrow.right")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 128, alignment: .leading)
@@ -290,7 +290,7 @@ extension HomeView {
                 value: "\(Int(MeasurementFormatting.convert(totalPounds, from: .pounds, to: preferredUnit)))",
                 unit: preferredUnit.shortLabel,
                 symbol: "dumbbell.fill",
-                tint: .liftBlue
+                tint: .liftAccentText
             )
             statDivider
             compactStat(
@@ -298,7 +298,7 @@ extension HomeView {
                 value: bodyweightStat.value,
                 unit: bodyweightStat.unit,
                 symbol: "scalemass.fill",
-                tint: .liftBlue
+                tint: .liftAccentText
             )
             statDivider
             compactStat(
@@ -306,7 +306,7 @@ extension HomeView {
                 value: RankingFormatting.ratioText(relativeTotal),
                 unit: "x",
                 symbol: "bolt.fill",
-                tint: .liftBlue
+                tint: .liftAccentText
             )
         }
         .padding(14)
@@ -327,7 +327,7 @@ extension HomeView {
         VStack(alignment: .leading, spacing: 12) {
             dashboardSectionHeader("Quick actions")
             HStack(spacing: 12) {
-                highlightButton("Log workout", "dumbbell.fill", Color.liftBlue) {
+                highlightButton("Log workout", "dumbbell.fill", Color.liftAccentText) {
                     appState.requestedTrackerSegment = "Today"
                     appState.trainingTrackerStartOnProgress = false
                     appState.selectedTab = 2
@@ -425,7 +425,7 @@ extension HomeView {
                             Spacer(minLength: 8)
                             Image(systemName: "arrow.right")
                                 .font(.caption.weight(.bold))
-                                .foregroundStyle(Color.liftBlue)
+                                .foregroundStyle(Color.liftAccentText)
                         }
                         .padding(.vertical, 8)
                         .contentShape(Rectangle())
@@ -540,7 +540,7 @@ extension HomeView {
                             VStack(spacing: 7) {
                                 Text(point.day)
                                     .font(.caption2.weight(.bold))
-                                    .foregroundStyle(Calendar.current.isDateInToday(point.date) ? Color.liftBlue : Color.liftMuted)
+                                    .foregroundStyle(Calendar.current.isDateInToday(point.date) ? Color.liftAccentText : Color.liftMuted)
                                 ZStack {
                                     Circle()
                                         .fill(point.count > 0 ? Color.liftBlue : Color.liftSeparator)

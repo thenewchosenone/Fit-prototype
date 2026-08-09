@@ -19,8 +19,7 @@ extension LeaderboardsView {
                             LeaderboardMetricStrip(
                                 rank: RankingFormatting.leaderboardRankText(rank: currentEntry?.rank),
                                 lifters: leaderboardEntries.count,
-                                ranking: appState.leaderboardFilters.rankingType.rawValue,
-                                nextUpdate: appState.nextLeaderboardUpdateDate(referenceDate: .now)
+                                ranking: appState.leaderboardFilters.rankingType.rawValue
                             )
                             .padding(.horizontal, 16)
                             .padding(.top, 8)
@@ -43,7 +42,11 @@ extension LeaderboardsView {
                                     .padding(.bottom, 12)
                             }
 
-                            if entries.isEmpty {
+                            if appState.isLeaderboardRequestPending {
+                                leaderboardLoadingState
+                                    .padding(.horizontal, 16)
+                                    .padding(.top, 12)
+                            } else if entries.isEmpty {
                                 emptyState
                                     .padding(.horizontal, 16)
                                     .padding(.top, 12)
@@ -169,5 +172,20 @@ extension LeaderboardsView {
                 lastRefreshedLeaderboardRequestKey = appState.leaderboardRequestKey
                 await appState.refreshLeaderboard()
             }
+    }
+
+    private var leaderboardLoadingState: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .tint(Color.liftLime)
+            Text("Updating leaderboard")
+                .font(.headline)
+            Text("Loading the selected ranking.")
+                .font(.subheadline)
+                .foregroundStyle(Color.liftMuted)
+        }
+        .frame(maxWidth: .infinity, minHeight: 160)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Updating leaderboard")
     }
 }

@@ -121,7 +121,10 @@ struct AppServiceContainer {
             supabaseURL: configuration.url,
             supabaseKey: configuration.publicKey,
             options: SupabaseClientOptions(
-                auth: .init(redirectToURL: SupabaseConfiguration.authCallbackURL)
+                auth: .init(
+                    redirectToURL: SupabaseConfiguration.authCallbackURL,
+                    emitLocalSessionAsInitialSession: true
+                )
             )
         )
         return AppServiceContainer(
@@ -169,6 +172,7 @@ final class UnavailableLaunchService: LiftService, LeaderboardService, SocialSer
     func report(liftID: UUID, reason: LiftReportReason, note: String) async throws { throw error }
     func entries(filters: LeaderboardFilters, verifiedOnly: Bool) async throws -> [LeaderboardEntry] { throw error }
     func searchProfiles(query: String, limit: Int) async throws -> [PublicProfileCard] { throw error }
+    func report(userID: UUID, reason: ProfileReportReason, note: String) async throws { throw error }
     func block(userID: UUID) async throws { throw error }
     func unblock(userID: UUID) async throws { throw error }
     func blocks() async throws -> [UserBlockRecord] { throw error }

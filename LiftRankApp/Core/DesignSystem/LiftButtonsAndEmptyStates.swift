@@ -30,7 +30,7 @@ struct SecondaryButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity)
             .frame(minHeight: LiftDesign.minimumTouchTarget)
             .padding(.horizontal, 14)
-            .foregroundStyle(isEnabled ? Color.liftLime : Color.liftTextDisabled)
+            .foregroundStyle(isEnabled ? Color.liftAccentText : Color.liftTextDisabled)
             .background(Color.liftCard.opacity(configuration.isPressed ? 0.85 : 1))
             .clipShape(RoundedRectangle(cornerRadius: LiftDesign.controlRadius, style: .continuous))
             .overlay(

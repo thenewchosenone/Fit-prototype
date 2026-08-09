@@ -112,6 +112,8 @@ struct MainTabView: View {
             RequestGymView().environmentObject(appState).presentationDetents([.medium])
         case .reportLift(let lift):
             ReportLiftView(lift: lift).environmentObject(appState).presentationDetents([.medium])
+        case .reportProfile(let profile):
+            ReportProfileView(profile: profile).environmentObject(appState).presentationDetents([.medium])
         case .profile(let profile):
             NavigationStack {
                 ProfileView(profile: profile, isCurrentUser: profile.id == appState.currentProfile.id)
@@ -332,8 +334,14 @@ private struct MeHubContentView: View {
                 .padding(.bottom, LiftDesign.floatingTabBarContentClearance)
             }
             .scrollIndicators(.hidden)
+            .refreshable {
+                await appState.refreshProductionLifts()
+            }
         }
         .navigationTitle("Me")
+        .task {
+            await appState.refreshProductionLifts()
+        }
     }
 
     private func topLiftCard(
@@ -893,6 +901,9 @@ struct AwardsView: View {
         .navigationTitle("Awards")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("awards.screen")
+        .task {
+            await appState.refreshProductionLifts()
+        }
         .onAppear {
             appState.refreshAchievementUnlocks()
         }
@@ -1320,6 +1331,7 @@ private struct RivalTierShareCard: View {
 
 struct AuthenticationView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.colorScheme) private var colorScheme
     @State private var mode = "Sign In"
     @State private var email = ""
     @State private var password = ""
@@ -1373,6 +1385,15 @@ struct AuthenticationView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
 
+                        Text(
+                            mode == "Sign In"
+                                ? "Use the email address connected to your account."
+                                : "Use a valid email and a password of at least 10 characters."
+                        )
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
                         if let confirmationEmail {
                             emailConfirmationNotice(for: confirmationEmail)
                         } else if let message = appState.accountMessage {
@@ -1386,20 +1407,38 @@ struct AuthenticationView: View {
                             title: appState.accountOperationInProgress ? "Please wait…" : mode,
                             symbolName: mode == "Sign In" ? "arrow.right.circle.fill" : "person.badge.plus"
                         ) {
+                            let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !normalizedEmail.isEmpty else {
+                                appState.accountMessage = "Enter your email address."
+                                return
+                            }
+                            guard normalizedEmail.contains("@") else {
+                                appState.accountMessage = "Enter a valid email address."
+                                return
+                            }
+                            guard !password.isEmpty else {
+                                appState.accountMessage = "Enter your password."
+                                return
+                            }
+                            guard mode == "Sign In" || password.count >= 10 else {
+                                appState.accountMessage = "New passwords must contain at least 10 characters."
+                                return
+                            }
                             Task {
                                 if mode == "Sign In" {
-                                    await appState.signIn(email: email, password: password)
+                                    await appState.signIn(email: normalizedEmail, password: password)
                                 } else {
-                                    await appState.signUp(email: email, password: password)
+                                    await appState.signUp(email: normalizedEmail, password: password)
                                     if appState.accountMessage == emailConfirmationMessage {
-                                        confirmationEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        confirmationEmail = normalizedEmail
                                         password = ""
                                         mode = "Sign In"
                                     }
                                 }
                             }
                         }
-                        .disabled(appState.accountOperationInProgress || email.isEmpty || password.count < 10)
+                        .accessibilityIdentifier("authentication.email.submit")
+                        .disabled(appState.accountOperationInProgress)
 
 #if DEBUG
                         Label("Apple sign-in is enabled in the release build", systemImage: "apple.logo")
@@ -1407,25 +1446,33 @@ struct AuthenticationView: View {
                             .foregroundStyle(Color.liftMuted)
                             .frame(maxWidth: .infinity)
 #else
-                        SignInWithAppleButton(.continue) { request in
+                        SignInWithAppleButton(.signIn) { request in
                             let nonce = AppleNonce.make()
                             appleNonce = nonce
                             request.requestedScopes = [.email, .fullName]
                             request.nonce = AppleNonce.sha256(nonce)
                         } onCompletion: { result in
-                            guard case .success(let authorization) = result,
-                                  let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-                                  let data = credential.identityToken,
-                                  let token = String(data: data, encoding: .utf8),
-                                  !appleNonce.isEmpty else {
-                                appState.accountMessage = "Sign in with Apple could not be completed."
-                                return
+                            switch result {
+                            case .success(let authorization):
+                                guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                                      let data = credential.identityToken,
+                                      let token = String(data: data, encoding: .utf8),
+                                      !appleNonce.isEmpty else {
+                                    appState.accountMessage = "Sign in with Apple could not be completed. Please try again."
+                                    return
+                                }
+                                Task { await appState.signInWithApple(identityToken: token, nonce: appleNonce) }
+                            case .failure(let error):
+                                if let authorizationError = error as? ASAuthorizationError,
+                                   authorizationError.code == .canceled {
+                                    return
+                                }
+                                appState.accountMessage = "Sign in with Apple could not be completed. Please try again."
                             }
-                            Task { await appState.signInWithApple(identityToken: token, nonce: appleNonce) }
                         }
-                        .signInWithAppleButtonStyle(.white)
+                        .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+                        .frame(maxWidth: .infinity)
                         .frame(height: 50)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
                         .disabled(appState.accountOperationInProgress)
 #endif
 
@@ -1565,7 +1612,7 @@ struct ReportLiftView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     let lift: LiftSubmission
-    @State private var reason = LiftReportReason.incorrectWeight
+    @State private var reason = LiftReportReason.harassment
     @State private var note = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
@@ -1605,6 +1652,64 @@ struct ReportLiftView: View {
                 .scrollContentBackground(.hidden)
             }
             .navigationTitle("Report Lift")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+struct ReportProfileView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    let profile: UserProfile
+    @State private var reason = ProfileReportReason.harassment
+    @State private var note = ""
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            AppBackground {
+                Form {
+                    Section {
+                        Text("Report @\(profile.username) for content or behavior that violates the Lift Rivals community standards.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.liftMuted)
+                    }
+                    Picker("Reason", selection: $reason) {
+                        ForEach(ProfileReportReason.allCases) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    TextField("Optional details", text: $note, axis: .vertical)
+                        .lineLimit(3...5)
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(Color.liftRed)
+                    }
+                    Button(isSubmitting ? "Submitting..." : "Submit Report") {
+                        isSubmitting = true
+                        errorMessage = nil
+                        Task {
+                            if await appState.reportProfile(profile.id, reason: reason, note: note) {
+                                Haptics.warning()
+                                dismiss()
+                            } else {
+                                errorMessage = "The report could not be submitted. Try again."
+                                isSubmitting = false
+                            }
+                        }
+                    }
+                    .accessibilityIdentifier("profileReport.submit")
+                    .disabled(isSubmitting)
+                }
+                .scrollContentBackground(.hidden)
+            }
+            .navigationTitle("Report Athlete")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }

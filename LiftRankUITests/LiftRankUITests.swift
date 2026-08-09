@@ -171,10 +171,13 @@ final class LiftRankUITests: XCTestCase {
     }
 
     func testActiveWorkoutCanCreateAndAddCustomExercise() {
-        let app = launchDemo(arguments: ["-uiTestingActiveWorkout"])
-        let resume = app.buttons["home.activeWorkout.resume"]
-        XCTAssertTrue(resume.waitForExistence(timeout: 8))
-        resume.tap()
+        let app = launchDemo(arguments: ["-uiTestingNoActiveWorkout"])
+        XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
+        tab("track", in: app).tap()
+
+        let startEmptyWorkout = app.buttons["Start empty workout"]
+        XCTAssertTrue(startEmptyWorkout.waitForExistence(timeout: 5))
+        startEmptyWorkout.tap()
 
         let addExercise = app.buttons["Add exercise"]
         XCTAssertTrue(addExercise.waitForExistence(timeout: 5))
@@ -284,12 +287,20 @@ final class LiftRankUITests: XCTestCase {
         measureCurrentAccountLaunchToFirstNavigation()
     }
 
+    func testRestoredAccountLaunchToFirstNavigationPerformance() {
+        measureCurrentAccountLaunchToFirstNavigation(arguments: ["-uiTestingRestoredAuthenticatedAccount"])
+    }
+
     func testCurrentAccountLaunchToFirstNavigationWithWorkoutSyncPerformance() {
         measureCurrentAccountLaunchToFirstNavigation(arguments: ["-uiTestingStartupWorkoutSync"])
     }
 
     func testCurrentAccountPostLaunchNavigationPerformance() {
         measureCurrentAccountPostLaunchNavigation()
+    }
+
+    func testRestoredAccountPostLaunchNavigationPerformance() {
+        measureCurrentAccountPostLaunchNavigation(arguments: ["-uiTestingRestoredAuthenticatedAccount"])
     }
 
     func testCurrentAccountPostLaunchNavigationWithWorkoutSyncPerformance() {
@@ -542,6 +553,72 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["profile.liftVideoPlayer"].waitForExistence(timeout: 5))
     }
 
+    func testCurrentAccountShowsSubmittedVideoAndLeaderboardEntry() {
+        let app = launchCurrentAccount()
+        XCTAssertTrue(tab("profile", in: app).waitForExistence(timeout: 8))
+        tab("profile", in: app).tap()
+
+        let publicProfile = app.buttons["me.publicProfile"]
+        XCTAssertTrue(publicProfile.waitForExistence(timeout: 8))
+        publicProfile.tap()
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 8))
+
+        let videoLibrary = app.descendants(matching: .any)["profile.liftVideos"]
+        var attempts = 0
+        while !videoLibrary.exists && attempts < 8 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(videoLibrary.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "profile.liftVideo.")
+        ).firstMatch.exists)
+
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(tab("leaderboards", in: app).waitForExistence(timeout: 8))
+        tab("leaderboards", in: app).tap()
+        XCTAssertTrue(app.staticTexts["Leaderboards"].waitForExistence(timeout: 8))
+
+        app.buttons["leaderboard.filter.exercise"].tap()
+        let deadlift = app.buttons["leaderboard.filters.option.conventional_deadlift"]
+        XCTAssertTrue(deadlift.waitForExistence(timeout: 5))
+        deadlift.tap()
+
+        XCTAssertTrue(app.staticTexts["YOU"].waitForExistence(timeout: 15))
+    }
+
+    func testCompetitionFixtureShowsCurrentVideoAndLeaderboardPlacement() {
+        let app = launchDemo(arguments: ["-uiTestingCompetitionFixture"])
+        XCTAssertTrue(tab("profile", in: app).waitForExistence(timeout: 8))
+        tab("profile", in: app).tap()
+
+        let publicProfile = app.buttons["me.publicProfile"]
+        XCTAssertTrue(publicProfile.waitForExistence(timeout: 5))
+        publicProfile.tap()
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 5))
+
+        let videoLibrary = app.descendants(matching: .any)["profile.liftVideos"]
+        var attempts = 0
+        while !videoLibrary.exists && attempts < 8 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(videoLibrary.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "profile.liftVideo.")
+        ).firstMatch.exists)
+
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(tab("leaderboards", in: app).waitForExistence(timeout: 5))
+        tab("leaderboards", in: app).tap()
+        XCTAssertTrue(app.staticTexts["Leaderboards"].waitForExistence(timeout: 5))
+        app.buttons["leaderboard.filter.exercise"].tap()
+        let bench = app.buttons["option.bench"]
+        XCTAssertTrue(bench.waitForExistence(timeout: 5))
+        bench.tap()
+        XCTAssertTrue(app.staticTexts["YOU"].waitForExistence(timeout: 8))
+    }
+
     func testEditProfileUsesSearchableLocationAndGymPickers() {
         let app = launchDemo(arguments: ["-uiTestingGymFixture"])
         XCTAssertTrue(tab("profile", in: app).waitForExistence(timeout: 8))
@@ -653,6 +730,56 @@ final class LiftRankUITests: XCTestCase {
         }
     }
 
+    func testCurrentAccountLeaderboardDoesNotShowScoreFromPreviousRanking() {
+        let app = XCUIApplication()
+        addUIInterruptionMonitor(withDescription: "System prompts") { alert in
+            if alert.buttons["Not Now"].exists {
+                alert.buttons["Not Now"].tap()
+                return true
+            }
+            if alert.buttons["Allow"].exists {
+                alert.buttons["Allow"].tap()
+                return true
+            }
+            return false
+        }
+        app.launch()
+
+        let leaderboards = tab("leaderboards", in: app)
+        XCTAssertTrue(leaderboards.waitForExistence(timeout: 8))
+        leaderboards.tap()
+        XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 8))
+
+        let relativeRanking = app.buttons["Round-for-pound"]
+        XCTAssertTrue(relativeRanking.waitForExistence(timeout: 5))
+        relativeRanking.tap()
+        Thread.sleep(forTimeInterval: 2)
+
+        let totalRanking = app.buttons["Total"]
+        XCTAssertTrue(totalRanking.waitForExistence(timeout: 5))
+        totalRanking.tap()
+
+        let transitionScreenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        transitionScreenshot.name = "Leaderboard total transition"
+        transitionScreenshot.lifetime = .keepAlways
+        add(transitionScreenshot)
+
+        let staleScore = app.staticTexts["3.4 lb"]
+        let transitionDeadline = Date().addingTimeInterval(2)
+        while Date() < transitionDeadline, !app.staticTexts["315 lb"].exists {
+            XCTAssertFalse(staleScore.exists, "The previous ranking score was formatted as a total weight")
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+
+        XCTAssertFalse(staleScore.exists)
+        XCTAssertTrue(app.staticTexts["315 lb"].waitForExistence(timeout: 8))
+
+        let finalScreenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        finalScreenshot.name = "Leaderboard total settled"
+        finalScreenshot.lifetime = .keepAlways
+        add(finalScreenshot)
+    }
+
     func testLeaderboardFiltersAndOpensAnotherAthleteProfile() {
         let app = launchDemo(arguments: ["-uiTestingCompetitionFixture"])
         XCTAssertTrue(tab("leaderboards", in: app).waitForExistence(timeout: 8))
@@ -667,9 +794,7 @@ final class LiftRankUITests: XCTestCase {
         bench.tap()
         XCTAssertEqual(exerciseFilter.label, "Exercise, Barbell bench press")
 
-        let otherAthlete = app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH %@ AND value == %@", "leaderboard.athlete.", "Other athlete")
-        ).firstMatch
+        let otherAthlete = app.buttons["leaderboard.athlete.A0000000-0000-0000-0000-000000000001"]
         XCTAssertTrue(otherAthlete.waitForExistence(timeout: 5))
         otherAthlete.tap()
         XCTAssertTrue(app.buttons["profile.athleteOptions"].waitForExistence(timeout: 5))
@@ -741,7 +866,7 @@ final class LiftRankUITests: XCTestCase {
     }
 
     func testSubmitLiftProducesSubmissionResult() {
-        let app = launchDemo(arguments: ["-uiTestingGymFixture"])
+        let app = launchDemo()
         XCTAssertTrue(tab("leaderboards", in: app).waitForExistence(timeout: 8))
         tab("leaderboards", in: app).tap()
 
@@ -767,6 +892,7 @@ final class LiftRankUITests: XCTestCase {
         submit.tap()
 
         XCTAssertTrue(app.staticTexts["lift.submissionResult"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Provisional placement"].exists)
         XCTAssertTrue(app.buttons["lift.submissionDone"].exists)
     }
 
@@ -813,6 +939,91 @@ final class LiftRankUITests: XCTestCase {
         add(screenshot)
     }
 
+    func testCurrentAccountSubmitLiftOffersNoGymOption() {
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertTrue(tab("leaderboards", in: app).waitForExistence(timeout: 8))
+        tab("leaderboards", in: app).tap()
+        app.buttons["leaderboard.submitLift"].tap()
+        XCTAssertTrue(app.navigationBars["Submit Lift"].waitForExistence(timeout: 5))
+
+        let gym = app.buttons["lift.gym"]
+        XCTAssertTrue(gym.waitForExistence(timeout: 5))
+        var attempts = 0
+        while !gym.isHittable && attempts < 6 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(gym.isHittable)
+        gym.tap()
+
+        XCTAssertTrue(app.buttons["option.no-gym"].waitForExistence(timeout: 5))
+    }
+
+    func testCurrentAccountSubmitsFirstGalleryVideoWithoutGym() {
+        let app = launchCurrentAccount()
+        XCTAssertTrue(tab("leaderboards", in: app).waitForExistence(timeout: 8))
+        tab("leaderboards", in: app).tap()
+        app.buttons["leaderboard.submitLift"].tap()
+        XCTAssertTrue(app.navigationBars["Submit Lift"].waitForExistence(timeout: 5))
+
+        let selectVideo = app.buttons["lift.video.select"]
+        var attempts = 0
+        while !selectVideo.isHittable && attempts < 8 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(selectVideo.waitForExistence(timeout: 5))
+        XCTAssertTrue(selectVideo.isHittable)
+        selectVideo.tap()
+
+        let firstVideo = app.images.matching(
+            NSPredicate(format: "identifier == %@", "PXGGridLayout-Info")
+        ).firstMatch
+        XCTAssertTrue(firstVideo.waitForExistence(timeout: 8))
+        let thumbnailFrame = firstVideo.frame
+        let appFrame = app.frame
+        app.coordinate(withNormalizedOffset: CGVector(
+            dx: thumbnailFrame.midX / appFrame.width,
+            dy: thumbnailFrame.midY / appFrame.height
+        )).tap()
+        if app.buttons["Add"].waitForExistence(timeout: 2) {
+            app.buttons["Add"].tap()
+        }
+
+        XCTAssertTrue(app.buttons["lift.video.review"].waitForExistence(timeout: 30))
+
+        let submit = app.buttons["lift.submit"]
+        attempts = 0
+        while !submit.isHittable && attempts < 10 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(submit.waitForExistence(timeout: 5))
+        XCTAssertTrue(submit.isEnabled)
+        submit.tap()
+
+        let result = app.staticTexts["lift.submissionResult"]
+        let alert = app.alerts["Lift not submitted"]
+        let deadline = Date().addingTimeInterval(60)
+        while !result.exists && !alert.exists && Date() < deadline {
+            Thread.sleep(forTimeInterval: 1)
+        }
+        if result.exists {
+            XCTAssertTrue(
+                app.staticTexts["Video-backed"].waitForExistence(timeout: 5),
+                "The lift was saved, but the selected video was not uploaded and linked."
+            )
+            XCTAssertTrue(app.staticTexts["Provisional placement"].exists)
+            return
+        }
+        if alert.exists {
+            XCTFail("Submission failed before video upload: \(alert.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " | "))")
+        } else {
+            XCTFail("Submission did not produce a result within 60 seconds")
+        }
+    }
+
     func testHomeShowsUsefulRecentPREmptyState() {
         let app = launchDemo()
         XCTAssertTrue(tab("home", in: app).waitForExistence(timeout: 8))
@@ -825,9 +1036,7 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(tab("leaderboards", in: app).waitForExistence(timeout: 8))
         tab("leaderboards", in: app).tap()
 
-        let otherAthlete = app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH %@ AND value == %@", "leaderboard.athlete.", "Other athlete")
-        ).firstMatch
+        let otherAthlete = app.buttons["leaderboard.athlete.A0000000-0000-0000-0000-000000000001"]
         XCTAssertTrue(otherAthlete.waitForExistence(timeout: 5))
         otherAthlete.tap()
 
@@ -934,6 +1143,99 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(createAccount.exists)
         createAccount.tap()
         XCTAssertTrue(createAccount.isSelected)
+    }
+
+    func testProductionReviewerCanSignIn() throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let email = environment["LIFTRANK_REVIEW_EMAIL"],
+              let password = environment["LIFTRANK_REVIEW_PASSWORD"] else {
+            throw XCTSkip("Production reviewer credentials were not provided.")
+        }
+
+        let app = XCUIApplication()
+        app.launch()
+
+        let emailField = app.textFields["Email"]
+        XCTAssertTrue(emailField.waitForExistence(timeout: 8))
+        emailField.tap()
+        emailField.typeText(email)
+
+        let passwordField = app.secureTextFields["Password"]
+        XCTAssertTrue(passwordField.exists)
+        passwordField.tap()
+        passwordField.typeText(password)
+
+        app.buttons["authentication.email.submit"].tap()
+        let homeTab = tab("home", in: app)
+        let acceptButton = app.buttons["Accept and Continue"]
+        if !homeTab.waitForExistence(timeout: 5), acceptButton.waitForExistence(timeout: 20) {
+            let privacyConsent = app.switches["I have read and accept Privacy Notice"]
+            XCTAssertTrue(privacyConsent.waitForExistence(timeout: 5))
+            if !privacyConsent.isHittable {
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.33, dy: 0.615)).tap()
+            }
+            for label in [
+                "I have read and accept Privacy Notice",
+                "I have read and accept Terms of Use",
+                "I have read and accept Fitness Disclaimer"
+            ] {
+                let consent = app.switches[label]
+                XCTAssertTrue(consent.waitForExistence(timeout: 5), "Missing legal consent: \(label)")
+                if consent.value as? String != "1" {
+                    consent.tap()
+                }
+                if consent.value as? String != "1" {
+                    consent.tap()
+                }
+                XCTAssertEqual(consent.value as? String, "1")
+            }
+            expectation(for: NSPredicate(format: "enabled == true"), evaluatedWith: acceptButton)
+            waitForExpectations(timeout: 5)
+            acceptButton.tap()
+        }
+        XCTAssertTrue(homeTab.waitForExistence(timeout: 20))
+        if !homeTab.isHittable {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.33, dy: 0.615)).tap()
+        }
+        if !homeTab.isHittable {
+            app.tap()
+            expectation(for: NSPredicate(format: "hittable == true"), evaluatedWith: homeTab)
+            waitForExpectations(timeout: 5)
+        }
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Production reviewer signed in"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    func testAuthenticationFormProvidesResponsiveValidation() {
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTestingAuthentication"]
+        app.launch()
+
+        let submit = app.buttons["authentication.email.submit"]
+        XCTAssertTrue(submit.waitForExistence(timeout: 8))
+        XCTAssertTrue(submit.isEnabled)
+
+        submit.tap()
+        XCTAssertTrue(app.staticTexts["Enter your email address."].waitForExistence(timeout: 5))
+
+        let email = app.textFields["Email"]
+        email.tap()
+        email.typeText("reviewer@example.com")
+
+        let password = app.secureTextFields["Password"]
+        password.tap()
+        password.typeText("short")
+        XCTAssertTrue(submit.isEnabled)
+
+        let createAccount = app.segmentedControls.buttons["Create Account"]
+        createAccount.tap()
+        XCTAssertTrue(createAccount.isSelected)
+        XCTAssertTrue(submit.isEnabled)
+        submit.tap()
+        XCTAssertTrue(app.staticTexts["New passwords must contain at least 10 characters."].waitForExistence(timeout: 5))
     }
 
 }

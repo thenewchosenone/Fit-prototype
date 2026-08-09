@@ -14,6 +14,9 @@ extension ProfileView {
                 .padding()
                 .padding(.bottom, 24)
             }
+            .refreshable {
+                await refreshProfileData()
+            }
             .sheet(isPresented: $showingPhotoManager) {
                 ProfilePhotoManagerView()
                     .environmentObject(appState)
@@ -40,6 +43,10 @@ extension ProfileView {
                 } else {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
+                            Button("Report athlete", role: .destructive) {
+                                appState.selectedReportProfile = profile
+                            }
+                            .accessibilityIdentifier("profile.reportAthlete")
                             Button(appState.isBlocked(profile.id) ? "Unblock athlete" : "Block athlete", role: appState.isBlocked(profile.id) ? nil : .destructive) {
                                 appState.setBlocked(profile.id, blocked: !appState.isBlocked(profile.id))
                             }
@@ -53,10 +60,17 @@ extension ProfileView {
             }
         }
         .task(id: profile.id) {
-            refreshVisibleProfileLifts()
+            await refreshProfileData()
         }
         .onChange(of: appState.repository.liftsRevision) { _, _ in
             refreshVisibleProfileLifts()
         }
+    }
+
+    private func refreshProfileData() async {
+        if isCurrentUser {
+            await appState.refreshProductionLifts()
+        }
+        refreshVisibleProfileLifts()
     }
 }

@@ -1,3 +1,4 @@
+import AVFoundation
 import Charts
 import PhotosUI
 import SwiftUI
@@ -70,42 +71,19 @@ struct ProfileLiftVideosSection: View {
                     compact: true
                 )
             } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(videoLifts.enumerated()), id: \.offset) { index, lift in
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 3), spacing: 4) {
+                    ForEach(videoLifts) { lift in
                         Button {
                             selectedLift = lift
                         } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "play.fill")
-                                    .font(.headline.weight(.bold))
-                                    .foregroundStyle(Color.liftBlue)
-                                    .frame(width: 44, height: 44)
-                                    .background(Color.liftBlue.opacity(0.12))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(lift.exerciseName)
-                                        .font(.subheadline.weight(.bold))
-                                        .foregroundStyle(Color.primary)
-                                    Text("\(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions)) • \(LiftTimeFormatter.shortDate(lift.performedAt))")
-                                        .font(.caption)
-                                        .foregroundStyle(Color.liftMuted)
-                                }
-                                Spacer(minLength: 8)
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(Color.liftMuted)
-                            }
-                            .padding(13)
-                            .contentShape(Rectangle())
+                            ProfileVideoThumbnail(lift: lift)
+                                .aspectRatio(1, contentMode: .fit)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Play \(lift.exerciseName) lift video")
                         .accessibilityIdentifier("profile.liftVideo.\(lift.id.uuidString)")
-                        if index < videoLifts.count - 1 {
-                            Divider().overlay(Color.liftSeparator).padding(.leading, 69)
-                        }
                     }
                 }
-                .liftSurface()
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("profile.liftVideos")
             }
@@ -114,6 +92,56 @@ struct ProfileLiftVideosSection: View {
             ProfileLiftVideoDetailView(lift: lift)
                 .environmentObject(appState)
                 .presentationDetents([.large])
+        }
+    }
+}
+
+private struct ProfileVideoThumbnail: View {
+    @EnvironmentObject private var appState: AppState
+    let lift: LiftSubmission
+    @State private var image: UIImage?
+
+    private static let cache = NSCache<NSString, UIImage>()
+
+    var body: some View {
+        ZStack {
+            Color.liftSurfaceElevated
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Image(systemName: "video.fill")
+                    .font(.title2)
+                    .foregroundStyle(Color.liftMuted)
+            }
+            Color.black.opacity(0.18)
+            Image(systemName: "play.fill")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(.white)
+                .shadow(radius: 3)
+        }
+        .clipped()
+        .task(id: lift.id) {
+            if let cached = Self.cache.object(forKey: lift.id.uuidString as NSString) {
+                image = cached
+                return
+            }
+            guard let url = await appState.competitionStore.playbackURL(for: lift) else { return }
+            let asset = AVURLAsset(url: url)
+            let generator = AVAssetImageGenerator(asset: asset)
+            generator.appliesPreferredTrackTransform = true
+            generator.maximumSize = CGSize(width: 360, height: 360)
+            let time = CMTime(seconds: 0, preferredTimescale: 600)
+            let thumbnail = await withCheckedContinuation { continuation in
+                generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: time)]) { _, image, _, _, _ in
+                    continuation.resume(returning: image)
+                }
+            }
+            guard let thumbnail else { return }
+            let image = UIImage(cgImage: thumbnail)
+            Self.cache.setObject(image, forKey: lift.id.uuidString as NSString)
+            self.image = image
         }
     }
 }
@@ -238,14 +266,38 @@ struct EditProfileView: View {
         }
     }
 
-    private var gymsForSelectedLocation: [Gym] {
-        let matching = appState.gyms.filter {
-            $0.city.caseInsensitiveCompare(draft.city) == .orderedSame &&
-                $0.state.caseInsensitiveCompare(draft.state) == .orderedSame
+    private var orderedGyms: [Gym] {
+        func locationPriority(for gym: Gym) -> Int {
+            if gym.city.caseInsensitiveCompare(draft.city) == .orderedSame,
+               gym.state.caseInsensitiveCompare(draft.state) == .orderedSame {
+                return 0
+            }
+            if gym.state.caseInsensitiveCompare(draft.state) == .orderedSame {
+                return 1
+            }
+            return 2
         }
-        return (matching.isEmpty ? appState.gyms : matching).sorted {
-            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+
+        return appState.gyms.sorted {
+            let leftPriority = locationPriority(for: $0)
+            let rightPriority = locationPriority(for: $1)
+            if leftPriority != rightPriority { return leftPriority < rightPriority }
+            if $0.state.caseInsensitiveCompare($1.state) != .orderedSame {
+                return $0.state.localizedCaseInsensitiveCompare($1.state) == .orderedAscending
+            }
+            if $0.city.caseInsensitiveCompare($1.city) != .orderedSame {
+                return $0.city.localizedCaseInsensitiveCompare($1.city) == .orderedAscending
+            }
+            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
+    }
+
+    private var selectedLocationGymOptionIDs: Set<String> {
+        Set(appState.gyms.compactMap {
+            guard $0.city.caseInsensitiveCompare(draft.city) == .orderedSame,
+                  $0.state.caseInsensitiveCompare(draft.state) == .orderedSame else { return nil }
+            return $0.id.uuidString
+        })
     }
 
     var body: some View {
@@ -343,11 +395,14 @@ struct EditProfileView: View {
                     options: options(for: selector),
                     selectedID: selectedID(for: selector),
                     isSearchable: true,
-                    searchPrompt: selector == .location ? "Search city or state" : "Search gyms",
+                    searchPrompt: selector == .location ? "Search city or state" : "Search name, city, or state",
                     emptyTitle: selector == .location ? "No locations available" : "No gyms available",
                     emptyMessage: selector == .location
                         ? "Try a different city or state search."
-                        : "Choose another location or request that this gym be added."
+                        : "Try another search, switch to All gyms, or request that this gym be added.",
+                    preferredOptionIDs: selector == .gym ? selectedLocationGymOptionIDs : [],
+                    preferredScopeTitle: selector == .gym && !draft.city.isEmpty ? draft.city : nil,
+                    allScopeTitle: "All gyms"
                 ) { id in
                     select(id, for: selector)
                 }
@@ -432,7 +487,7 @@ struct EditProfileView: View {
                 LeaderboardOption(id: $0.id, title: $0.city, subtitle: $0.state, symbol: "mappin.and.ellipse")
             }
         case .gym:
-            return gymsForSelectedLocation.map {
+            return orderedGyms.map {
                 LeaderboardOption(id: $0.id.uuidString, title: $0.name, subtitle: "\($0.city), \($0.state)", symbol: "building.2.fill")
             }
         }

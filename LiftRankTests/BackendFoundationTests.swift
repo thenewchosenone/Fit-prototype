@@ -120,6 +120,12 @@ private final class TestAnalyticsCaptureService: AnalyticsService {
 
 @MainActor
 final class BackendFoundationTests: XCTestCase {
+    func testLiftVideoDurationPolicyAllowsThirtySecondsAndRejectsLongerClips() {
+        XCTAssertTrue(LiftVideoPolicy.allows(duration: 30))
+        XCTAssertFalse(LiftVideoPolicy.allows(duration: 30.001))
+        XCTAssertFalse(LiftVideoPolicy.allows(duration: .infinity))
+    }
+
     func testProductionConfigurationRejectsServiceRoleKey() {
         let serviceRoleKey = "eyJhbGciOiJub25lIn0.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature"
         let environment = [
@@ -697,6 +703,40 @@ final class BackendFoundationTests: XCTestCase {
         store.applyAuthenticatedProfile(remote, retainingDemoProfiles: false)
 
         XCTAssertNil(store.currentProfile.avatarPath)
+    }
+
+    func testProfileStorePreservesCachedProfilesWhenRefreshingSameAccount() {
+        let repository = DemoRepository()
+        let userID = UUID()
+        var current = MockData.emptyProfile
+        current.id = userID
+        current.username = "current_lifter"
+        let cachedProfile = MockData.demoProfile
+        repository.currentProfile = current
+        repository.profiles = [current, cachedProfile]
+        let store = ProfileStore(repository: repository)
+        let remote = AuthenticatedProfile(
+            id: userID,
+            username: "current_lifter",
+            displayName: "Current Lifter",
+            bio: "",
+            avatarPath: nil,
+            onboardingCompleted: true,
+            preferredUnit: .pounds,
+            birthDate: nil,
+            sexCategory: .open,
+            heightCentimeters: nil,
+            city: nil,
+            region: nil,
+            countryCode: "US",
+            yearsExperience: nil,
+            experienceLevel: .beginner,
+            privacy: ProfilePrivacySettings()
+        )
+
+        store.applyAuthenticatedProfile(remote, retainingDemoProfiles: false)
+
+        XCTAssertEqual(store.profiles.map(\.id), [userID, cachedProfile.id])
     }
 
     func testPendingAuthenticatedAvatarUploadRetriesDuringAccountLoad() async throws {

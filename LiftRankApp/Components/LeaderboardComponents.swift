@@ -66,24 +66,21 @@ struct LeaderboardMetricStrip: View {
     let rank: String
     let lifters: Int
     let ranking: String
-    let nextUpdate: Date
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 60)) { _ in
-            HStack(spacing: 0) {
-                metric("Your rank", rank, tint: .liftBlue)
-                divider
-                metric("Lifters", "\(lifters)")
-                divider
-                metric("Ranking", ranking)
-                divider
-                metric("Updates", LiftTimeFormatter.relative(nextUpdate), tint: .liftGreen)
-            }
-            .padding(.vertical, 12)
-            .liftSurface(radius: 12, raised: true)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Your rank \(rank), \(lifters) lifters, \(ranking), next update \(LiftTimeFormatter.relative(nextUpdate, wide: true))")
+        HStack(spacing: 0) {
+            metric("Your rank", rank, tint: .liftBlue)
+            divider
+            metric("Lifters", "\(lifters)")
+            divider
+            metric("Ranking", ranking)
+            divider
+            metric("Updates", "Live", tint: .liftGreen)
         }
+        .padding(.vertical, 12)
+        .liftSurface(radius: 12, raised: true)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Your rank \(rank), \(lifters) lifters, \(ranking), updates live")
     }
 
     private func metric(_ title: String, _ value: String, tint: Color = .white) -> some View {
@@ -123,7 +120,7 @@ struct LeaderboardTabBar: View {
                         VStack(spacing: 9) {
                             Text(type.rawValue)
                                 .font(.subheadline.weight(selection == type ? .bold : .medium))
-                                .foregroundStyle(selection == type ? .white : Color.liftMuted)
+                                .foregroundStyle(selection == type ? Color.liftText : Color.liftMuted)
                                 .lineLimit(1)
                             Rectangle()
                                 .fill(selection == type ? Color.liftBlue : .clear)
@@ -320,17 +317,42 @@ struct LeaderboardOptionSheet: View {
     var searchPrompt = "Search options"
     var emptyTitle = "No options found"
     var emptyMessage = "Try another search."
+    var preferredOptionIDs: Set<String> = []
+    var preferredScopeTitle: String?
+    var allScopeTitle = "All"
+    var emptyActionTitle: String?
+    var onEmptyAction: (() -> Void)?
     var dismissOnSelection = true
     let onSelect: (String) -> Void
     @State private var searchText = ""
+    @State private var showsAllOptions = true
     @FocusState private var isSearchFocused: Bool
 
+    private var scopedOptions: [LeaderboardOption] {
+        guard !showsAllOptions, preferredScopeTitle != nil, !preferredOptionIDs.isEmpty else { return options }
+        return options.filter { preferredOptionIDs.contains($0.id) }
+    }
+
     private var visibleOptions: [LeaderboardOption] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard isSearchable, !query.isEmpty else { return options }
-        return options.filter {
-            $0.title.lowercased().contains(query) || ($0.subtitle?.lowercased().contains(query) ?? false)
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isSearchable, !query.isEmpty else { return scopedOptions }
+        let tokens = normalizedSearchTokens(query)
+        return scopedOptions.filter {
+            let searchableText = [$0.title, $0.subtitle]
+                .compactMap { $0 }
+                .joined(separator: " ")
+                .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                .lowercased()
+            return tokens.allSatisfy(searchableText.contains)
         }
+    }
+
+    private func normalizedSearchTokens(_ query: String) -> [String] {
+        query
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
     }
 
     @ViewBuilder
@@ -370,11 +392,34 @@ struct LeaderboardOptionSheet: View {
         NavigationStack {
             AppBackground {
                 ScrollView {
+                    if let preferredScopeTitle, !preferredOptionIDs.isEmpty {
+                        VStack(spacing: 8) {
+                            Picker("Search scope", selection: $showsAllOptions) {
+                                Text(preferredScopeTitle).tag(false)
+                                Text(allScopeTitle).tag(true)
+                            }
+                            .pickerStyle(.segmented)
+
+                            HStack {
+                                Text(showsAllOptions ? allScopeTitle : "Gyms in \(preferredScopeTitle)")
+                                Spacer()
+                                Text("\(visibleOptions.count) results")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+                        .padding(.bottom, 4)
+                    }
+
                     if visibleOptions.isEmpty {
                         LiftEmptyState(
                             title: emptyTitle,
                             message: emptyMessage,
-                            symbolName: "magnifyingglass"
+                            symbolName: "magnifyingglass",
+                            actionTitle: emptyActionTitle,
+                            action: onEmptyAction
                         )
                         .padding(.top, 48)
                         .padding(.horizontal, 20)

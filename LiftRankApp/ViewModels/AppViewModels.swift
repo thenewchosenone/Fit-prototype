@@ -293,7 +293,7 @@ final class AppState: ObservableObject {
                 athlete.state = gym.state
                 athlete.primaryGymID = gym.id
                 athlete.primaryGymName = gym.name
-                repository.profiles = [athlete]
+                repository.profiles = [athlete, repository.currentProfile]
                 repository.gyms = [gym, Self.uiTestSearchGymFixture]
                 let athleteLift = LiftSubmission(
                     id: UUID(uuidString: "A0000000-0000-0000-0000-000000000002")!,
@@ -526,6 +526,9 @@ final class AppState: ObservableObject {
     }
 
     func saveAuthenticatedProfile(_ draft: ProfileDraft) async throws {
+        guard CommunityContentPolicy.allows(draft.username, draft.displayName, draft.bio) else {
+            throw LiftRankServiceError.invalidInput(CommunityContentPolicy.rejectionMessage)
+        }
         var uploadReadyDraft = draft
         uploadReadyDraft.avatarPath = try await uploadProfilePhotoIfNeeded(avatarPath: draft.avatarPath)
         let profile = try await profileStore.saveAuthenticatedProfile(
@@ -617,7 +620,6 @@ final class AppState: ObservableObject {
               repository.currentProfile.id == accountUserID else {
             throw LiftRankServiceError.sessionExpired
         }
-        repository.persistWorkoutSnapshot()
         authenticatedPrivacy = profile.privacy
         if profile.onboardingCompleted {
             try await refreshLegalAcceptanceStatus()
@@ -631,6 +633,7 @@ final class AppState: ObservableObject {
         }
         guard accountSession?.userID == accountUserID,
               repository.currentProfile.id == accountUserID else { throw LiftRankServiceError.sessionExpired }
+        await cacheAuthenticatedProfilePhotoIfNeeded()
         schedulePostAuthenticationRefresh(for: accountUserID)
     }
 
@@ -649,9 +652,19 @@ final class AppState: ObservableObject {
               repository.currentProfile.id == userID,
               accountStatus == .authenticated,
               !Task.isCancelled else { return }
+        await refreshProductionLaunchData()
+        guard accountSession?.userID == userID,
+              repository.currentProfile.id == userID,
+              accountStatus == .authenticated,
+              !Task.isCancelled else { return }
         if ProcessInfo.processInfo.arguments.contains("-uiTestingStartupWorkoutSync") {
             await synchronizeCompletedWorkoutHistory()
         }
+        await refreshRemoteSocialState()
+        guard accountSession?.userID == userID,
+              repository.currentProfile.id == userID,
+              accountStatus == .authenticated,
+              !Task.isCancelled else { return }
         await synchronizeAuthenticatedBodyweightEntries(for: userID)
         guard accountSession?.userID == userID,
               repository.currentProfile.id == userID,
@@ -668,13 +681,16 @@ final class AppState: ObservableObject {
                   accountStatus == .authenticated else {
                 throw LiftRankServiceError.sessionExpired
             }
-            repository.bodyweightEntries = entries
-            if let latestWeight = repository.bodyweightEntries.last?.actual {
-                var localProfile = repository.currentProfile
-                localProfile.bodyweightPounds = latestWeight
-                profileStore.saveProfile(localProfile)
+            if repository.bodyweightEntries != entries {
+                repository.bodyweightEntries = entries
             }
-            repository.persistWorkoutSnapshot()
+            if let latestWeight = repository.bodyweightEntries.last?.actual {
+                if repository.currentProfile.bodyweightPounds != latestWeight {
+                    var localProfile = repository.currentProfile
+                    localProfile.bodyweightPounds = latestWeight
+                    profileStore.saveProfile(localProfile)
+                }
+            }
         } catch {
             guard accountSession?.userID == userID,
                   repository.currentProfile.id == userID,
@@ -775,11 +791,23 @@ final class AppState: ObservableObject {
         }
     }
 
+    func reportProfile(_ userID: UUID, reason: ProfileReportReason, note: String) async -> Bool {
+        do {
+            try await accountSocialStore.report(userID, reason: reason, note: note)
+            return true
+        } catch {
+            accountMessage = userMessage(error)
+            return false
+        }
+    }
+
     private func performAccountOperation(_ operation: @escaping @MainActor () async throws -> Void) async {
         guard beginAccountMutation() else { return }
         defer { endAccountMutation() }
         do { try await operation() }
-        catch { accountMessage = userMessage(error) }
+        catch {
+            accountMessage = userMessage(error)
+        }
     }
 
     func beginAccountMutation() -> Bool {
@@ -854,7 +882,11 @@ final class AppState: ObservableObject {
     var activeWorkout: ActiveWorkoutState? { activeWorkoutStore.workout }
     var activeWorkoutDisplayState: ActiveWorkoutDisplayState { activeWorkoutStore.displayState }
     var completedWorkouts: [CompletedWorkout] { trainingProgressStore.completedWorkouts }
-    var strengthTierSummary: StrengthTierSummary { trainingProgressStore.strengthTierSummary }
+    var strengthTierSummary: StrengthTierSummary {
+        trainingProgressStore.strengthTierSummary(
+            including: RankingCalculator.strengthPerformances(fromSubmissions: currentUserLifts)
+        )
+    }
     func strengthTierSummary(including performances: [StrengthLiftPerformance]) -> StrengthTierSummary {
         trainingProgressStore.strengthTierSummary(including: performances)
     }

@@ -42,14 +42,14 @@ struct FloatingTabBar: View {
                         VStack(spacing: 3) {
                             Image(systemName: item.icon)
                                 .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(item.tab == selection ? Color.liftLime : Color.liftTextSecondary)
+                                .foregroundStyle(item.tab == selection ? Color.liftAccentText : Color.liftTextSecondary)
                             Text(item.title)
                                 .font(.system(size: 9, weight: .bold, design: .rounded))
                                 .tracking(0.3)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.75)
                                 .allowsTightening(true)
-                                .foregroundStyle(item.tab == selection ? Color.liftLime : Color.liftTextSecondary)
+                                .foregroundStyle(item.tab == selection ? Color.liftAccentText : Color.liftTextSecondary)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)

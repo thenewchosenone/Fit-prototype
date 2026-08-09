@@ -67,7 +67,7 @@ struct LiftSubmission: Identifiable, Codable, Hashable {
     var bodyweightMultiple: Double
     var equipmentType: EquipmentType
     var variation: String
-    var gymID: UUID
+    var gymID: UUID?
     var performedAt: Date
     var localVideoURL: URL?
     var remoteVideoURL: URL?
@@ -99,7 +99,7 @@ struct LiftSubmission: Identifiable, Codable, Hashable {
         isActualOneRepMax &&
         competitiveMovement != nil &&
         resolvedEvidenceStatus == .videoBacked &&
-        resolvedModerationStatus != .rejected
+        resolvedModerationStatus == .clear
     }
 }
 
@@ -185,7 +185,7 @@ struct LegalDocument: Identifiable, Hashable {
 
     var id: String { "\(kind.rawValue):\(version)" }
 
-    static let currentVersion = "2026-07-18"
+    static let currentVersion = "2026-08-06"
     static let current: [LegalDocument] = [
         LegalDocument(kind: .privacy, version: currentVersion, title: "Privacy Notice", summary: "How Lift Rivals stores and shares account, training, location, and video data.", sections: [
             .init(title: "Data we use", body: "Lift Rivals stores account identity, training history, competitive records, privacy choices, gym and location selections, reports, and videos you choose to upload."),

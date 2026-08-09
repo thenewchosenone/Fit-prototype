@@ -166,8 +166,46 @@ enum LiftReportReason: String, Codable, CaseIterable, Identifiable {
     case depth = "Depth"
     case rangeOfMotion = "Range of motion"
     case lockout = "Lockout"
+    case harassment = "Harassment or bullying"
+    case hateSpeech = "Hate speech"
+    case sexualContent = "Nudity or sexual content"
+    case dangerousBehavior = "Violence or dangerous behavior"
+    case spam = "Spam or scam"
     case other = "Other"
     var id: String { rawValue }
+}
+
+enum ProfileReportReason: String, Codable, CaseIterable, Identifiable {
+    case harassment = "Harassment or bullying"
+    case hateSpeech = "Hate speech"
+    case sexualContent = "Nudity or sexual content"
+    case dangerousBehavior = "Violence or dangerous behavior"
+    case impersonation = "Impersonation"
+    case spam = "Spam or scam"
+    case other = "Other"
+    var id: String { rawValue }
+}
+
+enum CommunityContentPolicy {
+    static let rejectionMessage = "Remove abusive, hateful, sexual, or otherwise prohibited language before sharing."
+
+    private static let prohibitedTokens: Set<String> = [
+        "bitch", "cunt", "faggot", "fuck", "kike", "nigger", "porn", "shit", "spic"
+    ]
+
+    static func allows(_ values: String...) -> Bool {
+        values.allSatisfy { text in
+            let folded = text
+                .folding(options: [.diacriticInsensitive, .widthInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+                .lowercased()
+            let substitutions: [Character: Character] = [
+                "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"
+            ]
+            let normalized = String(folded.map { substitutions[$0] ?? $0 })
+            let tokens = Set(normalized.split { !$0.isLetter && !$0.isNumber }.map(String.init))
+            return prohibitedTokens.isDisjoint(with: tokens)
+        }
+    }
 }
 
 enum LiftModeratorDecision: String, Codable, CaseIterable, Identifiable {

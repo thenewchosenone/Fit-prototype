@@ -126,6 +126,22 @@ enum RankingCalculator {
         }
     }
 
+    static func strengthPerformances(fromSubmissions submissions: [LiftSubmission]) -> [StrengthLiftPerformance] {
+        var bestEstimatedMaxByExercise: [String: Double] = [:]
+        for lift in submissions where (1...10).contains(lift.repetitions) && lift.resolvedModerationStatus != .rejected {
+            guard let exerciseID = strengthTierExerciseIDs.first(where: { matchesExerciseID(lift, exerciseID: $0) }) else { continue }
+            let estimatedMaxKilograms = poundsToKilograms(lift.estimatedOneRepMax)
+            guard estimatedMaxKilograms > 0 else { continue }
+            bestEstimatedMaxByExercise[exerciseID] = max(
+                bestEstimatedMaxByExercise[exerciseID] ?? 0,
+                estimatedMaxKilograms
+            )
+        }
+        return bestEstimatedMaxByExercise.map {
+            StrengthLiftPerformance(exerciseID: $0.key, estimatedOneRepMaxKilograms: $0.value)
+        }
+    }
+
     static func powerliftingTotal(bench: Double?, squat: Double?, deadlift: Double?) -> Double {
         (bench ?? 0) + (squat ?? 0) + (deadlift ?? 0)
     }
@@ -170,16 +186,24 @@ enum RankingCalculator {
 
     static func bestLift(exerciseID: String, submissions: [LiftSubmission]) -> LiftSubmission? {
         submissions
-            .filter { $0.exerciseID == exerciseID }
+            .filter { matchesExerciseID($0, exerciseID: exerciseID) }
             .max { $0.estimatedOneRepMax < $1.estimatedOneRepMax }
     }
 
     static func bestSubmittedLift(exerciseID: String, repetitions: Int? = nil, submissions: [LiftSubmission]) -> LiftSubmission? {
         submissions
             .filter { lift in
-                lift.exerciseID == exerciseID && (repetitions == nil || lift.repetitions == repetitions)
+                matchesExerciseID(lift, exerciseID: exerciseID) && (repetitions == nil || lift.repetitions == repetitions)
             }
             .max { $0.normalizedWeightKilograms < $1.normalizedWeightKilograms }
+    }
+
+    static func matchesExerciseID(_ lift: LiftSubmission, exerciseID: String) -> Bool {
+        if let movement = lift.competitiveMovement,
+           let requestedMovement = CompetitiveMovement.resolve(exerciseID: exerciseID) {
+            return movement == requestedMovement
+        }
+        return lift.exerciseID.caseInsensitiveCompare(exerciseID) == .orderedSame
     }
 
     static func powerliftingBreakdown(for userID: UUID, lifts: [LiftSubmission]) -> PowerliftingBreakdown {
@@ -207,7 +231,7 @@ enum RankingCalculator {
             guard lift.visibility == .publicLift,
                   lift.repetitions == 1,
                   lift.isActualOneRepMax,
-                  lift.resolvedModerationStatus != .rejected else { return false }
+                  lift.resolvedModerationStatus == .clear else { return false }
             if verifiedOnly {
                 return lift.competitiveMovement == nil
                     ? lift.verificationStatus.isDefaultLeaderboardEligible
@@ -222,7 +246,13 @@ enum RankingCalculator {
                 let breakdown = powerliftingBreakdown(for: userID, lifts: userLifts)
                 guard breakdown.totalKilograms > 0,
                       let representative = userLifts
-                        .filter({ $0.repetitions == 1 && ["squat", "bench", "deadlift"].contains($0.exerciseID) })
+                        .filter({
+                            let lift = $0
+                            return lift.repetitions == 1 &&
+                                ["squat", "bench", "deadlift"].contains { exerciseID in
+                                    matchesExerciseID(lift, exerciseID: exerciseID)
+                                }
+                        })
                         .max(by: { $0.normalizedWeightKilograms < $1.normalizedWeightKilograms }) else { return nil }
                 let score = rankingType == .total
                     ? breakdown.totalKilograms

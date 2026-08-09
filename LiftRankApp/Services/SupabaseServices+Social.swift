@@ -17,6 +17,17 @@ private struct BlockDTO: Codable {
     enum CodingKeys: String, CodingKey { case blockerID = "blocker_id", blockedID = "blocked_id", createdAt = "created_at" }
 }
 
+private struct ProfileReportParameters: Encodable {
+    let targetUserID: UUID
+    let reportReason: String
+    let reportNote: String
+    enum CodingKeys: String, CodingKey {
+        case targetUserID = "target_user_id"
+        case reportReason = "report_reason"
+        case reportNote = "report_note"
+    }
+}
+
 @MainActor
 final class SupabaseSocialService: SocialService {
     private let client: SupabaseClient
@@ -36,6 +47,18 @@ final class SupabaseSocialService: SocialService {
                     primaryGymID: $0.primaryGymID, primaryGymName: $0.primaryGymName
                 )
             }
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+    func report(userID: UUID, reason: ProfileReportReason, note: String) async throws {
+        do {
+            try await client.rpc(
+                "report_profile",
+                params: ProfileReportParameters(
+                    targetUserID: userID,
+                    reportReason: reason.rawValue,
+                    reportNote: note
+                )
+            ).execute()
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
     func block(userID: UUID) async throws { try await rpc("block_user", userID) }

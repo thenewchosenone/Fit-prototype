@@ -16,6 +16,7 @@ enum AppSheet: Identifiable, Hashable {
     case settings(SettingsSection?)
     case requestGym
     case reportLift(LiftSubmission)
+    case reportProfile(UserProfile)
     case profile(UserProfile)
     case gym(Gym)
 
@@ -28,6 +29,7 @@ enum AppSheet: Identifiable, Hashable {
         case .settings(let section): return "settings-\(section?.rawValue ?? "all")"
         case .requestGym: return "request-gym"
         case .reportLift(let lift): return "report-lift-\(lift.id)"
+        case .reportProfile(let profile): return "report-profile-\(profile.id)"
         case .profile(let profile): return "profile-\(profile.id)"
         case .gym(let gym): return "gym-\(gym.id)"
         }

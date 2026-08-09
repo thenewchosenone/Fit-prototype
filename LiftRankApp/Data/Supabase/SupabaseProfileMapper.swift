@@ -33,7 +33,7 @@ enum SupabaseProfileMapper {
     static func leaderboard(
         card: PublicProfileCard,
         bodyweightPounds: Double,
-        fallbackGymID: UUID,
+        fallbackGymID: UUID?,
         bodyweightVisible: Bool
     ) -> UserProfile {
         UserProfile(
@@ -48,7 +48,7 @@ enum SupabaseProfileMapper {
             city: card.city ?? "",
             state: card.region ?? "",
             cityID: nil,
-            primaryGymID: card.primaryGymID ?? fallbackGymID,
+            primaryGymID: card.primaryGymID ?? fallbackGymID ?? noGymID,
             primaryGymName: card.primaryGymName ?? "Gym hidden",
             yearsExperience: 0,
             experienceLevel: .beginner,
