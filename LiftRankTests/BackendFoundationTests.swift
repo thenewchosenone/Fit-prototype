@@ -911,14 +911,14 @@ final class BackendFoundationTests: XCTestCase {
         ))
 
         let deadline = Date().addingTimeInterval(1)
-        while service.updateProfileCount == 0 && Date() < deadline {
+        while service.savedBodyweightEntries.isEmpty && Date() < deadline {
             try await Task.sleep(nanoseconds: 20_000_000)
         }
 
         XCTAssertEqual(appState.currentProfile.bodyweightPounds, 212)
         XCTAssertEqual(appState.bodyweightEntries.last?.actual, 212)
         XCTAssertEqual(service.profile.bodyweightPounds, 212)
-        XCTAssertEqual(service.updateProfileCount, 1)
+        XCTAssertEqual(service.updateProfileCount, 0)
         XCTAssertEqual(service.savedBodyweightEntries.last?.actual, 212)
     }
 
@@ -952,6 +952,48 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertTrue(appState.isAuthenticated)
         XCTAssertNotNil(appState.accountSession)
         XCTAssertEqual(appState.currentProfile.bodyweightPounds, 205)
+    }
+
+    func testFailedAuthenticatedBodyweightCheckInDoesNotCreateLocalServerDrift() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let userID = UUID()
+        let session = AccountSession(
+            userID: userID,
+            email: "bodyweight-write@example.test",
+            expiresAt: .now.addingTimeInterval(3_600)
+        )
+        let service = TestProfileService(profile: AuthenticatedProfile(
+            id: userID, username: "bodyweight_write", displayName: "Bodyweight Write", bio: "",
+            avatarPath: nil, onboardingCompleted: true, preferredUnit: .pounds, birthDate: nil,
+            sexCategory: .open, heightCentimeters: nil, bodyweightPounds: 205,
+            city: nil, region: nil, countryCode: "US", yearsExperience: nil,
+            experienceLevel: .beginner, privacy: ProfilePrivacySettings()
+        ))
+        service.bodyweightSaveError = LiftRankServiceError.server("Bodyweight check-in unavailable")
+        let appState = AppState(repository: repository, serviceContainer: AppServiceContainer(
+            authentication: TestSessionAuthenticationService(session: session),
+            profile: service,
+            gyms: MockGymService(repository: repository),
+            gymMemberships: MockGymMembershipService(repository: repository),
+            exercises: MockExerciseCatalogService(),
+            legalAcceptances: TestSessionLegalAcceptanceService(userID: userID)
+        ))
+        await appState.signIn(email: session.email ?? "bodyweight-write@example.test", password: "password")
+
+        let entry = BodyweightEntry(
+            id: UUID(), week: 1, targetDate: .now, actual: 212, notes: "Should not drift"
+        )
+        appState.updateBodyweight(entry)
+
+        let deadline = Date().addingTimeInterval(1)
+        while appState.accountMessage == nil && Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+
+        XCTAssertEqual(appState.currentProfile.bodyweightPounds, 205)
+        XCTAssertFalse(appState.bodyweightEntries.contains(where: { $0.id == entry.id }))
+        XCTAssertEqual(service.profile.bodyweightPounds, 205)
+        XCTAssertNotNil(appState.accountMessage)
     }
 
     func testBodyweightHistoryDoesNotOverrideCurrentProfileWeight() {
@@ -2846,6 +2888,7 @@ private final class TestProfileService: ProfileService {
     private(set) var removedAvatarPaths: [String?] = []
     private(set) var savedBodyweightEntries: [BodyweightEntry] = []
     var bodyweightSyncError: Error?
+    var bodyweightSaveError: Error?
     var holdBodyweightSave = false
     private(set) var bodyweightSaveStarted = false
     private var bodyweightSaveRelease: CheckedContinuation<Void, Never>?
@@ -2959,8 +3002,12 @@ private final class TestProfileService: ProfileService {
                 bodyweightSaveRelease = continuation
             }
         }
+        if let bodyweightSaveError { throw bodyweightSaveError }
         savedBodyweightEntries.removeAll { $0.id == entry.id }
         savedBodyweightEntries.append(entry)
+        if let actual = entry.actual, actual > 0 {
+            profile.bodyweightPounds = actual
+        }
     }
     func releaseBodyweightSave() {
         bodyweightSaveRelease?.resume()

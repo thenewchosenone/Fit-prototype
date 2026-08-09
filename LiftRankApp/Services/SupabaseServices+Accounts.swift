@@ -267,16 +267,15 @@ final class SupabaseProfileService: ProfileService {
     func saveBodyweightEntry(_ entry: BodyweightEntry) async throws {
         guard let weight = entry.actual, weight > 0 else { return }
         do {
-            let record = BodyweightRecordDTO(
-                id: entry.id,
-                userID: try await client.auth.session.user.id,
-                weight: weight,
-                recordedAt: entry.targetDate,
-                notes: entry.notes
-            )
-            try await client.from("bodyweight_records")
-                .upsert(record, onConflict: "id")
-                .execute()
+            try await client.rpc(
+                "save_bodyweight_checkin",
+                params: SaveBodyweightCheckInParameters(
+                    id: entry.id,
+                    weight: weight,
+                    recordedAt: entry.targetDate,
+                    notes: entry.notes
+                )
+            ).execute()
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
@@ -437,6 +436,20 @@ final class SupabaseProfileService: ProfileService {
 private struct PrivateBodyweightUpdate: Encodable {
     let bodyweightPounds: Double?
     enum CodingKeys: String, CodingKey { case bodyweightPounds = "bodyweight_lb" }
+}
+
+private struct SaveBodyweightCheckInParameters: Encodable {
+    let id: UUID
+    let weight: Double
+    let recordedAt: Date
+    let notes: String
+
+    enum CodingKeys: String, CodingKey {
+        case id = "p_id"
+        case weight = "p_weight"
+        case recordedAt = "p_recorded_at"
+        case notes = "p_notes"
+    }
 }
 
 private struct ProfilePrivacyDirectUpdate: Encodable {
