@@ -643,7 +643,7 @@ final class BackendFoundationTests: XCTestCase {
             countryCode: "US",
             yearsExperience: 4,
             experienceLevel: .intermediate,
-            privacy: ProfilePrivacySettings(bodyweightAudience: .privateProfile)
+            privacy: ProfilePrivacySettings(bodyweightAudience: .privateProfile, showLiftVideos: false)
         )
 
         store.applyAuthenticatedProfile(remote, retainingDemoProfiles: false)
@@ -653,6 +653,7 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(store.currentProfile.avatarPath, "avatars/production.jpg")
         XCTAssertEqual(store.currentProfile.heightInches, 170 / 2.54, accuracy: 0.001)
         XCTAssertTrue(store.currentProfile.hideBodyweight)
+        XCTAssertTrue(store.currentProfile.hideLiftVideos)
         XCTAssertEqual(store.profiles.map(\.id), [userID])
     }
 
@@ -819,7 +820,7 @@ final class BackendFoundationTests: XCTestCase {
             cityID: serverCityID,
             yearsExperience: 3,
             experienceLevel: .intermediate,
-            privacy: ProfilePrivacySettings(locationAudience: .privateProfile)
+            privacy: ProfilePrivacySettings(locationAudience: .privateProfile, showLiftVideos: false)
         )
         let gym = Gym(
             id: UUID(),
@@ -829,7 +830,11 @@ final class BackendFoundationTests: XCTestCase {
             memberCount: 0,
             verifiedLiftCount: 0
         )
-        let privacy = ProfilePrivacySettings(locationAudience: .privateProfile, friendListAudience: .gym)
+        let privacy = ProfilePrivacySettings(
+            locationAudience: .privateProfile,
+            friendListAudience: .gym,
+            showLiftVideos: false
+        )
 
         let saved = try await store.saveEditedProfile(
             edited,
@@ -846,6 +851,7 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(saved.cityID, serverCityID)
         XCTAssertEqual(saved.city, "Austin")
         XCTAssertEqual(saved.state, "Texas")
+        XCTAssertTrue(saved.hideLiftVideos)
         let savedDraft = try XCTUnwrap(service.lastSavedProfileDraft)
         XCTAssertEqual(savedDraft.bio, "Training for my next total")
         XCTAssertEqual(
@@ -859,6 +865,7 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(savedDraft.region, "Florida")
         XCTAssertEqual(savedDraft.privacy.locationAudience, .privateProfile)
         XCTAssertEqual(savedDraft.privacy.friendListAudience, .gym)
+        XCTAssertFalse(savedDraft.privacy.showLiftVideos)
         XCTAssertEqual(store.profiles.map(\.id), [userID])
     }
 
@@ -1439,7 +1446,7 @@ final class BackendFoundationTests: XCTestCase {
             cityID: userID,
             yearsExperience: 4,
             experienceLevel: .intermediate,
-            privacy: ProfilePrivacySettings(bodyweightAudience: .privateProfile)
+            privacy: ProfilePrivacySettings(bodyweightAudience: .privateProfile, showLiftVideos: false)
         )
 
         let profile = SupabaseProfileMapper.authenticated(remote)
@@ -1458,6 +1465,7 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertNotEqual(profile.username, MockData.demoProfile.username)
         XCTAssertTrue(profile.hideBodyweight)
         XCTAssertTrue(profile.hideGym)
+        XCTAssertTrue(profile.hideLiftVideos)
     }
 
     func testLeaderboardProfileMapperUsesOnlyRemoteCardAndLiftContext() {

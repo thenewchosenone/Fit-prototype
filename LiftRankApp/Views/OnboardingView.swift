@@ -955,7 +955,8 @@ struct OnboardingView: View {
             ageBandAudience: profile.hideExactAge ? .privateProfile : .publicProfile,
             bodyweightAudience: profile.hideBodyweight ? .privateProfile : .publicProfile,
             locationAudience: profile.hideCity ? .privateProfile : .publicProfile,
-            gymAudience: profile.hideGym ? .privateProfile : .publicProfile
+            gymAudience: profile.hideGym ? .privateProfile : .publicProfile,
+            showLiftVideos: !profile.hideLiftVideos
         )
         let draft = ProfileDraft(
             username: username,

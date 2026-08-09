@@ -195,6 +195,7 @@ final class ProfileStore: ObservableObject {
         local.hideBodyweight = remote.privacy.bodyweightAudience == .privateProfile
         local.hideCity = remote.privacy.locationAudience == .privateProfile
         local.hideGym = remote.privacy.gymAudience == .privateProfile
+        local.hideLiftVideos = !remote.privacy.showLiftVideos
         local.avatarPath = remote.avatarPath
 
         if repository.currentProfile != local {

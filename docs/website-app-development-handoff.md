@@ -15,7 +15,7 @@
 - The Swift iOS app in `LiftRankApp/` has Supabase services for authenticated profiles, privacy, bodyweight history, workout plans and completed workouts, gym memberships, lift submissions, public rankings, verification, and media.
 - The complete iOS unit test target is green (270 tests), including canonical leaderboard authority, profile parity, workout synchronization, Friends-only visibility, and guarded submission removal.
 - The complete database migration and policy suite passes against two fresh databases, including the coordinated-removal finalizer and concurrent gym-membership limits.
-- Website validation is green for 15 pages, 6 performance budgets, and 22 parity contracts after both clients switched to the shared removal function.
+- Website validation is green for 15 pages, 6 performance budgets, and 24 parity contracts, including shared removal and approved lift-video privacy.
 - The React client in `src/` is a separate browser prototype. Its `store.tsx` state is local/demo-only and must not be used as evidence of native-app synchronization.
 - Profile bios are part of the existing `profiles.bio` contract. The iOS domain model, editor, authenticated save/restore path, and public profile display must all retain that value.
 
@@ -33,6 +33,7 @@
 | Lift submissions | `lift_submissions` | Submit/read/update through competition services | Reads owner submissions | Same exercise, result, gym, date, and canonical status (`Self Reported`, `Video Submitted`, `Video Verified`, `Community Verified`, or `Competition Verified`) |
 | Submission removal | `remove-lift-submission` Edge Function plus `lift_removal_requests` | Uses the shared function after distinct ordinary/protected confirmation | Uses the same authenticated function and refreshes owner history | One durable, retryable workflow cleans proof, media, moderation, and ranking state before final deletion |
 | Lift visibility | `lift_submissions.visibility` | Public, Friends, or Private | Owner history plus server-filtered public records | Friends-only and private lifts never enter public profiles or rankings |
+| Approved lift videos | `profile_privacy.show_lift_videos` | Editable in profile and privacy settings | Displayed on the authenticated account; enforced by server-filtered public lifts | The canonical boolean controls whether approved proof videos appear publicly; legacy audience fields are fallback-only |
 | Public lifts and proof | Canonical public lift interfaces and media authority | Competition/leaderboard/media services | Public athlete/lift/evidence reads | Only eligible public evidence is counted or linked |
 | Rankings and totals | Canonical leaderboard RPCs/views | Supabase leaderboard service | Same leaderboard RPC family | No client-local ranking may be presented as authoritative |
 | Local persistence | Device cache/demo data | SwiftData/local snapshots | Browser preview seed data | Must not override newer authenticated server state |
@@ -51,6 +52,7 @@ Preflight: run `./scripts/check_client_environment_parity.sh /absolute/path/to/w
 6. Offline/local cache values do not override newer server values.
 7. Bio edits made in the app appear on the website and public profile according to profile visibility.
 8. The same verification label and eligibility explanation appears for each lift in both clients.
+9. Approved lift-video visibility saved in the app matches the website account and public proof visibility after refresh.
 
 ## Remaining acceptance work
 
@@ -61,6 +63,7 @@ Preflight: run `./scripts/check_client_environment_parity.sh /absolute/path/to/w
 - Save a non-empty bio, years-training value, and current bodyweight from a real authenticated iOS session, then refresh the website and confirm exact values.
 - Confirm Public, Friends, Gym, and Private profile audiences with accounts that represent each viewer relationship.
 - Confirm a Friends-only lift is visible to an accepted friend but absent from anonymous public profiles and canonical public rankings.
+- Toggle approved lift-video visibility from an authenticated iOS session, then confirm the website account label and anonymous public proof links update after refresh.
 - Apply migration `202608080001_coordinated_lift_removal.sql`, deploy `remove-lift-submission`, then acceptance-test evidence-free deletion and protected-record removal without leaving storage, proof, moderation, or ranking orphans.
 - Confirm the iOS profile’s canonical global total rank and score match the website for the same account. City, state, and age-group ranks remain links/scopes rather than invented profile values until each canonical scope is fetched.
 - Deploy both committed client versions before production acceptance. Local validation alone does not prove production parity.

@@ -5,6 +5,8 @@ begin;
 alter table public.profile_privacy
   add column if not exists show_lift_videos boolean not null default true;
 
+grant update (show_lift_videos) on public.profile_privacy to authenticated;
+
 alter table public.lift_submissions
   add column if not exists gym_uuid uuid,
   add column if not exists status text not null default 'pending',

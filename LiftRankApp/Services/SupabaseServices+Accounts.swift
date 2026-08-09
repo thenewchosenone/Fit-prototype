@@ -128,6 +128,7 @@ private struct PrivacyDTO: Codable {
     let locationAudience: String
     let gymAudience: String
     let friendListAudience: String
+    let showLiftVideos: Bool?
 
     enum CodingKeys: String, CodingKey {
         case userID = "user_id"
@@ -138,6 +139,7 @@ private struct PrivacyDTO: Codable {
         case locationAudience = "location_audience"
         case gymAudience = "gym_audience"
         case friendListAudience = "friend_list_audience"
+        case showLiftVideos = "show_lift_videos"
     }
 }
 
@@ -296,7 +298,8 @@ final class SupabaseProfileService: ProfileService {
                 bodyweightAudience: profile.hideBodyweight ? .privateProfile : .publicProfile,
                 locationAudience: profile.hideCity ? .privateProfile : .publicProfile,
                 gymAudience: profile.hideGym ? .privateProfile : .publicProfile,
-                friendListAudience: existing.privacy.friendListAudience
+                friendListAudience: existing.privacy.friendListAudience,
+                showLiftVideos: !profile.hideLiftVideos
             ),
             completesOnboarding: existing.onboardingCompleted
         )
@@ -317,7 +320,10 @@ final class SupabaseProfileService: ProfileService {
                 .eq("user_id", value: try await client.auth.session.user.id)
                 .execute()
             try await client.from("profile_privacy")
-                .update(ProfileBodyweightAudienceUpdate(bodyweightAudience: draft.privacy.bodyweightAudience))
+                .update(ProfilePrivacyDirectUpdate(
+                    bodyweightAudience: draft.privacy.bodyweightAudience,
+                    showLiftVideos: draft.privacy.showLiftVideos
+                ))
                 .eq("user_id", value: try await client.auth.session.user.id)
                 .execute()
             return try await authenticatedProfile()
@@ -412,7 +418,8 @@ final class SupabaseProfileService: ProfileService {
                 bodyweightAudience: PrivacyAudience(rawValue: privacy.bodyweightAudience) ?? .privateProfile,
                 locationAudience: PrivacyAudience(rawValue: privacy.locationAudience) ?? .privateProfile,
                 gymAudience: PrivacyAudience(rawValue: privacy.gymAudience) ?? .publicProfile,
-                friendListAudience: PrivacyAudience(rawValue: privacy.friendListAudience) ?? .friends
+                friendListAudience: PrivacyAudience(rawValue: privacy.friendListAudience) ?? .friends,
+                showLiftVideos: privacy.showLiftVideos ?? true
             )
         )
     }
@@ -432,9 +439,13 @@ private struct PrivateBodyweightUpdate: Encodable {
     enum CodingKeys: String, CodingKey { case bodyweightPounds = "bodyweight_lb" }
 }
 
-private struct ProfileBodyweightAudienceUpdate: Encodable {
+private struct ProfilePrivacyDirectUpdate: Encodable {
     let bodyweightAudience: PrivacyAudience
-    enum CodingKeys: String, CodingKey { case bodyweightAudience = "bodyweight_audience" }
+    let showLiftVideos: Bool
+    enum CodingKeys: String, CodingKey {
+        case bodyweightAudience = "bodyweight_audience"
+        case showLiftVideos = "show_lift_videos"
+    }
 }
 
 private struct ProfileAvatarPathUpdate: Encodable {

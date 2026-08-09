@@ -51,7 +51,7 @@ final class MockProfileService: ProfileService {
         let profile = repository.currentProfile
         return AuthenticatedProfile(
             id: profile.id, username: profile.username, displayName: profile.displayName,
-            bio: "", avatarPath: profile.avatarPath, onboardingCompleted: true,
+            bio: profile.bio ?? "", avatarPath: profile.avatarPath, onboardingCompleted: true,
             preferredUnit: profile.preferredUnit, birthDate: nil, sexCategory: profile.sexCategory,
             heightCentimeters: profile.heightInches * 2.54,
             bodyweightPounds: profile.bodyweightPounds, city: profile.city,
@@ -61,7 +61,8 @@ final class MockProfileService: ProfileService {
                 ageBandAudience: profile.hideExactAge ? .privateProfile : .publicProfile,
                 bodyweightAudience: profile.hideBodyweight ? .privateProfile : .publicProfile,
                 locationAudience: profile.hideCity ? .privateProfile : .publicProfile,
-                gymAudience: profile.hideGym ? .privateProfile : .publicProfile
+                gymAudience: profile.hideGym ? .privateProfile : .publicProfile,
+                showLiftVideos: !profile.hideLiftVideos
             )
         )
     }
@@ -69,6 +70,7 @@ final class MockProfileService: ProfileService {
         var profile = repository.currentProfile
         profile.username = draft.username
         profile.displayName = draft.displayName
+        profile.bio = draft.bio
         profile.preferredUnit = draft.preferredUnit
         profile.sexCategory = draft.sexCategory ?? .open
         profile.heightInches = (draft.heightCentimeters ?? profile.heightInches * 2.54) / 2.54
@@ -78,6 +80,7 @@ final class MockProfileService: ProfileService {
         profile.cityID = draft.cityID
         profile.yearsExperience = draft.yearsExperience ?? profile.yearsExperience
         profile.experienceLevel = draft.experienceLevel ?? profile.experienceLevel
+        profile.hideLiftVideos = !draft.privacy.showLiftVideos
         _ = try await updateProfile(profile)
         return try await authenticatedProfile()
     }

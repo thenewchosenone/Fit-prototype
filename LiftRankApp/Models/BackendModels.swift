@@ -48,6 +48,7 @@ struct ProfilePrivacySettings: Codable, Equatable {
     var locationAudience: PrivacyAudience = .privateProfile
     var gymAudience: PrivacyAudience = .publicProfile
     var friendListAudience: PrivacyAudience = .friends
+    var showLiftVideos: Bool = true
 }
 
 struct ProfileDraft: Equatable {

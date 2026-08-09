@@ -27,7 +27,7 @@ enum SupabaseProfileMapper {
             hideBodyweight: remote.privacy.bodyweightAudience == .privateProfile,
             hideCity: remote.privacy.locationAudience == .privateProfile,
             hideGym: true,
-            hideLiftVideos: false
+            hideLiftVideos: !remote.privacy.showLiftVideos
         )
     }
 

@@ -380,7 +380,7 @@ struct EditProfileView: View {
                         audiencePicker("Location", selection: $privacy.locationAudience)
                         audiencePicker("Gym", selection: $privacy.gymAudience)
                         audiencePicker("Friend list", selection: $privacy.friendListAudience)
-                        Toggle("Hide lift videos", isOn: $draft.hideLiftVideos)
+                        Toggle("Show approved lift videos publicly", isOn: $privacy.showLiftVideos)
                         Text("Ratio and weight-class rankings may indirectly reveal bodyweight even when the bodyweight field is private.")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -429,6 +429,7 @@ struct EditProfileView: View {
                     Button("Save") {
                         var outgoingDraft = draft
                         outgoingDraft.experienceLevel = appState.earnedExperienceLevel
+                        outgoingDraft.hideLiftVideos = !privacy.showLiftVideos
                         Task {
                             if await appState.saveEditedProfile(outgoingDraft, primaryGym: selectedGym, privacy: privacy) {
                                 dismiss()

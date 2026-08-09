@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var hideBodyweight = false
     @State private var hideExactAge = false
     @State private var hideLocation = false
+    @State private var hideLiftVideos = false
     @State private var allowComments = true
     @State private var notificationPreferences = true
     @State private var privacy = ProfilePrivacySettings()
@@ -42,6 +43,7 @@ struct SettingsView: View {
                         Toggle("Hide bodyweight", isOn: $hideBodyweight)
                         Toggle("Hide exact age", isOn: $hideExactAge)
                         Toggle("Hide location", isOn: $hideLocation)
+                        Toggle("Hide approved lift videos", isOn: $hideLiftVideos)
                         Toggle("Allow comments", isOn: $allowComments)
                     }
                     .id(SettingsSection.privacy)
@@ -89,7 +91,7 @@ struct SettingsView: View {
                                 appState.resetDemoData()
                             }
                         } else {
-                            Text("Authenticated profile and social data are stored by Supabase. Workout data remains local in this beta.")
+                            Text("Authenticated profile, social, and workout backup data are synchronized through Supabase. Local data is used for offline access.")
                                 .font(.caption)
                         }
                     }
@@ -142,6 +144,7 @@ struct SettingsView: View {
                 hideBodyweight = privacy.bodyweightAudience == .privateProfile
                 hideExactAge = privacy.ageBandAudience == .privateProfile
                 hideLocation = privacy.locationAudience == .privateProfile
+                hideLiftVideos = !privacy.showLiftVideos
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -180,10 +183,12 @@ struct SettingsView: View {
         profile.hideBodyweight = hideBodyweight
         profile.hideExactAge = hideExactAge
         profile.hideCity = hideLocation
+        profile.hideLiftVideos = hideLiftVideos
         updatedPrivacy.profileAudience = resolvedAudience(current: privacy.profileAudience, hidden: privateProfile)
         updatedPrivacy.bodyweightAudience = resolvedAudience(current: privacy.bodyweightAudience, hidden: hideBodyweight)
         updatedPrivacy.ageBandAudience = resolvedAudience(current: privacy.ageBandAudience, hidden: hideExactAge)
         updatedPrivacy.locationAudience = resolvedAudience(current: privacy.locationAudience, hidden: hideLocation)
+        updatedPrivacy.showLiftVideos = !hideLiftVideos
         if privateProfile {
             profile.hideExactAge = true
             profile.hideBodyweight = true
