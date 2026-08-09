@@ -860,6 +860,177 @@ private extension UIImage {
     }
 }
 
+struct GymDirectoryView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var query = ""
+    @State private var isRefreshing = false
+
+    private var matchingGyms: [Gym] {
+        let cleanQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let filtered = cleanQuery.isEmpty ? appState.gyms : appState.gyms.filter {
+            $0.name.localizedCaseInsensitiveContains(cleanQuery) ||
+                $0.city.localizedCaseInsensitiveContains(cleanQuery) ||
+                $0.state.localizedCaseInsensitiveContains(cleanQuery)
+        }
+        return filtered.sorted {
+            let leftJoined = appState.isGymJoined($0)
+            let rightJoined = appState.isGymJoined($1)
+            if leftJoined != rightJoined { return leftJoined }
+            if $0.state.caseInsensitiveCompare($1.state) != .orderedSame {
+                return $0.state.localizedCaseInsensitiveCompare($1.state) == .orderedAscending
+            }
+            if $0.city.caseInsensitiveCompare($1.city) != .orderedSame {
+                return $0.city.localizedCaseInsensitiveCompare($1.city) == .orderedAscending
+            }
+            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+
+    private var joinedMatches: [Gym] { matchingGyms.filter(appState.isGymJoined) }
+    private var otherMatches: [Gym] { matchingGyms.filter { !appState.isGymJoined($0) } }
+
+    var body: some View {
+        AppBackground {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Find your gym")
+                            .font(.largeTitle.bold())
+                        Text("Join up to \(AppState.maximumJoinedGyms) gyms and choose one as your primary location.")
+                            .foregroundStyle(Color.liftMuted)
+                    }
+
+                    HStack(spacing: 10) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(Color.liftMuted)
+                        TextField("Search gyms, cities, or states", text: $query)
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled()
+                            .accessibilityIdentifier("gyms.search")
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 48)
+                    .liftSurface(radius: 12)
+
+                    if isRefreshing && appState.gyms.isEmpty {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Loading gyms…")
+                                .foregroundStyle(Color.liftMuted)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 140)
+                    } else if matchingGyms.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "building.2.crop.circle")
+                                .font(.system(size: 42, weight: .semibold))
+                                .foregroundStyle(Color.liftBlue)
+                            Text(query.isEmpty ? "No gyms available yet" : "No matching gyms")
+                                .font(.headline)
+                            Text(query.isEmpty
+                                 ? "Refresh the directory or request a gym to be added."
+                                 : "Try a gym name, city, or state.")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.liftMuted)
+                                .multilineTextAlignment(.center)
+                            if query.isEmpty {
+                                Button("Refresh gyms") { Task { await refreshGyms() } }
+                                    .buttonStyle(.bordered)
+                                    .tint(Color.liftBlue)
+                            }
+                            Button("Request a gym") { appState.showingRequestGym = true }
+                                .buttonStyle(.borderedProminent)
+                                .tint(Color.liftLime)
+                                .foregroundStyle(Color.liftBackground)
+                        }
+                        .padding(24)
+                        .frame(maxWidth: .infinity)
+                        .liftSurface(radius: 14)
+                    } else {
+                        if !joinedMatches.isEmpty {
+                            gymSection("My gyms", gyms: joinedMatches)
+                        }
+                        if !otherMatches.isEmpty {
+                            gymSection(joinedMatches.isEmpty ? "All gyms" : "More gyms", gyms: otherMatches)
+                        }
+                    }
+                }
+                .padding()
+            }
+            .refreshable { await refreshGyms() }
+        }
+        .navigationTitle("Gyms")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { appState.showingRequestGym = true } label: {
+                    Label("Request gym", systemImage: "plus")
+                }
+            }
+        }
+        .task {
+            if appState.isAuthenticated {
+                await refreshGyms()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func gymSection(_ title: String, gyms: [Gym]) -> some View {
+        CompactSectionHeader(title: title)
+        VStack(spacing: 0) {
+            ForEach(Array(gyms.enumerated()), id: \.element.id) { index, gym in
+                NavigationLink {
+                    GymDetailView(gym: gym)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: appState.isPrimaryGym(gym) ? "star.fill" : "building.2.fill")
+                            .frame(width: 34, height: 34)
+                            .foregroundStyle(appState.isPrimaryGym(gym) ? Color.liftGold : Color.liftBlue)
+                            .background(Color.liftSurfaceElevated)
+                            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(gym.name)
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(Color.liftText)
+                            Text([gym.city, gym.state].filter { !$0.isEmpty }.joined(separator: ", "))
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                        }
+                        Spacer()
+                        if appState.isPrimaryGym(gym) {
+                            Text("Primary")
+                                .font(.caption2.weight(.black))
+                                .foregroundStyle(Color.liftGold)
+                        } else if appState.isGymJoined(gym) {
+                            Text("Joined")
+                                .font(.caption2.weight(.black))
+                                .foregroundStyle(Color.liftGreen)
+                        }
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.liftMuted)
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("gyms.row.\(gym.id.uuidString)")
+                if index < gyms.count - 1 {
+                    Divider().overlay(Color.liftSeparator).padding(.leading, 58)
+                }
+            }
+        }
+        .liftSurface(radius: 12)
+    }
+
+    private func refreshGyms() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        await appState.refreshRemoteSocialState()
+        isRefreshing = false
+    }
+}
+
 struct GymDetailView: View {
     @EnvironmentObject private var appState: AppState
     let gym: Gym
@@ -871,6 +1042,11 @@ struct GymDetailView: View {
 
     private var isPrimaryGym: Bool {
         appState.isPrimaryGym(gym)
+    }
+
+    private var gymLeaderboardEntries: [LeaderboardEntry] {
+        guard appState.leaderboardFilters.gymID == gym.id else { return [] }
+        return Array(appState.leaderboardEntries().prefix(5))
     }
 
     var body: some View {
@@ -918,8 +1094,22 @@ struct GymDetailView: View {
                         }
                     }
                     SectionHeader(title: "Top lifters")
-                    ForEach(appState.leaderboardEntries().prefix(5)) { entry in
-                        LeaderboardRow(entry: entry)
+                    if appState.leaderboardFilters.gymID != gym.id || appState.isLeaderboardRequestPending {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Loading gym rankings…")
+                                .foregroundStyle(Color.liftMuted)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 70)
+                    } else if gymLeaderboardEntries.isEmpty {
+                        Text("No qualifying verified lifts at this gym yet.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.liftMuted)
+                            .padding(.vertical, 12)
+                    } else {
+                        ForEach(gymLeaderboardEntries) { entry in
+                            LeaderboardRow(entry: entry)
+                        }
                     }
                 }
                 .padding()
@@ -931,7 +1121,17 @@ struct GymDetailView: View {
             } message: {
                 Text("Leave one of your secondary gyms before joining another. Members can belong to a maximum of \(AppState.maximumJoinedGyms) gyms.")
             }
+            .task { await loadGymLeaderboard() }
         }
+    }
+
+    private func loadGymLeaderboard() async {
+        appState.leaderboardFilters.gymID = gym.id
+        appState.leaderboardFilters.cityID = nil
+        appState.leaderboardFilters.city = nil
+        appState.leaderboardFilters.state = nil
+        appState.leaderboardFilters.country = nil
+        await appState.refreshLeaderboard()
     }
 }
 

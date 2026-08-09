@@ -820,6 +820,30 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.buttons["option.bench"].waitForExistence(timeout: 5))
     }
 
+    func testMeShowsSearchableGymDirectory() {
+        let app = launchDemo(arguments: ["-uiTestingGymFixture"])
+        XCTAssertTrue(tab("profile", in: app).waitForExistence(timeout: 8))
+        tab("profile", in: app).tap()
+
+        let gyms = app.buttons["me.gyms"]
+        var attempts = 0
+        while !gyms.isHittable && attempts < 10 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(gyms.isHittable)
+        gyms.tap()
+
+        XCTAssertTrue(app.navigationBars["Gyms"].waitForExistence(timeout: 5))
+        let search = app.textFields["gyms.search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        search.typeText("Cutler Bay")
+        XCTAssertTrue(app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "Crunch Fitness - Cutler Bay")
+        ).firstMatch.waitForExistence(timeout: 5))
+    }
+
     func testLeaderboardScopeSearchIncludesGyms() {
         let app = launchDemo(arguments: ["-uiTestingGymFixture"])
         XCTAssertTrue(tab("leaderboards", in: app).waitForExistence(timeout: 8))

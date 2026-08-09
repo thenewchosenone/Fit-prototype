@@ -338,8 +338,8 @@ extension HomeView {
                         currentBodyweightPounds: appState.currentProfile.bodyweightPounds
                     )
                 }
-                highlightButton("Awards", "trophy.fill", Color.liftGreen) {
-                    showingAwards = true
+                highlightButton("Gyms", "building.2.fill", Color.liftGreen) {
+                    showingGyms = true
                 }
             }
         }
@@ -693,6 +693,10 @@ extension HomeView {
         }
         .sheet(isPresented: $showingAwards) {
             NavigationStack { AwardsView() }
+                .environmentObject(appState)
+        }
+        .sheet(isPresented: $showingGyms) {
+            NavigationStack { GymDirectoryView() }
                 .environmentObject(appState)
         }
         .sheet(item: $selectedRecentPR) { lift in

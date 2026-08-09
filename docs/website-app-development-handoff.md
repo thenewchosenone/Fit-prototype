@@ -15,7 +15,7 @@
 - The Swift iOS app in `LiftRankApp/` has Supabase services for authenticated profiles, privacy, bodyweight history, workout plans and completed workouts, gym memberships, lift submissions, public rankings, verification, and media.
 - The complete iOS unit test target is green (270 tests), including canonical leaderboard authority, profile parity, workout synchronization, Friends-only visibility, and guarded submission removal.
 - The complete database migration and policy suite passes against two fresh databases, including the coordinated-removal finalizer and concurrent gym-membership limits.
-- Website validation is green for 15 pages, 6 performance budgets, and 28 parity contracts, including shared removal, protected-record classification, approved lift-video privacy, and bodyweight-history display.
+- Website validation is green for 15 pages, 6 performance budgets, and 32 parity contracts, including shared removal, protected-record classification, approved lift-video privacy, bodyweight-history display, account-action safeguards, and canonical gym-region mapping.
 - The React client in `src/` is a separate browser prototype. Its `store.tsx` state is local/demo-only and must not be used as evidence of native-app synchronization.
 - Profile bios are part of the existing `profiles.bio` contract. The iOS domain model, editor, authenticated save/restore path, and public profile display must all retain that value.
 
@@ -28,7 +28,7 @@
 | Current bodyweight | `profile_private_details.bodyweight_lb` | Profile save/read | Profile read | Current value wins over history |
 | Bodyweight history | `bodyweight_records` | Sync and entry writes | Authenticated account history in the preferred display unit | History never overrides current profile value; stored pounds convert only at the display boundary |
 | Privacy | `profile_privacy` | `public`, `friends`, `gym`, and `private` audience controls | Applied to public/account rendering | Same audience semantics; no legacy hide flag may broaden access |
-| Gym membership | `gym_memberships` | Join/leave/primary services | Reads primary gym and public gym data | Same active primary membership |
+| Gym membership | `gym_memberships` | Home/Me directory, search, join/leave/primary services, and gym-scoped top lifters | Reads primary gym, directory, and gym-scoped public rankings | Same active primary membership, canonical `gyms.region` location, and gym-filtered leaderboard scope |
 | Workouts | `workout_plan_documents`, `completed_workout_snapshots` | Offline cache plus Supabase synchronization | Reads completed snapshots | Same sessions after refresh; volume excludes warmups/non-weight sets and converts each recorded unit into the workout display unit |
 | Lift submissions | `lift_submissions` | Submit/read/update through competition services | Reads owner submissions | Same exercise, result, gym, date, and canonical status (`Self Reported`, `Video Submitted`, `Video Verified`, `Community Verified`, or `Competition Verified`) |
 | Submission removal | `remove-lift-submission` Edge Function plus `lift_removal_requests` | Uses the shared function after distinct ordinary/protected confirmation | Uses the same authenticated function and refreshes owner history | One durable, retryable workflow cleans proof, media, moderation, and ranking state before final deletion |
