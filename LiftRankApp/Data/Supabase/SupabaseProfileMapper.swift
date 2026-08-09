@@ -8,6 +8,7 @@ enum SupabaseProfileMapper {
             id: remote.id,
             username: remote.username,
             displayName: remote.displayName,
+            bio: remote.bio,
             ageGroup: ProfileDisplayFormatting.ageGroup(for: remote.birthDate),
             sexCategory: remote.sexCategory ?? .open,
             heightInches: (remote.heightCentimeters ?? 0) / 2.54,
@@ -40,6 +41,7 @@ enum SupabaseProfileMapper {
             id: card.id,
             username: card.username,
             displayName: card.displayName,
+            bio: card.bio,
             ageGroup: card.ageBand ?? "Hidden",
             sexCategory: card.sexCategory ?? .open,
             heightInches: 0,
@@ -60,6 +62,15 @@ enum SupabaseProfileMapper {
             hideGym: card.primaryGymID == nil,
             hideLiftVideos: false
         )
+    }
+}
+
+enum ProfileDataAuthority {
+    static func currentBodyweight(profilePounds: Double, historyFallbackPounds: Double?) -> Double {
+        guard profilePounds <= 0,
+              let historyFallbackPounds,
+              historyFallbackPounds > 0 else { return profilePounds }
+        return historyFallbackPounds
     }
 }
 

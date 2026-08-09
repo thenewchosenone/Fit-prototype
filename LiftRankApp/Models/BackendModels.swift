@@ -24,6 +24,7 @@ enum AccountStatus: Equatable {
 
 enum PrivacyAudience: String, Codable, CaseIterable, Identifiable {
     case publicProfile = "public"
+    case friends
     case gym
     case privateProfile = "private"
 
@@ -32,6 +33,7 @@ enum PrivacyAudience: String, Codable, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .publicProfile: return "Public"
+        case .friends: return "Friends"
         case .gym: return "Gym"
         case .privateProfile: return "Private"
         }
@@ -45,6 +47,7 @@ struct ProfilePrivacySettings: Codable, Equatable {
     var bodyweightAudience: PrivacyAudience = .privateProfile
     var locationAudience: PrivacyAudience = .privateProfile
     var gymAudience: PrivacyAudience = .publicProfile
+    var friendListAudience: PrivacyAudience = .friends
 }
 
 struct ProfileDraft: Equatable {

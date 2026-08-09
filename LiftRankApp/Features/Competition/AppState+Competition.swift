@@ -14,6 +14,10 @@ extension AppState {
         competitionStore.overallScore
     }
 
+    var currentUserTotalRankingEntry: LeaderboardEntry? {
+        competitionStore.currentUserTotalEntry
+    }
+
     var earnedExperienceLevel: ExperienceLevel {
         RankingFormatting.earnedExperienceLevel(
             relativeTotal: relativeTotal,
@@ -67,6 +71,11 @@ extension AppState {
     func refreshLeaderboard() async {
         guard isAuthenticated, !isDemoMode else { return }
         await competitionStore.refreshLeaderboard()
+    }
+
+    func refreshCurrentUserTotalRanking() async {
+        guard isAuthenticated, !isDemoMode else { return }
+        await competitionStore.refreshCurrentUserTotalEntry()
     }
 
     func refreshProductionLifts() async {

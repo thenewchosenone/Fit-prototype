@@ -891,6 +891,31 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
+    func testProfileRankingUsesCanonicalCurrentUserTotalEntry() async {
+        let repository = DemoRepository()
+        let profile = makeProfile(id: repository.currentProfile.id, username: "canonical_total")
+        let lift = makeLift(userID: profile.id, weight: 500)
+        let canonical = LeaderboardEntry(
+            rank: 4,
+            profile: profile,
+            lift: lift,
+            rankMovement: 1,
+            score: 1_225,
+            powerliftingBreakdown: nil
+        )
+        let store = CompetitionStore(
+            repository: repository,
+            leaderboardService: StaticLeaderboardService(entries: [canonical])
+        )
+
+        await store.refreshCurrentUserTotalEntry()
+
+        XCTAssertEqual(store.currentUserTotalEntry?.rank, 4)
+        XCTAssertEqual(store.currentUserTotalEntry?.score, 1_225)
+        XCTAssertEqual(store.currentUserTotalEntry?.profile.id, repository.currentProfile.id)
+    }
+
+    @MainActor
     func testLeaderboardRefreshIgnoresAnOlderResponseAfterFiltersChange() async {
         let repository = DemoRepository()
         let service = GatedLeaderboardService()
@@ -2454,6 +2479,22 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(status, .videoVerified)
         XCTAssertEqual(status.rawValue, "Video Verified")
         XCTAssertFalse(VerificationStatus.allCases.map(\.rawValue).contains("Moderator Verified"))
+    }
+
+    func testCommunityVerifiedStatusMatchesCanonicalServerLabel() throws {
+        let data = try JSONEncoder().encode("Community Verified")
+        let status = try JSONDecoder().decode(VerificationStatus.self, from: data)
+
+        XCTAssertEqual(status, .communityVerified)
+        XCTAssertTrue(status.isDefaultLeaderboardEligible)
+    }
+
+    func testFriendsOnlyLiftVisibilityMatchesServerAndStaysOffPublicRankings() {
+        var lift = makeLift(userID: UUID(), weight: 405)
+        lift.visibility = .friendsLift
+
+        XCTAssertEqual(LiftVisibility(rawValue: "Friends"), .friendsLift)
+        XCTAssertFalse(lift.isLaunchLeaderboardEligible)
     }
 
     func testAllSubmissionsIncludesSelfReportedTotal() {

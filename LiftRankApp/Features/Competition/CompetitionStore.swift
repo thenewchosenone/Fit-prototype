@@ -10,6 +10,7 @@ final class CompetitionStore: ObservableObject {
     @Published var uploadProgress = 0.0
     @Published var lastSubmissionResult: LiftSubmission?
     @Published private(set) var remoteLeaderboardEntries: [LeaderboardEntry]?
+    @Published private(set) var currentUserTotalEntry: LeaderboardEntry?
     @Published private(set) var leaderboardError: String?
     @Published private(set) var isLeaderboardLoading = false
 
@@ -138,6 +139,25 @@ final class CompetitionStore: ObservableObject {
             loadedLeaderboardVerifiedOnly = requestVerifiedOnly
             leaderboardError = error.localizedDescription
             isLeaderboardLoading = false
+        }
+    }
+
+    func refreshCurrentUserTotalEntry() async {
+        guard let leaderboardService else {
+            currentUserTotalEntry = nil
+            return
+        }
+        let userID = repository.currentProfile.id
+        do {
+            let entries = try await leaderboardService.entries(
+                filters: LeaderboardFilters(rankingType: .total),
+                verifiedOnly: true
+            )
+            guard repository.currentProfile.id == userID else { return }
+            currentUserTotalEntry = entries.first { $0.profile.id == userID }
+        } catch {
+            guard repository.currentProfile.id == userID else { return }
+            currentUserTotalEntry = nil
         }
     }
 
@@ -655,6 +675,7 @@ final class CompetitionStore: ObservableObject {
             repository.rankingHistory = []
         }
         remoteLeaderboardEntries = nil
+        currentUserTotalEntry = nil
         cachedPlaybackURLs.removeAll()
         leaderboardRequestID = nil
         loadedLeaderboardFilters = nil

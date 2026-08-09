@@ -281,7 +281,7 @@ final class SupabaseProfileService: ProfileService {
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {
         let existing = try await authenticatedProfile()
         let draft = ProfileDraft(
-            username: profile.username, displayName: profile.displayName, bio: existing.bio,
+            username: profile.username, displayName: profile.displayName, bio: profile.bio ?? existing.bio,
             avatarPath: profile.avatarPath,
             preferredUnit: profile.preferredUnit, birthDate: existing.birthDate,
             sexCategory: profile.sexCategory, heightCentimeters: profile.heightInches * 2.54,
@@ -295,7 +295,8 @@ final class SupabaseProfileService: ProfileService {
                 divisionAudience: existing.privacy.divisionAudience,
                 bodyweightAudience: profile.hideBodyweight ? .privateProfile : .publicProfile,
                 locationAudience: profile.hideCity ? .privateProfile : .publicProfile,
-                gymAudience: profile.hideGym ? .privateProfile : .publicProfile
+                gymAudience: profile.hideGym ? .privateProfile : .publicProfile,
+                friendListAudience: existing.privacy.friendListAudience
             ),
             completesOnboarding: existing.onboardingCompleted
         )
@@ -410,7 +411,8 @@ final class SupabaseProfileService: ProfileService {
                 divisionAudience: PrivacyAudience(rawValue: privacy.divisionAudience) ?? .publicProfile,
                 bodyweightAudience: PrivacyAudience(rawValue: privacy.bodyweightAudience) ?? .privateProfile,
                 locationAudience: PrivacyAudience(rawValue: privacy.locationAudience) ?? .privateProfile,
-                gymAudience: PrivacyAudience(rawValue: privacy.gymAudience) ?? .publicProfile
+                gymAudience: PrivacyAudience(rawValue: privacy.gymAudience) ?? .publicProfile,
+                friendListAudience: PrivacyAudience(rawValue: privacy.friendListAudience) ?? .friends
             )
         )
     }
@@ -491,7 +493,7 @@ private struct SaveProfileParameters: Encodable {
         newDivisionAudience = draft.privacy.divisionAudience.rawValue
         newLocationAudience = draft.privacy.locationAudience.rawValue
         newGymAudience = draft.privacy.gymAudience.rawValue
-        newFriendListAudience = PrivacyAudience.privateProfile.rawValue
+        newFriendListAudience = draft.privacy.friendListAudience.rawValue
         completeOnboarding = draft.completesOnboarding
     }
 }

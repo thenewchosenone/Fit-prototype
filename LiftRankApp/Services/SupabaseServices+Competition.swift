@@ -232,7 +232,7 @@ struct CompetitiveLiftDTO: Decodable {
             remoteVideoURL: nil,
             caption: caption,
             verificationStatus: VerificationStatus(rawValue: verification) ?? (evidenceStatus == "video_backed" ? .videoVerified : .selfReported),
-            visibility: visibility == "Private" ? .privateLift : .publicLift,
+            visibility: LiftVisibility(rawValue: visibility) ?? .privateLift,
             leaderboardEligibleAt: leaderboardEligibleAt ?? .distantFuture,
             createdAt: createdAt,
             updatedAt: updatedAt,

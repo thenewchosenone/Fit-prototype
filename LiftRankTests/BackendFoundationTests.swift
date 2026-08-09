@@ -120,6 +120,12 @@ private final class TestAnalyticsCaptureService: AnalyticsService {
 
 @MainActor
 final class BackendFoundationTests: XCTestCase {
+    func testPrivacyAudienceMatchesServerContract() throws {
+        XCTAssertEqual(PrivacyAudience(rawValue: "public"), .publicProfile)
+        XCTAssertEqual(PrivacyAudience(rawValue: "friends"), .friends)
+        XCTAssertEqual(PrivacyAudience(rawValue: "gym"), .gym)
+        XCTAssertEqual(PrivacyAudience(rawValue: "private"), .privateProfile)
+    }
     func testLiftVideoDurationPolicyAllowsThirtySecondsAndRejectsLongerClips() {
         XCTAssertTrue(LiftVideoPolicy.allows(duration: 30))
         XCTAssertFalse(LiftVideoPolicy.allows(duration: 30.001))
@@ -809,10 +815,12 @@ final class BackendFoundationTests: XCTestCase {
         edited.id = userID
         edited.username = "updated_lifter"
         edited.displayName = "Updated Lifter"
+        edited.bio = "Training for my next total"
         edited.avatarPath = "avatars/updated.jpg"
         edited.preferredUnit = .kilograms
         edited.ageGroup = "30-34"
         edited.bodyweightPounds = 205
+        edited.yearsExperience = 7
         edited.cityID = UUID()
         edited.city = "Miami"
         edited.state = "Florida"
@@ -845,7 +853,7 @@ final class BackendFoundationTests: XCTestCase {
             memberCount: 0,
             verifiedLiftCount: 0
         )
-        let privacy = ProfilePrivacySettings(locationAudience: .privateProfile)
+        let privacy = ProfilePrivacySettings(locationAudience: .privateProfile, friendListAudience: .gym)
 
         let saved = try await store.saveEditedProfile(
             edited,
@@ -863,16 +871,18 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(saved.city, "Austin")
         XCTAssertEqual(saved.state, "Texas")
         let savedDraft = try XCTUnwrap(service.lastSavedProfileDraft)
-        XCTAssertEqual(savedDraft.bio, "Keep this bio")
+        XCTAssertEqual(savedDraft.bio, "Training for my next total")
         XCTAssertEqual(
             ProfileDisplayFormatting.ageGroup(for: try XCTUnwrap(savedDraft.birthDate)),
             "30-34"
         )
         XCTAssertEqual(savedDraft.bodyweightPounds, 205)
+        XCTAssertEqual(savedDraft.yearsExperience, 7)
         XCTAssertEqual(savedDraft.cityID, edited.cityID)
         XCTAssertEqual(savedDraft.city, "Miami")
         XCTAssertEqual(savedDraft.region, "Florida")
         XCTAssertEqual(savedDraft.privacy.locationAudience, .privateProfile)
+        XCTAssertEqual(savedDraft.privacy.friendListAudience, .gym)
         XCTAssertEqual(store.profiles.map(\.id), [userID])
     }
 
@@ -959,6 +969,21 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertTrue(appState.isAuthenticated)
         XCTAssertNotNil(appState.accountSession)
         XCTAssertEqual(appState.currentProfile.bodyweightPounds, 205)
+    }
+
+    func testBodyweightHistoryDoesNotOverrideCurrentProfileWeight() {
+        XCTAssertEqual(
+            ProfileDataAuthority.currentBodyweight(profilePounds: 205, historyFallbackPounds: 183.2),
+            205
+        )
+        XCTAssertEqual(
+            ProfileDataAuthority.currentBodyweight(profilePounds: 0, historyFallbackPounds: 183.2),
+            183.2
+        )
+        XCTAssertEqual(
+            ProfileDataAuthority.currentBodyweight(profilePounds: 0, historyFallbackPounds: nil),
+            0
+        )
     }
 
     func testBodyweightUploadDoesNotRestoreSignedOutProfile() async throws {
@@ -1136,6 +1161,7 @@ final class BackendFoundationTests: XCTestCase {
         store.applyAuthenticatedProfile(loaded, retainingDemoProfiles: false)
         XCTAssertEqual(loaded.id, userID)
         XCTAssertEqual(store.profiles.map(\.id), [userID])
+        XCTAssertEqual(store.currentProfile.bio, loaded.bio)
 
         let cityID = UUID()
         let saved = try await store.saveAuthenticatedProfile(ProfileDraft(

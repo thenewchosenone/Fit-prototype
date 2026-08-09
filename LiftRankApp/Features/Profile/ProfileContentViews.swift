@@ -327,6 +327,11 @@ struct EditProfileView: View {
                             TextField("Display name", text: $draft.displayName)
                                 .multilineTextAlignment(.trailing)
                         }
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Bio")
+                            TextField("Tell athletes about your training", text: bioBinding, axis: .vertical)
+                                .lineLimit(2...4)
+                        }
                         Picker("Age group", selection: $draft.ageGroup) {
                             ForEach(ageGroups, id: \.self) { ageGroup in
                                 Text(ageGroup).tag(ageGroup)
@@ -344,6 +349,7 @@ struct EditProfileView: View {
                                     .foregroundStyle(Color.liftMuted)
                             }
                         }
+                        Stepper("Years training: \(draft.yearsExperience)", value: $draft.yearsExperience, in: 0...100)
                     }
                     Section("Body") {
                         NumericInputField(title: "Height", value: $draft.heightInches, unit: "in", presentation: .formRow)
@@ -362,7 +368,7 @@ struct EditProfileView: View {
                         ) { activeSelector = .location }
                         profileSelectionRow(
                             title: "Primary gym",
-                            value: selectedGym?.name ?? "Choose a gym",
+                            value: selectedGym?.name ?? "No primary gym",
                             symbol: "building.2.fill"
                         ) { activeSelector = .gym }
                     }
@@ -373,6 +379,7 @@ struct EditProfileView: View {
                         audiencePicker("Bodyweight", selection: $privacy.bodyweightAudience)
                         audiencePicker("Location", selection: $privacy.locationAudience)
                         audiencePicker("Gym", selection: $privacy.gymAudience)
+                        audiencePicker("Friend list", selection: $privacy.friendListAudience)
                         Toggle("Hide lift videos", isOn: $draft.hideLiftVideos)
                         Text("Ratio and weight-class rankings may indirectly reveal bodyweight even when the bodyweight field is private.")
                             .font(.caption)
@@ -421,7 +428,6 @@ struct EditProfileView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         var outgoingDraft = draft
-                        outgoingDraft.yearsExperience = 0
                         outgoingDraft.experienceLevel = appState.earnedExperienceLevel
                         Task {
                             if await appState.saveEditedProfile(outgoingDraft, primaryGym: selectedGym, privacy: privacy) {
@@ -429,7 +435,7 @@ struct EditProfileView: View {
                             }
                         }
                     }
-                    .disabled(selectedGym == nil || appState.accountOperationInProgress)
+                    .disabled(appState.accountOperationInProgress)
                 }
             }
         }
@@ -451,6 +457,13 @@ struct EditProfileView: View {
             set: { newValue in
                 draft.bodyweightPounds = MeasurementFormatting.convert(newValue, from: draft.preferredUnit, to: .pounds)
             }
+        )
+    }
+
+    private var bioBinding: Binding<String> {
+        Binding(
+            get: { draft.bio ?? "" },
+            set: { draft.bio = $0 }
         )
     }
 

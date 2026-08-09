@@ -12,6 +12,7 @@ struct UserProfile: Identifiable, Codable, Hashable {
     var id: UUID
     var username: String
     var displayName: String
+    var bio: String? = nil
     var ageGroup: String
     var sexCategory: SexCategory
     var heightInches: Double

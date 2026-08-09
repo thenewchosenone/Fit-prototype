@@ -180,10 +180,10 @@ struct SettingsView: View {
         profile.hideBodyweight = hideBodyweight
         profile.hideExactAge = hideExactAge
         profile.hideCity = hideLocation
-        updatedPrivacy.profileAudience = privateProfile ? .privateProfile : .publicProfile
-        updatedPrivacy.bodyweightAudience = hideBodyweight ? .privateProfile : .publicProfile
-        updatedPrivacy.ageBandAudience = hideExactAge ? .privateProfile : .publicProfile
-        updatedPrivacy.locationAudience = hideLocation ? .privateProfile : .publicProfile
+        updatedPrivacy.profileAudience = resolvedAudience(current: privacy.profileAudience, hidden: privateProfile)
+        updatedPrivacy.bodyweightAudience = resolvedAudience(current: privacy.bodyweightAudience, hidden: hideBodyweight)
+        updatedPrivacy.ageBandAudience = resolvedAudience(current: privacy.ageBandAudience, hidden: hideExactAge)
+        updatedPrivacy.locationAudience = resolvedAudience(current: privacy.locationAudience, hidden: hideLocation)
         if privateProfile {
             profile.hideExactAge = true
             profile.hideBodyweight = true
@@ -193,6 +193,7 @@ struct SettingsView: View {
             updatedPrivacy.bodyweightAudience = .privateProfile
             updatedPrivacy.locationAudience = .privateProfile
             updatedPrivacy.gymAudience = .privateProfile
+            updatedPrivacy.friendListAudience = .privateProfile
         }
         if appState.isAuthenticated && !appState.isDemoMode {
             _ = await appState.saveEditedProfile(profile, primaryGym: nil, privacy: updatedPrivacy)
@@ -200,6 +201,11 @@ struct SettingsView: View {
             appState.updateProfile(profile)
             appState.setAuthenticatedPrivacy(updatedPrivacy)
         }
+    }
+
+    private func resolvedAudience(current: PrivacyAudience, hidden: Bool) -> PrivacyAudience {
+        if hidden { return .privateProfile }
+        return current == .privateProfile ? .publicProfile : current
     }
 }
 

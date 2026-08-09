@@ -684,12 +684,15 @@ final class AppState: ObservableObject {
             if repository.bodyweightEntries != entries {
                 repository.bodyweightEntries = entries
             }
-            if let latestWeight = repository.bodyweightEntries.last?.actual {
-                if repository.currentProfile.bodyweightPounds != latestWeight {
-                    var localProfile = repository.currentProfile
-                    localProfile.bodyweightPounds = latestWeight
-                    profileStore.saveProfile(localProfile)
-                }
+            let currentWeight = repository.currentProfile.bodyweightPounds
+            let reconciledWeight = ProfileDataAuthority.currentBodyweight(
+                profilePounds: currentWeight,
+                historyFallbackPounds: repository.bodyweightEntries.last?.actual
+            )
+            if reconciledWeight != currentWeight {
+                var localProfile = repository.currentProfile
+                localProfile.bodyweightPounds = reconciledWeight
+                profileStore.saveProfile(localProfile)
             }
         } catch {
             guard accountSession?.userID == userID,

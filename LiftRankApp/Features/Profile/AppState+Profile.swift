@@ -38,7 +38,6 @@ extension AppState {
             updatedProfile.primaryGymID = primaryGym.id
             updatedProfile.primaryGymName = primaryGym.name
         }
-        updatedProfile.yearsExperience = 0
         updatedProfile.experienceLevel = earnedExperienceLevel
 
         do {
