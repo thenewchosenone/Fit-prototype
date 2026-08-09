@@ -1561,6 +1561,53 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(state.accountStatus, .authenticated)
     }
 
+    func testOnboardingStartingLiftRejectsMissingOrNonpositiveWeight() {
+        XCTAssertNil(OnboardingStartingLift(exerciseID: "bench", weight: nil))
+        XCTAssertNil(OnboardingStartingLift(exerciseID: "bench", weight: 0))
+        XCTAssertNil(OnboardingStartingLift(exerciseID: "bench", weight: -1))
+        XCTAssertEqual(
+            OnboardingStartingLift(exerciseID: "bench", weight: 225),
+            OnboardingStartingLift(exerciseID: "bench", weight: 225)
+        )
+    }
+
+    func testOnboardingStartingLiftsSavePrivateSelfReportedRecordsAndRetryWithoutDuplicates() async throws {
+        let state = makeState(session: session, onboardingCompleted: false, includesLiftService: true)
+        await state.restoreAccount()
+        let startingLifts = [
+            OnboardingStartingLift(exerciseID: "bench", weight: 225),
+            OnboardingStartingLift(exerciseID: "squat", weight: 315),
+            OnboardingStartingLift(exerciseID: "deadlift", weight: 405),
+            OnboardingStartingLift(exerciseID: "press", weight: 135)
+        ].compactMap { $0 }
+
+        try await state.saveOnboardingStartingLifts(
+            startingLifts,
+            unit: .pounds,
+            bodyweightPounds: 187,
+            gymID: nil
+        )
+        try await state.saveOnboardingStartingLifts(
+            startingLifts,
+            unit: .pounds,
+            bodyweightPounds: 187,
+            gymID: nil
+        )
+
+        let saved = state.currentUserLifts.filter { $0.caption.hasPrefix("Starting lift from onboarding:") }
+        XCTAssertEqual(saved.count, 4)
+        XCTAssertEqual(
+            Set(saved.map(\.exerciseID)),
+            Set(["barbell-bench-press", "back-squat", "conventional-deadlift", "standing-barbell-overhead-press"])
+        )
+        XCTAssertTrue(saved.allSatisfy { $0.visibility == .privateLift })
+        XCTAssertTrue(saved.allSatisfy { $0.verificationStatus == .selfReported })
+        XCTAssertTrue(saved.allSatisfy { $0.evidenceStatus == .selfReported })
+        XCTAssertTrue(saved.allSatisfy { $0.moderationStatus == .clear })
+        XCTAssertTrue(saved.allSatisfy { $0.repetitions == 1 && $0.isActualOneRepMax })
+        XCTAssertTrue(saved.allSatisfy { $0.bodyweightAtLift == 187 })
+    }
+
     func testCompletedSessionRequiresCurrentLegalAcceptance() async {
         let state = makeState(session: session, onboardingCompleted: true, hasCurrentLegalAcceptance: false)
         await state.restoreAccount()
@@ -2467,11 +2514,26 @@ final class BackendFoundationTests: XCTestCase {
         expiresAt: .now.addingTimeInterval(3600)
     )
 
-    private func makeState(session: AccountSession?, onboardingCompleted: Bool, hasCurrentLegalAcceptance: Bool = true) -> AppState {
-        makeState(authentication: TestAuthenticationService(session: session), onboardingCompleted: onboardingCompleted, hasCurrentLegalAcceptance: hasCurrentLegalAcceptance)
+    private func makeState(
+        session: AccountSession?,
+        onboardingCompleted: Bool,
+        hasCurrentLegalAcceptance: Bool = true,
+        includesLiftService: Bool = false
+    ) -> AppState {
+        makeState(
+            authentication: TestAuthenticationService(session: session),
+            onboardingCompleted: onboardingCompleted,
+            hasCurrentLegalAcceptance: hasCurrentLegalAcceptance,
+            includesLiftService: includesLiftService
+        )
     }
 
-    private func makeState(authentication: any AuthenticationService, onboardingCompleted: Bool, hasCurrentLegalAcceptance: Bool = true) -> AppState {
+    private func makeState(
+        authentication: any AuthenticationService,
+        onboardingCompleted: Bool,
+        hasCurrentLegalAcceptance: Bool = true,
+        includesLiftService: Bool = false
+    ) -> AppState {
         let repository = DemoRepository()
         let profile = TestProfileService(profile: AuthenticatedProfile(
             id: session.userID, username: "member_test", displayName: "Member Test", bio: "",
@@ -2486,6 +2548,7 @@ final class BackendFoundationTests: XCTestCase {
             gyms: MockGymService(repository: repository),
             gymMemberships: MockGymMembershipService(repository: repository),
             exercises: MockExerciseCatalogService(),
+            lifts: includesLiftService ? MockLiftService(repository: repository) : nil,
             legalAcceptances: TestLegalAcceptanceService(userID: session.userID, accepted: hasCurrentLegalAcceptance)
         ))
     }

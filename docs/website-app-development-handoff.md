@@ -1,5 +1,17 @@
 # Lift Rivals website/app handoff
 
+## Synchronization completion plan
+
+| Phase | Outcome | Status | Exit check |
+| --- | --- | --- | --- |
+| 1. Shared contract | One Supabase authority and matching field/status/privacy meanings | Complete | Parity contracts fail if either client drifts |
+| 2. New-account onboarding | Bio, training years, measurements, location, privacy, gym, and starting lifts survive a fresh Release signup | Complete | Same production account matches in app, private website account, and anonymous public profile |
+| 3. Training activity | Completed workouts and bodyweight check-ins use the same ownership, unit, volume, and current-vs-history rules | In progress | Create one fresh workout/check-in in the app and compare exact website output |
+| 4. Relationship privacy | Public, Friends, Gym, and Private audiences are enforced for representative viewers | Pending | Relationship test accounts see only their authorized fields/lifts |
+| 5. Production readiness | Required migrations and both client releases are reviewed, deployed, and smoke-tested | Pending authorization | City IDs resolve, deployed builds pass the same-account checklist, and production has no client-only fallbacks |
+
+Every shared-data defect must be fixed at the common contract/service boundary where possible, then guarded in both clients. Client-specific presentation fixes must add a parity fixture or test so the other client cannot silently diverge later.
+
 ## Shared-data contract
 
 - Supabase/PostgreSQL is the source of truth for account, profile, workout, lift, verification, ranking, gym, and privacy data.
@@ -13,9 +25,10 @@
 - The website reads authenticated profile, submission, workout, and public-record data from Supabase.
 - The website now gives the current profile bodyweight precedence over historical bodyweight records.
 - The Swift iOS app in `LiftRankApp/` has Supabase services for authenticated profiles, privacy, bodyweight history, workout plans and completed workouts, gym memberships, lift submissions, public rankings, verification, and media.
-- The complete iOS unit test target is green (270 tests), including canonical leaderboard authority, profile parity, workout synchronization, Friends-only visibility, and guarded submission removal.
+- iOS onboarding now captures and saves bio, years training, validated bodyweight, location, privacy, primary gym, and optional starting lifts. Starting lifts are private self-reported actual 1RMs and use retry-safe onboarding markers so a failed retry does not duplicate them.
+- The complete iOS unit test target is green (272 tests) and covers canonical leaderboard authority, profile parity, workout synchronization, Friends-only visibility, guarded submission removal, and retry-safe onboarding lift creation.
 - The complete database migration and policy suite passes against two fresh databases, including the coordinated-removal finalizer and concurrent gym-membership limits.
-- Website validation is green for 15 pages, 6 performance budgets, and 33 parity contracts, including shared removal, protected-record classification, owner-scoped submission history, approved lift-video privacy, bodyweight-history display, account-action safeguards, and canonical gym-region mapping.
+- Website validation is green for 15 pages, 8 performance budgets, and 38 parity contracts, including shared removal, protected-record classification, owner-scoped submission history, conservative privacy fallback, current-bodyweight authority, self-reported status mapping, approved lift-video privacy, account-action safeguards, and canonical gym-region mapping.
 - Production project `ikjgbsrlriqiusuvezco` has migration `202608080001_coordinated_lift_removal.sql` and the `remove-lift-submission` Edge Function deployed. The live endpoint enforces submission ownership; no real owned lift was removed during acceptance.
 - Production migration `202608080002_reassign_seeded_lifts_to_rob.sql` intentionally assigns the six seeded fixture submissions and their related media/removal ownership to Rob's profile. Their verification and public-ranking eligibility are preserved, so the authenticated website correctly shows seven owned submissions after refresh.
 - The React client in `src/` is a separate browser prototype. Its `store.tsx` state is local/demo-only and must not be used as evidence of native-app synchronization.
@@ -57,13 +70,24 @@ Preflight: run `./scripts/check_client_environment_parity.sh /absolute/path/to/w
 9. Approved lift-video visibility saved in the app matches the website account and public proof visibility after refresh.
 10. Bodyweight check-ins saved in the app appear in website history in the preferred unit without overriding current profile bodyweight.
 
+## Fresh-account production acceptance (2026-08-09)
+
+- A new confirmed production account completed the entire Release-app onboarding flow and reached the signed-in home screen.
+- The app saved and the production database retained the same username/display name, non-empty bio, four years training, 187 lb current bodyweight, 70 in height, birth date, Miami/Florida/US location text, and onboarding completion state.
+- The default privacy contract persisted: profile/location/gym public, exact bodyweight private, friend list friends-only, and approved lift videos visible when otherwise eligible.
+- Four optional starting lifts persisted as private, self-reported, clear-moderation 1RM submissions: bench 225 lb, squat 315 lb, deadlift 405 lb, and overhead press 135 lb. A regression test verifies retries do not create duplicates.
+- The app gym directory found and joined Crunch Fitness Brickell and persisted it as the active primary membership. The website displayed the same primary gym.
+- The same authenticated website account displayed the exact bio, years training, calculated beginner level, Miami/Florida location, current bodyweight, primary gym, preferred unit, and four owner-scoped lift submissions.
+- The anonymous public profile displayed the public bio, gym, location, and calculated experience while correctly hiding exact bodyweight and all four private self-reported lifts.
+- Website submission labels now match the app/backend contract: these records display `Self-reported` with the explanation that they are not independently verified, not `Pending review`.
+- The fresh account has no completed workouts or bodyweight-history entries yet, so those two data paths remain covered by automated contracts but were not exercised by this new-account manual run.
+
 ## Remaining acceptance work
 
-- Run same-account checks with a Release app build. The website and Release configuration share production project `ikjgbsrlriqiusuvezco`; Debug intentionally uses staging project `dfpvamnucwyafxklnjwt`.
-- The production-configured Release simulator build succeeds and reaches sign-in. The acceptance simulator currently has no saved production session, so authenticated comparisons require the same account to be signed in there and on the local website.
+- Production is missing the `public.search_cities` RPC defined by `202607240001_canonical_locations.sql`. The app safely falls back to bundled city text, so Miami/Florida/US syncs, but `profile_private_details.city_id` remains null until that reviewed migration is explicitly authorized and deployed.
+- Create one completed workout and one bodyweight-history check-in with the fresh Release-app account, then confirm the exact session, set/volume rules, and history entry on the website.
 - Production public-profile smoke testing passed for the current athlete record: partial-total labeling, four canonical ranking modes, one verified public lift, proof status, and hidden exact bodyweight all rendered without browser errors.
 - Production migration history confirms `202608080001` and `202608080002` are applied and the `remove-lift-submission` function is live. Owner-guard testing correctly rejected records before reassignment; the six fixture records are now intentionally owned by Rob. Complete the positive-path acceptance with a deliberately created disposable owner submission and verify protected-record cleanup separately.
-- Save a non-empty bio, years-training value, and current bodyweight from a real authenticated iOS session, then refresh the website and confirm exact values.
 - Confirm Public, Friends, Gym, and Private profile audiences with accounts that represent each viewer relationship.
 - Confirm a Friends-only lift is visible to an accepted friend but absent from anonymous public profiles and canonical public rankings.
 - Toggle approved lift-video visibility from an authenticated iOS session, then confirm the website account label and anonymous public proof links update after refresh.

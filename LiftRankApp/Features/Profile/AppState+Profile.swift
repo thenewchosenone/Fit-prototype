@@ -1,7 +1,59 @@
 import Foundation
 
+struct OnboardingStartingLift: Equatable {
+    let exerciseID: String
+    let weight: Double
+
+    init?(exerciseID: String, weight: Double?) {
+        guard let weight, weight > 0 else { return nil }
+        self.exerciseID = exerciseID
+        self.weight = weight
+    }
+}
+
 @MainActor
 extension AppState {
+    func saveOnboardingStartingLifts(
+        _ startingLifts: [OnboardingStartingLift],
+        unit: UnitSystem,
+        bodyweightPounds: Double,
+        gymID: UUID?
+    ) async throws {
+        guard isAuthenticated, !isDemoMode else { return }
+        guard bodyweightPounds > 0 else {
+            throw LiftRankServiceError.invalidInput("Enter your current bodyweight before saving starting lifts.")
+        }
+
+        await refreshProductionLifts()
+        for startingLift in startingLifts {
+            guard let exercise = MockData.exercises.first(where: { $0.id == startingLift.exerciseID }) else {
+                throw LiftRankServiceError.invalidInput("One of the starting lifts is not supported.")
+            }
+            let marker = "Starting lift from onboarding: \(startingLift.exerciseID)"
+            if currentUserLifts.contains(where: { $0.caption == marker }) {
+                continue
+            }
+            let saved = await competitionStore.submitLift(
+                exercise: exercise,
+                weight: startingLift.weight,
+                unit: unit,
+                reps: 1,
+                isActual: true,
+                bodyweight: bodyweightPounds,
+                date: .now,
+                gymID: joinedGyms.contains(where: { $0.id == gymID }) ? gymID : nil,
+                equipment: .raw,
+                visibility: .privateLift,
+                videoURL: nil,
+                caption: marker,
+                requestVerification: false
+            )
+            guard saved != nil else {
+                throw LiftRankServiceError.server("Your profile was saved, but one of your starting lifts was not. Try again to finish setup.")
+            }
+        }
+    }
+
     func connectOnboardingPrimaryGym(_ gym: Gym) async throws {
         guard isAuthenticated, !isDemoMode else { return }
         guard try await accountSocialStore.ensureGymJoined(

@@ -14,6 +14,8 @@ struct OnboardingView: View {
     @State private var squat = ""
     @State private var deadlift = ""
     @State private var press = ""
+    @State private var bio = ""
+    @State private var yearsTraining = 0
     @State private var showingPhotoManager = false
     @State private var selectedCountryCode = ""
     @State private var selectedRegionName = ""
@@ -88,6 +90,11 @@ struct OnboardingView: View {
             profile = appState.currentProfile
             profile.username = ""
             profile.displayName = ""
+            bio = profile.bio ?? ""
+            yearsTraining = max(0, profile.yearsExperience)
+            if profile.heightInches < 48 || profile.heightInches > 84 {
+                profile.heightInches = 70
+            }
             selectedAgeGroup = ageGroup(for: birthDate)
             selectedCountryCode = ""
             selectedRegionName = ""
@@ -260,6 +267,7 @@ struct OnboardingView: View {
                     value: bodyweightDisplayValue,
                     format: .number.precision(.fractionLength(0...1))
                 )
+                .accessibilityIdentifier("onboarding.bodyweight")
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
                 .font(.subheadline.weight(.bold).monospacedDigit())
@@ -471,6 +479,7 @@ struct OnboardingView: View {
 
                 profileSection("Identity") {
                     field("Username", text: $profile.username, symbol: "at")
+                    field("Bio (optional)", text: $bio, symbol: "text.quote")
                     labeledPicker("Age group", symbol: "person.crop.circle.badge.clock") {
                         Picker("Age group", selection: $selectedAgeGroup) {
                             ForEach(ageGroups, id: \.self) { ageGroup in
@@ -508,6 +517,13 @@ struct OnboardingView: View {
                     bodyweightField
                     heightSlider
                     earnedExperienceField
+                    labeledPicker("Years training", symbol: "calendar.badge.clock") {
+                        Stepper(value: $yearsTraining, in: 0...100) {
+                            Text("\(yearsTraining)")
+                                .font(.subheadline.weight(.bold).monospacedDigit())
+                        }
+                        .accessibilityIdentifier("onboarding.yearsTraining")
+                    }
                     labeledPicker("Preferred unit", symbol: "scalemass.fill") {
                         Picker("Preferred unit", selection: $profile.preferredUnit) {
                             ForEach(UnitSystem.allCases) { Text($0.rawValue.capitalized).tag($0) }
@@ -523,6 +539,7 @@ struct OnboardingView: View {
                                 Text(country.name).tag(country.code)
                             }
                         }
+                        .accessibilityIdentifier("onboarding.country")
                         .pickerStyle(.menu)
                         .frame(minWidth: 190, alignment: .trailing)
                         .onChange(of: selectedCountryCode) { _, _ in
@@ -539,6 +556,7 @@ struct OnboardingView: View {
                                 Text(region.name).tag(region.name)
                             }
                         }
+                        .accessibilityIdentifier("onboarding.region")
                         .pickerStyle(.menu)
                         .frame(minWidth: 190, alignment: .trailing)
                         .disabled(selectedCountry == nil)
@@ -557,6 +575,7 @@ struct OnboardingView: View {
                                     Text("\(gym.name) - \(gym.city), \(gym.state)").tag(gym.name)
                                 }
                             }
+                            .accessibilityIdentifier("onboarding.gym")
                             .onChange(of: profile.primaryGymName) { _, newValue in
                                 if let gym = appState.gyms.first(where: { $0.name == newValue }) {
                                     profile.primaryGymID = gym.id
@@ -599,6 +618,7 @@ struct OnboardingView: View {
                         .foregroundStyle(Color.liftMuted)
                 } else {
                     TextField("Search city", text: $cityQuery)
+                        .accessibilityIdentifier("onboarding.city")
                         .textInputAutocapitalization(.words)
                         .autocorrectionDisabled()
                         .onChange(of: cityQuery) { _, query in
@@ -905,6 +925,7 @@ struct OnboardingView: View {
                     withAnimation(.snappy) { step += 1 }
                 }
             }
+            .accessibilityIdentifier("onboarding.next")
 
             if step == 3 {
                 Button("I’ll add my lifts later") {
@@ -938,6 +959,11 @@ struct OnboardingView: View {
             Haptics.warning()
             return
         }
+        guard profile.bodyweightPounds > 0 else {
+            saveError = "Enter your current bodyweight to continue."
+            Haptics.warning()
+            return
+        }
         let hasBackendCanonicalCity = selectedCityID != nil
         let hasBundledCanonicalCity = selectedRegion?.cities.contains(where: { $0.caseInsensitiveCompare(city) == .orderedSame }) == true
         guard hasBackendCanonicalCity || hasBundledCanonicalCity else {
@@ -958,10 +984,11 @@ struct OnboardingView: View {
             gymAudience: profile.hideGym ? .privateProfile : .publicProfile,
             showLiftVideos: !profile.hideLiftVideos
         )
-        let draft = ProfileDraft(
+        let profileDraft: (Bool) -> ProfileDraft = { completesOnboarding in
+            ProfileDraft(
             username: username,
             displayName: username,
-            bio: "",
+            bio: bio.trimmingCharacters(in: .whitespacesAndNewlines),
             avatarPath: profile.avatarPath,
             preferredUnit: profile.preferredUnit,
             birthDate: birthDate,
@@ -972,17 +999,33 @@ struct OnboardingView: View {
             city: profile.city,
             region: profile.state,
             countryCode: selectedCountryCode,
-            yearsExperience: nil,
+            yearsExperience: yearsTraining,
             experienceLevel: appState.earnedExperienceLevel,
             privacy: privacy,
-            completesOnboarding: true
-        )
+            completesOnboarding: completesOnboarding
+            )
+        }
+        let startingLifts = [
+            ("bench", bench),
+            ("squat", squat),
+            ("deadlift", deadlift),
+            ("press", press)
+        ].compactMap { exerciseID, value in
+            OnboardingStartingLift(exerciseID: exerciseID, weight: Double(value))
+        }
         Task {
             do {
-                try await appState.saveAuthenticatedProfile(draft)
+                try await appState.saveAuthenticatedProfile(profileDraft(false))
                 if let primaryGym = appState.gyms.first(where: { $0.id == profile.primaryGymID }) {
                     try await appState.connectOnboardingPrimaryGym(primaryGym)
                 }
+                try await appState.saveOnboardingStartingLifts(
+                    startingLifts,
+                    unit: profile.preferredUnit,
+                    bodyweightPounds: profile.bodyweightPounds,
+                    gymID: profile.primaryGymID
+                )
+                try await appState.saveAuthenticatedProfile(profileDraft(true))
                 Haptics.success()
                 complete()
             } catch {
@@ -1075,6 +1118,7 @@ struct OnboardingView: View {
 
             HStack(alignment: .firstTextBaseline, spacing: 5) {
                 TextField("—", text: text)
+                    .accessibilityIdentifier("onboarding.record.\(title)")
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
                     .font(.title2.weight(.bold))
