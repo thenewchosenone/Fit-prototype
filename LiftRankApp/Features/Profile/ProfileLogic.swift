@@ -162,11 +162,11 @@ extension ProfileView {
                         case "global":
                             rankingMetric("Global", canonicalRankText, canonicalRankSubtitle, .liftGold)
                         case "city":
-                            rankingMetric("City", profile.hideCity ? "Hidden" : "—", profile.hideCity ? "Location hidden" : "Open city leaderboard", .liftBlue)
+                            rankingMetric("City", profile.hideCity ? "Hidden" : CanonicalRankingPresentation.text(rank: nil), profile.hideCity ? "Location hidden" : "Open city leaderboard", .liftBlue)
                         case "state":
-                            rankingMetric("State", profile.hideCity ? "Hidden" : "—", profile.hideCity ? "Location hidden" : "Open state leaderboard", .liftBlue)
+                            rankingMetric("State", profile.hideCity ? "Hidden" : CanonicalRankingPresentation.text(rank: nil), profile.hideCity ? "Location hidden" : "Open state leaderboard", .liftBlue)
                         default:
-                            rankingMetric("Age group", profile.hideExactAge ? "Hidden" : "—", profile.hideExactAge ? "Age hidden" : "Open age leaderboard", .liftGreen)
+                            rankingMetric("Age group", profile.hideExactAge ? "Hidden" : CanonicalRankingPresentation.text(rank: nil), profile.hideExactAge ? "Age hidden" : "Open age leaderboard", .liftGreen)
                         }
                     }
                 }
@@ -362,8 +362,9 @@ extension ProfileView {
     }
 
     private var canonicalRankText: String {
-        guard isCurrentUser, let entry = appState.currentUserTotalRankingEntry else { return "—" }
-        return "#\(entry.rank)"
+        CanonicalRankingPresentation.text(
+            rank: isCurrentUser ? appState.currentUserTotalRankingEntry?.rank : nil
+        )
     }
 
     private var canonicalRankSubtitle: String {

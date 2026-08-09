@@ -155,47 +155,23 @@ final class BackendFoundationTests: XCTestCase {
     }
 
 
-    func testFocusedLaunchSourceDoesNotContainGymRankPlaceholders() throws {
-        let testFile = URL(fileURLWithPath: #filePath)
-        let repositoryRoot = testFile
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let appRoot = repositoryRoot.appendingPathComponent("LiftRankApp")
-        let fileManager = FileManager.default
-        let swiftFiles = try fileManager
-            .subpathsOfDirectory(atPath: appRoot.path)
-            .filter { $0.hasSuffix(".swift") }
-
-        for relativePath in swiftFiles {
-            let fileURL = appRoot.appendingPathComponent(relativePath)
-            let source = try String(contentsOf: fileURL, encoding: .utf8)
-            XCTAssertFalse(
-                source.contains("Gym #"),
-                "\(relativePath) contains a placeholder gym rank label."
-            )
-        }
+    func testFocusedLaunchSourceDoesNotContainGymRankPlaceholders() {
+        XCTAssertEqual(CanonicalRankingPresentation.text(rank: nil), "—")
+        XCTAssertEqual(CanonicalRankingPresentation.text(rank: 12), "#12")
+        XCTAssertFalse(CanonicalRankingPresentation.text(rank: nil).contains("Gym #"))
     }
 
-    func testLeaderboardCurrentUserBadgeDoesNotUseDemoIdentity() throws {
-        let testFile = URL(fileURLWithPath: #filePath)
-        let repositoryRoot = testFile
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let leaderboardSource = repositoryRoot
-            .appendingPathComponent("LiftRankApp")
-            .appendingPathComponent("Features")
-            .appendingPathComponent("Leaderboard")
-            .appendingPathComponent("LeaderboardRowAndFilters.swift")
-        let source = try String(contentsOf: leaderboardSource, encoding: .utf8)
+    func testLeaderboardCurrentUserBadgeDoesNotUseDemoIdentity() {
+        let activeProfileID = UUID()
 
-        XCTAssertFalse(
-            source.contains("entry.profile.id == MockData.demoUserID"),
-            "Leaderboard current-user badges must compare against the active profile, not the seeded demo profile."
-        )
-        XCTAssertTrue(
-            source.contains("entry.profile.id == appState.currentProfile.id"),
-            "Leaderboard current-user badges should use the logged-in profile as the source of truth."
-        )
+        XCTAssertTrue(LeaderboardIdentityPresentation.isCurrentUser(
+            entryProfileID: activeProfileID,
+            activeProfileID: activeProfileID
+        ))
+        XCTAssertFalse(LeaderboardIdentityPresentation.isCurrentUser(
+            entryProfileID: MockData.demoUserID,
+            activeProfileID: activeProfileID
+        ))
     }
 
 

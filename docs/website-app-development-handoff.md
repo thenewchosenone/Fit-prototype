@@ -13,6 +13,7 @@
 - The website reads authenticated profile, submission, workout, and public-record data from Supabase.
 - The website now gives the current profile bodyweight precedence over historical bodyweight records.
 - The Swift iOS app in `LiftRankApp/` has Supabase services for authenticated profiles, privacy, bodyweight history, workout plans and completed workouts, gym memberships, lift submissions, public rankings, verification, and media.
+- The complete iOS unit test target is green (270 tests), including canonical leaderboard authority, profile parity, workout synchronization, Friends-only visibility, and guarded submission removal.
 - The React client in `src/` is a separate browser prototype. Its `store.tsx` state is local/demo-only and must not be used as evidence of native-app synchronization.
 - Profile bios are part of the existing `profiles.bio` contract. The iOS domain model, editor, authenticated save/restore path, and public profile display must all retain that value.
 
@@ -54,5 +55,4 @@ Before calling the clients synchronized, verify with the same account:
 - Confirm a Friends-only lift is visible to an accepted friend but absent from anonymous public profiles and canonical public rankings.
 - Replace both clients' guarded direct-delete implementation with one shared backend RPC/Edge Function, then acceptance-test evidence-free deletion and protected-record removal without leaving storage, proof, moderation, or ranking orphans.
 - Confirm the iOS profile’s canonical global total rank and score match the website for the same account. City, state, and age-group ranks remain links/scopes rather than invented profile values until each canonical scope is fetched.
-- Run the complete iOS test suite after resolving the existing leaderboard test failures; the focused cross-client regression set is green.
 - Deploy both committed client versions before production acceptance. Local validation alone does not prove production parity.

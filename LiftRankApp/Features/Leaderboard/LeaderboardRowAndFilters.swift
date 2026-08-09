@@ -26,7 +26,10 @@ struct LeaderboardRow: View {
                             Text(entry.profile.displayName)
                                 .font(.headline)
                                 .lineLimit(1)
-                            if entry.profile.id == appState.currentProfile.id {
+                            if LeaderboardIdentityPresentation.isCurrentUser(
+                                entryProfileID: entry.profile.id,
+                                activeProfileID: appState.currentProfile.id
+                            ) {
                                 Text("You")
                                     .font(.caption2.bold())
                                     .padding(.horizontal, 7)

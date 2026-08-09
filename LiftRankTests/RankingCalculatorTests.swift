@@ -725,21 +725,22 @@ final class RankingCalculatorTests: XCTestCase {
 
     @MainActor
     func testLeaderboardUpdatesImmediately() {
-        let appState = AppState()
-        appState.repository.profiles = [appState.currentProfile]
-        appState.verifiedOnly = false
-        appState.leaderboardFilters = LeaderboardFilters(exerciseID: "deadlift")
-        appState.leaderboardFilters.rankingType = .absolute
+        let repository = DemoRepository()
+        repository.profiles = [repository.currentProfile]
+        let store = CompetitionStore(repository: repository)
+        store.verifiedOnly = false
+        store.filters = LeaderboardFilters(exerciseID: "deadlift")
+        store.filters.rankingType = .absolute
 
         let referenceDate = Date(timeIntervalSince1970: 1_782_374_400)
-        let snapshotDate = appState.leaderboardSnapshotDate(referenceDate: referenceDate)
-        var pendingLift = makeLift(userID: appState.currentProfile.id, weight: 2_000)
+        let snapshotDate = store.leaderboardSnapshotDate(referenceDate: referenceDate)
+        var pendingLift = makeLift(userID: repository.currentProfile.id, weight: 2_000)
         pendingLift.createdAt = snapshotDate.addingTimeInterval(60)
         pendingLift.performedAt = pendingLift.createdAt
         pendingLift.leaderboardEligibleAt = referenceDate
-        appState.repository.lifts.append(pendingLift)
+        repository.lifts.append(pendingLift)
 
-        let currentSnapshot = appState.leaderboardEntries(referenceDate: referenceDate)
+        let currentSnapshot = store.leaderboardEntries(referenceDate: referenceDate)
         XCTAssertTrue(currentSnapshot.contains { $0.lift.id == pendingLift.id })
         XCTAssertEqual(currentSnapshot.first?.lift.id, pendingLift.id)
     }
@@ -868,6 +869,7 @@ final class RankingCalculatorTests: XCTestCase {
         store.filters.repetitionCount = 5
         store.filters.experienceLevel = .advanced
         store.filters.verificationLevel = .videoVerified
+        await store.refreshLeaderboard()
         let filtered = store.leaderboardEntries(referenceDate: .now)
 
         XCTAssertEqual(unfilteredCount, 2)
@@ -1374,43 +1376,44 @@ final class RankingCalculatorTests: XCTestCase {
 
     @MainActor
     func testLeaderboardFiltersByRankingCardScopes() {
-        let appState = AppState()
-        var profile = makeProfile(id: appState.currentProfile.id)
+        let repository = DemoRepository()
+        var profile = makeProfile(id: repository.currentProfile.id)
         profile.city = "Austin"
         profile.state = "Texas"
         profile.sexCategory = .male
         let gymID = UUID()
         var lift = makeLift(userID: profile.id, weight: 405)
         lift.gymID = gymID
-        appState.repository.currentProfile = profile
-        appState.repository.profiles = [profile]
-        appState.repository.lifts = [lift]
-        appState.verifiedOnly = false
+        repository.currentProfile = profile
+        repository.profiles = [profile]
+        repository.lifts = [lift]
+        let store = CompetitionStore(repository: repository)
+        store.verifiedOnly = false
 
         var gymFilters = LeaderboardFilters(exerciseID: "deadlift")
         gymFilters.gymID = gymID
-        appState.leaderboardFilters = gymFilters
-        let gymEntries = appState.leaderboardEntries()
+        store.filters = gymFilters
+        let gymEntries = store.leaderboardEntries(referenceDate: .now)
         XCTAssertFalse(gymEntries.isEmpty)
         XCTAssertTrue(gymEntries.allSatisfy { $0.lift.gymID == gymID })
 
         var cityFilters = LeaderboardFilters(exerciseID: "deadlift")
-        cityFilters.city = appState.currentProfile.city
-        cityFilters.state = appState.currentProfile.state
-        appState.leaderboardFilters = cityFilters
-        let cityEntries = appState.leaderboardEntries()
+        cityFilters.city = repository.currentProfile.city
+        cityFilters.state = repository.currentProfile.state
+        store.filters = cityFilters
+        let cityEntries = store.leaderboardEntries(referenceDate: .now)
         XCTAssertFalse(cityEntries.isEmpty)
-        XCTAssertTrue(cityEntries.allSatisfy { $0.profile.city == appState.currentProfile.city && $0.profile.state == appState.currentProfile.state })
+        XCTAssertTrue(cityEntries.allSatisfy { $0.profile.city == repository.currentProfile.city && $0.profile.state == repository.currentProfile.state })
 
         var weightClassFilters = LeaderboardFilters(exerciseID: nil)
-        weightClassFilters.sexCategory = appState.currentProfile.sexCategory
+        weightClassFilters.sexCategory = repository.currentProfile.sexCategory
         weightClassFilters.weightClassID = RankingCalculator.weightClass(
-            for: appState.currentProfile.bodyweightPounds,
-            sexCategory: appState.currentProfile.sexCategory,
+            for: repository.currentProfile.bodyweightPounds,
+            sexCategory: repository.currentProfile.sexCategory,
             classes: WeightClassCatalog.all
         )?.id
-        appState.leaderboardFilters = weightClassFilters
-        let weightClassEntries = appState.leaderboardEntries()
+        store.filters = weightClassFilters
+        let weightClassEntries = store.leaderboardEntries(referenceDate: .now)
         XCTAssertFalse(weightClassEntries.isEmpty)
         XCTAssertTrue(weightClassEntries.allSatisfy { entry in
             RankingCalculator.weightClass(

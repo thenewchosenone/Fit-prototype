@@ -22,7 +22,12 @@ extension LeaderboardsView {
     }
 
     var currentUserEntry: LeaderboardEntry? {
-        allEntries.first { $0.profile.id == appState.currentProfile.id }
+        allEntries.first {
+            LeaderboardIdentityPresentation.isCurrentUser(
+                entryProfileID: $0.profile.id,
+                activeProfileID: appState.currentProfile.id
+            )
+        }
     }
 
     var bodyweightClass: WeightClass? {
