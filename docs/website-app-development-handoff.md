@@ -41,6 +41,8 @@
 
 Before calling the clients synchronized, verify with the same account:
 
+Preflight: run `./scripts/check_client_environment_parity.sh /absolute/path/to/website` and use a Release app build for every production website comparison. Debug intentionally points to staging and cannot prove production parity.
+
 1. Profile bodyweight matches after an app save and website refresh.
 2. Profile fields and privacy settings match.
 3. Completed workouts appear on the website after app sync.
@@ -52,6 +54,10 @@ Before calling the clients synchronized, verify with the same account:
 
 ## Remaining acceptance work
 
+- Run same-account checks with a Release app build. The website and Release configuration share production project `ikjgbsrlriqiusuvezco`; Debug intentionally uses staging project `dfpvamnucwyafxklnjwt`.
+- The production-configured Release simulator build succeeds and reaches sign-in. The acceptance simulator currently has no saved production session, so authenticated comparisons require the same account to be signed in there and on the local website.
+- Production public-profile smoke testing passed for the current athlete record: partial-total labeling, four canonical ranking modes, one verified public lift, proof status, and hidden exact bodyweight all rendered without browser errors.
+- The production `remove-lift-submission` function and `lift_removal_requests` contract are not deployed yet (the function currently returns not found), so removal acceptance must wait until the migration and function are applied.
 - Save a non-empty bio, years-training value, and current bodyweight from a real authenticated iOS session, then refresh the website and confirm exact values.
 - Confirm Public, Friends, Gym, and Private profile audiences with accounts that represent each viewer relationship.
 - Confirm a Friends-only lift is visible to an accepted friend but absent from anonymous public profiles and canonical public rankings.
