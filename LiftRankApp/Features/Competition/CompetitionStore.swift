@@ -629,14 +629,11 @@ final class CompetitionStore: ObservableObject {
         }
     }
 
-    func deleteEvidenceFreeSubmission(_ lift: LiftSubmission) async throws {
+    func removeSubmission(_ lift: LiftSubmission) async throws {
         let userID = repository.currentProfile.id
         guard lift.userID == userID else { throw LiftRankServiceError.permissionDenied }
-        guard !lift.requiresCoordinatedRemoval else {
-            throw LiftRankServiceError.invalidInput("Video-backed submissions require the removal workflow so their proof file and public record are removed together.")
-        }
         guard let liftService else { throw LiftRankServiceError.configurationMissing }
-        try await liftService.deleteEvidenceFreeSubmission(id: lift.id)
+        try await liftService.removeSubmission(id: lift.id)
         guard repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
         repository.lifts.removeAll { $0.id == lift.id }
         cachedPlaybackURLs.removeValue(forKey: lift.videoAssetID ?? lift.id)

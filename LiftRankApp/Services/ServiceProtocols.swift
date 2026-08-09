@@ -46,7 +46,7 @@ protocol LocationService {
 protocol LiftService {
     func submissions() async throws -> [LiftSubmission]
     func submit(_ submission: LiftSubmission) async throws -> LiftSubmission
-    func deleteEvidenceFreeSubmission(id: UUID) async throws
+    func removeSubmission(id: UUID) async throws
     func vote(liftID: UUID, vote: LiftVoteValue?) async throws
     func report(liftID: UUID, reason: LiftReportReason, note: String) async throws
 }
@@ -142,7 +142,7 @@ extension AuthenticationService {
     func signInWithApple(identityToken: String, nonce: String) async throws -> AccountSession { throw LiftRankServiceError.configurationMissing }
 }
 extension LiftService {
-    func deleteEvidenceFreeSubmission(id: UUID) async throws { throw LiftRankServiceError.configurationMissing }
+    func removeSubmission(id: UUID) async throws { throw LiftRankServiceError.configurationMissing }
     func vote(liftID: UUID, vote: LiftVoteValue?) async throws { throw LiftRankServiceError.configurationMissing }
     func report(liftID: UUID, reason: LiftReportReason, note: String) async throws { throw LiftRankServiceError.configurationMissing }
 }

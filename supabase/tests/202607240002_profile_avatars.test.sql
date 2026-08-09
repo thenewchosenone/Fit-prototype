@@ -26,13 +26,55 @@ select is(
   'profile avatar uploads accept JPEG only'
 );
 
-select has_policy('storage', 'objects', 'profile avatars authenticated read', 'authenticated read policy exists');
-select has_policy('storage', 'objects', 'profile avatars owner upload', 'owner upload policy exists');
-select has_policy('storage', 'objects', 'profile avatars owner update', 'owner update policy exists');
-select has_policy('storage', 'objects', 'profile avatars owner delete', 'owner delete policy exists');
-select policy_cmd_is('storage', 'objects', 'profile avatars owner upload', 'INSERT', 'upload policy is insert-only');
-select policy_cmd_is('storage', 'objects', 'profile avatars owner update', 'UPDATE', 'update policy is update-only');
-select policy_cmd_is('storage', 'objects', 'profile avatars owner delete', 'DELETE', 'delete policy is delete-only');
+select is(
+  (select count(*)::integer from pg_catalog.pg_policies
+   where schemaname = 'storage' and tablename = 'objects'
+     and policyname = 'profile avatars authenticated read'),
+  1,
+  'authenticated read policy exists'
+);
+select is(
+  (select count(*)::integer from pg_catalog.pg_policies
+   where schemaname = 'storage' and tablename = 'objects'
+     and policyname = 'profile avatars owner upload'),
+  1,
+  'owner upload policy exists'
+);
+select is(
+  (select count(*)::integer from pg_catalog.pg_policies
+   where schemaname = 'storage' and tablename = 'objects'
+     and policyname = 'profile avatars owner update'),
+  1,
+  'owner update policy exists'
+);
+select is(
+  (select count(*)::integer from pg_catalog.pg_policies
+   where schemaname = 'storage' and tablename = 'objects'
+     and policyname = 'profile avatars owner delete'),
+  1,
+  'owner delete policy exists'
+);
+select is(
+  (select cmd from pg_catalog.pg_policies
+   where schemaname = 'storage' and tablename = 'objects'
+     and policyname = 'profile avatars owner upload'),
+  'INSERT',
+  'upload policy is insert-only'
+);
+select is(
+  (select cmd from pg_catalog.pg_policies
+   where schemaname = 'storage' and tablename = 'objects'
+     and policyname = 'profile avatars owner update'),
+  'UPDATE',
+  'update policy is update-only'
+);
+select is(
+  (select cmd from pg_catalog.pg_policies
+   where schemaname = 'storage' and tablename = 'objects'
+     and policyname = 'profile avatars owner delete'),
+  'DELETE',
+  'delete policy is delete-only'
+);
 
 select * from finish();
 rollback;

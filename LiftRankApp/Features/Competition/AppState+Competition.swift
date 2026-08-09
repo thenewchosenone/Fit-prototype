@@ -124,9 +124,9 @@ extension AppState {
         return submission
     }
 
-    func deleteEvidenceFreeSubmission(_ lift: LiftSubmission) async -> String? {
+    func removeSubmission(_ lift: LiftSubmission) async -> String? {
         do {
-            try await competitionStore.deleteEvidenceFreeSubmission(lift)
+            try await competitionStore.removeSubmission(lift)
             Haptics.success()
             return nil
         } catch {

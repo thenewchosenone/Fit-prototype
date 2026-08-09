@@ -96,39 +96,12 @@ final class SupabaseLiftService: LiftService {
         catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
-    func deleteEvidenceFreeSubmission(id: UUID) async throws {
+    func removeSubmission(id: UUID) async throws {
         do {
-            let userID = try await client.auth.session.user.id
-            let rows: [LiftDeletionGuardDTO] = try await client
-                .from("lift_submissions")
-                .select("id,user_id,video_asset_id,evidence_status,approved_evidence_storage_path,evidence_storage_path")
-                .eq("id", value: id)
-                .eq("user_id", value: userID)
-                .limit(1)
-                .execute()
-                .value
-            guard let row = rows.first else {
-                throw LiftRankServiceError.invalidInput("Submission not found or no longer available.")
-            }
-            guard !row.hasProtectedEvidence else {
-                throw LiftRankServiceError.invalidInput("Video-backed submissions require the removal workflow so their proof file and public record are removed together.")
-            }
-
-            let deleted: [DeletedLiftDTO] = try await client
-                .from("lift_submissions")
-                .delete()
-                .eq("id", value: id)
-                .eq("user_id", value: userID)
-                .eq("evidence_status", value: LiftEvidenceStatus.selfReported.rawValue)
-                .is("video_asset_id", value: nil)
-                .is("approved_evidence_storage_path", value: nil)
-                .is("evidence_storage_path", value: nil)
-                .select("id")
-                .execute()
-                .value
-            guard deleted.contains(where: { $0.id == id }) else {
-                throw LiftRankServiceError.server("The submission could not be deleted.")
-            }
+            try await client.functions.invoke(
+                "remove-lift-submission",
+                options: FunctionInvokeOptions(body: ["submission_id": id.uuidString])
+            )
         } catch let error as LiftRankServiceError {
             throw error
         } catch {
@@ -151,35 +124,6 @@ final class SupabaseLiftService: LiftService {
             ).execute()
         }
         catch { throw SupabaseServiceErrorMapper.map(error) }
-    }
-}
-
-private struct DeletedLiftDTO: Decodable {
-    let id: UUID
-}
-
-private struct LiftDeletionGuardDTO: Decodable {
-    let id: UUID
-    let userID: UUID
-    let videoAssetID: UUID?
-    let evidenceStatus: String?
-    var approvedEvidenceStoragePath: String? = nil
-    var evidenceStoragePath: String? = nil
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case userID = "user_id"
-        case videoAssetID = "video_asset_id"
-        case evidenceStatus = "evidence_status"
-        case approvedEvidenceStoragePath = "approved_evidence_storage_path"
-        case evidenceStoragePath = "evidence_storage_path"
-    }
-
-    var hasProtectedEvidence: Bool {
-        videoAssetID != nil ||
-        evidenceStatus == LiftEvidenceStatus.videoBacked.rawValue ||
-        !(approvedEvidenceStoragePath ?? "").isEmpty ||
-        !(evidenceStoragePath ?? "").isEmpty
     }
 }
 

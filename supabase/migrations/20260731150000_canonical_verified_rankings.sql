@@ -1,4 +1,67 @@
 begin;
+-- Normalize hosted beta fields before creating the canonical public views. The
+-- same idempotent block is repeated in the latest migration so environments
+-- that already applied this migration receive the compatibility boundary too.
+alter table public.profile_privacy
+  add column if not exists show_lift_videos boolean not null default true;
+
+alter table public.lift_submissions
+  add column if not exists gym_uuid uuid,
+  add column if not exists status text not null default 'pending',
+  add column if not exists bodyweight_class text,
+  add column if not exists review_status text not null default 'pending',
+  add column if not exists evidence_public boolean not null default false,
+  add column if not exists evidence_storage_path text,
+  add column if not exists pending_evidence_storage_path text,
+  add column if not exists approved_evidence_storage_path text,
+  add column if not exists disputed_at timestamptz,
+  add column if not exists reviewed_at timestamptz,
+  add column if not exists reviewed_by uuid references public.profiles(id),
+  add column if not exists review_note text;
+
+update public.lift_submissions
+set gym_uuid = gym_id::uuid
+where gym_uuid is null and gym_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+
+create or replace function public.synchronize_lift_gym_uuid()
+returns trigger
+language plpgsql
+set search_path = pg_catalog
+as $$
+begin
+  new.gym_uuid := case
+    when new.gym_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      then new.gym_id::uuid
+    else null
+  end;
+  return new;
+end;
+$$;
+
+drop trigger if exists a_synchronize_lift_gym_uuid on public.lift_submissions;
+create trigger a_synchronize_lift_gym_uuid
+before insert or update of gym_id on public.lift_submissions
+for each row execute function public.synchronize_lift_gym_uuid();
+
+create or replace function public.public_profile_show_gym(target_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog
+as $$
+  select coalesce(
+    (
+      select pp.profile_audience = 'public' and pp.gym_audience = 'public'
+      from public.profile_privacy pp
+      where pp.user_id = target_user_id
+    ),
+    false
+  )
+$$;
+
+revoke all on function public.public_profile_show_gym(uuid) from public;
+grant execute on function public.public_profile_show_gym(uuid) to anon, authenticated;
 
 -- Keep gym affiliation out of every public lift payload when the athlete has
 -- hidden it. Approved evidence can remain part of the private owner record,

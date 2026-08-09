@@ -65,18 +65,22 @@ extension ProfileView {
         .onChange(of: appState.repository.liftsRevision) { _, _ in
             refreshVisibleProfileLifts()
         }
-        .alert("Permanently delete submission?", isPresented: Binding(
+        .alert(submissionPendingDeletion?.requiresCoordinatedRemoval == true ? "Remove protected submission?" : "Permanently delete submission?", isPresented: Binding(
             get: { submissionPendingDeletion != nil },
             set: { if !$0 { submissionPendingDeletion = nil } }
         ), presenting: submissionPendingDeletion) { lift in
             Button("Cancel", role: .cancel) {
                 submissionPendingDeletion = nil
             }
-            Button("Delete permanently", role: .destructive) {
+            Button(lift.requiresCoordinatedRemoval ? "Remove submission" : "Delete permanently", role: .destructive) {
                 Task { await deleteSubmission(lift) }
             }
         } message: { lift in
-            Text("Delete \(lift.exerciseName)? This permanently removes the submission and cannot be undone.")
+            if lift.requiresCoordinatedRemoval {
+                Text("Remove \(lift.exerciseName)? Its video, proof, moderation state, and ranking record will be cleaned together. This cannot be undone.")
+            } else {
+                Text("Delete \(lift.exerciseName)? This permanently removes the submission and cannot be undone.")
+            }
         }
         .alert("Submission not deleted", isPresented: Binding(
             get: { submissionDeletionError != nil },
@@ -101,7 +105,7 @@ extension ProfileView {
     private func deleteSubmission(_ lift: LiftSubmission) async {
         isDeletingSubmission = true
         submissionPendingDeletion = nil
-        let error = await appState.deleteEvidenceFreeSubmission(lift)
+        let error = await appState.removeSubmission(lift)
         isDeletingSubmission = false
         if let error {
             submissionDeletionError = error

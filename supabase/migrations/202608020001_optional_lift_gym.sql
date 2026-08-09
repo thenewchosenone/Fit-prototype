@@ -3,6 +3,8 @@ begin;
 alter table public.lift_submissions
   alter column gym_id drop not null;
 
+grant select, insert, update on public.lift_submissions to authenticated;
+
 create or replace function public.enforce_competitive_lift_authority()
 returns trigger
 language plpgsql

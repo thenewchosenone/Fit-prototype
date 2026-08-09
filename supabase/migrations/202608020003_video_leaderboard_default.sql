@@ -22,11 +22,16 @@ begin
   updated_definition := replace(definition, 'l.moderation_status <> ''rejected''', 'l.moderation_status = ''clear''');
   updated_definition := replace(updated_definition, 'l.evidence_status=''video_backed''', 'l.evidence_status=''video_backed'' and l.video_asset_id is not null');
 
-  if updated_definition = definition then
+  if updated_definition = definition
+    and position('l.moderation_status = ''clear''' in definition) = 0
+    and position('l.evidence_status = ''video_backed''' in definition) = 0
+  then
     raise exception 'get_ranked_lift_ids eligibility block was not found';
   end if;
 
-  execute updated_definition;
+  if updated_definition <> definition then
+    execute updated_definition;
+  end if;
 end;
 $migration$;
 

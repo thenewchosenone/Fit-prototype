@@ -4,7 +4,7 @@ create schema if not exists extensions;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(16);
+select plan(17);
 
 select has_table('public', 'profile_reports', 'profile reports exist');
 select has_function('public', 'report_profile', array['uuid', 'text', 'text'], 'profile report RPC exists');

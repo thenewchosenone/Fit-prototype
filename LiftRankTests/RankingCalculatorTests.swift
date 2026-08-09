@@ -2517,13 +2517,13 @@ final class RankingCalculatorTests: XCTestCase {
             liftService: MockLiftService(repository: repository)
         )
 
-        try await store.deleteEvidenceFreeSubmission(lift)
+        try await store.removeSubmission(lift)
 
         XCTAssertFalse(repository.lifts.contains(where: { $0.id == lift.id }))
     }
 
     @MainActor
-    func testVideoBackedSubmissionRequiresCoordinatedRemoval() async {
+    func testVideoBackedSubmissionUsesCoordinatedRemoval() async throws {
         let repository = DemoRepository()
         var lift = makeLift(userID: repository.currentProfile.id, weight: 405)
         lift.evidenceStatus = .videoBacked
@@ -2534,13 +2534,9 @@ final class RankingCalculatorTests: XCTestCase {
             liftService: MockLiftService(repository: repository)
         )
 
-        do {
-            try await store.deleteEvidenceFreeSubmission(lift)
-            XCTFail("Expected protected submission deletion to be blocked.")
-        } catch {
-            XCTAssertTrue(error.localizedDescription.contains("removal workflow"))
-        }
-        XCTAssertTrue(repository.lifts.contains(where: { $0.id == lift.id }))
+        try await store.removeSubmission(lift)
+
+        XCTAssertFalse(repository.lifts.contains(where: { $0.id == lift.id }))
     }
 
     func testAllSubmissionsIncludesSelfReportedTotal() {
