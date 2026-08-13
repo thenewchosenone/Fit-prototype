@@ -1,18 +1,25 @@
 {
-  "name": "liftrank-web",
+  "name": "lift-rivals-web",
   "private": true,
   "version": "0.1.0",
   "packageManager": "pnpm@11.7.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node scripts/clean-dist.mjs && tsc -b && vite build",
+    "build:demo": "VITE_PUBLIC_DEMO=true VITE_AUTH_DEMO_MODE=true pnpm build",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run tests && node --test scripts/gym-sources/*.test.mjs",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:demo": "pnpm build:demo && playwright test --config=playwright.demo.config.ts",
+    "perf": "VITE_PUBLIC_DEMO=true VITE_AUTH_DEMO_MODE=true pnpm build && playwright test --config=playwright.performance.config.ts",
+    "test:release-routes": "LIFTRANK_RELEASE_WEB_MODE=production playwright test --config=playwright.release.config.ts",
+    "test:release-routes:demo": "pnpm build:demo && LIFTRANK_RELEASE_WEB_MODE=demo playwright test --config=playwright.release.config.ts",
+    "gyms:update": "node scripts/update-gym-catalog.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

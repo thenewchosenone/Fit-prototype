@@ -9,7 +9,8 @@ import {
   messageSeed,
   messageThreadSeed,
   notificationSeed,
-  profileSeed
+  profileSeed,
+  trainingGroupSeed
 } from "./platformData";
 
 const exercises: Exercise[] = [
@@ -60,7 +61,7 @@ const pullSession = "session-pull";
 const legsSession = "session-legs";
 
 export const seedState: TrackerState = {
-  version: 3,
+  version: 4,
   plans: [
     {
       id: planId,
@@ -137,6 +138,10 @@ export const seedState: TrackerState = {
   workoutFeedback: [],
   communityPosts: communitySeed,
   comments: commentSeed,
+  trainingGroups: trainingGroupSeed,
+  joinedGroupIds: ["group-general-strength", "group-powerlifting", "group-nutrition"],
+  communityReports: [],
+  groupBans: [],
   friendRequests: friendRequestSeed,
   messageThreads: messageThreadSeed,
   messages: messageSeed,
@@ -175,7 +180,7 @@ export const leaderboardSeed: LeaderboardEntry[] = [
     exercise: "Back Squat",
     rankingType: "Absolute",
     score: 525,
-    verification: "Moderator Verified",
+    verification: "Video Verified",
     bodyweight: 154,
     total: 1335,
     ageGroup: "25-29",
@@ -193,7 +198,7 @@ export const leaderboardSeed: LeaderboardEntry[] = [
     exercise: "Barbell Bench Press",
     rankingType: "Absolute",
     score: 495,
-    verification: "Moderator Verified",
+    verification: "Video Verified",
     bodyweight: 210,
     total: 1015,
     ageGroup: "30-34",
@@ -248,7 +253,7 @@ export const leaderboardSeed: LeaderboardEntry[] = [
     exercise: "Back Squat",
     rankingType: "Absolute",
     score: 455,
-    verification: "Moderator Verified",
+    verification: "Video Verified",
     bodyweight: 168,
     total: 1110,
     ageGroup: "35-39",
@@ -356,7 +361,7 @@ export const leaderboardSeed: LeaderboardEntry[] = [
     exercise: "Deadlift",
     rankingType: "Pound-for-pound",
     score: 4.73,
-    verification: "Moderator Verified",
+    verification: "Video Verified",
     bodyweight: 210,
     total: 1015,
     ageGroup: "30-34",
@@ -447,7 +452,7 @@ export const leaderboardSeed: LeaderboardEntry[] = [
     exercise: "Powerlifting Total",
     rankingType: "Total",
     score: 1335,
-    verification: "Moderator Verified",
+    verification: "Video Verified",
     bodyweight: 154,
     total: 1335,
     ageGroup: "25-29",
@@ -519,7 +524,7 @@ export const leaderboardSeed: LeaderboardEntry[] = [
     exercise: "Relative Total",
     rankingType: "Relative total",
     score: 4.83,
-    verification: "Moderator Verified",
+    verification: "Video Verified",
     bodyweight: 210,
     total: 1015,
     ageGroup: "30-34",
@@ -592,7 +597,7 @@ export const leaderboardSeed: LeaderboardEntry[] = [
     exercise: "Best PR Jump",
     rankingType: "Most improved",
     score: 14,
-    verification: "Moderator Verified",
+    verification: "Video Verified",
     bodyweight: 210,
     total: 1015,
     ageGroup: "30-34",

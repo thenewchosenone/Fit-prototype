@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#070a10"/><stop offset="1" stop-color="#0e1d34"/></linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#62b2ff"/><stop offset="1" stop-color="#347ff5"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="22"/></filter>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="1000" cy="80" r="190" fill="#246bce" opacity=".2" filter="url(#glow)"/>
+  <circle cx="780" cy="610" r="230" fill="#173f79" opacity=".28" filter="url(#glow)"/>
+  <rect x="70" y="62" width="64" height="64" rx="15" fill="#0e1c30" stroke="#438ffb" stroke-width="3"/>
+  <text x="102" y="103" fill="#6ab3ff" font-family="Arial, sans-serif" font-size="22" font-weight="800" text-anchor="middle">LR</text>
+  <text x="154" y="105" fill="#f4f7fb" font-family="Arial, sans-serif" font-size="30" font-weight="800">LIFT RIVALS</text>
+  <text x="70" y="235" fill="#5ca9ff" font-family="Arial, sans-serif" font-size="20" font-weight="800" letter-spacing="4">STRENGTH COMMUNITY DEMO</text>
+  <text x="70" y="315" fill="#ffffff" font-family="Arial, sans-serif" font-size="66" font-weight="800">Rank. Connect.</text>
+  <text x="70" y="390" fill="#ffffff" font-family="Arial, sans-serif" font-size="66" font-weight="800">Compete.</text>
+  <text x="74" y="450" fill="#a9b6c9" font-family="Arial, sans-serif" font-size="24">Explore rankings, lifts, gyms, Training Groups,</text>
+  <text x="74" y="484" fill="#a9b6c9" font-family="Arial, sans-serif" font-size="24">messages, and athlete profiles.</text>
+  <rect x="70" y="530" width="266" height="48" rx="24" fill="#173359" stroke="#3987f7"/>
+  <text x="203" y="561" fill="#dcecff" font-family="Arial, sans-serif" font-size="18" font-weight="700" text-anchor="middle">INTERACTIVE SANDBOX</text>
+  <g transform="translate(725 156)">
+    <rect width="390" height="340" rx="26" fill="#101620" stroke="#2b3748" stroke-width="2"/>
+    <text x="34" y="53" fill="#8e9aad" font-family="Arial, sans-serif" font-size="15" font-weight="700">LEADERBOARD</text>
+    <text x="34" y="96" fill="#ffffff" font-family="Arial, sans-serif" font-size="28" font-weight="800">Powerlifting Total</text>
+    <g font-family="Arial, sans-serif">
+      <rect x="24" y="122" width="342" height="62" rx="12" fill="#152033"/><text x="43" y="160" fill="#6db5ff" font-size="22" font-weight="800">#1</text><text x="92" y="153" fill="#fff" font-size="18" font-weight="700">Evan Cole</text><text x="92" y="173" fill="#8f9bad" font-size="13">1,475 lb total</text>
+      <rect x="24" y="194" width="342" height="62" rx="12" fill="#111923"/><text x="43" y="232" fill="#c4cfde" font-size="22" font-weight="800">#2</text><text x="92" y="225" fill="#fff" font-size="18" font-weight="700">Darius King</text><text x="92" y="245" fill="#8f9bad" font-size="13">1,425 lb total</text>
+      <rect x="24" y="266" width="342" height="50" rx="12" fill="url(#blue)" opacity=".28"/><text x="43" y="298" fill="#70b8ff" font-size="20" font-weight="800">#7</text><text x="92" y="297" fill="#fff" font-size="17" font-weight="700">Robert J. · You</text>
+    </g>
+  </g>
+</svg>

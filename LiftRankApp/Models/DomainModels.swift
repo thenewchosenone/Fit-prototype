@@ -1,5 +1,4 @@
 import Foundation
-import SwiftData
 
 enum UnitSystem: String, Codable, CaseIterable, Identifiable {
     case pounds
@@ -27,233 +26,46 @@ enum ExperienceLevel: String, Codable, CaseIterable, Identifiable {
 enum VerificationStatus: String, Codable, CaseIterable, Identifiable {
     case selfReported = "Self Reported"
     case videoSubmitted = "Video Submitted"
+    case videoVerified = "Video Verified"
     case communityVerified = "Community Verified"
-    case moderatorVerified = "Moderator Verified"
     case competitionVerified = "Competition Verified"
     case rejected = "Rejected"
     var id: String { rawValue }
     var isDefaultLeaderboardEligible: Bool {
-        self == .communityVerified || self == .moderatorVerified || self == .competitionVerified
+        self == .videoVerified || self == .communityVerified || self == .competitionVerified
     }
-}
 
-enum LiftVisibility: String, Codable, CaseIterable, Identifiable {
-    case publicLift = "Public"
-    case followers = "Followers"
-    case privateLift = "Private"
-    var id: String { rawValue }
-}
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
 
-enum EquipmentType: String, Codable, CaseIterable, Identifiable {
-    case raw = "Raw"
-    case equipped = "Equipped"
-    var id: String { rawValue }
-}
-
-enum RankingType: String, Codable, CaseIterable, Identifiable {
-    case absolute = "Absolute"
-    case poundForPound = "Pound-for-pound"
-    case total = "Total"
-    case relativeTotal = "Relative total"
-    case mostImproved = "Most improved"
-    var id: String { rawValue }
-}
-
-struct Exercise: Identifiable, Codable, Hashable {
-    let id: String
-    let name: String
-    let symbolName: String
-    let isPowerlift: Bool
-}
-
-struct TrainingExerciseCatalogItem: Identifiable, Codable, Hashable {
-    let id: String
-    var name: String
-    var bodyPart: String
-    var workoutCategory: String
-    var defaultSets: Int
-    var defaultReps: String
-    var symbolName: String
-    var secondaryMuscles: [String] = []
-    var equipment: String = "Bodyweight"
-    var movementType: String = "Strength"
-    var trackingType: String = "Weight + Reps"
-    var defaultRestSeconds: Int = 120
-    var searchAliases: [String] = []
-
-    func matchesSearch(_ query: String) -> Bool {
-        let normalizedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !normalizedQuery.isEmpty else { return true }
-        return name.lowercased().contains(normalizedQuery) ||
-            bodyPart.lowercased().contains(normalizedQuery) ||
-            equipment.lowercased().contains(normalizedQuery) ||
-            searchAliases.contains { $0.lowercased().contains(normalizedQuery) }
-    }
-}
-
-enum ExerciseBodyRegion: String, CaseIterable, Hashable {
-    case neck
-    case shoulders
-    case chest
-    case back
-    case arms
-    case core
-    case glutes
-    case upperLegs
-    case lowerLegs
-    case fullBody
-}
-
-enum ExerciseBodyRegionResolver {
-    static func regions(for bodyPart: String) -> [ExerciseBodyRegion] {
-        let value = bodyPart.lowercased()
-        var regions: [ExerciseBodyRegion] = []
-
-        func include(_ region: ExerciseBodyRegion, when condition: Bool) {
-            if condition && !regions.contains(region) {
-                regions.append(region)
-            }
+        // Local prototype snapshots may still contain the old reviewer-based label.
+        // Preserve those lifts while migrating their user-facing status to evidence-based wording.
+        if value == "Moderator Verified" {
+            self = .videoVerified
+            return
         }
 
-        include(.neck, when: value.contains("neck"))
-        include(.shoulders, when: value.contains("shoulder") || value.contains("delt") || value.contains("rotator"))
-        include(.chest, when: value.contains("chest") || value.contains("pec"))
-        include(.back, when: value.contains("back") || value.contains("lat") || value.contains("trap"))
-        include(.arms, when: value.contains("bicep") || value.contains("tricep") || value.contains("arm") || value.contains("forearm") || value.contains("grip"))
-        include(.core, when: value.contains("core") || value.contains("abdominal") || value.contains("oblique"))
-        include(.glutes, when: value.contains("glute"))
-        include(.upperLegs, when: value.contains("quad") || value.contains("hamstring") || value.contains("adductor") || value.contains("upper leg"))
-        include(.lowerLegs, when: value.contains("calf") || value.contains("calves") || value.contains("tibialis") || value.contains("lower leg"))
-        include(.fullBody, when: value.contains("full body"))
+        guard let status = VerificationStatus(rawValue: value) else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Unknown verification status: \(value)"
+            )
+        }
+        self = status
+    }
 
-        return regions.isEmpty ? [.fullBody] : regions
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
     }
 }
 
-struct WeightClass: Identifiable, Codable, Hashable {
-    let id: String
-    let sexCategory: SexCategory
-    let name: String
-    let minKilograms: Double?
-    let maxKilograms: Double?
-}
+enum LiftVoteValue: Int, Codable, CaseIterable, Identifiable {
+    case down = -1
+    case up = 1
 
-struct UserProfile: Identifiable, Codable, Hashable {
-    var id: UUID
-    var username: String
-    var displayName: String
-    var ageGroup: String
-    var sexCategory: SexCategory
-    var heightInches: Double
-    var bodyweightPounds: Double
-    var preferredUnit: UnitSystem
-    var city: String
-    var state: String
-    var primaryGymID: UUID
-    var primaryGymName: String
-    var yearsExperience: Int
-    var experienceLevel: ExperienceLevel
-    var profileImageName: String
-    var followers: Int
-    var following: Int
-    var hideExactAge: Bool
-    var hideBodyweight: Bool
-    var hideCity: Bool
-    var hideGym: Bool
-    var hideLiftVideos: Bool
-}
-
-struct Gym: Identifiable, Codable, Hashable {
-    let id: UUID
-    var name: String
-    var city: String
-    var state: String
-    var memberCount: Int
-    var verifiedLiftCount: Int
-}
-
-struct LiftSubmission: Identifiable, Codable, Hashable {
-    var id: UUID
-    var userID: UUID
-    var exerciseID: String
-    var exerciseName: String
-    var weight: Double
-    var unit: UnitSystem
-    var normalizedWeightKilograms: Double
-    var repetitions: Int
-    var isActualOneRepMax: Bool
-    var estimatedOneRepMax: Double
-    var bodyweightAtLift: Double
-    var bodyweightMultiple: Double
-    var equipmentType: EquipmentType
-    var variation: String
-    var gymID: UUID
-    var performedAt: Date
-    var localVideoURL: URL?
-    var remoteVideoURL: URL?
-    var caption: String
-    var verificationStatus: VerificationStatus
-    var visibility: LiftVisibility
-    var createdAt: Date
-    var updatedAt: Date
-}
-
-struct LeaderboardEntry: Identifiable, Hashable {
-    var id: UUID { lift.id }
-    let rank: Int
-    let profile: UserProfile
-    let lift: LiftSubmission
-    let rankMovement: Int
-    let score: Double
-    let powerliftingBreakdown: PowerliftingBreakdown?
-}
-
-struct PowerliftingBreakdown: Hashable {
-    let squatKilograms: Double?
-    let benchKilograms: Double?
-    let deadliftKilograms: Double?
-
-    var totalKilograms: Double {
-        (squatKilograms ?? 0) + (benchKilograms ?? 0) + (deadliftKilograms ?? 0)
-    }
-}
-
-struct Follow: Identifiable, Codable, Hashable {
-    let id: UUID
-    let followerID: UUID
-    let followedID: UUID
-}
-
-enum FriendRequestStatus: String, Codable, CaseIterable, Identifiable {
-    case pending = "Pending"
-    case accepted = "Accepted"
-    case declined = "Declined"
-
-    var id: String { rawValue }
-}
-
-struct FriendRequest: Identifiable, Codable, Hashable {
-    let id: UUID
-    var fromUserID: UUID
-    var toUserID: UUID
-    var status: FriendRequestStatus
-    var createdAt: Date
-    var respondedAt: Date?
-}
-
-struct Comment: Identifiable, Codable, Hashable {
-    let id: UUID
-    let userID: UUID
-    let liftID: UUID
-    var text: String
-    let createdAt: Date
-}
-
-struct Reaction: Identifiable, Codable, Hashable {
-    let id: UUID
-    let userID: UUID
-    let targetID: UUID
-    var kind: String
+    var id: Int { rawValue }
 }
 
 struct Challenge: Identifiable, Codable, Hashable {
@@ -276,351 +88,143 @@ struct ChallengeParticipant: Identifiable, Codable, Hashable {
     var progress: Double
 }
 
-struct Achievement: Identifiable, Codable, Hashable {
-    let id: UUID
-    var title: String
-    var description: String
-    var symbolName: String
-}
-
-struct UserAchievement: Identifiable, Codable, Hashable {
-    let id: UUID
-    let userID: UUID
-    let achievementID: UUID
-    var unlockedAt: Date?
-}
-
-struct NotificationItem: Identifiable, Codable, Hashable {
-    let id: UUID
-    var title: String
-    var message: String
-    var kind: String
-    var createdAt: Date
-    var isRead: Bool
-}
-
-struct Report: Identifiable, Codable, Hashable {
-    let id: UUID
-    let liftID: UUID
-    let reason: String
-    let createdAt: Date
-}
-
-struct DirectMessageThread: Identifiable, Codable, Hashable {
-    let id: UUID
-    var participantIDs: [UUID]
-    var createdAt: Date
-    var updatedAt: Date
-}
-
-struct DirectMessage: Identifiable, Codable, Hashable {
-    let id: UUID
-    var threadID: UUID
-    var senderID: UUID
-    var body: String
-    var createdAt: Date
-    var isRead: Bool
-    var isReported: Bool
-}
-
-enum MessageReportReason: String, Codable, CaseIterable, Identifiable {
-    case spam = "Spam"
-    case offensive = "Offensive"
-    case harassment = "Harassment"
-    case other = "Other"
+enum CompetitiveMovement: String, Codable, CaseIterable, Identifiable {
+    case barbellBenchPress = "barbell_bench_press"
+    case backSquat = "back_squat"
+    case conventionalDeadlift = "conventional_deadlift"
+    case sumoDeadlift = "sumo_deadlift"
+    case standingBarbellOverheadPress = "standing_barbell_overhead_press"
+    case dumbbellBenchPress = "dumbbell_bench_press"
+    case bentOverBarbellRow = "bent_over_barbell_row"
 
     var id: String { rawValue }
-}
 
-struct MessageReport: Identifiable, Codable, Hashable {
-    let id: UUID
-    var messageID: UUID
-    var reporterID: UUID
-    var reason: MessageReportReason
-    var note: String
-    var createdAt: Date
-}
-
-enum CommunityThreadKind: String, Codable, CaseIterable, Identifiable {
-    case general = "General"
-    case challenge = "Challenge"
-    case gym = "Gym"
-    var id: String { rawValue }
-}
-
-struct CommunityThread: Identifiable, Codable, Hashable {
-    var id: UUID
-    var title: String
-    var body: String
-    var authorID: UUID
-    var authorName: String
-    var kind: CommunityThreadKind
-    var challengeID: UUID?
-    var gymID: UUID?
-    var replyCount: Int
-    var likeCount: Int
-    var createdAt: Date
-}
-
-struct CommunityThreadReply: Identifiable, Codable, Hashable {
-    var id: UUID
-    var threadID: UUID
-    var authorID: UUID
-    var authorName: String
-    var body: String
-    var createdAt: Date
-}
-
-struct GymRequest: Identifiable, Codable, Hashable {
-    var id: UUID
-    var name: String
-    var city: String
-    var state: String
-    var requestedBy: UUID
-    var note: String
-    var createdAt: Date
-}
-
-struct WorkoutSetEntry: Identifiable, Codable, Hashable {
-    var id: UUID
-    var weight: Double?
-    var reps: Int?
-    var rpe: Int?
-}
-
-struct WorkoutPlan: Identifiable, Codable, Hashable {
-    var id: UUID
-    var name: String
-    var createdAt: Date
-    var goal: String = "Build strength and muscle"
-    var notes: String = ""
-    var isActive: Bool = true
-}
-
-struct WorkoutPhase: Identifiable, Codable, Hashable {
-    var id: UUID
-    var planID: UUID
-    var name: String
-    var order: Int
-    var goal: String
-    var durationWeeks: Int
-}
-
-struct WorkoutWeek: Identifiable, Codable, Hashable {
-    var id: UUID
-    var planID: UUID
-    var phaseID: UUID
-    var weekNumber: Int
-    var title: String
-    var notes: String
-}
-
-struct WorkoutSession: Identifiable, Codable, Hashable {
-    var id: UUID
-    var weekID: UUID
-    var day: String
-    var name: String
-    var order: Int
-    var notes: String
-}
-
-struct WorkoutExercisePrescription: Identifiable, Codable, Hashable {
-    var id: UUID
-    var sessionID: UUID
-    var exerciseID: String
-    var exerciseName: String
-    var bodyPart: String
-    var equipment: String
-    var sets: Int
-    var reps: String
-    var restSeconds: Int
-    var order: Int
-    var notes: String
-}
-
-struct WorkoutSetLog: Identifiable, Codable, Hashable {
-    var id: UUID
-    var prescriptionID: UUID
-    var performedAt: Date
-    var setNumber: Int
-    var weight: Double?
-    var reps: Int?
-    var rpe: Int?
-    var isWarmup: Bool
-    var isComplete: Bool
-
-    var volume: Double {
-        guard isComplete else { return 0 }
-        return (weight ?? 0) * Double(reps ?? 0)
-    }
-}
-
-struct WorkoutSummary: Identifiable, Hashable {
-    var id: UUID
-    var sessionID: UUID
-    var workoutName: String
-    var completedExercises: Int
-    var totalExercises: Int
-    var totalSets: Int
-    var totalVolume: Double
-    var bestSet: WorkoutSetLog?
-}
-
-struct WorkoutFeedback: Identifiable, Codable, Hashable {
-    var id: UUID
-    var sessionID: UUID
-    var completedAt: Date
-    var effort: Int
-    var notes: String
-}
-
-struct WorkoutExerciseEntry: Identifiable, Codable, Hashable {
-    var id: UUID
-    var planID: UUID
-    var week: Int
-    var date: Date
-    var day: String
-    var workout: String
-    var exercise: String
-    var muscleGroup: String
-    var targetSets: Int
-    var targetReps: String
-    var sets: [WorkoutSetEntry]
-    var isDone: Bool
-    var notes: String
-
-    var bestSet: WorkoutSetEntry? {
-        sets.max { ($0.weight ?? 0) < ($1.weight ?? 0) }
-    }
-
-    var volume: Double {
-        sets.reduce(0) { total, set in
-            total + ((set.weight ?? 0) * Double(set.reps ?? 0))
+    var title: String {
+        switch self {
+        case .barbellBenchPress: "Barbell Bench Press"
+        case .backSquat: "Back Squat"
+        case .conventionalDeadlift: "Conventional Deadlift"
+        case .sumoDeadlift: "Sumo Deadlift"
+        case .standingBarbellOverheadPress: "Standing Barbell Overhead Press"
+        case .dumbbellBenchPress: "Dumbbell Bench Press"
+        case .bentOverBarbellRow: "Bent-Over Barbell Row"
         }
     }
 
-    var estimatedMax: Double {
-        guard let bestSet, let weight = bestSet.weight else { return 0 }
-        return RankingCalculator.epleyOneRepMax(weight: weight, repetitions: bestSet.reps ?? 1)
+    var canonicalExerciseID: String {
+        switch self {
+        case .barbellBenchPress: "barbell-bench-press"
+        case .backSquat: "back-squat"
+        case .conventionalDeadlift: "conventional-deadlift"
+        case .sumoDeadlift: "sumo-deadlift"
+        case .standingBarbellOverheadPress: "standing-barbell-overhead-press"
+        case .dumbbellBenchPress: "dumbbell-bench-press"
+        case .bentOverBarbellRow: "barbell-row"
+        }
+    }
+
+    var recordsWeightPerHand: Bool { self == .dumbbellBenchPress }
+
+    static func resolve(exerciseID: String) -> CompetitiveMovement? {
+        switch exerciseID.lowercased().replacingOccurrences(of: "-", with: "_") {
+        case "bench", "barbell_bench_press", "flat_barbell_bench_press": .barbellBenchPress
+        case "squat", "back_squat": .backSquat
+        case "deadlift", "conventional_deadlift": .conventionalDeadlift
+        case "sumo_deadlift": .sumoDeadlift
+        case "press", "ohp", "barbell_overhead_press", "standing_barbell_overhead_press": .standingBarbellOverheadPress
+        case "dumbbell_bench_press", "flat_dumbbell_bench_press": .dumbbellBenchPress
+        case "barbell_row", "bent_over_barbell_row", "bentover_barbell_row": .bentOverBarbellRow
+        default: nil
+        }
     }
 }
 
-struct BodyweightEntry: Identifiable, Codable, Hashable {
-    var id: UUID
-    var week: Int
-    var targetDate: Date
-    var actual: Double?
-    var notes: String
-}
+enum LiftEvidenceStatus: String, Codable, CaseIterable, Identifiable {
+    case selfReported = "self_reported"
+    case videoBacked = "video_backed"
+    var id: String { rawValue }
 
-struct StrengthBalance: Hashable {
-    var score: Int
-    var label: String
-    var weakest: String
-    var volumes: [String: Double]
-}
-
-struct WorkoutDaySummary: Identifiable, Hashable {
-    var id: String { "\(day)-\(workout)" }
-    var day: String
-    var workout: String
-    var exercises: Int
-    var completed: Int
-}
-
-struct ActivityItem: Identifiable, Hashable {
-    let id: UUID
-    let profile: UserProfile
-    let title: String
-    let detail: String
-    var liftID: UUID? = nil
-    let createdAt: Date
-    var isLiked: Bool
-    var isSaved: Bool
-}
-
-struct ActivityComment: Identifiable, Hashable {
-    let id: UUID
-    let activityID: UUID
-    let authorID: UUID
-    let authorName: String
-    var body: String
-    let createdAt: Date
-}
-
-struct LeaderboardFilters: Hashable {
-    var exerciseID: String?
-    var rankingType: RankingType = .total
-    var repetitionCount: Int?
-    var sexCategory: SexCategory?
-    var ageGroup: String?
-    var weightClassID: String?
-    var experienceLevel: ExperienceLevel?
-    var gymID: UUID?
-    var city: String?
-    var state: String?
-    var country: String?
-    var verificationLevel: VerificationStatus?
-    var timeRange: String = "All time"
-}
-
-@Model
-final class PersistentLiftRecord {
-    var id: UUID
-    var exerciseID: String
-    var exerciseName: String
-    var weight: Double
-    var repetitions: Int
-    var performedAt: Date
-
-    init(id: UUID, exerciseID: String, exerciseName: String, weight: Double, repetitions: Int, performedAt: Date) {
-        self.id = id
-        self.exerciseID = exerciseID
-        self.exerciseName = exerciseName
-        self.weight = weight
-        self.repetitions = repetitions
-        self.performedAt = performedAt
+    var displayName: String {
+        switch self {
+        case .selfReported: "Self-reported"
+        case .videoBacked: "Video-backed"
+        }
     }
 }
 
-@Model
-final class PersistentSettings {
-    var id: UUID
-    var preferredUnitRawValue: String
-    var privateProfile: Bool
-    var hideBodyweight: Bool
-    var hideExactAge: Bool
-    var hideLocation: Bool
-    var allowComments: Bool
+enum LiftModerationStatus: String, Codable, CaseIterable, Identifiable {
+    case clear
+    case underReview = "under_review"
+    case replacementRequested = "replacement_requested"
+    case rejected
+    var id: String { rawValue }
+}
 
-    init() {
-        id = UUID()
-        preferredUnitRawValue = UnitSystem.pounds.rawValue
-        privateProfile = false
-        hideBodyweight = false
-        hideExactAge = false
-        hideLocation = false
-        allowComments = true
+enum LiftReportReason: String, Codable, CaseIterable, Identifiable {
+    case incorrectWeight = "Incorrect weight"
+    case mismatchedExercise = "Mismatched exercise"
+    case unusableVideo = "Unusable or edited video"
+    case depth = "Depth"
+    case rangeOfMotion = "Range of motion"
+    case lockout = "Lockout"
+    case harassment = "Harassment or bullying"
+    case hateSpeech = "Hate speech"
+    case sexualContent = "Nudity or sexual content"
+    case dangerousBehavior = "Violence or dangerous behavior"
+    case spam = "Spam or scam"
+    case other = "Other"
+    var id: String { rawValue }
+}
+
+enum ProfileReportReason: String, Codable, CaseIterable, Identifiable {
+    case harassment = "Harassment or bullying"
+    case hateSpeech = "Hate speech"
+    case sexualContent = "Nudity or sexual content"
+    case dangerousBehavior = "Violence or dangerous behavior"
+    case impersonation = "Impersonation"
+    case spam = "Spam or scam"
+    case other = "Other"
+    var id: String { rawValue }
+}
+
+enum CommunityContentPolicy {
+    static let rejectionMessage = "Remove abusive, hateful, sexual, or otherwise prohibited language before sharing."
+
+    private static let prohibitedTokens: Set<String> = [
+        "bitch", "cunt", "faggot", "fuck", "kike", "nigger", "porn", "shit", "spic"
+    ]
+
+    static func allows(_ values: String...) -> Bool {
+        values.allSatisfy { text in
+            let folded = text
+                .folding(options: [.diacriticInsensitive, .widthInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+                .lowercased()
+            let substitutions: [Character: Character] = [
+                "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "@": "a", "$": "s"
+            ]
+            let normalized = String(folded.map { substitutions[$0] ?? $0 })
+            let tokens = Set(normalized.split { !$0.isLetter && !$0.isNumber }.map(String.init))
+            return prohibitedTokens.isDisjoint(with: tokens)
+        }
     }
 }
 
-@Model
-final class PersistentWorkoutRecord {
-    var id: UUID
-    var exercise: String
-    var workout: String
-    var weight: Double
-    var reps: Int
-    var rpe: Int
-    var performedAt: Date
+enum LiftModeratorDecision: String, Codable, CaseIterable, Identifiable {
+    case uphold
+    case reject
+    case requestReplacement = "request_replacement"
+    var id: String { rawValue }
+}
 
-    init(id: UUID, exercise: String, workout: String, weight: Double, reps: Int, rpe: Int, performedAt: Date) {
-        self.id = id
-        self.exercise = exercise
-        self.workout = workout
-        self.weight = weight
-        self.reps = reps
-        self.rpe = rpe
-        self.performedAt = performedAt
-    }
+enum LiftVisibility: String, Codable, CaseIterable, Identifiable {
+    case publicLift = "Public"
+    case friendsLift = "Friends"
+    case privateLift = "Private"
+    var id: String { rawValue }
+}
+
+enum EquipmentType: String, Codable, CaseIterable, Identifiable {
+    case raw = "Raw"
+    case equipped = "Equipped"
+    var id: String { rawValue }
 }

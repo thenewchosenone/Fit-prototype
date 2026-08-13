@@ -3,15 +3,20 @@ import {
   type Dispatch,
   type PropsWithChildren,
   useContext,
+  useCallback,
   useEffect,
   useMemo,
-  useReducer
+  useReducer,
+  useRef,
+  useState
 } from "react";
 import { seedState } from "./data";
 import { calculateSummary, makeId, workoutDuration } from "./lib";
 import { nextLocalMidnight } from "./platform";
 import type {
   Comment,
+  CommunityReportReason,
+  CommunityVote,
   CommunityPost,
   Exercise,
   ExercisePrescription,
@@ -20,6 +25,7 @@ import type {
   TrackerState,
   UserProfile,
   WorkoutPlan,
+  WorkoutProgramTemplate,
   WorkoutSetLog
 } from "./types";
 
@@ -28,6 +34,7 @@ export const STORAGE_KEY = "liftrank-tracker-v2";
 export type TrackerAction =
   | { type: "SET_ACTIVE_PLAN"; planId: string }
   | { type: "CREATE_PLAN"; name: string; goal: string }
+  | { type: "INSTALL_PROGRAM_TEMPLATE"; template: WorkoutProgramTemplate }
   | { type: "RENAME_PLAN"; planId: string; name: string }
   | { type: "DUPLICATE_PLAN"; planId: string }
   | { type: "DELETE_PLAN"; planId: string }
@@ -50,9 +57,13 @@ export type TrackerAction =
   | { type: "PAUSE_WORKOUT" }
   | { type: "RESUME_WORKOUT" }
   | { type: "CANCEL_WORKOUT"; sessionId: string }
+  | { type: "MOVE_WORKOUT_EXERCISE"; prescriptionId: string; direction: "up" | "down" }
+  | { type: "SUBSTITUTE_WORKOUT_EXERCISE"; prescriptionId: string; exercise: Exercise }
+  | { type: "SET_WORKOUT_REST"; prescriptionId: string; seconds: number }
   | { type: "ENSURE_SET_LOGS"; prescriptionId: string; count: number }
   | { type: "UPDATE_SET"; logId: string; field: "weight" | "reps" | "rpe"; value: number | null }
   | { type: "TOGGLE_SET"; logId: string }
+  | { type: "AUTO_COMPLETE_SET"; logId: string }
   | { type: "ADD_SET"; prescriptionId: string }
   | { type: "DELETE_SET"; logId: string }
   | { type: "FINISH_WORKOUT"; sessionId: string }
@@ -63,10 +74,20 @@ export type TrackerAction =
   | { type: "JOIN_GYM"; gymId: string }
   | { type: "LEAVE_GYM"; gymId: string }
   | { type: "SUBMIT_LIFT"; lift: Omit<LiftSubmission, "id" | "submittedAt" | "leaderboardEligibleAt"> }
-  | { type: "CREATE_POST"; post: Omit<CommunityPost, "id" | "createdAt" | "likedBy" | "savedBy"> }
+  | { type: "CREATE_POST"; post: Omit<CommunityPost, "id" | "createdAt" | "likedBy" | "votes" | "savedBy" | "isLocked"> }
+  | { type: "JOIN_GROUP"; groupId: string }
+  | { type: "LEAVE_GROUP"; groupId: string }
+  | { type: "VOTE_POST"; postId: string; vote: CommunityVote }
+  | { type: "VOTE_COMMENT"; commentId: string; vote: CommunityVote }
   | { type: "TOGGLE_POST_LIKE"; postId: string }
   | { type: "TOGGLE_POST_SAVE"; postId: string }
-  | { type: "ADD_COMMENT"; comment: Omit<Comment, "id" | "createdAt" | "authorId"> }
+  | { type: "ADD_COMMENT"; comment: Omit<Comment, "id" | "createdAt" | "authorId" | "votes"> }
+  | { type: "EDIT_COMMENT"; commentId: string; body: string }
+  | { type: "DELETE_COMMENT"; commentId: string }
+  | { type: "REPORT_COMMUNITY"; targetType: "Post" | "Comment"; targetId: string; reason: CommunityReportReason; note?: string }
+  | { type: "MODERATE_POST"; postId: string; operation: "remove" | "restore" | "lock" | "unlock" | "warn"; reason?: string }
+  | { type: "RESOLVE_COMMUNITY_REPORT"; reportId: string }
+  | { type: "BAN_GROUP_USER"; groupId: string; userId: string; reason: string }
   | { type: "SEND_FRIEND_REQUEST"; recipientId: string }
   | { type: "RESPOND_FRIEND_REQUEST"; requestId: string; status: "Accepted" | "Declined" }
   | { type: "CANCEL_FRIEND_REQUEST"; requestId: string }
@@ -76,6 +97,7 @@ export type TrackerAction =
   | { type: "REPORT_MESSAGE"; messageId: string; reason: MessageReportReason; note: string }
   | { type: "MARK_NOTIFICATION_READ"; notificationId: string }
   | { type: "MARK_ALL_NOTIFICATIONS_READ" }
+  | { type: "HYDRATE_GYM_CATALOG"; gyms: TrackerState["gyms"] }
   | { type: "RESET_DEMO" };
 
 function cloneSeed(): TrackerState {
@@ -84,16 +106,83 @@ function cloneSeed(): TrackerState {
 
 export function loadTrackerState(storage: Pick<Storage, "getItem"> = localStorage): TrackerState {
   try {
+    const seed = cloneSeed();
     const raw = storage.getItem(STORAGE_KEY);
-    if (!raw) return cloneSeed();
+    if (!raw) return seed;
     const parsed = JSON.parse(raw) as Partial<TrackerState> & { version?: number };
-    if (![2, 3].includes(parsed.version ?? 0) || !Array.isArray(parsed.plans) || !Array.isArray(parsed.exercises)) {
-      return cloneSeed();
+    if (![2, 3, 4].includes(parsed.version ?? 0) || !Array.isArray(parsed.plans) || !Array.isArray(parsed.exercises)) {
+      return seed;
     }
-    return { ...cloneSeed(), ...parsed, version: 3 };
+    const joinedGymIds = Array.isArray(parsed.joinedGymIds)
+      ? parsed.joinedGymIds.slice(0, 3)
+      : seed.joinedGymIds;
+    const profiles = (parsed.profiles ?? seed.profiles).map((profile) => {
+      const fallback = seed.profiles.find((item) => item.id === profile.id) ?? seed.profiles[0];
+      return { ...fallback, ...profile };
+    });
+    const communityPosts = (parsed.communityPosts ?? seed.communityPosts).filter((post) => post.kind !== "Workout").map((post) => {
+      const legacySearch = `${post.id} ${post.title} ${post.body} ${(post.exerciseTags ?? []).join(" ")}`.toLowerCase();
+      const inferredGroupId = post.groupId && post.groupId !== "group-general-strength" ? post.groupId
+        : /post-1|post-2|powerlift|squat|bench|deadlift/.test(legacySearch) ? "group-powerlifting" : post.groupId ?? "group-general-strength";
+      return ({
+      ...post,
+      kind: post.kind === "PR" ? "Personal Record" as const : post.kind === "Lift" ? "Progress" as const : post.kind === "Gym" ? "Discussion" as const : post.kind,
+      groupId: inferredGroupId,
+      likedBy: post.likedBy ?? [],
+      votes: post.votes ?? Object.fromEntries((post.likedBy ?? []).map((id) => [id, 1])),
+      savedBy: post.savedBy ?? [], exerciseTags: post.exerciseTags ?? [], goalTags: post.goalTags ?? [], isLocked: post.isLocked ?? false
+    }); });
+    const comments = (parsed.comments ?? seed.comments).map((comment) => ({ ...comment, votes: comment.votes ?? {} }));
+    const liftSubmissions = (parsed.liftSubmissions ?? seed.liftSubmissions).map((lift) => ({
+      ...lift,
+      verification: (lift.verification as string) === "Moderator Verified" ? "Video Verified" as const : lift.verification
+    }));
+    const validGroupIds = new Set(seed.trainingGroups.map((group) => group.id));
+    const bundledExerciseIds = new Set(seed.exercises.map((exercise) => exercise.id));
+    const bundledExerciseNames = new Set(seed.exercises.map((exercise) => exercise.name.toLowerCase()));
+    const customExercises = (parsed.exercises ?? []).filter((exercise) =>
+      exercise.isCustom &&
+      !bundledExerciseIds.has(exercise.id) &&
+      !bundledExerciseNames.has(exercise.name.toLowerCase())
+    );
+    const activeWorkout = parsed.activeWorkout
+      ? {
+          ...parsed.activeWorkout,
+          exerciseOrder: parsed.activeWorkout.exerciseOrder ?? [],
+          exerciseOverrides: parsed.activeWorkout.exerciseOverrides ?? {},
+          restOverrides: parsed.activeWorkout.restOverrides ?? {}
+        }
+      : null;
+    return {
+      ...seed,
+      ...parsed,
+      version: 4,
+      // Directory records ship with the app and must not be replaced by an older
+      // localStorage snapshot. Membership IDs remain user-owned and are migrated above.
+      gyms: seed.gyms,
+      // The bundled catalog is application data. Persist only compatible
+      // user-created additions instead of allowing an old catalog snapshot
+      // to replace newly shipped exercises.
+      exercises: [...seed.exercises, ...customExercises],
+      joinedGymIds,
+      profiles,
+      liftSubmissions,
+      communityPosts,
+      comments,
+      activeWorkout,
+      trainingGroups: seed.trainingGroups,
+      joinedGroupIds: (parsed.joinedGroupIds ?? seed.joinedGroupIds).filter((id) => validGroupIds.has(id)),
+      communityReports: parsed.communityReports ?? [],
+      groupBans: parsed.groupBans ?? []
+    };
   } catch {
     return cloneSeed();
   }
+}
+
+export function serializeTrackerState(state: TrackerState): string {
+  const { gyms: _catalog, ...persistedState } = state;
+  return JSON.stringify(persistedState);
 }
 
 function planGraph(state: TrackerState, planId: string) {
@@ -151,6 +240,89 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
           ...state.weeks,
           { id: weekId, planId, phaseId, weekNumber: 1, title: "Week 1", notes: "" }
         ]
+      };
+    }
+
+    case "INSTALL_PROGRAM_TEMPLATE": {
+      const template = action.template;
+      const planId = makeId("plan");
+      const createdAt = new Date().toISOString();
+      const phaseDefinitions = [
+        { name: "Foundation", goal: "Build technique and work capacity" },
+        { name: "Progressive Overload", goal: "Add productive volume and load" },
+        { name: "Intensification", goal: "Practice heavier, high-quality work" }
+      ];
+      const phases = phaseDefinitions.map((phase, order) => ({
+        id: makeId("phase"),
+        planId,
+        name: phase.name,
+        order,
+        goal: phase.goal,
+        durationWeeks: 4
+      }));
+      const weeks = Array.from({ length: template.durationWeeks }, (_, index) => {
+        const weekNumber = index + 1;
+        const deload = [4, 8, 12].includes(weekNumber);
+        return {
+          id: makeId("week"),
+          planId,
+          phaseId: phases[Math.min(2, Math.floor(index / 4))].id,
+          weekNumber,
+          title: weekNumber === 12 ? "Week 12 · Recovery & Performance Check" : deload ? `Week ${weekNumber} · Deload` : `Week ${weekNumber}`,
+          notes: deload ? "Reduce working sets and keep technique crisp." : `${template.progressionMethod} progression week.`
+        };
+      });
+      const sessions: TrackerState["sessions"] = [];
+      const prescriptions: ExercisePrescription[] = [];
+      weeks.forEach((week) => {
+        const deload = [4, 8, 12].includes(week.weekNumber);
+        template.sessions.forEach((sessionTemplate, sessionOrder) => {
+          const sessionId = makeId("session");
+          sessions.push({
+            id: sessionId,
+            weekId: week.id,
+            day: sessionTemplate.day,
+            name: sessionTemplate.name,
+            order: sessionOrder,
+            notes: deload ? "Deload session: use conservative loads and leave at least four reps in reserve." : ""
+          });
+          sessionTemplate.exercises.forEach((exerciseTemplate, exerciseOrder) => {
+            const exercise = state.exercises.find((item) => item.id === exerciseTemplate.exerciseId);
+            if (!exercise) return;
+            prescriptions.push({
+              id: makeId("rx"),
+              sessionId,
+              exerciseId: exercise.id,
+              exerciseName: exercise.name,
+              bodyPart: exercise.bodyPart,
+              equipment: exercise.equipment,
+              sets: deload ? Math.max(1, Math.round(exerciseTemplate.sets * 0.55)) : exerciseTemplate.sets,
+              reps: exerciseTemplate.reps,
+              restSeconds: exerciseTemplate.restSeconds,
+              order: exerciseOrder,
+              notes: exerciseTemplate.notes ?? ""
+            });
+          });
+        });
+      });
+      const plan: WorkoutPlan = {
+        id: planId,
+        name: template.name,
+        goal: template.summary,
+        notes: `${template.category} · ${template.level} · ${template.daysPerWeek} days/week · ${template.progressionMethod}`,
+        createdAt,
+        isActive: true,
+        sourceTemplateId: template.id,
+        sourceTemplateVersion: template.version
+      };
+      return {
+        ...state,
+        activePlanId: planId,
+        plans: [...state.plans.map((item) => ({ ...item, isActive: false })), plan],
+        phases: [...state.phases, ...phases],
+        weeks: [...state.weeks, ...weeks],
+        sessions: [...state.sessions, ...sessions],
+        prescriptions: [...state.prescriptions, ...prescriptions]
       };
     }
 
@@ -334,31 +506,66 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
         order: state.prescriptions.filter((item) => item.sessionId === action.sessionId).length,
         notes: ""
       };
-      return { ...state, prescriptions: [...state.prescriptions, prescription] };
+      const activeWorkout = state.activeWorkout?.sessionId === action.sessionId
+        ? { ...state.activeWorkout, exerciseOrder: [...state.activeWorkout.exerciseOrder, prescription.id] }
+        : state.activeWorkout;
+      return { ...state, prescriptions: [...state.prescriptions, prescription], activeWorkout };
     }
 
-    case "DELETE_PRESCRIPTION":
+    case "DELETE_PRESCRIPTION": {
+      const { [action.prescriptionId]: _exercise, ...exerciseOverrides } = state.activeWorkout?.exerciseOverrides ?? {};
+      const { [action.prescriptionId]: _rest, ...restOverrides } = state.activeWorkout?.restOverrides ?? {};
       return {
         ...state,
         prescriptions: state.prescriptions.filter((item) => item.id !== action.prescriptionId),
-        setLogs: state.setLogs.filter((item) => item.prescriptionId !== action.prescriptionId)
+        setLogs: state.setLogs.filter((item) => item.prescriptionId !== action.prescriptionId),
+        activeWorkout: state.activeWorkout ? {
+          ...state.activeWorkout,
+          exerciseOrder: state.activeWorkout.exerciseOrder.filter((id) => id !== action.prescriptionId),
+          exerciseOverrides,
+          restOverrides
+        } : null
       };
+    }
 
     case "ADD_EXERCISE":
       return state.exercises.some((item) => item.name.toLowerCase() === action.exercise.name.toLowerCase())
         ? state
         : { ...state, exercises: [...state.exercises, action.exercise] };
 
-    case "START_WORKOUT":
+    case "START_WORKOUT": {
+      const prescriptions = state.prescriptions.filter((item) => item.sessionId === action.sessionId);
+      const additions: WorkoutSetLog[] = [];
+      prescriptions.forEach((prescription) => {
+        const existing = state.setLogs.filter((log) => log.prescriptionId === prescription.id);
+        for (let index = existing.length; index < prescription.sets; index += 1) {
+          additions.push({
+            id: makeId("set"),
+            prescriptionId: prescription.id,
+            setNumber: index + 1,
+            weight: null,
+            reps: null,
+            rpe: null,
+            isWarmup: false,
+            isComplete: false,
+            performedAt: new Date().toISOString()
+          });
+        }
+      });
       return {
         ...state,
+        setLogs: additions.length ? [...state.setLogs, ...additions] : state.setLogs,
         activeWorkout: {
           sessionId: action.sessionId,
           startedAt: new Date().toISOString(),
           pausedAt: null,
-          pausedSeconds: 0
+          pausedSeconds: 0,
+          exerciseOrder: prescriptions.sort((a, b) => a.order - b.order).map((item) => item.id),
+          exerciseOverrides: {},
+          restOverrides: {}
         }
       };
+    }
 
     case "PAUSE_WORKOUT":
       return state.activeWorkout && !state.activeWorkout.pausedAt
@@ -391,6 +598,60 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
         setLogs: state.setLogs.filter((log) => !prescriptionIds.has(log.prescriptionId))
       };
       return session?.isFreestyle ? removeSessionGraph(cleared, action.sessionId) : cleared;
+    }
+
+    case "MOVE_WORKOUT_EXERCISE": {
+      if (!state.activeWorkout) return state;
+      const sessionPrescriptions = state.prescriptions
+        .filter((item) => item.sessionId === state.activeWorkout?.sessionId)
+        .sort((a, b) => a.order - b.order);
+      const order = state.activeWorkout.exerciseOrder.length
+        ? [...state.activeWorkout.exerciseOrder]
+        : sessionPrescriptions.map((item) => item.id);
+      const index = order.indexOf(action.prescriptionId);
+      const nextIndex = action.direction === "up" ? index - 1 : index + 1;
+      if (index < 0 || nextIndex < 0 || nextIndex >= order.length) return state;
+      [order[index], order[nextIndex]] = [order[nextIndex], order[index]];
+      return { ...state, activeWorkout: { ...state.activeWorkout, exerciseOrder: order } };
+    }
+
+    case "SUBSTITUTE_WORKOUT_EXERCISE": {
+      if (!state.activeWorkout) return state;
+      const prescription = state.prescriptions.find((item) => item.id === action.prescriptionId);
+      if (!prescription || prescription.sessionId !== state.activeWorkout.sessionId) return state;
+      const existing = state.activeWorkout.exerciseOverrides[action.prescriptionId];
+      if (action.exercise.id === (existing?.originalExerciseId ?? prescription.exerciseId)) {
+        const { [action.prescriptionId]: _removed, ...exerciseOverrides } = state.activeWorkout.exerciseOverrides;
+        return { ...state, activeWorkout: { ...state.activeWorkout, exerciseOverrides } };
+      }
+      return {
+        ...state,
+        activeWorkout: {
+          ...state.activeWorkout,
+          exerciseOverrides: {
+            ...state.activeWorkout.exerciseOverrides,
+            [action.prescriptionId]: {
+              originalExerciseId: existing?.originalExerciseId ?? prescription.exerciseId,
+              originalExerciseName: existing?.originalExerciseName ?? prescription.exerciseName,
+              exerciseId: action.exercise.id,
+              exerciseName: action.exercise.name,
+              bodyPart: action.exercise.bodyPart,
+              equipment: action.exercise.equipment,
+              substitutedAt: new Date().toISOString()
+            }
+          }
+        }
+      };
+    }
+
+    case "SET_WORKOUT_REST": {
+      if (!state.activeWorkout || !Number.isFinite(action.seconds)) return state;
+      const prescription = state.prescriptions.find((item) => item.id === action.prescriptionId);
+      if (!prescription || prescription.sessionId !== state.activeWorkout.sessionId) return state;
+      const restOverrides = { ...state.activeWorkout.restOverrides };
+      if (action.seconds === prescription.restSeconds) delete restOverrides[action.prescriptionId];
+      else restOverrides[action.prescriptionId] = Math.min(600, Math.max(15, Math.round(action.seconds)));
+      return { ...state, activeWorkout: { ...state.activeWorkout, restOverrides } };
     }
 
     case "ENSURE_SET_LOGS": {
@@ -428,6 +689,33 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
         })
       };
 
+    case "AUTO_COMPLETE_SET": {
+      const target = state.setLogs.find((log) => log.id === action.logId);
+      const prescription = target && state.prescriptions.find((item) => item.id === target.prescriptionId);
+      if (!target || !prescription || target.isComplete) return state;
+      const exerciseId = state.activeWorkout?.exerciseOverrides[prescription.id]?.exerciseId ?? prescription.exerciseId;
+      const previous = state.completedWorkouts
+        .flatMap((workout) => workout.setLogs.map((log) => ({
+          log,
+          completedAt: workout.completedAt,
+          exerciseId: workout.prescriptions.find((item) => item.id === log.prescriptionId)?.exerciseId
+        })))
+        .filter((item) => item.exerciseId === exerciseId && item.log.setNumber === target.setNumber && item.log.isComplete)
+        .sort((a, b) => b.completedAt.localeCompare(a.completedAt))[0]?.log;
+      if (!previous || previous.weight === null || previous.reps === null) return state;
+      return {
+        ...state,
+        setLogs: state.setLogs.map((log) => log.id === action.logId ? {
+          ...log,
+          weight: previous.weight,
+          reps: previous.reps,
+          rpe: previous.rpe,
+          isComplete: true,
+          performedAt: new Date().toISOString()
+        } : log)
+      };
+    }
+
     case "ADD_SET": {
       const count = state.setLogs.filter((log) => log.prescriptionId === action.prescriptionId).length;
       const log: WorkoutSetLog = {
@@ -463,7 +751,26 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
       const session = state.sessions.find((item) => item.id === action.sessionId);
       const week = session && state.weeks.find((item) => item.id === session.weekId);
       if (!session || !week) return state;
-      const prescriptions = state.prescriptions.filter((item) => item.sessionId === session.id);
+      const basePrescriptions = state.prescriptions.filter((item) => item.sessionId === session.id);
+      const active = state.activeWorkout?.sessionId === session.id ? state.activeWorkout : null;
+      const order = active?.exerciseOrder.length ? active.exerciseOrder : basePrescriptions.sort((a, b) => a.order - b.order).map((item) => item.id);
+      const prescriptions = [...basePrescriptions]
+        .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))
+        .map((item, index) => {
+          const override = active?.exerciseOverrides[item.id];
+          return {
+            ...item,
+            ...(override ? {
+              exerciseId: override.exerciseId,
+              exerciseName: override.exerciseName,
+              bodyPart: override.bodyPart,
+              equipment: override.equipment,
+              notes: [item.notes, `Substituted for ${override.originalExerciseName}`].filter(Boolean).join(" · ")
+            } : {}),
+            restSeconds: active?.restOverrides[item.id] ?? item.restSeconds,
+            order: index
+          };
+        });
       const ids = new Set(prescriptions.map((item) => item.id));
       const setLogs = state.setLogs.filter((item) => ids.has(item.prescriptionId) && item.isComplete);
       const summary = calculateSummary(prescriptions, setLogs);
@@ -482,7 +789,16 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
       return {
         ...state,
         activeWorkout: null,
-        completedWorkouts: [completed, ...state.completedWorkouts]
+        completedWorkouts: [completed, ...state.completedWorkouts],
+        notifications: state.completedWorkouts.length === 0 ? [{
+          id: makeId("notification"),
+          title: "Achievement unlocked",
+          body: "First workout is now unlocked.",
+          kind: "Achievement",
+          target: "/profile",
+          createdAt: completed.completedAt,
+          isRead: false
+        }, ...state.notifications] : state.notifications
       };
     }
 
@@ -552,14 +868,20 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
       const post: CommunityPost | null = lift.visibility === "Public" ? {
         id: makeId("post"),
         authorId: state.currentUserId,
-        kind: "Lift",
+        kind: "Progress",
+        groupId: "group-general-strength",
         title: `${lift.exerciseName} submitted`,
         body: lift.caption || `${lift.weight} ${lift.unit} for ${lift.reps} rep${lift.reps === 1 ? "" : "s"}.`,
         createdAt: now,
         linkedLiftId: lift.id,
         gymId: lift.gymId,
         likedBy: [],
-        savedBy: []
+        votes: {},
+        savedBy: [],
+        exerciseTags: [lift.exerciseName],
+        goalTags: ["Strength"],
+        trainingDetails: { exercise: lift.exerciseName, reps: lift.reps, weight: lift.weight, unit: lift.unit },
+        isLocked: false
       } : null;
       return {
         ...state,
@@ -578,6 +900,7 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
     }
 
     case "CREATE_POST":
+      if (state.groupBans.some((ban) => ban.groupId === action.post.groupId && ban.userId === state.currentUserId)) return state;
       return {
         ...state,
         communityPosts: [{
@@ -585,17 +908,35 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
           id: makeId("post"),
           createdAt: new Date().toISOString(),
           likedBy: [],
-          savedBy: []
+          votes: {},
+          savedBy: [],
+          isLocked: false
         }, ...state.communityPosts]
       };
+
+    case "JOIN_GROUP":
+      if (!state.trainingGroups.some((group) => group.id === action.groupId) || state.joinedGroupIds.includes(action.groupId)) return state;
+      return { ...state, joinedGroupIds: [...state.joinedGroupIds, action.groupId], trainingGroups: state.trainingGroups.map((group) => group.id === action.groupId ? { ...group, memberIds: [...new Set([...group.memberIds, state.currentUserId])] } : group) };
+
+    case "LEAVE_GROUP":
+      return { ...state, joinedGroupIds: state.joinedGroupIds.filter((id) => id !== action.groupId), trainingGroups: state.trainingGroups.map((group) => group.id === action.groupId ? { ...group, memberIds: group.memberIds.filter((id) => id !== state.currentUserId) } : group) };
+
+    case "VOTE_POST":
+      return { ...state, communityPosts: state.communityPosts.map((post) => {
+        if (post.id !== action.postId) return post;
+        const votes = { ...post.votes };
+        if (votes[state.currentUserId] === action.vote) delete votes[state.currentUserId]; else votes[state.currentUserId] = action.vote;
+        return { ...post, votes, likedBy: Object.entries(votes).filter(([, vote]) => vote === 1).map(([id]) => id) };
+      }) };
 
     case "TOGGLE_POST_LIKE":
       return {
         ...state,
         communityPosts: state.communityPosts.map((post) => {
           if (post.id !== action.postId) return post;
-          const liked = post.likedBy.includes(state.currentUserId);
-          return { ...post, likedBy: liked ? post.likedBy.filter((id) => id !== state.currentUserId) : [...post.likedBy, state.currentUserId] };
+          const votes = { ...post.votes };
+          if (votes[state.currentUserId] === 1) delete votes[state.currentUserId]; else votes[state.currentUserId] = 1;
+          return { ...post, votes, likedBy: Object.entries(votes).filter(([, vote]) => vote === 1).map(([id]) => id) };
         })
       };
 
@@ -609,16 +950,39 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
         })
       };
 
-    case "ADD_COMMENT":
+    case "ADD_COMMENT": {
+      const post = state.communityPosts.find((item) => item.id === action.comment.postId);
+      if (!post || post.isLocked || post.removedAt || state.groupBans.some((ban) => ban.groupId === post.groupId && ban.userId === state.currentUserId)) return state;
       return {
         ...state,
         comments: [...state.comments, {
           ...action.comment,
           id: makeId("comment"),
           authorId: state.currentUserId,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          votes: {}
         }]
       };
+    }
+
+    case "VOTE_COMMENT":
+      return { ...state, comments: state.comments.map((comment) => { if (comment.id !== action.commentId) return comment; const votes = { ...comment.votes }; if (votes[state.currentUserId] === action.vote) delete votes[state.currentUserId]; else votes[state.currentUserId] = action.vote; return { ...comment, votes }; }) };
+
+    case "EDIT_COMMENT":
+      return { ...state, comments: state.comments.map((comment) => comment.id === action.commentId && comment.authorId === state.currentUserId && !comment.deletedAt ? { ...comment, body: action.body.trim(), editedAt: new Date().toISOString() } : comment) };
+
+    case "DELETE_COMMENT":
+      return { ...state, comments: state.comments.map((comment) => comment.id === action.commentId && comment.authorId === state.currentUserId ? { ...comment, body: "", deletedAt: new Date().toISOString() } : comment) };
+
+    case "REPORT_COMMUNITY":
+      if (state.communityReports.some((report) => report.reporterId === state.currentUserId && report.targetType === action.targetType && report.targetId === action.targetId && report.status === "Open")) return state;
+      return { ...state, communityReports: [...state.communityReports, { id: makeId("community-report"), targetType: action.targetType, targetId: action.targetId, reporterId: state.currentUserId, reason: action.reason, note: action.note?.trim() ?? "", status: "Open", createdAt: new Date().toISOString() }] };
+
+    case "MODERATE_POST": { const profile = state.profiles.find((item) => item.id === state.currentUserId); const post = state.communityPosts.find((item) => item.id === action.postId); const group = state.trainingGroups.find((item) => item.id === post?.groupId); if (!post || !profile || (profile.role !== "Admin" && !(profile.role === "Moderator" && group?.moderatorIds.includes(profile.id)))) return state; return { ...state, communityPosts: state.communityPosts.map((item) => item.id !== post.id ? item : action.operation === "remove" ? { ...item, removedAt: new Date().toISOString(), removalReason: action.reason ?? "Removed by a moderator" } : action.operation === "restore" ? { ...item, removedAt: undefined, removalReason: undefined } : action.operation === "lock" ? { ...item, isLocked: true } : action.operation === "unlock" ? { ...item, isLocked: false } : { ...item, warning: action.reason ?? "Moderator warning" }) }; }
+
+    case "RESOLVE_COMMUNITY_REPORT": { const profile = state.profiles.find((item) => item.id === state.currentUserId); if (!profile || profile.role === "Member") return state; return { ...state, communityReports: state.communityReports.map((report) => report.id === action.reportId ? { ...report, status: "Resolved" } : report) }; }
+
+    case "BAN_GROUP_USER": { const profile = state.profiles.find((item) => item.id === state.currentUserId); const group = state.trainingGroups.find((item) => item.id === action.groupId); if (!profile || profile.role === "Member" || (profile.role === "Moderator" && !group?.moderatorIds.includes(profile.id))) return state; if (state.groupBans.some((ban) => ban.groupId === action.groupId && ban.userId === action.userId)) return state; return { ...state, groupBans: [...state.groupBans, { id: makeId("ban"), groupId: action.groupId, userId: action.userId, moderatorId: state.currentUserId, reason: action.reason, createdAt: new Date().toISOString() }] }; }
 
     case "SEND_FRIEND_REQUEST":
       if (action.recipientId === state.currentUserId || state.friendRequests.some((request) =>
@@ -694,26 +1058,60 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
     case "MARK_ALL_NOTIFICATIONS_READ":
       return { ...state, notifications: state.notifications.map((notification) => ({ ...notification, isRead: true })) };
 
+    case "HYDRATE_GYM_CATALOG": {
+      const validGymIds = new Set(action.gyms.map((gym) => gym.id));
+      return {
+        ...state,
+        gyms: action.gyms,
+        joinedGymIds: state.joinedGymIds.filter((gymId) => validGymIds.has(gymId))
+      };
+    }
+
     case "RESET_DEMO":
-      return cloneSeed();
+      return state.gyms.length > 20 ? { ...cloneSeed(), gyms: state.gyms } : cloneSeed();
   }
 }
 
 interface StoreValue {
   state: TrackerState;
   dispatch: Dispatch<TrackerAction>;
+  gymCatalogStatus: "idle" | "loading" | "ready" | "error";
+  gymCatalogError: string | null;
+  ensureGymCatalog(): Promise<void>;
 }
 
 const TrackerContext = createContext<StoreValue | null>(null);
 
 export function TrackerProvider({ children, initialState }: PropsWithChildren<{ initialState?: TrackerState }>) {
   const [state, dispatch] = useReducer(trackerReducer, initialState ?? loadTrackerState());
+  const [gymCatalogStatus, setGymCatalogStatus] = useState<StoreValue["gymCatalogStatus"]>(state.gyms.length > 20 ? "ready" : "idle");
+  const [gymCatalogError, setGymCatalogError] = useState<string | null>(null);
+  const gymCatalogRequest = useRef<Promise<void> | null>(null);
+
+  const ensureGymCatalog = useCallback(() => {
+    if (gymCatalogStatus === "ready") return Promise.resolve();
+    if (gymCatalogRequest.current) return gymCatalogRequest.current;
+    setGymCatalogStatus("loading");
+    setGymCatalogError(null);
+    gymCatalogRequest.current = import("./gymCatalog")
+      .then(({ loadGymCatalog }) => loadGymCatalog())
+      .then((gyms) => {
+        dispatch({ type: "HYDRATE_GYM_CATALOG", gyms });
+        setGymCatalogStatus("ready");
+      })
+      .catch((error: unknown) => {
+        gymCatalogRequest.current = null;
+        setGymCatalogStatus("error");
+        setGymCatalogError(error instanceof Error ? error.message : "Unable to load the gym directory.");
+      });
+    return gymCatalogRequest.current;
+  }, [gymCatalogStatus]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY, serializeTrackerState(state));
   }, [state]);
 
-  const value = useMemo(() => ({ state, dispatch }), [state]);
+  const value = useMemo(() => ({ state, dispatch, gymCatalogStatus, gymCatalogError, ensureGymCatalog }), [ensureGymCatalog, gymCatalogError, gymCatalogStatus, state]);
   return <TrackerContext.Provider value={value}>{children}</TrackerContext.Provider>;
 }
 

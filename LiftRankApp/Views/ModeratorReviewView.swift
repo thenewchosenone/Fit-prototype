@@ -18,22 +18,22 @@ struct ModeratorReviewView: View {
     ]
 
     private var pending: [LiftSubmission] {
-        appState.lifts.filter { $0.verificationStatus == .videoSubmitted || $0.verificationStatus == .selfReported }
+        appState.pendingReviewLifts
     }
 
     var body: some View {
         NavigationStack {
             AppBackground {
-                ScrollView {
-                    VStack(spacing: 14) {
-                        ForEach(pending.prefix(12)) { lift in
-                            reviewCard(lift)
+                VStack(spacing: 0) {
+                    ScrollView {
+                        VStack(spacing: 14) {
+                            ForEach(pending.prefix(12)) { lift in reviewCard(lift) }
+                            if pending.isEmpty {
+                                ContentUnavailableView("No pending lifts", systemImage: "checkmark.seal.fill", description: Text("All demo submissions have been reviewed."))
+                            }
                         }
-                        if pending.isEmpty {
-                            ContentUnavailableView("No pending lifts", systemImage: "checkmark.seal.fill", description: Text("All demo submissions have been reviewed."))
-                        }
+                        .padding()
                     }
-                    .padding()
                 }
             }
             .navigationTitle("Moderator Review")
@@ -52,11 +52,11 @@ struct ModeratorReviewView: View {
                     VStack(alignment: .leading) {
                         Text(lift.exerciseName)
                             .font(.headline)
-                        Text("\(RankingCalculator.format(lift.weight)) \(lift.unit.shortLabel) x \(lift.repetitions) - \(RankingCalculator.format(lift.estimatedOneRepMax)) lb max")
+                        Text("\(MeasurementFormatting.recordedLiftSetTextWithX(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions)) - \(MeasurementFormatting.formatWeight(lift.estimatedOneRepMax)) lb max")
                             .foregroundStyle(Color.liftMuted)
                     }
                     Spacer()
-                    VerificationBadge(status: lift.verificationStatus)
+                    VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus)
                 }
                 ZStack {
                     RoundedRectangle(cornerRadius: 8)
@@ -81,7 +81,7 @@ struct ModeratorReviewView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 HStack {
                     Button("Approve") {
-                        appState.updateVerification(lift, status: .moderatorVerified, note: note.isEmpty ? "Approved by moderator." : note)
+                        appState.updateVerification(lift, status: .videoVerified, note: note.isEmpty ? "Video evidence approved." : note)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Color.liftGreen)

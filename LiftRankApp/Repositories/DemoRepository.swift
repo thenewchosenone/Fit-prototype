@@ -3,49 +3,66 @@ import Combine
 
 @MainActor
 final class DemoRepository: ObservableObject {
+    private static let personalWorkoutDemoMarker = "[demo:private-history-v1]"
+    private static let suppressPersonalWorkoutDemoHistoryKey = "liftrank.suppressPersonalWorkoutDemoHistory"
+
     @Published var currentProfile: UserProfile
     @Published var profiles: [UserProfile]
     @Published var gyms: [Gym]
     @Published var joinedGymIDs: Set<UUID>
-    @Published var lifts: [LiftSubmission]
+    @Published var lifts: [LiftSubmission] { didSet { liftsRevision &+= 1 } }
     @Published var challenges: [Challenge]
     @Published var achievements: [Achievement]
-    @Published var activities: [ActivityItem]
-    @Published var activityComments: [ActivityComment]
-    @Published var notifications: [NotificationItem]
+    @Published var notifications: [NotificationItem] { didSet { notificationsRevision &+= 1 } }
     @Published var workoutPlans: [WorkoutPlan]
     @Published var workoutPhases: [WorkoutPhase]
     @Published var workoutWeeks: [WorkoutWeek]
     @Published var workoutSessions: [WorkoutSession]
     @Published var workoutPrescriptions: [WorkoutExercisePrescription]
-    @Published var workoutSetLogs: [WorkoutSetLog]
+    @Published var workoutSetLogs: [WorkoutSetLog] { didSet { workoutSetLogsRevision &+= 1 } }
     @Published var workoutFeedback: [WorkoutFeedback]
     @Published var customTrainingExercises: [TrainingExerciseCatalogItem]
     @Published var workoutEntries: [WorkoutExerciseEntry]
     @Published var bodyweightEntries: [BodyweightEntry]
-    @Published var communityThreads: [CommunityThread]
-    @Published var communityThreadReplies: [CommunityThreadReply]
-    @Published var likedCommunityThreadIDs: Set<UUID>
+    @Published var strainEntries: [StrainEntry]
+    @Published var injuryEntries: [InjuryEntry]
+    @Published var activeWorkout: ActiveWorkoutState?
+    @Published var completedWorkouts: [CompletedWorkout] { didSet { completedWorkoutsRevision &+= 1 } }
+    @Published var pendingWorkoutPRSubmissions: [PendingWorkoutPRSubmission]
+    @Published var pendingCompletedWorkoutUploads: [CompletedWorkoutSnapshot]
+    @Published var deletedCompletedWorkoutIDs: Set<UUID>
+    @Published var workoutPlanSyncRevisions: [UUID: Int]
+    @Published var workoutPlanLastSyncedPayloads: [UUID: Data]
+    @Published var pendingRemoteWorkoutPlanDeletions: Set<UUID>
+    @Published var workoutPreferences: WorkoutPreferences
+    @Published var workoutPlanProgressionSettings: [WorkoutPlanProgressionSettings]
     @Published var gymRequests: [GymRequest]
-    @Published var friendRequests: [FriendRequest]
-    @Published var messageThreads: [DirectMessageThread]
-    @Published var directMessages: [DirectMessage]
-    @Published var messageReports: [MessageReport]
+    @Published var achievementUnlocks: [AchievementUnlock]
+    @Published var rankingHistory: [RankingHistorySnapshot]
+    private let workoutPersistenceStore: WorkoutPersistenceStore
+    private var persistenceCancellables = Set<AnyCancellable>()
+    private var pendingPersistenceTask: Task<Void, Never>?
+    private var isRestoringWorkoutSnapshot = false
+    private var isUITesting: Bool {
+        ProcessInfo.processInfo.arguments.contains { $0.hasPrefix("-uiTesting") }
+    }
+    private(set) var liftsRevision = 0
+    private(set) var workoutSetLogsRevision = 0
+    private(set) var notificationsRevision = 0
+    private(set) var completedWorkoutsRevision = 0
 
-    init() {
-        let seeded = MockData.community()
-        let social = MockData.social(profiles: seeded.profiles)
-        let seededThreads = MockData.communityThreads(for: MockData.challenges)
-        currentProfile = MockData.demoProfile
-        profiles = seeded.profiles
-        gyms = MockData.gyms
-        joinedGymIDs = [MockData.demoGymID]
-        lifts = seeded.lifts
-        challenges = MockData.challenges
+    init(
+        workoutPersistenceStore: WorkoutPersistenceStore? = nil
+    ) {
+        self.workoutPersistenceStore = workoutPersistenceStore ?? InMemoryWorkoutPersistenceStore()
+        currentProfile = MockData.emptyProfile
+        profiles = []
+        gyms = []
+        joinedGymIDs = []
+        lifts = []
+        challenges = []
         achievements = MockData.achievements
-        activities = seeded.activities
-        activityComments = Self.seedActivityComments(for: seeded.activities, profiles: seeded.profiles)
-        workoutPlans = MockData.workoutPlans
+        workoutPlans = []
         workoutPhases = []
         workoutWeeks = []
         workoutSessions = []
@@ -53,38 +70,39 @@ final class DemoRepository: ObservableObject {
         workoutSetLogs = []
         workoutFeedback = []
         customTrainingExercises = []
-        workoutEntries = MockData.workoutEntries
-        bodyweightEntries = MockData.bodyweightEntries
-        communityThreads = seededThreads
-        communityThreadReplies = Self.seedThreadReplies(for: seededThreads, profiles: seeded.profiles)
-        likedCommunityThreadIDs = []
+        workoutEntries = []
+        bodyweightEntries = []
+        strainEntries = []
+        injuryEntries = []
+        activeWorkout = nil
+        completedWorkouts = []
+        pendingWorkoutPRSubmissions = []
+        pendingCompletedWorkoutUploads = []
+        deletedCompletedWorkoutIDs = []
+        workoutPlanSyncRevisions = [:]
+        workoutPlanLastSyncedPayloads = [:]
+        pendingRemoteWorkoutPlanDeletions = []
+        workoutPreferences = WorkoutPreferences()
+        workoutPlanProgressionSettings = []
         gymRequests = []
-        friendRequests = social.friendRequests
-        messageThreads = social.messageThreads
-        directMessages = social.messages
-        messageReports = []
-        notifications = [
-            NotificationItem(id: UUID(), title: "Deadlift approved", message: "Your 495 lb deadlift is competition verified.", kind: "Lift approved", createdAt: .now, isRead: false),
-            NotificationItem(id: UUID(), title: "Ranking increased", message: "You moved up three spots at Crunch Fitness - South Beach.", kind: "Ranking increased", createdAt: .now, isRead: false),
-            NotificationItem(id: UUID(), title: "Achievement earned", message: "2x Bodyweight Deadlift unlocked.", kind: "Achievement earned", createdAt: .now, isRead: true)
-        ]
+        achievementUnlocks = []
+        rankingHistory = []
+        notifications = []
         rebuildProgramBuilderDataFromEntries()
+        restoreWorkoutSnapshotOrImportLegacy()
+        bindWorkoutPersistence()
+        persistWorkoutSnapshot()
     }
 
     func reset() {
-        let seeded = MockData.community()
-        let social = MockData.social(profiles: seeded.profiles)
-        let seededThreads = MockData.communityThreads(for: MockData.challenges)
-        currentProfile = MockData.demoProfile
-        profiles = seeded.profiles
-        gyms = MockData.gyms
-        joinedGymIDs = [MockData.demoGymID]
-        lifts = seeded.lifts
-        challenges = MockData.challenges
+        currentProfile = MockData.emptyProfile
+        profiles = []
+        gyms = []
+        joinedGymIDs = []
+        lifts = []
+        challenges = []
         achievements = MockData.achievements
-        activities = seeded.activities
-        activityComments = Self.seedActivityComments(for: seeded.activities, profiles: seeded.profiles)
-        workoutPlans = MockData.workoutPlans
+        workoutPlans = []
         workoutPhases = []
         workoutWeeks = []
         workoutSessions = []
@@ -92,637 +110,440 @@ final class DemoRepository: ObservableObject {
         workoutSetLogs = []
         workoutFeedback = []
         customTrainingExercises = []
-        workoutEntries = MockData.workoutEntries
-        bodyweightEntries = MockData.bodyweightEntries
-        communityThreads = seededThreads
-        communityThreadReplies = Self.seedThreadReplies(for: seededThreads, profiles: seeded.profiles)
-        likedCommunityThreadIDs = []
+        workoutEntries = []
+        bodyweightEntries = []
+        strainEntries = []
+        injuryEntries = []
+        activeWorkout = nil
+        completedWorkouts = []
+        pendingWorkoutPRSubmissions = []
+        pendingCompletedWorkoutUploads = []
+        deletedCompletedWorkoutIDs = []
+        workoutPlanSyncRevisions = [:]
+        workoutPlanLastSyncedPayloads = [:]
+        pendingRemoteWorkoutPlanDeletions = []
+        workoutPreferences = WorkoutPreferences()
+        workoutPlanProgressionSettings = []
         gymRequests = []
-        friendRequests = social.friendRequests
-        messageThreads = social.messageThreads
-        directMessages = social.messages
-        messageReports = []
+        achievementUnlocks = []
+        rankingHistory = []
         rebuildProgramBuilderDataFromEntries()
+        workoutPersistenceStore.reset()
+        refreshAchievementUnlocks()
+        persistWorkoutSnapshot()
     }
 
-    private static func seedActivityComments(for activities: [ActivityItem], profiles: [UserProfile]) -> [ActivityComment] {
-        guard !activities.isEmpty else { return [] }
-        let commenters = Array(profiles.dropFirst().prefix(5))
-        guard !commenters.isEmpty else { return [] }
-        let commentTemplates = [
-            "Clean rep. What was your warmup progression?",
-            "That moved fast for a max attempt.",
-            "Strong lift. Depth and control looked solid.",
-            "Nice work. Are you running this as part of a plan?",
-            "That estimated max is climbing quick."
-        ]
-
-        return Array(activities.prefix(6)).enumerated().flatMap { activityIndex, activity in
-            let count = activityIndex % 2 == 0 ? 2 : 1
-            return (0..<count).map { offset in
-                let commenter = commenters[(activityIndex + offset) % commenters.count]
-                return ActivityComment(
-                    id: UUID(),
-                    activityID: activity.id,
-                    authorID: commenter.id,
-                    authorName: commenter.displayName,
-                    body: commentTemplates[(activityIndex + offset) % commentTemplates.count],
-                    createdAt: activity.createdAt.addingTimeInterval(TimeInterval((offset + 1) * 900))
-                )
-            }
-        }
-    }
-
-    private static func seedThreadReplies(for threads: [CommunityThread], profiles: [UserProfile]) -> [CommunityThreadReply] {
-        guard !threads.isEmpty else { return [] }
-        let commenters = Array(profiles.dropFirst().prefix(6))
-        guard !commenters.isEmpty else { return [] }
-        let replyTemplates = [
-            "Side angle plus the full lockout has worked best for me.",
-            "I usually film from hip height so the plates and bar path are clear.",
-            "I am training tonight around 7 if anyone wants to run deadlifts.",
-            "Good thread. Would be useful to pin examples that got approved.",
-            "For lift checks, I try to show the setup and the full rep."
-        ]
-
-        return threads.enumerated().flatMap { threadIndex, thread in
-            let count = min(max(thread.replyCount, 1), 3)
-            return (0..<count).map { offset in
-                let commenter = commenters[(threadIndex + offset) % commenters.count]
-                return CommunityThreadReply(
-                    id: UUID(),
-                    threadID: thread.id,
-                    authorID: commenter.id,
-                    authorName: commenter.displayName,
-                    body: replyTemplates[(threadIndex + offset) % replyTemplates.count],
-                    createdAt: thread.createdAt.addingTimeInterval(TimeInterval((offset + 1) * 1_200))
-                )
-            }
-        }
-    }
-
-    func addLift(_ lift: LiftSubmission) {
-        lifts.insert(lift, at: 0)
-        activities.insert(ActivityItem(id: UUID(), profile: currentProfile, title: "\(currentProfile.displayName) logged \(lift.exerciseName)", detail: "\(RankingCalculator.format(lift.estimatedOneRepMax)) lb estimated max", liftID: lift.id, createdAt: .now, isLiked: false, isSaved: false), at: 0)
-        notifications.insert(NotificationItem(id: UUID(), title: "Lift submitted", message: "Your lift is ready for moderator review.", kind: "Lift submitted", createdAt: .now, isRead: false), at: 0)
-    }
-
-    func updateWorkoutEntry(_ entry: WorkoutExerciseEntry) {
-        guard let index = workoutEntries.firstIndex(where: { $0.id == entry.id }) else { return }
-        workoutEntries[index] = entry
-    }
-
-    func addWorkoutEntry(_ entry: WorkoutExerciseEntry) {
-        workoutEntries.insert(entry, at: 0)
-        activities.insert(ActivityItem(id: UUID(), profile: currentProfile, title: "\(currentProfile.displayName) added \(entry.exercise)", detail: entry.workout, createdAt: .now, isLiked: false, isSaved: false), at: 0)
-    }
-
-    func addWorkoutPlan(_ plan: WorkoutPlan) {
-        workoutPlans.insert(plan, at: 0)
-        createDefaultProgramScaffold(for: plan)
-        activities.insert(ActivityItem(id: UUID(), profile: currentProfile, title: "\(currentProfile.displayName) created a workout plan", detail: plan.name, createdAt: plan.createdAt, isLiked: false, isSaved: false), at: 0)
-    }
-
-    func deleteWorkoutPlan(_ plan: WorkoutPlan) {
-        let phaseIDs = workoutPhases.filter { $0.planID == plan.id }.map(\.id)
-        let weekIDs = workoutWeeks.filter { $0.planID == plan.id || phaseIDs.contains($0.phaseID) }.map(\.id)
-        let sessionIDs = workoutSessions.filter { weekIDs.contains($0.weekID) }.map(\.id)
-        let prescriptionIDs = workoutPrescriptions.filter { sessionIDs.contains($0.sessionID) }.map(\.id)
-        workoutPlans.removeAll { $0.id == plan.id }
-        workoutPhases.removeAll { $0.planID == plan.id }
-        workoutWeeks.removeAll { $0.planID == plan.id }
-        workoutSessions.removeAll { weekIDs.contains($0.weekID) }
-        workoutPrescriptions.removeAll { sessionIDs.contains($0.sessionID) }
-        workoutSetLogs.removeAll { prescriptionIDs.contains($0.prescriptionID) }
-        workoutEntries.removeAll { $0.planID == plan.id }
-    }
-
-    func updateWorkoutPlan(_ plan: WorkoutPlan) {
-        guard let index = workoutPlans.firstIndex(where: { $0.id == plan.id }) else { return }
-        workoutPlans[index] = plan
-    }
-
-    func duplicateWorkoutPlan(_ plan: WorkoutPlan) -> WorkoutPlan {
-        let copy = WorkoutPlan(
-            id: UUID(),
-            name: "\(plan.name) Copy",
-            createdAt: .now,
-            goal: plan.goal,
-            notes: plan.notes,
-            isActive: false
-        )
-        workoutPlans.insert(copy, at: 0)
-
-        let phases = workoutPhases.filter { $0.planID == plan.id }.sorted { $0.order < $1.order }
-        var phaseMap: [UUID: UUID] = [:]
-        for phase in phases {
-            let newID = UUID()
-            phaseMap[phase.id] = newID
-            workoutPhases.append(WorkoutPhase(id: newID, planID: copy.id, name: phase.name, order: phase.order, goal: phase.goal, durationWeeks: phase.durationWeeks))
-        }
-
-        let weeks = workoutWeeks.filter { $0.planID == plan.id }.sorted { $0.weekNumber < $1.weekNumber }
-        var weekMap: [UUID: UUID] = [:]
-        for week in weeks {
-            guard let newPhaseID = phaseMap[week.phaseID] else { continue }
-            let newID = UUID()
-            weekMap[week.id] = newID
-            workoutWeeks.append(WorkoutWeek(id: newID, planID: copy.id, phaseID: newPhaseID, weekNumber: week.weekNumber, title: week.title, notes: week.notes))
-        }
-
-        let sessions = workoutSessions.filter { weekMap.keys.contains($0.weekID) }.sorted { $0.order < $1.order }
-        var sessionMap: [UUID: UUID] = [:]
-        for session in sessions {
-            guard let newWeekID = weekMap[session.weekID] else { continue }
-            let newID = UUID()
-            sessionMap[session.id] = newID
-            workoutSessions.append(WorkoutSession(id: newID, weekID: newWeekID, day: session.day, name: session.name, order: session.order, notes: session.notes))
-        }
-
-        let prescriptions = workoutPrescriptions.filter { sessionMap.keys.contains($0.sessionID) }.sorted { $0.order < $1.order }
-        for prescription in prescriptions {
-            guard let newSessionID = sessionMap[prescription.sessionID] else { continue }
-            workoutPrescriptions.append(WorkoutExercisePrescription(
-                id: UUID(),
-                sessionID: newSessionID,
-                exerciseID: prescription.exerciseID,
-                exerciseName: prescription.exerciseName,
-                bodyPart: prescription.bodyPart,
-                equipment: prescription.equipment,
-                sets: prescription.sets,
-                reps: prescription.reps,
-                restSeconds: prescription.restSeconds,
-                order: prescription.order,
-                notes: prescription.notes
-            ))
-        }
-
-        activities.insert(ActivityItem(id: UUID(), profile: currentProfile, title: "\(currentProfile.displayName) duplicated a workout plan", detail: copy.name, createdAt: copy.createdAt, isLiked: false, isSaved: false), at: 0)
-        return copy
-    }
-
-    @discardableResult
-    func addWorkoutWeek(planID: UUID, phaseID: UUID? = nil, title: String? = nil) -> WorkoutWeek {
-        let phase = phaseID.flatMap { id in workoutPhases.first { $0.id == id } } ?? firstPhase(for: planID)
-        let resolvedPhase = phase ?? createDefaultPhase(for: planID)
-        let nextNumber = (workoutWeeks.filter { $0.planID == planID }.map(\.weekNumber).max() ?? 0) + 1
-        let week = WorkoutWeek(id: UUID(), planID: planID, phaseID: resolvedPhase.id, weekNumber: nextNumber, title: title ?? "Week \(nextNumber)", notes: "")
-        workoutWeeks.append(week)
-        return week
-    }
-
-    @discardableResult
-    func cloneWorkoutWeek(_ week: WorkoutWeek) -> WorkoutWeek {
-        let newWeek = addWorkoutWeek(planID: week.planID, phaseID: week.phaseID, title: "Week \(nextWeekNumber(for: week.planID))")
-        let sessions = workoutSessions.filter { $0.weekID == week.id }.sorted { $0.order < $1.order }
-        var sessionMap: [UUID: UUID] = [:]
-        for session in sessions {
-            let clone = WorkoutSession(id: UUID(), weekID: newWeek.id, day: session.day, name: session.name, order: session.order, notes: session.notes)
-            workoutSessions.append(clone)
-            sessionMap[session.id] = clone.id
-        }
-        for prescription in workoutPrescriptions.filter({ sessionMap.keys.contains($0.sessionID) }) {
-            guard let newSessionID = sessionMap[prescription.sessionID] else { continue }
-            workoutPrescriptions.append(WorkoutExercisePrescription(
-                id: UUID(),
-                sessionID: newSessionID,
-                exerciseID: prescription.exerciseID,
-                exerciseName: prescription.exerciseName,
-                bodyPart: prescription.bodyPart,
-                equipment: prescription.equipment,
-                sets: prescription.sets,
-                reps: prescription.reps,
-                restSeconds: prescription.restSeconds,
-                order: prescription.order,
-                notes: prescription.notes
-            ))
-        }
-        return newWeek
-    }
-
-    func deleteWorkoutWeek(_ week: WorkoutWeek) {
-        let sessionIDs = workoutSessions.filter { $0.weekID == week.id }.map(\.id)
-        let prescriptionIDs = workoutPrescriptions.filter { sessionIDs.contains($0.sessionID) }.map(\.id)
-        workoutWeeks.removeAll { $0.id == week.id }
-        workoutSessions.removeAll { $0.weekID == week.id }
-        workoutPrescriptions.removeAll { sessionIDs.contains($0.sessionID) }
-        workoutSetLogs.removeAll { prescriptionIDs.contains($0.prescriptionID) }
-        workoutEntries.removeAll { $0.planID == week.planID && $0.week == week.weekNumber }
-    }
-
-    @discardableResult
-    func addWorkoutSession(weekID: UUID, day: String, name: String) -> WorkoutSession {
-        let nextOrder = (workoutSessions.filter { $0.weekID == weekID }.map(\.order).max() ?? -1) + 1
-        let session = WorkoutSession(id: UUID(), weekID: weekID, day: day, name: name, order: nextOrder, notes: "")
-        workoutSessions.append(session)
-        return session
-    }
-
-    func deleteWorkoutSession(_ session: WorkoutSession) {
-        guard let week = workoutWeeks.first(where: { $0.id == session.weekID }) else { return }
-        let prescriptionIDs = workoutPrescriptions.filter { $0.sessionID == session.id }.map(\.id)
-        workoutSessions.removeAll { $0.id == session.id }
-        workoutPrescriptions.removeAll { $0.sessionID == session.id }
-        workoutSetLogs.removeAll { prescriptionIDs.contains($0.prescriptionID) }
-        workoutEntries.removeAll { $0.planID == week.planID && $0.week == week.weekNumber && $0.workout == session.name }
-    }
-
-    func cancelWorkoutSession(_ session: WorkoutSession) {
-        if session.name.localizedCaseInsensitiveContains("freestyle") {
-            deleteWorkoutSession(session)
-            return
-        }
-
-        let prescriptionIDs = Set(workoutPrescriptions.filter { $0.sessionID == session.id }.map(\.id))
-        workoutSetLogs.removeAll { log in
-            prescriptionIDs.contains(log.prescriptionID) && Calendar.current.isDateInToday(log.performedAt)
-        }
-    }
-
-    @discardableResult
-    func addWorkoutPrescription(_ prescription: WorkoutExercisePrescription) -> WorkoutExercisePrescription {
-        workoutPrescriptions.append(prescription)
-        bridgePrescriptionToWorkoutEntry(prescription)
-        return prescription
-    }
-
-    func deleteWorkoutPrescription(_ prescription: WorkoutExercisePrescription) {
-        workoutPrescriptions.removeAll { $0.id == prescription.id }
-        workoutSetLogs.removeAll { $0.prescriptionID == prescription.id }
-        workoutEntries.removeAll { $0.exercise == prescription.exerciseName && $0.workout == session(for: prescription)?.name }
-    }
-
-    func updateWorkoutSetLog(_ log: WorkoutSetLog) {
-        if let index = workoutSetLogs.firstIndex(where: { $0.id == log.id }) {
-            workoutSetLogs[index] = log
-        } else {
-            workoutSetLogs.append(log)
-        }
-    }
-
-    @discardableResult
-    func addWorkoutSetLog(prescriptionID: UUID, setNumber: Int? = nil) -> WorkoutSetLog {
-        let nextNumber = setNumber ?? ((workoutSetLogs.filter { $0.prescriptionID == prescriptionID }.map(\.setNumber).max() ?? 0) + 1)
-        let log = WorkoutSetLog(id: UUID(), prescriptionID: prescriptionID, performedAt: .now, setNumber: nextNumber, weight: nil, reps: nil, rpe: nil, isWarmup: false, isComplete: false)
-        workoutSetLogs.append(log)
-        return log
-    }
-
-    func deleteWorkoutSetLog(_ log: WorkoutSetLog) {
-        workoutSetLogs.removeAll { $0.id == log.id }
-    }
-
-    func addCustomTrainingExercise(_ exercise: TrainingExerciseCatalogItem) {
-        customTrainingExercises.insert(exercise, at: 0)
-    }
-
-    func workoutSummary(for session: WorkoutSession) -> WorkoutSummary {
-        let prescriptions = workoutPrescriptions.filter { $0.sessionID == session.id }
-        let prescriptionIDs = Set(prescriptions.map(\.id))
-        let completedLogs = workoutSetLogs.filter { log in
-            prescriptionIDs.contains(log.prescriptionID) &&
-            log.isComplete &&
-            Calendar.current.isDateInToday(log.performedAt)
-        }
-        let completedExerciseIDs = Set(completedLogs.map(\.prescriptionID))
-        let best = completedLogs.max { lhs, rhs in
-            (lhs.weight ?? 0) < (rhs.weight ?? 0)
-        }
-        return WorkoutSummary(
-            id: UUID(),
-            sessionID: session.id,
-            workoutName: session.name,
-            completedExercises: completedExerciseIDs.count,
-            totalExercises: prescriptions.count,
-            totalSets: completedLogs.count,
-            totalVolume: completedLogs.reduce(0) { $0 + $1.volume },
-            bestSet: best
-        )
-    }
-
-    func saveWorkoutFeedback(sessionID: UUID, effort: Int, notes: String) {
-        let feedback = WorkoutFeedback(
-            id: UUID(),
-            sessionID: sessionID,
-            completedAt: .now,
-            effort: min(max(effort, 1), 5),
-            notes: notes.trimmingCharacters(in: .whitespacesAndNewlines)
-        )
-        workoutFeedback.removeAll { $0.sessionID == sessionID && Calendar.current.isDateInToday($0.completedAt) }
-        workoutFeedback.append(feedback)
-    }
-
-    private func rebuildProgramBuilderDataFromEntries() {
+    func clearLocalUserData() {
+        currentProfile = MockData.emptyProfile
+        profiles.removeAll()
+        gyms.removeAll()
+        joinedGymIDs.removeAll()
+        lifts.removeAll()
+        challenges.removeAll()
+        notifications.removeAll()
+        activeWorkout = nil
+        completedWorkouts.removeAll()
+        pendingWorkoutPRSubmissions.removeAll()
+        pendingCompletedWorkoutUploads.removeAll()
+        deletedCompletedWorkoutIDs.removeAll()
+        workoutPlanSyncRevisions.removeAll()
+        workoutPlanLastSyncedPayloads.removeAll()
+        pendingRemoteWorkoutPlanDeletions.removeAll()
+        workoutPlans.removeAll()
         workoutPhases.removeAll()
         workoutWeeks.removeAll()
         workoutSessions.removeAll()
         workoutPrescriptions.removeAll()
         workoutSetLogs.removeAll()
+        workoutFeedback.removeAll()
+        workoutEntries.removeAll()
+        bodyweightEntries.removeAll()
+        strainEntries.removeAll()
+        injuryEntries.removeAll()
+        workoutPlanProgressionSettings.removeAll()
+        customTrainingExercises.removeAll()
+        gymRequests.removeAll()
+        achievementUnlocks.removeAll()
+        rankingHistory.removeAll()
+        workoutPreferences = WorkoutPreferences()
+        workoutPersistenceStore.reset()
+    }
 
-        for plan in workoutPlans {
-            let entries = workoutEntries.filter { $0.planID == plan.id }
-            let maxWeek = max(1, entries.map(\.week).max() ?? 1)
-            let phase = WorkoutPhase(id: UUID(), planID: plan.id, name: "Base Phase", order: 0, goal: plan.goal, durationWeeks: maxWeek)
-            workoutPhases.append(phase)
+    private func bindWorkoutPersistence() {
+        let publishers: [AnyPublisher<Void, Never>] = [
+            $currentProfile.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $profiles.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $gyms.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $joinedGymIDs.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $workoutPlans.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $workoutPhases.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $workoutWeeks.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $workoutSessions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $workoutPrescriptions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $workoutSetLogs.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $workoutFeedback.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $customTrainingExercises.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $workoutEntries.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $bodyweightEntries.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $strainEntries.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $injuryEntries.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $activeWorkout.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $completedWorkouts.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $pendingWorkoutPRSubmissions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $pendingCompletedWorkoutUploads.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $deletedCompletedWorkoutIDs.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $workoutPlanSyncRevisions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $workoutPlanLastSyncedPayloads.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $pendingRemoteWorkoutPlanDeletions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $workoutPreferences.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $workoutPlanProgressionSettings.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $achievementUnlocks.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $rankingHistory.dropFirst().map { _ in () }.eraseToAnyPublisher()
+        ]
+        Publishers.MergeMany(publishers)
+            .sink { [weak self] in self?.scheduleWorkoutSnapshotPersistence() }
+            .store(in: &persistenceCancellables)
+    }
 
-            let weekNumbers = Set(entries.map(\.week)).union([1]).sorted()
-            for weekNumber in weekNumbers {
-                let week = WorkoutWeek(id: UUID(), planID: plan.id, phaseID: phase.id, weekNumber: weekNumber, title: "Week \(weekNumber)", notes: "")
-                workoutWeeks.append(week)
-
-                let weekEntries = entries.filter { $0.week == weekNumber }
-                let groups = Dictionary(grouping: weekEntries) { $0.workout }
-                for (sessionIndex, group) in groups.sorted(by: { lhs, rhs in
-                    let lhsDay = lhs.value.first?.day ?? ""
-                    let rhsDay = rhs.value.first?.day ?? ""
-                    return dayOrder(lhsDay) < dayOrder(rhsDay)
-                }).enumerated() {
-                    let session = WorkoutSession(
-                        id: UUID(),
-                        weekID: week.id,
-                        day: group.value.first?.day ?? "Any day",
-                        name: group.key,
-                        order: sessionIndex,
-                        notes: ""
-                    )
-                    workoutSessions.append(session)
-
-                    for (exerciseIndex, entry) in group.value.sorted(by: { $0.exercise < $1.exercise }).enumerated() {
-                        let catalog = (MockData.trainingExerciseLibrary + customTrainingExercises).first { $0.name == entry.exercise }
-                        let prescription = WorkoutExercisePrescription(
-                            id: UUID(),
-                            sessionID: session.id,
-                            exerciseID: catalog?.id ?? entry.exercise.lowercased().replacingOccurrences(of: " ", with: "_"),
-                            exerciseName: entry.exercise,
-                            bodyPart: entry.muscleGroup,
-                            equipment: catalog?.equipment ?? "Mixed",
-                            sets: entry.targetSets,
-                            reps: entry.targetReps,
-                            restSeconds: catalog?.defaultRestSeconds ?? 120,
-                            order: exerciseIndex,
-                            notes: entry.notes
-                        )
-                        workoutPrescriptions.append(prescription)
-
-                        for (setIndex, set) in entry.sets.enumerated() {
-                            workoutSetLogs.append(WorkoutSetLog(
-                                id: set.id,
-                                prescriptionID: prescription.id,
-                                performedAt: entry.date,
-                                setNumber: setIndex + 1,
-                                weight: set.weight,
-                                reps: set.reps,
-                                rpe: set.rpe,
-                                isWarmup: false,
-                                isComplete: entry.isDone
-                            ))
-                        }
-                    }
-                }
+    private func scheduleWorkoutSnapshotPersistence() {
+        guard !isRestoringWorkoutSnapshot, !isUITesting else { return }
+        pendingPersistenceTask?.cancel()
+        pendingPersistenceTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                self?.pendingPersistenceTask = nil
+                self?.persistWorkoutSnapshot()
             }
         }
     }
 
-    private func createDefaultProgramScaffold(for plan: WorkoutPlan) {
-        let phase = createDefaultPhase(for: plan.id)
-        let week = WorkoutWeek(id: UUID(), planID: plan.id, phaseID: phase.id, weekNumber: 1, title: "Week 1", notes: "")
-        workoutWeeks.append(week)
-        workoutSessions.append(WorkoutSession(id: UUID(), weekID: week.id, day: "Monday", name: "Freestyle Workout", order: 0, notes: ""))
-    }
-
-    private func createDefaultPhase(for planID: UUID) -> WorkoutPhase {
-        let phase = WorkoutPhase(id: UUID(), planID: planID, name: "Base Phase", order: 0, goal: "Build strength and muscle", durationWeeks: 1)
-        workoutPhases.append(phase)
-        return phase
-    }
-
-    private func firstPhase(for planID: UUID) -> WorkoutPhase? {
-        workoutPhases
-            .filter { $0.planID == planID }
-            .sorted { $0.order < $1.order }
-            .first
-    }
-
-    private func nextWeekNumber(for planID: UUID) -> Int {
-        (workoutWeeks.filter { $0.planID == planID }.map(\.weekNumber).max() ?? 0) + 1
-    }
-
-    private func bridgePrescriptionToWorkoutEntry(_ prescription: WorkoutExercisePrescription) {
-        guard let session = session(for: prescription),
-              let week = workoutWeeks.first(where: { $0.id == session.weekID }) else { return }
-        let exists = workoutEntries.contains { entry in
-            entry.planID == week.planID &&
-            entry.week == week.weekNumber &&
-            entry.workout == session.name &&
-            entry.exercise == prescription.exerciseName
-        }
-        guard !exists else { return }
-        workoutEntries.insert(
-            WorkoutExerciseEntry(
-                id: UUID(),
-                planID: week.planID,
-                week: week.weekNumber,
-                date: .now,
-                day: session.day,
-                workout: session.name,
-                exercise: prescription.exerciseName,
-                muscleGroup: prescription.bodyPart,
-                targetSets: prescription.sets,
-                targetReps: prescription.reps,
-                sets: [],
-                isDone: false,
-                notes: prescription.notes
-            ),
-            at: 0
-        )
-    }
-
-    private func session(for prescription: WorkoutExercisePrescription) -> WorkoutSession? {
-        workoutSessions.first { $0.id == prescription.sessionID }
-    }
-
-    private func dayOrder(_ day: String) -> Int {
-        ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].firstIndex(of: day) ?? 99
-    }
-
-    func updateBodyweight(_ entry: BodyweightEntry) {
-        guard let index = bodyweightEntries.firstIndex(where: { $0.id == entry.id }) else { return }
-        bodyweightEntries[index] = entry
-    }
-
-    func addThread(_ thread: CommunityThread) {
-        communityThreads.insert(thread, at: 0)
-        activities.insert(ActivityItem(id: UUID(), profile: currentProfile, title: "\(currentProfile.displayName) started a thread", detail: thread.title, createdAt: thread.createdAt, isLiked: false, isSaved: false), at: 0)
-    }
-
-    func addReply(to thread: CommunityThread, body: String, author: UserProfile) {
-        guard let index = communityThreads.firstIndex(where: { $0.id == thread.id }) else { return }
-        communityThreads[index].replyCount += 1
-        communityThreadReplies.append(
-            CommunityThreadReply(
-                id: UUID(),
-                threadID: thread.id,
-                authorID: author.id,
-                authorName: author.displayName,
-                body: body,
-                createdAt: .now
-            )
-        )
-        activities.insert(ActivityItem(id: UUID(), profile: author, title: "\(author.displayName) replied to \(thread.title)", detail: body, createdAt: .now, isLiked: false, isSaved: false), at: 0)
-    }
-
-    func toggleThreadLike(_ thread: CommunityThread) {
-        guard let index = communityThreads.firstIndex(where: { $0.id == thread.id }) else { return }
-        if likedCommunityThreadIDs.contains(thread.id) {
-            likedCommunityThreadIDs.remove(thread.id)
-            communityThreads[index].likeCount = max(0, communityThreads[index].likeCount - 1)
-        } else {
-            likedCommunityThreadIDs.insert(thread.id)
-            communityThreads[index].likeCount += 1
-        }
-    }
-
-    func toggleActivityLike(_ activity: ActivityItem) {
-        guard let index = activities.firstIndex(where: { $0.id == activity.id }) else { return }
-        activities[index].isLiked.toggle()
-    }
-
-    func toggleActivitySave(_ activity: ActivityItem) {
-        guard let index = activities.firstIndex(where: { $0.id == activity.id }) else { return }
-        activities[index].isSaved.toggle()
-    }
-
-    func addComment(to activity: ActivityItem, body: String) {
-        activityComments.append(
-            ActivityComment(
-                id: UUID(),
-                activityID: activity.id,
-                authorID: currentProfile.id,
-                authorName: currentProfile.displayName,
-                body: body,
-                createdAt: .now
+    func persistWorkoutSnapshot() {
+        guard !isRestoringWorkoutSnapshot, !isUITesting else { return }
+        pendingPersistenceTask?.cancel()
+        pendingPersistenceTask = nil
+        workoutPersistenceStore.saveSnapshot(
+            WorkoutPersistenceSnapshot(
+                schemaVersion: WorkoutPersistenceSnapshot.currentVersion,
+                currentProfile: currentProfile,
+                profiles: profiles,
+                gyms: gyms,
+                gymRequests: gymRequests,
+                joinedGymIDs: joinedGymIDs,
+                plans: workoutPlans,
+                phases: workoutPhases,
+                weeks: workoutWeeks,
+                sessions: workoutSessions,
+                prescriptions: workoutPrescriptions,
+                setLogs: workoutSetLogs,
+                feedback: workoutFeedback,
+                customExercises: customTrainingExercises,
+                legacyEntries: workoutEntries,
+                bodyweightEntries: bodyweightEntries,
+                strainEntries: strainEntries,
+                injuryEntries: injuryEntries,
+                activeWorkout: activeWorkout,
+                completedWorkouts: completedWorkouts,
+                pendingPRSubmissions: pendingWorkoutPRSubmissions,
+                preferences: workoutPreferences,
+                planProgressionSettings: workoutPlanProgressionSettings,
+                achievementUnlocks: achievementUnlocks,
+                rankingHistory: rankingHistory,
+                pendingCompletedWorkoutUploads: pendingCompletedWorkoutUploads,
+                deletedCompletedWorkoutIDs: deletedCompletedWorkoutIDs,
+                workoutPlanSyncRevisions: workoutPlanSyncRevisions,
+                workoutPlanLastSyncedPayloads: workoutPlanLastSyncedPayloads,
+                pendingRemoteWorkoutPlanDeletions: pendingRemoteWorkoutPlanDeletions
             )
         )
     }
 
-    func requestGym(_ request: GymRequest) {
-        gymRequests.insert(request, at: 0)
-        let demoGym = Gym(id: UUID(), name: request.name, city: request.city, state: request.state, memberCount: 1, verifiedLiftCount: 0)
-        gyms.insert(demoGym, at: 0)
-        communityThreads.insert(CommunityThread(id: UUID(), title: "\(request.name) members thread", body: "Use this thread for lift checks, meetups, and gym-specific questions.", authorID: currentProfile.id, authorName: currentProfile.displayName, kind: .gym, challengeID: nil, gymID: demoGym.id, replyCount: 0, likeCount: 0, createdAt: .now), at: 0)
-        notifications.insert(NotificationItem(id: UUID(), title: "Gym request submitted", message: "\(request.name) is now available as a demo gym.", kind: "Gym request", createdAt: .now, isRead: false), at: 0)
-    }
-
-    @discardableResult
-    func joinGym(_ gym: Gym, maximumMemberships: Int) -> Bool {
-        guard !joinedGymIDs.contains(gym.id), joinedGymIDs.count < maximumMemberships else {
-            return joinedGymIDs.contains(gym.id)
-        }
-        joinedGymIDs.insert(gym.id)
-        if let index = gyms.firstIndex(where: { $0.id == gym.id }) {
-            gyms[index].memberCount += 1
-        }
-        return true
-    }
-
-    func leaveGym(_ gym: Gym) {
-        guard gym.id != currentProfile.primaryGymID, joinedGymIDs.remove(gym.id) != nil else { return }
-        if let index = gyms.firstIndex(where: { $0.id == gym.id }) {
-            gyms[index].memberCount = max(0, gyms[index].memberCount - 1)
-        }
-    }
-
-    func setChallengeJoined(_ challenge: Challenge, joined: Bool) {
-        guard let index = challenges.firstIndex(where: { $0.id == challenge.id }) else { return }
-        let wasJoined = challenges[index].isJoined
-        guard wasJoined != joined else { return }
-        challenges[index].isJoined = joined
-        challenges[index].participantCount += joined ? 1 : -1
-        challenges[index].participantCount = max(0, challenges[index].participantCount)
-    }
-
-    func sendFriendRequest(to profile: UserProfile) {
-        guard profile.id != currentProfile.id else { return }
-        if let index = friendRequests.firstIndex(where: { request in
-            (request.fromUserID == currentProfile.id && request.toUserID == profile.id) ||
-            (request.fromUserID == profile.id && request.toUserID == currentProfile.id)
-        }) {
-            if friendRequests[index].status == .declined {
-                friendRequests[index].fromUserID = currentProfile.id
-                friendRequests[index].toUserID = profile.id
-                friendRequests[index].status = .pending
-                friendRequests[index].createdAt = .now
-                friendRequests[index].respondedAt = nil
+    private func restoreWorkoutSnapshotOrImportLegacy() {
+        if let snapshot = workoutPersistenceStore.loadSnapshot() {
+            isRestoringWorkoutSnapshot = true
+            if let restoredProfile = snapshot.currentProfile {
+                currentProfile = restoredProfile
             }
+            if let restoredProfiles = snapshot.profiles, !restoredProfiles.isEmpty {
+                profiles = restoredProfiles
+            }
+            if let restoredGyms = snapshot.gyms {
+                gyms = restoredGyms
+            }
+            if let restoredJoinedGymIDs = snapshot.joinedGymIDs {
+                joinedGymIDs = restoredJoinedGymIDs
+            }
+            gymRequests = snapshot.gymRequests ?? []
+            workoutPlans = snapshot.plans
+            workoutPhases = snapshot.phases
+            workoutWeeks = snapshot.weeks
+            workoutSessions = snapshot.sessions
+            workoutPrescriptions = snapshot.prescriptions
+            workoutSetLogs = snapshot.setLogs
+            workoutFeedback = snapshot.feedback
+            customTrainingExercises = snapshot.customExercises
+            workoutEntries = snapshot.legacyEntries
+            bodyweightEntries = snapshot.bodyweightEntries
+            strainEntries = snapshot.strainEntries ?? []
+            injuryEntries = snapshot.injuryEntries ?? []
+            activeWorkout = snapshot.activeWorkout
+            completedWorkouts = snapshot.completedWorkouts
+            pendingWorkoutPRSubmissions = snapshot.pendingPRSubmissions
+            pendingCompletedWorkoutUploads = snapshot.pendingCompletedWorkoutUploads ?? []
+            deletedCompletedWorkoutIDs = snapshot.deletedCompletedWorkoutIDs ?? []
+            workoutPlanSyncRevisions = snapshot.workoutPlanSyncRevisions ?? [:]
+            workoutPlanLastSyncedPayloads = snapshot.workoutPlanLastSyncedPayloads ?? [:]
+            pendingRemoteWorkoutPlanDeletions = snapshot.pendingRemoteWorkoutPlanDeletions ?? []
+            workoutPreferences = snapshot.preferences
+            workoutPlanProgressionSettings = snapshot.planProgressionSettings ?? []
+            achievementUnlocks = snapshot.achievementUnlocks ?? []
+            rankingHistory = snapshot.rankingHistory ?? []
+            migrateSeededWorkoutData(from: snapshot.schemaVersion)
+            isRestoringWorkoutSnapshot = false
             return
         }
-        friendRequests.insert(
-            FriendRequest(id: UUID(), fromUserID: currentProfile.id, toUserID: profile.id, status: .pending, createdAt: .now, respondedAt: nil),
-            at: 0
+
+        completedWorkouts = []
+        workoutEntries = []
+        bodyweightEntries = []
+        workoutPersistenceStore.reset()
+        persistWorkoutSnapshot()
+    }
+
+    private func migrateSeededWorkoutData(from schemaVersion: Int) {
+        let markerWorkoutIDs = Set(completedWorkouts.filter {
+            $0.notes.contains(Self.personalWorkoutDemoMarker)
+        }.map(\.id))
+        completedWorkouts.removeAll { markerWorkoutIDs.contains($0.id) }
+        workoutSetLogs.removeAll { log in
+            log.workoutID.map(markerWorkoutIDs.contains) == true
+        }
+        bodyweightEntries.removeAll { $0.notes.contains(Self.personalWorkoutDemoMarker) }
+        pendingCompletedWorkoutUploads.removeAll { snapshot in
+            markerWorkoutIDs.contains(snapshot.id) ||
+                String(data: snapshot.payload, encoding: .utf8)?.contains(Self.personalWorkoutDemoMarker) == true
+        }
+
+        guard schemaVersion < WorkoutPersistenceSnapshot.seedCleanupVersion else { return }
+
+        var untouchedSeedPlanIDs = Set<UUID>()
+        if isUntouchedDefaultWorkoutPlanSeed() {
+            untouchedSeedPlanIDs.insert(MockData.defaultWorkoutPlanID)
+        }
+        if isUntouchedPersonalWorkoutPlanSeed() {
+            untouchedSeedPlanIDs.insert(PersonalWorkoutPlanCatalog.planID)
+        }
+        removeWorkoutPlanGraphs(planIDs: untouchedSeedPlanIDs)
+    }
+
+    private func isUntouchedDefaultWorkoutPlanSeed() -> Bool {
+        let planID = MockData.defaultWorkoutPlanID
+        guard let plan = workoutPlans.first(where: { $0.id == planID }),
+              plan.name == "Strength Foundations",
+              plan.goal == "Build strength and muscle.",
+              plan.notes.isEmpty,
+              plan.isActive,
+              workoutPlans.filter({ $0.id == planID }).count == 1,
+              workoutEntries.allSatisfy({ $0.planID != planID }),
+              completedWorkouts.allSatisfy({ $0.sourcePlanID != planID }),
+              activeWorkout?.sourcePlanID != planID,
+              workoutPlanProgressionSettings.allSatisfy({ $0.planID != planID }) else { return false }
+
+        let phases = workoutPhases.filter { $0.planID == planID }
+        guard phases.count == 1, let phase = phases.first,
+              phase.name == "Base Phase", phase.order == 0,
+              phase.goal == "Build strength and muscle.", phase.durationWeeks == 1 else { return false }
+        let weeks = workoutWeeks.filter { $0.planID == planID }
+        guard weeks.count == 1, let week = weeks.first,
+              week.phaseID == phase.id, week.weekNumber == 1,
+              week.title == "Week 1", week.notes.isEmpty else { return false }
+        let sessions = workoutSessions.filter { $0.weekID == week.id }
+        guard sessions.count == 1, let session = sessions.first,
+              session.day == "Monday", session.name == "Strength Session",
+              session.order == 0, session.notes.isEmpty,
+              workoutFeedback.allSatisfy({ $0.sessionID != session.id }),
+              activeWorkout?.sourceSessionID != session.id else { return false }
+        let prescriptions = workoutPrescriptions.filter { $0.sessionID == session.id }
+        guard prescriptions.count == 1, let prescription = prescriptions.first,
+              let exercise = MockData.trainingExerciseLibrary.first(where: { $0.id == "barbell_bench_press" }) else { return false }
+        let expectedPrescription = WorkoutExercisePrescription(
+            id: prescription.id,
+            sessionID: session.id,
+            exerciseID: exercise.id,
+            exerciseName: exercise.name,
+            bodyPart: exercise.bodyPart,
+            equipment: exercise.equipment,
+            sets: 3,
+            reps: "6-8",
+            restSeconds: 120,
+            order: 0,
+            notes: "",
+            muscleProfile: exercise.resolvedMuscleProfile
         )
-        notifications.insert(NotificationItem(id: UUID(), title: "Friend request sent", message: "Request sent to \(profile.displayName).", kind: "Friend request", createdAt: .now, isRead: false), at: 0)
+        guard prescription == expectedPrescription else { return false }
+        let logs = workoutSetLogs.filter { $0.prescriptionID == prescription.id }
+        guard logs.count == 1, let log = logs.first else { return false }
+        return log.workoutID == nil && log.setNumber == 1 && log.weight == 135 &&
+            log.reps == 8 && log.rpe == 7 && !log.isWarmup && log.isComplete &&
+            log.recordedUnit == .pounds && log.completionSource == nil &&
+            !log.hasTriggeredRestTimer && !log.suppressAutoCompletion
     }
 
-    func respondToFriendRequest(_ request: FriendRequest, status: FriendRequestStatus) {
-        guard let index = friendRequests.firstIndex(where: { $0.id == request.id }) else { return }
-        friendRequests[index].status = status
-        friendRequests[index].respondedAt = .now
-        let otherID = request.fromUserID == currentProfile.id ? request.toUserID : request.fromUserID
-        let otherName = profiles.first { $0.id == otherID }?.displayName ?? "Lifter"
-        notifications.insert(NotificationItem(id: UUID(), title: status == .accepted ? "Friend request accepted" : "Friend request declined", message: "\(otherName) was updated.", kind: "Friend request", createdAt: .now, isRead: false), at: 0)
-    }
+    private func isUntouchedPersonalWorkoutPlanSeed() -> Bool {
+        let planID = PersonalWorkoutPlanCatalog.planID
+        guard let plan = workoutPlans.first(where: { $0.id == planID }),
+              workoutPlans.filter({ $0.id == planID }).count == 1 else { return false }
+        let expected = PersonalWorkoutPlanCatalog.makeSeed(createdAt: plan.createdAt)
+        guard plan == expected.plan,
+              workoutEntries.allSatisfy({ $0.planID != planID }),
+              completedWorkouts.allSatisfy({ $0.sourcePlanID != planID }),
+              activeWorkout?.sourcePlanID != planID else { return false }
 
-    func cancelFriendRequest(_ request: FriendRequest) {
-        guard request.fromUserID == currentProfile.id, request.status == .pending else { return }
-        friendRequests.removeAll { $0.id == request.id }
-        let otherName = profiles.first { $0.id == request.toUserID }?.displayName ?? "Lifter"
-        notifications.insert(NotificationItem(id: UUID(), title: "Friend request canceled", message: "Request to \(otherName) was canceled.", kind: "Friend request", createdAt: .now, isRead: false), at: 0)
-    }
-
-    func messageThread(with profile: UserProfile) -> DirectMessageThread {
-        if let thread = messageThreads.first(where: { Set($0.participantIDs) == Set([currentProfile.id, profile.id]) }) {
-            return thread
+        let actualPhases = workoutPhases.filter { $0.planID == planID }.sorted { $0.order < $1.order }
+        guard actualPhases.count == expected.phases.count else { return false }
+        var phaseIDs: [UUID: UUID] = [:]
+        for (actual, expectedPhase) in zip(actualPhases, expected.phases) {
+            var normalized = actual
+            normalized.id = expectedPhase.id
+            guard normalized == expectedPhase else { return false }
+            phaseIDs[actual.id] = expectedPhase.id
         }
-        let thread = DirectMessageThread(id: UUID(), participantIDs: [currentProfile.id, profile.id], createdAt: .now, updatedAt: .now)
-        messageThreads.insert(thread, at: 0)
-        return thread
+
+        let actualWeeks = workoutWeeks.filter { $0.planID == planID }.sorted { $0.weekNumber < $1.weekNumber }
+        guard actualWeeks.count == expected.weeks.count else { return false }
+        var weekIDs: [UUID: UUID] = [:]
+        for (actual, expectedWeek) in zip(actualWeeks, expected.weeks) {
+            var normalized = actual
+            normalized.id = expectedWeek.id
+            normalized.phaseID = phaseIDs[actual.phaseID] ?? actual.phaseID
+            guard normalized == expectedWeek else { return false }
+            weekIDs[actual.id] = expectedWeek.id
+        }
+
+        let weekNumberByID = Dictionary(uniqueKeysWithValues: actualWeeks.map { ($0.id, $0.weekNumber) })
+        let actualSessions = workoutSessions.filter { weekIDs[$0.weekID] != nil }.sorted {
+            (weekNumberByID[$0.weekID] ?? 0, $0.order) < (weekNumberByID[$1.weekID] ?? 0, $1.order)
+        }
+        guard actualSessions.count == expected.sessions.count else { return false }
+        var sessionIDs: [UUID: UUID] = [:]
+        for (actual, expectedSession) in zip(actualSessions, expected.sessions) {
+            var normalized = actual
+            normalized.id = expectedSession.id
+            normalized.weekID = weekIDs[actual.weekID] ?? actual.weekID
+            guard normalized == expectedSession else { return false }
+            sessionIDs[actual.id] = expectedSession.id
+        }
+
+        let sessionOrderByID = Dictionary(uniqueKeysWithValues: actualSessions.enumerated().map { ($0.element.id, $0.offset) })
+        let actualPrescriptions = workoutPrescriptions.filter { sessionIDs[$0.sessionID] != nil }.sorted {
+            (sessionOrderByID[$0.sessionID] ?? 0, $0.order) < (sessionOrderByID[$1.sessionID] ?? 0, $1.order)
+        }
+        guard actualPrescriptions.count == expected.prescriptions.count else { return false }
+        for (actual, expectedPrescription) in zip(actualPrescriptions, expected.prescriptions) {
+            var normalized = actual
+            normalized.id = expectedPrescription.id
+            normalized.sessionID = sessionIDs[actual.sessionID] ?? actual.sessionID
+            guard normalized == expectedPrescription else { return false }
+        }
+
+        let sessionIDSet = Set(actualSessions.map(\.id))
+        let prescriptionIDSet = Set(actualPrescriptions.map(\.id))
+        return workoutSetLogs.allSatisfy { !prescriptionIDSet.contains($0.prescriptionID) } &&
+            workoutFeedback.allSatisfy { !sessionIDSet.contains($0.sessionID) } &&
+            activeWorkout.map { !sessionIDSet.contains($0.sourceSessionID ?? UUID()) } != false &&
+            workoutPlanProgressionSettings.allSatisfy {
+                $0.planID != planID || $0.sourceTemplateID == "private_bts_beginner_12"
+            }
     }
 
-    func addMessage(to thread: DirectMessageThread, body: String) {
-        guard !body.isEmpty else { return }
-        let message = DirectMessage(id: UUID(), threadID: thread.id, senderID: currentProfile.id, body: body, createdAt: .now, isRead: true, isReported: false)
-        directMessages.append(message)
-        if let index = messageThreads.firstIndex(where: { $0.id == thread.id }) {
-            messageThreads[index].updatedAt = message.createdAt
+    private func removeWorkoutPlanGraphs(planIDs: Set<UUID>) {
+        guard !planIDs.isEmpty else { return }
+        let weekIDs = Set(workoutWeeks.filter { planIDs.contains($0.planID) }.map(\.id))
+        let sessionIDs = Set(workoutSessions.filter { weekIDs.contains($0.weekID) }.map(\.id))
+        let prescriptionIDs = Set(workoutPrescriptions.filter { sessionIDs.contains($0.sessionID) }.map(\.id))
+        let workoutIDs = Set(completedWorkouts.filter {
+            $0.sourcePlanID.map(planIDs.contains) == true ||
+                $0.sourceSessionID.map(sessionIDs.contains) == true
+        }.map(\.id))
+
+        completedWorkouts.removeAll { workoutIDs.contains($0.id) }
+        workoutSetLogs.removeAll {
+            prescriptionIDs.contains($0.prescriptionID) || $0.workoutID.map(workoutIDs.contains) == true
+        }
+        workoutFeedback.removeAll { sessionIDs.contains($0.sessionID) }
+        workoutPlanProgressionSettings.removeAll { planIDs.contains($0.planID) }
+        workoutPrescriptions.removeAll { sessionIDs.contains($0.sessionID) }
+        workoutSessions.removeAll { sessionIDs.contains($0.id) }
+        workoutWeeks.removeAll { weekIDs.contains($0.id) }
+        workoutPhases.removeAll { planIDs.contains($0.planID) }
+        workoutPlans.removeAll { planIDs.contains($0.id) }
+        workoutEntries.removeAll { planIDs.contains($0.planID) }
+        pendingCompletedWorkoutUploads.removeAll { workoutIDs.contains($0.id) }
+        planIDs.forEach {
+            workoutPlanSyncRevisions.removeValue(forKey: $0)
+            workoutPlanLastSyncedPayloads.removeValue(forKey: $0)
+            pendingRemoteWorkoutPlanDeletions.remove($0)
         }
     }
 
-    func deleteMessage(_ message: DirectMessage) {
-        directMessages.removeAll { $0.id == message.id }
-        messageReports.removeAll { $0.messageID == message.id }
-        if let latest = directMessages
-            .filter({ $0.threadID == message.threadID })
-            .max(by: { $0.createdAt < $1.createdAt }),
-           let index = messageThreads.firstIndex(where: { $0.id == message.threadID }) {
-            messageThreads[index].updatedAt = latest.createdAt
+    /// Removes only the deterministic private-history seed and its dependent
+    /// local projections. The workout plan and unrelated user-entered records remain.
+    @discardableResult
+    func removePersonalWorkoutDemoHistory() -> Int {
+        // Keep the cleanup durable. Demo mode normally seeds this history on
+        // every entry, which would otherwise restore the deleted workouts.
+        UserDefaults.standard.set(true, forKey: Self.suppressPersonalWorkoutDemoHistoryKey)
+
+        let demoWorkouts = completedWorkouts.filter { $0.notes.contains(Self.personalWorkoutDemoMarker) }
+        guard !demoWorkouts.isEmpty || bodyweightEntries.contains(where: {
+            $0.notes.contains(Self.personalWorkoutDemoMarker)
+        }) else { return 0 }
+
+        let demoWorkoutIDs = Set(demoWorkouts.map(\.id))
+        let demoSetSignatures = Set(demoWorkouts.flatMap(\.sets).map(DemoWorkoutSetSignature.init))
+        let demoFeedbackSignatures = Set(demoWorkouts.compactMap { workout -> DemoWorkoutFeedbackSignature? in
+            guard let sessionID = workout.sourceSessionID else { return nil }
+            return DemoWorkoutFeedbackSignature(sessionID: sessionID, completedAt: workout.completedAt)
+        })
+
+        completedWorkouts.removeAll { demoWorkoutIDs.contains($0.id) }
+        workoutSetLogs.removeAll { log in
+            if let workoutID = log.workoutID, demoWorkoutIDs.contains(workoutID) { return true }
+            return log.workoutID == nil && demoSetSignatures.contains(DemoWorkoutSetSignature(log))
         }
+        workoutFeedback.removeAll {
+            demoFeedbackSignatures.contains(DemoWorkoutFeedbackSignature(sessionID: $0.sessionID, completedAt: $0.completedAt))
+        }
+        bodyweightEntries.removeAll { $0.notes.contains(Self.personalWorkoutDemoMarker) }
+        pendingCompletedWorkoutUploads.removeAll { snapshot in
+            demoWorkoutIDs.contains(snapshot.id) ||
+                String(data: snapshot.payload, encoding: .utf8)?.contains(Self.personalWorkoutDemoMarker) == true
+        }
+        workoutPlanProgressionSettings.removeAll {
+            $0.planID == PersonalWorkoutPlanCatalog.planID && $0.sourceTemplateID == "private_bts_beginner_12"
+        }
+        refreshAchievementUnlocks()
+        persistWorkoutSnapshot()
+        return demoWorkouts.count
     }
 
-    func deleteMessageThread(_ thread: DirectMessageThread) {
-        let messageIDs = Set(directMessages.filter { $0.threadID == thread.id }.map(\.id))
-        directMessages.removeAll { $0.threadID == thread.id }
-        messageReports.removeAll { messageIDs.contains($0.messageID) }
-        messageThreads.removeAll { $0.id == thread.id }
-    }
+}
 
-    func reportMessage(_ message: DirectMessage, reason: MessageReportReason, note: String) {
-        if let index = directMessages.firstIndex(where: { $0.id == message.id }) {
-            directMessages[index].isReported = true
-        }
-        messageReports.insert(
-            MessageReport(id: UUID(), messageID: message.id, reporterID: currentProfile.id, reason: reason, note: note, createdAt: .now),
-            at: 0
-        )
-        notifications.insert(NotificationItem(id: UUID(), title: "Message reported", message: "Thanks. We flagged the message for review.", kind: "Message report", createdAt: .now, isRead: false), at: 0)
+private struct DemoWorkoutSetSignature: Hashable {
+    let performedAt: Date
+    let setNumber: Int
+    let weight: Double?
+    let reps: Int?
+
+    init(_ log: WorkoutSetLog) {
+        performedAt = log.performedAt
+        setNumber = log.setNumber
+        weight = log.weight
+        reps = log.reps
     }
+}
+
+private struct DemoWorkoutFeedbackSignature: Hashable {
+    let sessionID: UUID
+    let completedAt: Date
 }

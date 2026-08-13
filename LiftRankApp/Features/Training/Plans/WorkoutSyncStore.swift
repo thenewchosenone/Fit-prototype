@@ -1,0 +1,354 @@
+import Foundation
+
+@MainActor
+final class WorkoutSyncStore {
+    private let repository: any WorkoutSyncRepository
+    private let service: any WorkoutSyncService
+    private let makeUUID: () -> UUID
+    private let encoder: JSONEncoder
+    private let decoder: JSONDecoder
+    private var syncedUserID: UUID
+
+    init(
+        repository: any WorkoutSyncRepository,
+        service: any WorkoutSyncService,
+        makeUUID: @escaping () -> UUID = UUID.init,
+        encoder: JSONEncoder = JSONEncoder(),
+        decoder: JSONDecoder = JSONDecoder()
+    ) {
+        self.repository = repository
+        self.service = service
+        self.makeUUID = makeUUID
+        self.encoder = encoder
+        self.decoder = decoder
+        self.syncedUserID = repository.currentProfile.id
+    }
+
+    var pendingCompletedWorkoutUploads: [CompletedWorkoutSnapshot] {
+        repository.pendingCompletedWorkoutUploads
+    }
+
+    func enqueueCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) {
+        repository.deletedCompletedWorkoutIDs.remove(snapshot.id)
+        if let index = repository.pendingCompletedWorkoutUploads.firstIndex(where: { $0.id == snapshot.id }) {
+            repository.pendingCompletedWorkoutUploads[index] = snapshot
+        } else {
+            repository.pendingCompletedWorkoutUploads.append(snapshot)
+        }
+        repository.persistWorkoutSnapshot()
+    }
+
+    func synchronizeCompletedWorkoutHistory() async {
+        resetAccountScopedDataIfNeeded()
+        let userID = repository.currentProfile.id
+
+        let deletedIDs = repository.deletedCompletedWorkoutIDs
+        for deletedID in deletedIDs {
+            guard repository.currentProfile.id == userID else { return }
+            do {
+                try await service.deleteCompletedWorkout(id: deletedID)
+                guard repository.currentProfile.id == userID else { return }
+                repository.deletedCompletedWorkoutIDs.remove(deletedID)
+            } catch {
+                guard repository.currentProfile.id == userID else { return }
+            }
+        }
+
+        let pendingUploads = repository.pendingCompletedWorkoutUploads
+        for snapshot in pendingUploads {
+            guard repository.currentProfile.id == userID else { return }
+            do {
+                try await service.uploadCompletedWorkout(snapshot)
+                guard repository.currentProfile.id == userID else { return }
+                if let index = repository.pendingCompletedWorkoutUploads.firstIndex(where: { $0.id == snapshot.id }),
+                   repository.pendingCompletedWorkoutUploads[index] == snapshot {
+                    repository.pendingCompletedWorkoutUploads.remove(at: index)
+                }
+            } catch {
+                guard repository.currentProfile.id == userID else { return }
+            }
+        }
+
+        guard let remote = try? await service.completedWorkouts(since: nil) else {
+            guard repository.currentProfile.id == userID else { return }
+            repository.persistWorkoutSnapshot()
+            return
+        }
+        guard repository.currentProfile.id == userID else { return }
+        for snapshot in remote where snapshot.ownerID == userID
+            && !repository.deletedCompletedWorkoutIDs.contains(snapshot.id) {
+            guard let workout = try? decoder.decode(CompletedWorkout.self, from: snapshot.payload) else { continue }
+            if let index = repository.completedWorkouts.firstIndex(where: { $0.id == snapshot.id }) {
+                guard !repository.pendingCompletedWorkoutUploads.contains(where: { $0.id == snapshot.id }) else { continue }
+                repository.completedWorkouts[index] = workout
+            } else {
+                repository.completedWorkouts.append(workout)
+            }
+        }
+        repository.completedWorkouts.sort { $0.completedAt > $1.completedAt }
+        repository.refreshAchievementUnlocks(now: .now)
+        repository.persistWorkoutSnapshot()
+    }
+
+    func synchronizeDeletedCompletedWorkout(id: UUID) async {
+        resetAccountScopedDataIfNeeded()
+        let userID = repository.currentProfile.id
+        guard repository.deletedCompletedWorkoutIDs.contains(id) else { return }
+        do {
+            try await service.deleteCompletedWorkout(id: id)
+            guard repository.currentProfile.id == userID else { return }
+            repository.deletedCompletedWorkoutIDs.remove(id)
+        } catch {
+            guard repository.currentProfile.id == userID else { return }
+        }
+        repository.persistWorkoutSnapshot()
+    }
+
+    func synchronizeWorkoutPlans() async {
+        resetAccountScopedDataIfNeeded()
+        let userID = repository.currentProfile.id
+
+        for planID in repository.pendingRemoteWorkoutPlanDeletions {
+            guard repository.currentProfile.id == userID else { return }
+            do {
+                try await service.deletePlan(id: planID)
+                guard repository.currentProfile.id == userID else { return }
+                repository.pendingRemoteWorkoutPlanDeletions.remove(planID)
+            } catch {
+                guard repository.currentProfile.id == userID else { return }
+            }
+        }
+        guard repository.currentProfile.id == userID else { return }
+        guard var remoteByID = try? await service.plans().reduce(
+            into: [UUID: WorkoutPlanDocument](),
+            { result, document in
+                if document.ownerID == userID {
+                    result[document.id] = document
+                }
+            }
+        ) else {
+            return
+        }
+        guard repository.currentProfile.id == userID else { return }
+        let localOnlyPlanIDs = Set([PersonalWorkoutPlanCatalog.planID])
+
+        for plan in repository.workoutPlans where !localOnlyPlanIDs.contains(plan.id) {
+            guard let payload = payload(planID: plan.id), let data = try? encoder.encode(payload) else { continue }
+            let knownRevision = repository.workoutPlanSyncRevisions[plan.id]
+            let lastPayload = repository.workoutPlanLastSyncedPayloads[plan.id]
+
+            if let remote = remoteByID[plan.id] {
+                if knownRevision == nil {
+                    if remote.payload == data {
+                        remember(remote)
+                    } else if let serverPayload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: remote.payload) {
+                        let conflict = remappedConflictPayload(payload, documentID: makeUUID())
+                        apply(serverPayload, replacing: plan.id)
+                        apply(conflict, replacing: nil)
+                    }
+                    continue
+                }
+
+                if data == lastPayload {
+                    if remote.payload != data,
+                       let serverPayload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: remote.payload) {
+                        apply(serverPayload, replacing: plan.id)
+                    }
+                    remember(remote)
+                    continue
+                }
+
+                let document = WorkoutPlanDocument(
+                    id: plan.id,
+                    ownerID: repository.currentProfile.id,
+                    revision: knownRevision ?? remote.revision,
+                    name: plan.name,
+                    payload: data,
+                    updatedAt: .now
+                )
+                let result = try? await service.savePlan(
+                    document,
+                    expectedRevision: knownRevision ?? remote.revision
+                )
+                guard repository.currentProfile.id == userID else { return }
+                if let result {
+                    apply(result)
+                    if case let .saved(saved) = result { remoteByID[saved.id] = saved }
+                }
+            } else {
+                let document = WorkoutPlanDocument(
+                    id: plan.id,
+                    ownerID: repository.currentProfile.id,
+                    revision: 0,
+                    name: plan.name,
+                    payload: data,
+                    updatedAt: .now
+                )
+                let result = try? await service.savePlan(document, expectedRevision: 0)
+                guard repository.currentProfile.id == userID else { return }
+                if let result {
+                    apply(result)
+                }
+            }
+        }
+
+        for document in remoteByID.values
+        where !repository.pendingRemoteWorkoutPlanDeletions.contains(document.id)
+            && !repository.workoutPlans.contains(where: { $0.id == document.id }) {
+            guard let payload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: document.payload) else { continue }
+            apply(payload, replacing: nil)
+            remember(document)
+        }
+        repository.persistWorkoutSnapshot()
+    }
+
+    private func resetAccountScopedDataIfNeeded() {
+        guard syncedUserID != repository.currentProfile.id else { return }
+        syncedUserID = repository.currentProfile.id
+        repository.completedWorkouts.removeAll()
+        repository.pendingCompletedWorkoutUploads.removeAll()
+        repository.deletedCompletedWorkoutIDs.removeAll()
+        repository.clearAccountScopedWorkoutHistory()
+
+        let localOnlyPlanIDs = Set([PersonalWorkoutPlanCatalog.planID])
+        let removedPlanIDs = Set(repository.workoutPlans.map(\.id).filter { !localOnlyPlanIDs.contains($0) })
+        let removedWeekIDs = Set(repository.workoutWeeks.filter { removedPlanIDs.contains($0.planID) }.map(\.id))
+        let removedSessionIDs = Set(repository.workoutSessions.filter { removedWeekIDs.contains($0.weekID) }.map(\.id))
+        repository.workoutPlans.removeAll { removedPlanIDs.contains($0.id) }
+        repository.workoutPhases.removeAll { removedPlanIDs.contains($0.planID) }
+        repository.workoutWeeks.removeAll { removedPlanIDs.contains($0.planID) }
+        repository.workoutSessions.removeAll { removedWeekIDs.contains($0.weekID) }
+        repository.workoutPrescriptions.removeAll { removedSessionIDs.contains($0.sessionID) }
+        repository.workoutPlanProgressionSettings.removeAll { removedPlanIDs.contains($0.planID) }
+        repository.workoutPlanSyncRevisions.removeAll()
+        repository.workoutPlanLastSyncedPayloads.removeAll()
+        repository.pendingRemoteWorkoutPlanDeletions.removeAll()
+        repository.persistWorkoutSnapshot()
+    }
+
+    func forgetPlan(_ planID: UUID) {
+        repository.workoutPlanSyncRevisions[planID] = nil
+        repository.workoutPlanLastSyncedPayloads[planID] = nil
+        repository.persistWorkoutSnapshot()
+    }
+
+    func deleteRemotePlan(_ planID: UUID) async {
+        let userID = repository.currentProfile.id
+        repository.pendingRemoteWorkoutPlanDeletions.insert(planID)
+        repository.persistWorkoutSnapshot()
+        do {
+            try await service.deletePlan(id: planID)
+            guard repository.currentProfile.id == userID else { return }
+            repository.pendingRemoteWorkoutPlanDeletions.remove(planID)
+        } catch {
+            guard repository.currentProfile.id == userID else { return }
+        }
+        repository.persistWorkoutSnapshot()
+    }
+
+    func payload(planID: UUID) -> WorkoutPlanSyncPayload? {
+        guard let plan = repository.workoutPlans.first(where: { $0.id == planID }) else { return nil }
+        let phases = repository.workoutPhases.filter { $0.planID == planID }
+        let weeks = repository.workoutWeeks.filter { $0.planID == planID }
+        let weekIDs = Set(weeks.map(\.id))
+        let sessions = repository.workoutSessions.filter { weekIDs.contains($0.weekID) }
+        let sessionIDs = Set(sessions.map(\.id))
+        return WorkoutPlanSyncPayload(
+            plan: plan,
+            phases: phases,
+            weeks: weeks,
+            sessions: sessions,
+            prescriptions: repository.workoutPrescriptions.filter { sessionIDs.contains($0.sessionID) },
+            progression: repository.workoutPlanProgressionSettings.first { $0.planID == planID }
+        )
+    }
+
+    private func apply(_ result: WorkoutSyncResult) {
+        switch result {
+        case let .saved(saved):
+            remember(saved)
+        case let .conflict(server, localCopy):
+            if let payload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: server.payload) {
+                apply(payload, replacing: server.id)
+            }
+            if let payload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: localCopy.payload) {
+                apply(remappedConflictPayload(payload, documentID: localCopy.id), replacing: nil)
+            }
+            remember(server)
+            repository.workoutPlanSyncRevisions[localCopy.id] = localCopy.revision
+        }
+    }
+
+    private func remember(_ document: WorkoutPlanDocument) {
+        repository.workoutPlanSyncRevisions[document.id] = document.revision
+        repository.workoutPlanLastSyncedPayloads[document.id] = document.payload
+    }
+
+    private func apply(_ payload: WorkoutPlanSyncPayload, replacing planID: UUID?) {
+        if let planID {
+            let weekIDs = Set(repository.workoutWeeks.filter { $0.planID == planID }.map(\.id))
+            let sessionIDs = Set(repository.workoutSessions.filter { weekIDs.contains($0.weekID) }.map(\.id))
+            repository.workoutPrescriptions.removeAll { sessionIDs.contains($0.sessionID) }
+            repository.workoutSessions.removeAll { weekIDs.contains($0.weekID) }
+            repository.workoutWeeks.removeAll { $0.planID == planID }
+            repository.workoutPhases.removeAll { $0.planID == planID }
+            repository.workoutPlanProgressionSettings.removeAll { $0.planID == planID }
+            repository.workoutPlans.removeAll { $0.id == planID }
+        }
+        repository.workoutPlans.append(payload.plan)
+        repository.workoutPhases.append(contentsOf: payload.phases)
+        repository.workoutWeeks.append(contentsOf: payload.weeks)
+        repository.workoutSessions.append(contentsOf: payload.sessions)
+        repository.workoutPrescriptions.append(contentsOf: payload.prescriptions)
+        if let progression = payload.progression {
+            repository.workoutPlanProgressionSettings.append(progression)
+        }
+    }
+
+    private func remappedConflictPayload(
+        _ payload: WorkoutPlanSyncPayload,
+        documentID: UUID
+    ) -> WorkoutPlanSyncPayload {
+        let phaseIDs = Dictionary(uniqueKeysWithValues: payload.phases.map { ($0.id, makeUUID()) })
+        let weekIDs = Dictionary(uniqueKeysWithValues: payload.weeks.map { ($0.id, makeUUID()) })
+        let sessionIDs = Dictionary(uniqueKeysWithValues: payload.sessions.map { ($0.id, makeUUID()) })
+        var plan = payload.plan
+        plan.id = documentID
+        plan.name += " (Conflict copy)"
+        let phases = payload.phases.map { value -> WorkoutPhase in
+            var copy = value
+            copy.id = phaseIDs[value.id]!
+            copy.planID = documentID
+            return copy
+        }
+        let weeks = payload.weeks.map { value -> WorkoutWeek in
+            var copy = value
+            copy.id = weekIDs[value.id]!
+            copy.planID = documentID
+            copy.phaseID = phaseIDs[value.phaseID] ?? value.phaseID
+            return copy
+        }
+        let sessions = payload.sessions.map { value -> WorkoutSession in
+            var copy = value
+            copy.id = sessionIDs[value.id]!
+            copy.weekID = weekIDs[value.weekID] ?? value.weekID
+            return copy
+        }
+        let prescriptions = payload.prescriptions.map { value -> WorkoutExercisePrescription in
+            var copy = value
+            copy.id = makeUUID()
+            copy.sessionID = sessionIDs[value.sessionID] ?? value.sessionID
+            return copy
+        }
+        var progression = payload.progression
+        progression?.planID = documentID
+        return WorkoutPlanSyncPayload(
+            plan: plan,
+            phases: phases,
+            weeks: weeks,
+            sessions: sessions,
+            prescriptions: prescriptions,
+            progression: progression
+        )
+    }
+}
