@@ -1,6 +1,7 @@
 import { cleanText, normalizePostalCode, stateName } from "./normalize.mjs";
 
-const ANYTIME_URL = "https://www.anytimefitness.com/locations";
+export const ANYTIME_SOURCE_URL = "https://react.anytimefitness.com/api/locations/?country=usa";
+const ANYTIME_DIRECTORY_URL = "https://www.anytimefitness.com/locations";
 const GOLDS_URL = "https://www.goldsgym.com/locations/";
 
 function cookieHeader(headers) {
@@ -8,41 +9,36 @@ function cookieHeader(headers) {
   return values.map((value) => value.split(";", 1)[0]).join("; ");
 }
 
-export function parseAnytimeDirectoryHtml(html) {
-  if (/Incapsula|Additional security check is required/i.test(html)) {
-    throw new Error("Anytime Fitness blocked the catalog refresh with its security challenge. Run from an approved network or pass an official saved directory page to the parser.");
+export function parseAnytimeLocations(payload) {
+  const locations = Array.isArray(payload) ? payload : payload?.items;
+  if (!Array.isArray(locations)) {
+    throw new TypeError("Anytime Fitness response did not contain an items array");
   }
-  const rows = [];
-  const rowPattern = /<div[^>]+class="[^"]*(?:location-row|w-dyn-item)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
-  for (const match of html.matchAll(rowPattern)) {
-    const text = cleanText(match[1].replace(/<\/(?:div|span|p|li|td)>/gi, " | ").replace(/<[^>]*>/g, " "));
-    const parts = text.split(/\s*\|\s*/).map(cleanText).filter(Boolean);
-    const status = /\b(Open|Coming Soon|Pre Sales|Closed)\b/i.exec(text)?.[1] ?? "";
-    const postalCode = normalizePostalCode(text);
-    const cityStatePart = parts.find((part) => /,\s*(?:[A-Z]{2}|[A-Za-z ]+)(?:\s+\d{5})?$/.test(part)) ?? text;
-    const cityState = /([^,|]+),\s*([A-Z]{2}|[A-Za-z ]+?)(?:\s+\d{5})?(?:\s|$)/.exec(cityStatePart);
-    const address = parts.find((part) => /^\d/.test(part) && !/^\d{5}(?:-\d{4})?$/.test(part) && !/^\(?\d{3}\)?[\s-]/.test(part))
-      ?? /(?:^|\|)\s*(\d[^|]+?)(?:\||$)/.exec(text)?.[1];
-    if (!postalCode || !cityState || !address || !/^open$/i.test(status)) continue;
-    rows.push({
-      brand: "Anytime Fitness",
-      name: `Anytime Fitness - ${cleanText(cityState[1])}`,
-      address: cleanText(address),
-      city: cleanText(cityState[1]),
-      state: stateName(cityState[2]),
-      postalCode,
-      countryCode: "US",
-      officialUrl: ANYTIME_URL,
-      status: "Open"
-    });
-  }
-  return rows;
+
+  return locations
+    .filter((location) => location?.status === "OPEN" && location?.address?.country_abbr === "USA")
+    .map((location) => {
+      const address = location.address;
+      return {
+        sourceId: cleanText(location.id || location.location_id),
+        brand: "Anytime Fitness",
+        name: `Anytime Fitness - ${cleanText(location.name)}`,
+        address: [address.address1, address.address2].map(cleanText).filter(Boolean).join(", "),
+        city: cleanText(address.city),
+        state: stateName(address.state),
+        postalCode: normalizePostalCode(address.postal_code),
+        countryCode: "US",
+        officialUrl: ANYTIME_DIRECTORY_URL,
+        status: "Open"
+      };
+    })
+    .filter((location) => location.sourceId && location.name && location.address && location.city && location.state && location.postalCode);
 }
 
 export async function fetchAnytimeLocations({ fetchImpl = fetch } = {}) {
-  const response = await fetchImpl(ANYTIME_URL, { headers: { "user-agent": "Mozilla/5.0 LiftRank catalog refresh" } });
+  const response = await fetchImpl(ANYTIME_SOURCE_URL, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`Anytime Fitness locator returned ${response.status}`);
-  const locations = parseAnytimeDirectoryHtml(await response.text());
+  const locations = parseAnytimeLocations(await response.json());
   if (!locations.length) throw new Error("Anytime Fitness locator returned no open U.S. locations");
   return locations;
 }

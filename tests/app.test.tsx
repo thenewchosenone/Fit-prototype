@@ -194,7 +194,8 @@ describe("Lift Rivals platform UI", () => {
     expect(container.querySelectorAll(".gym-list .object-row")).toHaveLength(50);
 
     await user.type(screen.getByLabelText("Search gyms"), "33326");
-    expect(screen.getByText("Showing 1–1 of 1 gyms")).toBeVisible();
+    expect(screen.getByText("Showing 1–2 of 2 gyms")).toBeVisible();
+    expect(screen.getByText("Orangetheory - Weston, FL")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
   });
 

@@ -11,6 +11,7 @@ import { request as httpsRequest } from "node:https";
 export const CRUNCH_SOURCE_URL = "https://www.crunch.com/load-clubs";
 export const LA_FITNESS_SOURCE_URL =
   "https://www.lafitness.com/Pages/GetClubLocations.aspx/GetClubLocation";
+export const ESPORTA_SOURCE_URL = LA_FITNESS_SOURCE_URL;
 
 const CRUNCH_BASE_URL = "https://www.crunch.com";
 const LA_FITNESS_BASE_URL = "https://www.lafitness.com/Pages/";
@@ -252,6 +253,39 @@ export function parseLaFitnessLocations(payload) {
   return uniqueBySourceId(normalized);
 }
 
+/** Normalize the open U.S. Esporta clubs carried in the same corporate feed. */
+export function parseEsportaLocations(payload) {
+  const clubs = responseArray(payload, "d", "Esporta Fitness");
+  const normalized = [];
+
+  for (const club of clubs) {
+    const isOpenEsporta = Number(club?.ClubStatus) === 1 && club?.IsEsporta === true;
+    const state = cleanText(club?.State).toUpperCase();
+    if (!isOpenEsporta || !US_REGION_CODES.has(state)) continue;
+
+    const sourceId = cleanText(club?.ClubID);
+    const locationName = cleanText(club?.Description);
+    const city = cleanText(club?.City);
+    const { address, postalCode } = parseLaAddress(club?.Address);
+    if (!sourceId || !locationName || !address || !city || !postalCode) continue;
+
+    normalized.push({
+      sourceId,
+      brand: "Esporta Fitness",
+      name: `Esporta Fitness - ${locationName}`,
+      address,
+      city,
+      state,
+      postalCode,
+      countryCode: "US",
+      officialUrl: laFitnessOfficialUrl(club?.ClubHomeURL, sourceId),
+      status: "Open",
+    });
+  }
+
+  return uniqueBySourceId(normalized);
+}
+
 async function fetchJson(url, init, fetchImpl) {
   if (typeof fetchImpl !== "function") {
     throw new TypeError("A Fetch API-compatible function is required");
@@ -334,4 +368,23 @@ export async function fetchLaFitnessLocations(options = {}) {
     ? await fetchJson(LA_FITNESS_SOURCE_URL, requestInit, fetchImpl)
     : await fetchJsonWithHttps(LA_FITNESS_SOURCE_URL, requestInit);
   return parseLaFitnessLocations(payload);
+}
+
+/** Fetch and normalize the current official Esporta Fitness US locations. */
+export async function fetchEsportaLocations(options = {}) {
+  const { fetchImpl, signal } = options;
+  const requestInit = {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json; charset=utf-8",
+      "Content-Length": "2",
+    },
+    body: "{}",
+    signal,
+  };
+  const payload = fetchImpl
+    ? await fetchJson(ESPORTA_SOURCE_URL, requestInit, fetchImpl)
+    : await fetchJsonWithHttps(ESPORTA_SOURCE_URL, requestInit);
+  return parseEsportaLocations(payload);
 }
