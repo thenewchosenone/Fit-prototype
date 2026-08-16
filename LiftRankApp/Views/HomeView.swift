@@ -7,6 +7,7 @@ struct HomeView: View {
     @State var showingStreak = false
     @State var showingActiveWorkout = false
     @State var showingAwards = false
+    @State var showingGyms = false
     @State var selectedBodyweightEntry: BodyweightEntry?
     @State var selectedRecentPR: LiftSubmission?
     @State var homeContentWidth: CGFloat = 0

@@ -1113,21 +1113,22 @@ final class RankingCalculatorTests: XCTestCase {
 
     @MainActor
     func testLeaderboardUpdatesImmediately() {
-        let appState = AppState()
-        appState.repository.profiles = [appState.currentProfile]
-        appState.verifiedOnly = false
-        appState.leaderboardFilters = LeaderboardFilters(exerciseID: "deadlift")
-        appState.leaderboardFilters.rankingType = .absolute
+        let repository = DemoRepository()
+        repository.profiles = [repository.currentProfile]
+        let store = CompetitionStore(repository: repository)
+        store.verifiedOnly = false
+        store.filters = LeaderboardFilters(exerciseID: "deadlift")
+        store.filters.rankingType = .absolute
 
         let referenceDate = Date(timeIntervalSince1970: 1_782_374_400)
-        let snapshotDate = appState.leaderboardSnapshotDate(referenceDate: referenceDate)
-        var pendingLift = makeLift(userID: appState.currentProfile.id, weight: 2_000)
+        let snapshotDate = store.leaderboardSnapshotDate(referenceDate: referenceDate)
+        var pendingLift = makeLift(userID: repository.currentProfile.id, weight: 2_000)
         pendingLift.createdAt = snapshotDate.addingTimeInterval(60)
         pendingLift.performedAt = pendingLift.createdAt
         pendingLift.leaderboardEligibleAt = referenceDate
-        appState.repository.lifts.append(pendingLift)
+        repository.lifts.append(pendingLift)
 
-        let currentSnapshot = appState.leaderboardEntries(referenceDate: referenceDate)
+        let currentSnapshot = store.leaderboardEntries(referenceDate: referenceDate)
         XCTAssertTrue(currentSnapshot.contains { $0.lift.id == pendingLift.id })
         XCTAssertEqual(currentSnapshot.first?.lift.id, pendingLift.id)
     }
@@ -1296,6 +1297,7 @@ final class RankingCalculatorTests: XCTestCase {
         store.filters.repetitionCount = 5
         store.filters.experienceLevel = .advanced
         store.filters.verificationLevel = .videoVerified
+        await store.refreshLeaderboard()
         let filtered = store.leaderboardEntries(referenceDate: .now)
 
         XCTAssertEqual(unfilteredCount, 2)
@@ -1316,6 +1318,31 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertNotEqual(initialKey, repetitionKey)
         XCTAssertNotEqual(repetitionKey, experienceKey)
         XCTAssertNotEqual(experienceKey, state.leaderboardRequestKey)
+    }
+
+    @MainActor
+    func testProfileRankingUsesCanonicalCurrentUserTotalEntry() async {
+        let repository = DemoRepository()
+        let profile = makeProfile(id: repository.currentProfile.id, username: "canonical_total")
+        let lift = makeLift(userID: profile.id, weight: 500)
+        let canonical = LeaderboardEntry(
+            rank: 4,
+            profile: profile,
+            lift: lift,
+            rankMovement: 1,
+            score: 1_225,
+            powerliftingBreakdown: nil
+        )
+        let store = CompetitionStore(
+            repository: repository,
+            leaderboardService: StaticLeaderboardService(entries: [canonical])
+        )
+
+        await store.refreshCurrentUserTotalEntry()
+
+        XCTAssertEqual(store.currentUserTotalEntry?.rank, 4)
+        XCTAssertEqual(store.currentUserTotalEntry?.score, 1_225)
+        XCTAssertEqual(store.currentUserTotalEntry?.profile.id, repository.currentProfile.id)
     }
 
     @MainActor
@@ -1497,7 +1524,7 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(store.uploadProgress, 0)
     }
 
-    func testRemoteEstimatedLiftReconstructsOneRepMaxFromRepetitions() throws {
+    func testRemoteEstimatedLiftReconstructsOneRepMaxAndMapsApprovedRemovalProtection() throws {
         let performedAt = Date(timeIntervalSince1970: 1_800_000_000)
         let dto = CompetitiveLiftDTO(
             id: UUID(), userID: UUID(), exerciseID: "bench", gymID: UUID().uuidString,
@@ -1506,7 +1533,9 @@ final class RankingCalculatorTests: XCTestCase {
             createdAt: performedAt, repetitions: 5, isActualOneRepMax: false,
             competitiveMovement: CompetitiveMovement.barbellBenchPress.rawValue,
             evidenceStatus: "self_reported", moderationStatus: "clear", weightPerHand: false,
-            leaderboardEligibleAt: performedAt, updatedAt: performedAt, videoAssetID: nil
+            leaderboardEligibleAt: performedAt, updatedAt: performedAt, videoAssetID: nil,
+            approvedEvidenceStoragePath: nil, evidenceStoragePath: nil,
+            reviewStatus: "approved", evidencePublic: false
         )
 
         let submission = try XCTUnwrap(dto.submission)
@@ -1519,6 +1548,7 @@ final class RankingCalculatorTests: XCTestCase {
             ),
             accuracy: 0.001
         )
+        XCTAssertTrue(submission.requiresCoordinatedRemoval)
     }
 
     @MainActor
@@ -1842,43 +1872,44 @@ final class RankingCalculatorTests: XCTestCase {
 
     @MainActor
     func testLeaderboardFiltersByRankingCardScopes() {
-        let appState = AppState()
-        var profile = makeProfile(id: appState.currentProfile.id)
+        let repository = DemoRepository()
+        var profile = makeProfile(id: repository.currentProfile.id)
         profile.city = "Austin"
         profile.state = "Texas"
         profile.sexCategory = .male
         let gymID = UUID()
         var lift = makeLift(userID: profile.id, weight: 405)
         lift.gymID = gymID
-        appState.repository.currentProfile = profile
-        appState.repository.profiles = [profile]
-        appState.repository.lifts = [lift]
-        appState.verifiedOnly = false
+        repository.currentProfile = profile
+        repository.profiles = [profile]
+        repository.lifts = [lift]
+        let store = CompetitionStore(repository: repository)
+        store.verifiedOnly = false
 
         var gymFilters = LeaderboardFilters(exerciseID: "deadlift")
         gymFilters.gymID = gymID
-        appState.leaderboardFilters = gymFilters
-        let gymEntries = appState.leaderboardEntries()
+        store.filters = gymFilters
+        let gymEntries = store.leaderboardEntries(referenceDate: .now)
         XCTAssertFalse(gymEntries.isEmpty)
         XCTAssertTrue(gymEntries.allSatisfy { $0.lift.gymID == gymID })
 
         var cityFilters = LeaderboardFilters(exerciseID: "deadlift")
-        cityFilters.city = appState.currentProfile.city
-        cityFilters.state = appState.currentProfile.state
-        appState.leaderboardFilters = cityFilters
-        let cityEntries = appState.leaderboardEntries()
+        cityFilters.city = repository.currentProfile.city
+        cityFilters.state = repository.currentProfile.state
+        store.filters = cityFilters
+        let cityEntries = store.leaderboardEntries(referenceDate: .now)
         XCTAssertFalse(cityEntries.isEmpty)
-        XCTAssertTrue(cityEntries.allSatisfy { $0.profile.city == appState.currentProfile.city && $0.profile.state == appState.currentProfile.state })
+        XCTAssertTrue(cityEntries.allSatisfy { $0.profile.city == repository.currentProfile.city && $0.profile.state == repository.currentProfile.state })
 
         var weightClassFilters = LeaderboardFilters(exerciseID: nil)
-        weightClassFilters.sexCategory = appState.currentProfile.sexCategory
+        weightClassFilters.sexCategory = repository.currentProfile.sexCategory
         weightClassFilters.weightClassID = RankingCalculator.weightClass(
-            for: appState.currentProfile.bodyweightPounds,
-            sexCategory: appState.currentProfile.sexCategory,
+            for: repository.currentProfile.bodyweightPounds,
+            sexCategory: repository.currentProfile.sexCategory,
             classes: WeightClassCatalog.all
         )?.id
-        appState.leaderboardFilters = weightClassFilters
-        let weightClassEntries = appState.leaderboardEntries()
+        store.filters = weightClassFilters
+        let weightClassEntries = store.leaderboardEntries(referenceDate: .now)
         XCTAssertFalse(weightClassEntries.isEmpty)
         XCTAssertTrue(weightClassEntries.allSatisfy { entry in
             RankingCalculator.weightClass(
@@ -3171,6 +3202,59 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(status, .videoVerified)
         XCTAssertEqual(status.rawValue, "Video Verified")
         XCTAssertFalse(VerificationStatus.allCases.map(\.rawValue).contains("Moderator Verified"))
+    }
+
+    func testCommunityVerifiedStatusMatchesCanonicalServerLabel() throws {
+        let data = try JSONEncoder().encode("Community Verified")
+        let status = try JSONDecoder().decode(VerificationStatus.self, from: data)
+
+        XCTAssertEqual(status, .communityVerified)
+        XCTAssertTrue(status.isDefaultLeaderboardEligible)
+    }
+
+    func testFriendsOnlyLiftVisibilityMatchesServerAndStaysOffPublicRankings() {
+        var lift = makeLift(userID: UUID(), weight: 405)
+        lift.visibility = .friendsLift
+
+        XCTAssertEqual(LiftVisibility(rawValue: "Friends"), .friendsLift)
+        XCTAssertFalse(lift.isLaunchLeaderboardEligible)
+    }
+
+    @MainActor
+    func testEvidenceFreeOwnerSubmissionCanBePermanentlyDeleted() async throws {
+        let repository = DemoRepository()
+        var lift = makeLift(userID: repository.currentProfile.id, weight: 405)
+        lift.visibility = .privateLift
+        lift.verificationStatus = .selfReported
+        lift.evidenceStatus = .selfReported
+        lift.videoAssetID = nil
+        lift.hasProtectedEvidence = false
+        repository.lifts = [lift]
+        let store = CompetitionStore(
+            repository: repository,
+            liftService: MockLiftService(repository: repository)
+        )
+
+        try await store.removeSubmission(lift)
+
+        XCTAssertFalse(repository.lifts.contains(where: { $0.id == lift.id }))
+    }
+
+    @MainActor
+    func testVideoBackedSubmissionUsesCoordinatedRemoval() async throws {
+        let repository = DemoRepository()
+        var lift = makeLift(userID: repository.currentProfile.id, weight: 405)
+        lift.evidenceStatus = .videoBacked
+        lift.videoAssetID = UUID()
+        repository.lifts = [lift]
+        let store = CompetitionStore(
+            repository: repository,
+            liftService: MockLiftService(repository: repository)
+        )
+
+        try await store.removeSubmission(lift)
+
+        XCTAssertFalse(repository.lifts.contains(where: { $0.id == lift.id }))
     }
 
     func testAllSubmissionsIncludesSelfReportedTotal() {

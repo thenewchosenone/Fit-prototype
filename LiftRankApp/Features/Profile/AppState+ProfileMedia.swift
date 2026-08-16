@@ -5,12 +5,15 @@ import UIKit
 extension AppState {
     func updateBodyweight(_ entry: BodyweightEntry) {
         Haptics.light()
-        trainingProgressStore.updateBodyweight(entry)
         guard let actual = entry.actual, actual > 0 else { return }
         var profile = currentProfile
         profile.bodyweightPounds = actual
-        profileStore.saveProfile(profile)
-        guard isAuthenticated, !isDemoMode else { return }
+        guard isAuthenticated, !isDemoMode else {
+            trainingProgressStore.updateBodyweight(entry)
+            profileStore.saveProfile(profile)
+            repository.persistWorkoutSnapshotWithoutBlockingUI()
+            return
+        }
         let userID = profile.id
         Task {
             do {
@@ -22,6 +25,9 @@ extension AppState {
                 _ = try await profileStore.updateProfile(profile)
                 guard accountSession?.userID == userID,
                       repository.currentProfile.id == userID else { return }
+                repository.persistWorkoutSnapshotWithoutBlockingUI()
+                trainingProgressStore.updateBodyweight(entry)
+                profileStore.saveProfile(profile)
                 repository.persistWorkoutSnapshotWithoutBlockingUI()
             } catch {
                 guard accountSession?.userID == userID else { return }

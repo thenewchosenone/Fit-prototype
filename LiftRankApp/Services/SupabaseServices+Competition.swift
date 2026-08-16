@@ -96,6 +96,19 @@ final class SupabaseLiftService: LiftService {
         catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
+    func removeSubmission(id: UUID) async throws {
+        do {
+            try await client.functions.invoke(
+                "remove-lift-submission",
+                options: FunctionInvokeOptions(body: ["submission_id": id.uuidString])
+            )
+        } catch let error as LiftRankServiceError {
+            throw error
+        } catch {
+            throw SupabaseServiceErrorMapper.map(error)
+        }
+    }
+
     func vote(liftID: UUID, vote: LiftVoteValue?) async throws {
         do {
             try await client.rpc("vote_on_lift", params: LiftVoteParameters(liftID: liftID, voteValue: vote?.rawValue)).execute()
@@ -183,6 +196,11 @@ struct CompetitiveLiftDTO: Decodable {
     let leaderboardEligibleAt: Date?
     let updatedAt: Date
     let videoAssetID: UUID?
+    var approvedEvidenceStoragePath: String? = nil
+    var pendingEvidenceStoragePath: String? = nil
+    var evidenceStoragePath: String? = nil
+    var reviewStatus: String? = nil
+    var evidencePublic: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, weight, unit, reps, bodyweight, visibility, verification, caption, repetitions
@@ -199,6 +217,11 @@ struct CompetitiveLiftDTO: Decodable {
         case weightPerHand = "weight_per_hand"
         case leaderboardEligibleAt = "leaderboard_eligible_at"
         case videoAssetID = "video_asset_id"
+        case approvedEvidenceStoragePath = "approved_evidence_storage_path"
+        case pendingEvidenceStoragePath = "pending_evidence_storage_path"
+        case evidenceStoragePath = "evidence_storage_path"
+        case reviewStatus = "review_status"
+        case evidencePublic = "evidence_public"
     }
 
     var submission: LiftSubmission? {
@@ -232,7 +255,7 @@ struct CompetitiveLiftDTO: Decodable {
             remoteVideoURL: nil,
             caption: caption,
             verificationStatus: VerificationStatus(rawValue: verification) ?? (evidenceStatus == "video_backed" ? .videoVerified : .selfReported),
-            visibility: visibility == "Private" ? .privateLift : .publicLift,
+            visibility: LiftVisibility(rawValue: visibility) ?? .privateLift,
             leaderboardEligibleAt: leaderboardEligibleAt ?? .distantFuture,
             createdAt: createdAt,
             updatedAt: updatedAt,
@@ -240,7 +263,14 @@ struct CompetitiveLiftDTO: Decodable {
             evidenceStatus: LiftEvidenceStatus(rawValue: evidenceStatus),
             moderationStatus: LiftModerationStatus(rawValue: moderationStatus),
             videoAssetID: videoAssetID,
-            weightPerHand: weightPerHand
+            weightPerHand: weightPerHand,
+            hasProtectedEvidence: evidenceStatus != LiftEvidenceStatus.selfReported.rawValue ||
+                videoAssetID != nil ||
+                !(approvedEvidenceStoragePath ?? "").isEmpty ||
+                !(pendingEvidenceStoragePath ?? "").isEmpty ||
+                !(evidenceStoragePath ?? "").isEmpty ||
+                reviewStatus?.lowercased() == "approved" ||
+                evidencePublic == true
         )
     }
 }

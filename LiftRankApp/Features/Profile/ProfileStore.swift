@@ -109,7 +109,7 @@ final class ProfileStore: ObservableObject {
             let remote = try await profileService.saveProfile(ProfileDraft(
                 username: profile.username,
                 displayName: profile.displayName,
-                bio: existing.bio,
+                bio: profile.bio ?? existing.bio,
                 avatarPath: profile.avatarPath,
                 preferredUnit: profile.preferredUnit,
                 birthDate: ProfileDisplayFormatting.representativeBirthDate(
@@ -123,7 +123,7 @@ final class ProfileStore: ObservableObject {
                 city: profile.city,
                 region: profile.state,
                 countryCode: existing.countryCode ?? "US",
-                yearsExperience: nil,
+                yearsExperience: profile.yearsExperience,
                 experienceLevel: profile.experienceLevel,
                 privacy: privacy,
                 completesOnboarding: existing.onboardingCompleted
@@ -181,6 +181,7 @@ final class ProfileStore: ObservableObject {
         local.id = remote.id
         local.username = remote.username
         local.displayName = remote.displayName
+        local.bio = remote.bio
         local.preferredUnit = remote.preferredUnit
         local.sexCategory = remote.sexCategory ?? .open
         local.heightInches = (remote.heightCentimeters ?? 0) / 2.54
@@ -194,6 +195,7 @@ final class ProfileStore: ObservableObject {
         local.hideBodyweight = remote.privacy.bodyweightAudience == .privateProfile
         local.hideCity = remote.privacy.locationAudience == .privateProfile
         local.hideGym = remote.privacy.gymAudience == .privateProfile
+        local.hideLiftVideos = !remote.privacy.showLiftVideos
         local.avatarPath = remote.avatarPath
 
         if repository.currentProfile != local {
@@ -246,6 +248,7 @@ final class ProfileStore: ObservableObject {
         profile.id = card.id
         profile.username = card.username
         profile.displayName = card.displayName
+        profile.bio = card.bio
         profile.ageGroup = card.ageBand ?? "Hidden"
         profile.sexCategory = card.sexCategory ?? .open
         profile.city = card.city ?? ""

@@ -7,6 +7,9 @@ struct ProfileView: View {
     @State var showingPhotoManager = false
     @State var showingAthleteDetails = false
     @State var liftPresentation = ProfileLiftPresentation.empty
+    @State var submissionPendingDeletion: LiftSubmission?
+    @State var submissionDeletionError: String?
+    @State var isDeletingSubmission = false
 
     var body: some View { featureBody }
 }

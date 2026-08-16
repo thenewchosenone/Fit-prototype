@@ -87,7 +87,13 @@ run_reset() {
   psql_local() { "$PGBIN/psql" -h "$SOCKET" -p "$PORT" -v ON_ERROR_STOP=1 -d "$db" "$@"; }
   bootstrap | psql_local >/dev/null
   psql_local -f "$WORK/pgtap-load.sql" >/dev/null
-  for migration in "$ROOT"/supabase/migrations/*.sql; do psql_local -f "$migration" >/dev/null; done
+  for migration in "$ROOT"/supabase/migrations/*.sql; do
+    # This guarded production-only ownership transfer intentionally requires
+    # Rob's live profile and six seeded rows, neither of which belongs in a
+    # clean schema reset used by the pgTAP suite.
+    [[ "$(basename "$migration")" == "202608080002_reassign_seeded_lifts_to_rob.sql" ]] && continue
+    psql_local -f "$migration" >/dev/null
+  done
   for test_file in "$ROOT"/supabase/tests/*.test.sql; do
     [[ "$(basename "$test_file")" == "202607140002_gym_membership_concurrency.test.sql" ]] && continue
     local staged="$WORK/$(basename "$test_file")"

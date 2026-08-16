@@ -337,6 +337,7 @@ struct SubmitLiftView: View {
     private var visibilitySymbol: String {
         switch visibility {
         case .publicLift: return "globe"
+        case .friendsLift: return "person.2"
         case .privateLift: return "lock"
         }
     }
@@ -345,6 +346,8 @@ struct SubmitLiftView: View {
         switch visibility {
         case .publicLift:
             return "Public lifts appear on your profile and eligible results enter rankings immediately."
+        case .friendsLift:
+            return "Friends-only lifts are visible to accepted friends and stay out of public leaderboards."
         case .privateLift:
             return "Private lifts stay on your profile and are excluded from public leaderboards."
         }
@@ -377,10 +380,26 @@ struct SubmitLiftView: View {
                 LeaderboardOption(
                     id: option.rawValue,
                     title: option.rawValue,
-                    subtitle: option == .publicLift ? "Eligible daily rankings" : "Visible only to you",
-                    symbol: option == .publicLift ? "globe" : "lock"
+                    subtitle: visibilitySubtitle(option),
+                    symbol: visibilitySymbol(option)
                 )
             }
+        }
+    }
+
+    private func visibilitySubtitle(_ option: LiftVisibility) -> String {
+        switch option {
+        case .publicLift: return "Eligible public rankings"
+        case .friendsLift: return "Visible to accepted friends"
+        case .privateLift: return "Visible only to you"
+        }
+    }
+
+    private func visibilitySymbol(_ option: LiftVisibility) -> String {
+        switch option {
+        case .publicLift: return "globe"
+        case .friendsLift: return "person.2"
+        case .privateLift: return "lock"
         }
     }
 

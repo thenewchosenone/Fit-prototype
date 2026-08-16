@@ -27,11 +27,12 @@ enum VerificationStatus: String, Codable, CaseIterable, Identifiable {
     case selfReported = "Self Reported"
     case videoSubmitted = "Video Submitted"
     case videoVerified = "Video Verified"
+    case communityVerified = "Community Verified"
     case competitionVerified = "Competition Verified"
     case rejected = "Rejected"
     var id: String { rawValue }
     var isDefaultLeaderboardEligible: Bool {
-        self == .videoVerified || self == .competitionVerified
+        self == .videoVerified || self == .communityVerified || self == .competitionVerified
     }
 
     init(from decoder: Decoder) throws {
@@ -217,6 +218,7 @@ enum LiftModeratorDecision: String, Codable, CaseIterable, Identifiable {
 
 enum LiftVisibility: String, Codable, CaseIterable, Identifiable {
     case publicLift = "Public"
+    case friendsLift = "Friends"
     case privateLift = "Private"
     var id: String { rawValue }
 }

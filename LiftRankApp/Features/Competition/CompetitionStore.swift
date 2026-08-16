@@ -16,6 +16,7 @@ final class CompetitionStore: ObservableObject {
             }
         }
     }
+    @Published private(set) var currentUserTotalEntry: LeaderboardEntry?
     @Published private(set) var leaderboardError: String?
     @Published private(set) var isLeaderboardLoading = false
 
@@ -187,6 +188,25 @@ final class CompetitionStore: ObservableObject {
             loadingLeaderboardFilters = nil
             loadingLeaderboardVerifiedOnly = nil
             isLeaderboardLoading = false
+        }
+    }
+
+    func refreshCurrentUserTotalEntry() async {
+        guard let leaderboardService else {
+            currentUserTotalEntry = nil
+            return
+        }
+        let userID = repository.currentProfile.id
+        do {
+            let entries = try await leaderboardService.entries(
+                filters: LeaderboardFilters(rankingType: .total),
+                verifiedOnly: true
+            )
+            guard repository.currentProfile.id == userID else { return }
+            currentUserTotalEntry = entries.first { $0.profile.id == userID }
+        } catch {
+            guard repository.currentProfile.id == userID else { return }
+            currentUserTotalEntry = nil
         }
     }
 
@@ -721,6 +741,17 @@ final class CompetitionStore: ObservableObject {
         }
     }
 
+    func removeSubmission(_ lift: LiftSubmission) async throws {
+        let userID = repository.currentProfile.id
+        guard lift.userID == userID else { throw LiftRankServiceError.permissionDenied }
+        guard let liftService else { throw LiftRankServiceError.configurationMissing }
+        try await liftService.removeSubmission(id: lift.id)
+        guard repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
+        repository.lifts.removeAll { $0.id == lift.id }
+        cachedPlaybackURLs.removeValue(forKey: lift.videoAssetID ?? lift.id)
+        repository.refreshAchievementUnlocks(now: now())
+    }
+
     private func upsert(_ submission: LiftSubmission, refreshAchievements: Bool = true) {
         if let index = repository.lifts.firstIndex(where: { $0.id == submission.id }) {
             guard repository.lifts[index] != submission else { return }
@@ -768,6 +799,7 @@ final class CompetitionStore: ObservableObject {
             repository.rankingHistory = []
         }
         remoteLeaderboardEntries = nil
+        currentUserTotalEntry = nil
         cachedPlaybackURLs.removeAll()
         leaderboardRequestID = nil
         loadedLeaderboardFilters = nil

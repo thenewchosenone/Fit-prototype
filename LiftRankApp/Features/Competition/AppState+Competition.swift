@@ -14,6 +14,10 @@ extension AppState {
         competitionStore.overallScore
     }
 
+    var currentUserTotalRankingEntry: LeaderboardEntry? {
+        competitionStore.currentUserTotalEntry
+    }
+
     var earnedExperienceLevel: ExperienceLevel {
         RankingFormatting.earnedExperienceLevel(
             relativeTotal: relativeTotal,
@@ -69,6 +73,11 @@ extension AppState {
         await competitionStore.refreshLeaderboard()
     }
 
+    func refreshCurrentUserTotalRanking() async {
+        guard isAuthenticated, !isDemoMode else { return }
+        await competitionStore.refreshCurrentUserTotalEntry()
+    }
+
     func refreshProductionLifts(force: Bool = false) async {
         guard isAuthenticated, !isDemoMode else { return }
         await competitionStore.refreshProductionData(force: force)
@@ -113,6 +122,17 @@ extension AppState {
             Haptics.success()
         }
         return submission
+    }
+
+    func removeSubmission(_ lift: LiftSubmission) async -> String? {
+        do {
+            try await competitionStore.removeSubmission(lift)
+            Haptics.success()
+            return nil
+        } catch {
+            Haptics.warning()
+            return error.localizedDescription
+        }
     }
 
 }

@@ -72,7 +72,15 @@ extension ProfileView {
                     .font(.subheadline)
                     .foregroundStyle(Color.liftMuted)
                     .lineLimit(2)
+                if let bio = profile.bio?.trimmingCharacters(in: .whitespacesAndNewlines), !bio.isEmpty {
+                    Text(bio)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.liftText)
+                }
                 Text("\(profile.hideBodyweight ? "Weight class hidden" : weightClassName) • \(displayedExperienceLevel.rawValue)")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+                Text("\(profile.yearsExperience) \(profile.yearsExperience == 1 ? "year" : "years") training")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
             }
@@ -135,7 +143,7 @@ extension ProfileView {
                             Text("SCORE")
                                 .font(.caption2.weight(.bold))
                                 .foregroundStyle(Color.liftMuted)
-                            Text("\(Int(appState.overallScore))")
+                            Text(canonicalScoreText)
                                 .font(.headline.weight(.bold))
                                 .foregroundStyle(Color.liftBlue)
                         }
@@ -170,13 +178,13 @@ extension ProfileView {
                     ForEach(["global", "city", "state", "age"], id: \.self) { metric in
                         switch metric {
                         case "global":
-                            rankingMetric("Global", "Unranked", "Complete verified lifts", .liftGold)
+                            rankingMetric("Global", canonicalRankText, canonicalRankSubtitle, .liftGold)
                         case "city":
-                            rankingMetric("City", profile.hideCity ? "Hidden" : "Unranked", profile.hideCity ? "Location hidden" : profile.city, .liftBlue)
+                            rankingMetric("City", profile.hideCity ? "Hidden" : CanonicalRankingPresentation.text(rank: nil), profile.hideCity ? "Location hidden" : "Open city leaderboard", .liftBlue)
                         case "state":
-                            rankingMetric("State", profile.hideCity ? "Hidden" : "Unranked", profile.hideCity ? "Location hidden" : profile.state, .liftBlue)
+                            rankingMetric("State", profile.hideCity ? "Hidden" : CanonicalRankingPresentation.text(rank: nil), profile.hideCity ? "Location hidden" : "Open state leaderboard", .liftBlue)
                         default:
-                            rankingMetric("Age group", profile.hideExactAge ? "Hidden" : "Unranked", profile.hideExactAge ? "Age hidden" : profile.ageGroup, .liftGreen)
+                            rankingMetric("Age group", profile.hideExactAge ? "Hidden" : CanonicalRankingPresentation.text(rank: nil), profile.hideExactAge ? "Age hidden" : "Open age leaderboard", .liftGreen)
                         }
                     }
                 }
@@ -284,7 +292,26 @@ extension ProfileView {
                             }
                             Spacer()
                             VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus)
-                            if !isCurrentUser {
+                            if isCurrentUser {
+                                Menu {
+                                    if lift.requiresCoordinatedRemoval {
+                                        Button("Request coordinated removal", role: .destructive) {
+                                            submissionPendingDeletion = lift
+                                        }
+                                        .disabled(isDeletingSubmission)
+                                    } else {
+                                        Button("Delete submission", role: .destructive) {
+                                            submissionPendingDeletion = lift
+                                        }
+                                        .disabled(isDeletingSubmission)
+                                    }
+                                } label: {
+                                    Image(systemName: "ellipsis.circle")
+                                        .foregroundStyle(Color.liftMuted)
+                                }
+                                .accessibilityLabel("Submission options")
+                                .accessibilityIdentifier("profile.ownLiftOptions.\(lift.id.uuidString)")
+                            } else {
                                 Menu {
                                     Button("Report lift", role: .destructive) {
                                         appState.selectedReportLift = lift
@@ -344,6 +371,21 @@ extension ProfileView {
     var displayedExperienceLevel: ExperienceLevel {
         guard isCurrentUser else { return profile.experienceLevel }
         return appState.earnedExperienceLevel
+    }
+
+    private var canonicalRankText: String {
+        CanonicalRankingPresentation.text(
+            rank: isCurrentUser ? appState.currentUserTotalRankingEntry?.rank : nil
+        )
+    }
+
+    private var canonicalRankSubtitle: String {
+        appState.currentUserTotalRankingEntry == nil ? "No canonical total rank" : "Verified total leaderboard"
+    }
+
+    private var canonicalScoreText: String {
+        guard isCurrentUser, let entry = appState.currentUserTotalRankingEntry else { return "—" }
+        return entry.score.formatted(.number.precision(.fractionLength(0...2)))
     }
 
     func liftValue(_ exerciseID: String, presentation: ProfileLiftPresentation) -> String {

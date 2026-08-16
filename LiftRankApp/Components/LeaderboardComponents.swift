@@ -27,6 +27,18 @@ enum LeaderboardRankPresentation {
     }
 }
 
+enum CanonicalRankingPresentation {
+    static func text(rank: Int?) -> String {
+        rank.map { "#\($0)" } ?? "—"
+    }
+}
+
+enum LeaderboardIdentityPresentation {
+    static func isCurrentUser(entryProfileID: UUID, activeProfileID: UUID) -> Bool {
+        entryProfileID == activeProfileID
+    }
+}
+
 enum LeaderboardAgeGroupPresentation {
     static func groups(from profiles: [UserProfile]) -> [String] {
         let legacy = Set(profiles.map(\.ageGroup)).subtracting(MockData.standardAgeGroups)

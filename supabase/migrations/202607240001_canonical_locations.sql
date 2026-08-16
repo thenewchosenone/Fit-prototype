@@ -132,16 +132,38 @@ as $$
         or lower(coalesce(c.region_code, '')) = normalized.region_filter
       )
       and (
-        c.search_name like normalized.search_query || '%'
-        or c.search_name like '%' || normalized.search_query || '%'
-        or exists (
-          select 1
-          from public.location_city_aliases a
-          where a.city_id = c.id
-            and (
-              a.search_alias like normalized.search_query || '%'
-              or a.search_alias like '%' || normalized.search_query || '%'
+        (
+          exists (
+            select 1
+            from public.location_city_aliases exact_alias
+            where exact_alias.search_alias = normalized.search_query
+          )
+          and exists (
+            select 1
+            from public.location_city_aliases city_exact_alias
+            where city_exact_alias.city_id = c.id
+              and city_exact_alias.search_alias = normalized.search_query
+          )
+        )
+        or (
+          not exists (
+            select 1
+            from public.location_city_aliases exact_alias
+            where exact_alias.search_alias = normalized.search_query
+          )
+          and (
+            c.search_name like normalized.search_query || '%'
+            or c.search_name like '%' || normalized.search_query || '%'
+            or exists (
+              select 1
+              from public.location_city_aliases a
+              where a.city_id = c.id
+                and (
+                  a.search_alias like normalized.search_query || '%'
+                  or a.search_alias like '%' || normalized.search_query || '%'
+                )
             )
+          )
         )
       )
   )

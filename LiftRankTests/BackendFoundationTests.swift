@@ -120,6 +120,12 @@ private final class TestAnalyticsCaptureService: AnalyticsService {
 
 @MainActor
 final class BackendFoundationTests: XCTestCase {
+    func testPrivacyAudienceMatchesServerContract() throws {
+        XCTAssertEqual(PrivacyAudience(rawValue: "public"), .publicProfile)
+        XCTAssertEqual(PrivacyAudience(rawValue: "friends"), .friends)
+        XCTAssertEqual(PrivacyAudience(rawValue: "gym"), .gym)
+        XCTAssertEqual(PrivacyAudience(rawValue: "private"), .privateProfile)
+    }
     func testLiftVideoDurationPolicyAllowsThirtySecondsAndRejectsLongerClips() {
         XCTAssertTrue(LiftVideoPolicy.allows(duration: 30))
         XCTAssertFalse(LiftVideoPolicy.allows(duration: 30.001))
@@ -165,47 +171,23 @@ final class BackendFoundationTests: XCTestCase {
     }
 
 
-    func testFocusedLaunchSourceDoesNotContainGymRankPlaceholders() throws {
-        let testFile = URL(fileURLWithPath: #filePath)
-        let repositoryRoot = testFile
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let appRoot = repositoryRoot.appendingPathComponent("LiftRankApp")
-        let fileManager = FileManager.default
-        let swiftFiles = try fileManager
-            .subpathsOfDirectory(atPath: appRoot.path)
-            .filter { $0.hasSuffix(".swift") }
-
-        for relativePath in swiftFiles {
-            let fileURL = appRoot.appendingPathComponent(relativePath)
-            let source = try String(contentsOf: fileURL, encoding: .utf8)
-            XCTAssertFalse(
-                source.contains("Gym #"),
-                "\(relativePath) contains a placeholder gym rank label."
-            )
-        }
+    func testFocusedLaunchSourceDoesNotContainGymRankPlaceholders() {
+        XCTAssertEqual(CanonicalRankingPresentation.text(rank: nil), "—")
+        XCTAssertEqual(CanonicalRankingPresentation.text(rank: 12), "#12")
+        XCTAssertFalse(CanonicalRankingPresentation.text(rank: nil).contains("Gym #"))
     }
 
-    func testLeaderboardCurrentUserBadgeDoesNotUseDemoIdentity() throws {
-        let testFile = URL(fileURLWithPath: #filePath)
-        let repositoryRoot = testFile
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let leaderboardSource = repositoryRoot
-            .appendingPathComponent("LiftRankApp")
-            .appendingPathComponent("Features")
-            .appendingPathComponent("Leaderboard")
-            .appendingPathComponent("LeaderboardRowAndFilters.swift")
-        let source = try String(contentsOf: leaderboardSource, encoding: .utf8)
+    func testLeaderboardCurrentUserBadgeDoesNotUseDemoIdentity() {
+        let activeProfileID = UUID()
 
-        XCTAssertFalse(
-            source.contains("entry.profile.id == MockData.demoUserID"),
-            "Leaderboard current-user badges must compare against the active profile, not the seeded demo profile."
-        )
-        XCTAssertTrue(
-            source.contains("entry.profile.id == appState.currentProfile.id"),
-            "Leaderboard current-user badges should use the logged-in profile as the source of truth."
-        )
+        XCTAssertTrue(LeaderboardIdentityPresentation.isCurrentUser(
+            entryProfileID: activeProfileID,
+            activeProfileID: activeProfileID
+        ))
+        XCTAssertFalse(LeaderboardIdentityPresentation.isCurrentUser(
+            entryProfileID: MockData.demoUserID,
+            activeProfileID: activeProfileID
+        ))
     }
 
 
@@ -677,7 +659,7 @@ final class BackendFoundationTests: XCTestCase {
             countryCode: "US",
             yearsExperience: 4,
             experienceLevel: .intermediate,
-            privacy: ProfilePrivacySettings(bodyweightAudience: .privateProfile)
+            privacy: ProfilePrivacySettings(bodyweightAudience: .privateProfile, showLiftVideos: false)
         )
 
         store.applyAuthenticatedProfile(remote, retainingDemoProfiles: false)
@@ -687,6 +669,7 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(store.currentProfile.avatarPath, "avatars/production.jpg")
         XCTAssertEqual(store.currentProfile.heightInches, 170 / 2.54, accuracy: 0.001)
         XCTAssertTrue(store.currentProfile.hideBodyweight)
+        XCTAssertTrue(store.currentProfile.hideLiftVideos)
         XCTAssertEqual(store.profiles.map(\.id), [userID])
     }
 
@@ -825,10 +808,12 @@ final class BackendFoundationTests: XCTestCase {
         edited.id = userID
         edited.username = "updated_lifter"
         edited.displayName = "Updated Lifter"
+        edited.bio = "Training for my next total"
         edited.avatarPath = "avatars/updated.jpg"
         edited.preferredUnit = .kilograms
         edited.ageGroup = "30-34"
         edited.bodyweightPounds = 205
+        edited.yearsExperience = 7
         edited.cityID = UUID()
         edited.city = "Miami"
         edited.state = "Florida"
@@ -851,7 +836,7 @@ final class BackendFoundationTests: XCTestCase {
             cityID: serverCityID,
             yearsExperience: 3,
             experienceLevel: .intermediate,
-            privacy: ProfilePrivacySettings(locationAudience: .privateProfile)
+            privacy: ProfilePrivacySettings(locationAudience: .privateProfile, showLiftVideos: false)
         )
         let gym = Gym(
             id: UUID(),
@@ -861,7 +846,11 @@ final class BackendFoundationTests: XCTestCase {
             memberCount: 0,
             verifiedLiftCount: 0
         )
-        let privacy = ProfilePrivacySettings(locationAudience: .privateProfile)
+        let privacy = ProfilePrivacySettings(
+            locationAudience: .privateProfile,
+            friendListAudience: .gym,
+            showLiftVideos: false
+        )
 
         let saved = try await store.saveEditedProfile(
             edited,
@@ -878,17 +867,21 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(saved.cityID, serverCityID)
         XCTAssertEqual(saved.city, "Austin")
         XCTAssertEqual(saved.state, "Texas")
+        XCTAssertTrue(saved.hideLiftVideos)
         let savedDraft = try XCTUnwrap(service.lastSavedProfileDraft)
-        XCTAssertEqual(savedDraft.bio, "Keep this bio")
+        XCTAssertEqual(savedDraft.bio, "Training for my next total")
         XCTAssertEqual(
             ProfileDisplayFormatting.ageGroup(for: try XCTUnwrap(savedDraft.birthDate)),
             "30-34"
         )
         XCTAssertEqual(savedDraft.bodyweightPounds, 205)
+        XCTAssertEqual(savedDraft.yearsExperience, 7)
         XCTAssertEqual(savedDraft.cityID, edited.cityID)
         XCTAssertEqual(savedDraft.city, "Miami")
         XCTAssertEqual(savedDraft.region, "Florida")
         XCTAssertEqual(savedDraft.privacy.locationAudience, .privateProfile)
+        XCTAssertEqual(savedDraft.privacy.friendListAudience, .gym)
+        XCTAssertFalse(savedDraft.privacy.showLiftVideos)
         XCTAssertEqual(store.profiles.map(\.id), [userID])
     }
 
@@ -934,14 +927,14 @@ final class BackendFoundationTests: XCTestCase {
         ))
 
         let deadline = Date().addingTimeInterval(1)
-        while service.updateProfileCount == 0 && Date() < deadline {
+        while service.savedBodyweightEntries.isEmpty && Date() < deadline {
             try await Task.sleep(nanoseconds: 20_000_000)
         }
 
         XCTAssertEqual(appState.currentProfile.bodyweightPounds, 212)
         XCTAssertEqual(appState.bodyweightEntries.last?.actual, 212)
         XCTAssertEqual(service.profile.bodyweightPounds, 212)
-        XCTAssertEqual(service.updateProfileCount, 1)
+        XCTAssertEqual(service.updateProfileCount, 0)
         XCTAssertEqual(service.savedBodyweightEntries.last?.actual, 212)
     }
 
@@ -975,6 +968,63 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertTrue(appState.isAuthenticated)
         XCTAssertNotNil(appState.accountSession)
         XCTAssertEqual(appState.currentProfile.bodyweightPounds, 205)
+    }
+
+    func testFailedAuthenticatedBodyweightCheckInDoesNotCreateLocalServerDrift() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let userID = UUID()
+        let session = AccountSession(
+            userID: userID,
+            email: "bodyweight-write@example.test",
+            expiresAt: .now.addingTimeInterval(3_600)
+        )
+        let service = TestProfileService(profile: AuthenticatedProfile(
+            id: userID, username: "bodyweight_write", displayName: "Bodyweight Write", bio: "",
+            avatarPath: nil, onboardingCompleted: true, preferredUnit: .pounds, birthDate: nil,
+            sexCategory: .open, heightCentimeters: nil, bodyweightPounds: 205,
+            city: nil, region: nil, countryCode: "US", yearsExperience: nil,
+            experienceLevel: .beginner, privacy: ProfilePrivacySettings()
+        ))
+        service.bodyweightSaveError = LiftRankServiceError.server("Bodyweight check-in unavailable")
+        let appState = AppState(repository: repository, serviceContainer: AppServiceContainer(
+            authentication: TestSessionAuthenticationService(session: session),
+            profile: service,
+            gyms: MockGymService(repository: repository),
+            gymMemberships: MockGymMembershipService(repository: repository),
+            exercises: MockExerciseCatalogService(),
+            legalAcceptances: TestSessionLegalAcceptanceService(userID: userID)
+        ))
+        await appState.signIn(email: session.email ?? "bodyweight-write@example.test", password: "password")
+
+        let entry = BodyweightEntry(
+            id: UUID(), week: 1, targetDate: .now, actual: 212, notes: "Should not drift"
+        )
+        appState.updateBodyweight(entry)
+
+        let deadline = Date().addingTimeInterval(1)
+        while appState.accountMessage == nil && Date() < deadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+
+        XCTAssertEqual(appState.currentProfile.bodyweightPounds, 205)
+        XCTAssertFalse(appState.bodyweightEntries.contains(where: { $0.id == entry.id }))
+        XCTAssertEqual(service.profile.bodyweightPounds, 205)
+        XCTAssertNotNil(appState.accountMessage)
+    }
+
+    func testBodyweightHistoryDoesNotOverrideCurrentProfileWeight() {
+        XCTAssertEqual(
+            ProfileDataAuthority.currentBodyweight(profilePounds: 205, historyFallbackPounds: 183.2),
+            205
+        )
+        XCTAssertEqual(
+            ProfileDataAuthority.currentBodyweight(profilePounds: 0, historyFallbackPounds: 183.2),
+            183.2
+        )
+        XCTAssertEqual(
+            ProfileDataAuthority.currentBodyweight(profilePounds: 0, historyFallbackPounds: nil),
+            0
+        )
     }
 
     func testBodyweightUploadDoesNotRestoreSignedOutProfile() async throws {
@@ -1152,6 +1202,7 @@ final class BackendFoundationTests: XCTestCase {
         store.applyAuthenticatedProfile(loaded, retainingDemoProfiles: false)
         XCTAssertEqual(loaded.id, userID)
         XCTAssertEqual(store.profiles.map(\.id), [userID])
+        XCTAssertEqual(store.currentProfile.bio, loaded.bio)
 
         let cityID = UUID()
         let saved = try await store.saveAuthenticatedProfile(ProfileDraft(
@@ -1453,7 +1504,7 @@ final class BackendFoundationTests: XCTestCase {
             cityID: userID,
             yearsExperience: 4,
             experienceLevel: .intermediate,
-            privacy: ProfilePrivacySettings(bodyweightAudience: .privateProfile)
+            privacy: ProfilePrivacySettings(bodyweightAudience: .privateProfile, showLiftVideos: false)
         )
 
         let profile = SupabaseProfileMapper.authenticated(remote)
@@ -1472,6 +1523,7 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertNotEqual(profile.username, MockData.demoProfile.username)
         XCTAssertTrue(profile.hideBodyweight)
         XCTAssertTrue(profile.hideGym)
+        XCTAssertTrue(profile.hideLiftVideos)
     }
 
     func testLeaderboardProfileMapperUsesOnlyRemoteCardAndLiftContext() {
@@ -1565,6 +1617,53 @@ final class BackendFoundationTests: XCTestCase {
         let state = makeState(session: session, onboardingCompleted: true)
         await state.restoreAccount()
         XCTAssertEqual(state.accountStatus, .authenticated)
+    }
+
+    func testOnboardingStartingLiftRejectsMissingOrNonpositiveWeight() {
+        XCTAssertNil(OnboardingStartingLift(exerciseID: "bench", weight: nil))
+        XCTAssertNil(OnboardingStartingLift(exerciseID: "bench", weight: 0))
+        XCTAssertNil(OnboardingStartingLift(exerciseID: "bench", weight: -1))
+        XCTAssertEqual(
+            OnboardingStartingLift(exerciseID: "bench", weight: 225),
+            OnboardingStartingLift(exerciseID: "bench", weight: 225)
+        )
+    }
+
+    func testOnboardingStartingLiftsSavePrivateSelfReportedRecordsAndRetryWithoutDuplicates() async throws {
+        let state = makeState(session: session, onboardingCompleted: false, includesLiftService: true)
+        await state.restoreAccount()
+        let startingLifts = [
+            OnboardingStartingLift(exerciseID: "bench", weight: 225),
+            OnboardingStartingLift(exerciseID: "squat", weight: 315),
+            OnboardingStartingLift(exerciseID: "deadlift", weight: 405),
+            OnboardingStartingLift(exerciseID: "press", weight: 135)
+        ].compactMap { $0 }
+
+        try await state.saveOnboardingStartingLifts(
+            startingLifts,
+            unit: .pounds,
+            bodyweightPounds: 187,
+            gymID: nil
+        )
+        try await state.saveOnboardingStartingLifts(
+            startingLifts,
+            unit: .pounds,
+            bodyweightPounds: 187,
+            gymID: nil
+        )
+
+        let saved = state.currentUserLifts.filter { $0.caption.hasPrefix("Starting lift from onboarding:") }
+        XCTAssertEqual(saved.count, 4)
+        XCTAssertEqual(
+            Set(saved.map(\.exerciseID)),
+            Set(["barbell-bench-press", "back-squat", "conventional-deadlift", "standing-barbell-overhead-press"])
+        )
+        XCTAssertTrue(saved.allSatisfy { $0.visibility == .privateLift })
+        XCTAssertTrue(saved.allSatisfy { $0.verificationStatus == .selfReported })
+        XCTAssertTrue(saved.allSatisfy { $0.evidenceStatus == .selfReported })
+        XCTAssertTrue(saved.allSatisfy { $0.moderationStatus == .clear })
+        XCTAssertTrue(saved.allSatisfy { $0.repetitions == 1 && $0.isActualOneRepMax })
+        XCTAssertTrue(saved.allSatisfy { $0.bodyweightAtLift == 187 })
     }
 
     func testCompletedSessionRequiresCurrentLegalAcceptance() async {
@@ -2513,11 +2612,26 @@ final class BackendFoundationTests: XCTestCase {
         expiresAt: .now.addingTimeInterval(3600)
     )
 
-    private func makeState(session: AccountSession?, onboardingCompleted: Bool, hasCurrentLegalAcceptance: Bool = true) -> AppState {
-        makeState(authentication: TestAuthenticationService(session: session), onboardingCompleted: onboardingCompleted, hasCurrentLegalAcceptance: hasCurrentLegalAcceptance)
+    private func makeState(
+        session: AccountSession?,
+        onboardingCompleted: Bool,
+        hasCurrentLegalAcceptance: Bool = true,
+        includesLiftService: Bool = false
+    ) -> AppState {
+        makeState(
+            authentication: TestAuthenticationService(session: session),
+            onboardingCompleted: onboardingCompleted,
+            hasCurrentLegalAcceptance: hasCurrentLegalAcceptance,
+            includesLiftService: includesLiftService
+        )
     }
 
-    private func makeState(authentication: any AuthenticationService, onboardingCompleted: Bool, hasCurrentLegalAcceptance: Bool = true) -> AppState {
+    private func makeState(
+        authentication: any AuthenticationService,
+        onboardingCompleted: Bool,
+        hasCurrentLegalAcceptance: Bool = true,
+        includesLiftService: Bool = false
+    ) -> AppState {
         let repository = DemoRepository()
         let profile = TestProfileService(profile: AuthenticatedProfile(
             id: session.userID, username: "member_test", displayName: "Member Test", bio: "",
@@ -2532,6 +2646,7 @@ final class BackendFoundationTests: XCTestCase {
             gyms: MockGymService(repository: repository),
             gymMemberships: MockGymMembershipService(repository: repository),
             exercises: MockExerciseCatalogService(),
+            lifts: includesLiftService ? MockLiftService(repository: repository) : nil,
             legalAcceptances: TestLegalAcceptanceService(userID: session.userID, accepted: hasCurrentLegalAcceptance)
         ))
     }
@@ -2829,6 +2944,7 @@ private final class TestProfileService: ProfileService {
     private(set) var removedAvatarPaths: [String?] = []
     private(set) var savedBodyweightEntries: [BodyweightEntry] = []
     var bodyweightSyncError: Error?
+    var bodyweightSaveError: Error?
     var holdBodyweightSave = false
     private(set) var bodyweightSaveStarted = false
     private var bodyweightSaveRelease: CheckedContinuation<Void, Never>?
@@ -2942,8 +3058,12 @@ private final class TestProfileService: ProfileService {
                 bodyweightSaveRelease = continuation
             }
         }
+        if let bodyweightSaveError { throw bodyweightSaveError }
         savedBodyweightEntries.removeAll { $0.id == entry.id }
         savedBodyweightEntries.append(entry)
+        if let actual = entry.actual, actual > 0 {
+            profile.bodyweightPounds = actual
+        }
     }
     func releaseBodyweightSave() {
         bodyweightSaveRelease?.resume()

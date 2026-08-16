@@ -6,6 +6,7 @@ import SwiftUI
 private enum MeRoute: Hashable {
     case publicProfile
     case awards
+    case gyms
 }
 
 struct MainTabView: View {
@@ -94,6 +95,8 @@ struct MainTabView: View {
                 ProfileView(profile: appState.currentProfile, isCurrentUser: true)
             case .awards:
                 AwardsView()
+            case .gyms:
+                GymDirectoryView()
             }
         }
     }
@@ -323,6 +326,25 @@ private struct MeHubContentView: View {
                     }
                     .buttonStyle(.plain)
                     .liftSurface()
+
+                    CompactSectionHeader(title: "Gyms")
+                        .accessibilityIdentifier("me.section.gyms")
+                    NavigationLink(value: MeRoute.gyms) {
+                        meRow(
+                            "Find a gym",
+                            appState.gyms.isEmpty
+                                ? "Browse locations and choose your primary gym"
+                                : "\(appState.gyms.count) locations · \(appState.joinedGymCount) joined",
+                            "building.2.fill",
+                            Color.liftBlue,
+                            badge: appState.currentProfile.primaryGymName.isEmpty
+                                ? nil
+                                : appState.currentProfile.primaryGymName
+                        )
+                    }
+                    .accessibilityIdentifier("me.gyms")
+                    .buttonStyle(.plain)
+                    .liftSurface(radius: 12)
 
                     CompactSectionHeader(title: "Account settings")
                         .accessibilityIdentifier("me.section.accountSettings")

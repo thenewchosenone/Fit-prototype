@@ -3,7 +3,7 @@ begin;
 create schema if not exists extensions;
 create extension if not exists pgtap with schema extensions;
 
-select plan(12);
+select plan(13);
 
 select has_table('public', 'location_countries', 'canonical countries exist');
 select has_table('public', 'location_regions', 'canonical regions exist');
@@ -75,7 +75,7 @@ select lives_ok(
   $$
     select public.save_own_profile(
       'Location User', '', 'lb', null, 'male', 180,
-      'Ignored City', 'Ignored Region', 'US', 1, 'beginner',
+      'Ignored City', 'Ignored Region', 'US', 1::smallint, 'beginner',
       'public', 'private', 'public', 'public', 'public', 'friends',
       true, '30000000-0000-0000-0000-000000000101'
     )
@@ -99,7 +99,7 @@ select throws_ok(
   $$
     select public.save_own_profile(
       'Location User', '', 'lb', null, 'male', 180,
-      'Fake', 'Florida', 'US', 1, 'beginner',
+      'Fake', 'Florida', 'US', 1::smallint, 'beginner',
       'public', 'private', 'public', 'public', 'public', 'friends',
       true, '30000000-0000-0000-0000-000000009999'
     )
