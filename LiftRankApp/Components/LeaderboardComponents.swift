@@ -41,8 +41,42 @@ enum LeaderboardAgeGroupPresentation {
 struct LeaderboardOption: Identifiable {
     let id: String
     let title: String
-    var subtitle: String? = nil
-    var symbol: String? = nil
+    var subtitle: String?
+    var symbol: String?
+    fileprivate let searchableText: String
+
+    init(id: String, title: String, subtitle: String? = nil, symbol: String? = nil) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.symbol = symbol
+        self.searchableText = LeaderboardOptionSearch.normalizedText(
+            [title, subtitle].compactMap { $0 }.joined(separator: " ")
+        )
+    }
+}
+
+enum LeaderboardOptionSearch {
+    static func filter(_ options: [LeaderboardOption], query: String) -> [LeaderboardOption] {
+        let cleanQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanQuery.isEmpty else { return options }
+        let tokens = normalizedTokens(cleanQuery)
+        return options.filter { option in
+            tokens.allSatisfy(option.searchableText.contains)
+        }
+    }
+
+    private static func normalizedTokens(_ query: String) -> [String] {
+        normalizedText(query)
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+    }
+
+    static func normalizedText(_ value: String) -> String {
+        value
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+    }
 }
 
 enum LeaderboardSelector: String, Identifiable {
@@ -207,7 +241,13 @@ struct CompactLeaderboardRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
+        let valueText = RankingFormatting.leaderboardValueText(
+            for: entry,
+            rankingType: rankingType,
+            preferredUnit: preferredUnit
+        )
+        let movement = LeaderboardMovementPresentation(entry.rankMovement)
+        return HStack(spacing: 8) {
             Text("\(entry.rank)")
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(rankColor)
@@ -241,12 +281,12 @@ struct CompactLeaderboardRow: View {
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Text(RankingFormatting.leaderboardValueText(for: entry, rankingType: rankingType, preferredUnit: preferredUnit))
+            Text(valueText)
                 .font(.subheadline.weight(.semibold))
                 .frame(width: 76, alignment: .trailing)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            movementLabel.frame(width: 48, alignment: .trailing)
+            movementLabel(movement).frame(width: 48, alignment: .trailing)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -254,13 +294,13 @@ struct CompactLeaderboardRow: View {
         .background(isCurrentUser ? Color.liftBlue.opacity(0.09) : Color.clear)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Rank \(entry.rank), \(entry.profile.displayName), at \(entry.profile.username), \(RankingFormatting.leaderboardValueText(for: entry, rankingType: rankingType, preferredUnit: preferredUnit)), \(movementAccessibility)")
+        .accessibilityLabel("Rank \(entry.rank), \(entry.profile.displayName), at \(entry.profile.username), \(valueText), \(movementAccessibility(movement))")
         .accessibilityHint("Opens lifter profile")
     }
 
-    private var movementLabel: some View {
+    private func movementLabel(_ movement: LeaderboardMovementPresentation) -> some View {
         Group {
-            switch LeaderboardMovementPresentation(entry.rankMovement) {
+            switch movement {
             case .up(let amount):
                 Label("\(amount)", systemImage: "arrow.up").foregroundStyle(Color.liftGreen)
             case .down(let amount):
@@ -273,8 +313,8 @@ struct CompactLeaderboardRow: View {
         .labelStyle(.titleAndIcon)
     }
 
-    private var movementAccessibility: String {
-        switch LeaderboardMovementPresentation(entry.rankMovement) {
+    private func movementAccessibility(_ movement: LeaderboardMovementPresentation) -> String {
+        switch movement {
         case .up(let amount): return "up \(amount)"
         case .down(let amount): return "down \(amount)"
         case .unchanged: return "unchanged"
@@ -336,23 +376,7 @@ struct LeaderboardOptionSheet: View {
     private var visibleOptions: [LeaderboardOption] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isSearchable, !query.isEmpty else { return scopedOptions }
-        let tokens = normalizedSearchTokens(query)
-        return scopedOptions.filter {
-            let searchableText = [$0.title, $0.subtitle]
-                .compactMap { $0 }
-                .joined(separator: " ")
-                .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-                .lowercased()
-            return tokens.allSatisfy(searchableText.contains)
-        }
-    }
-
-    private func normalizedSearchTokens(_ query: String) -> [String] {
-        query
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-            .lowercased()
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
+        return LeaderboardOptionSearch.filter(scopedOptions, query: query)
     }
 
     @ViewBuilder
@@ -389,7 +413,8 @@ struct LeaderboardOptionSheet: View {
     }
 
     private var sheetContent: some View {
-        NavigationStack {
+        let visibleOptions = visibleOptions
+        return NavigationStack {
             AppBackground {
                 ScrollView {
                     if let preferredScopeTitle, !preferredOptionIDs.isEmpty {

@@ -24,6 +24,19 @@ struct HomeWeeklySummary: Equatable {
     let duration: TimeInterval
 }
 
+struct TrainingRecoverySummary: Equatable {
+    let muscle: ExerciseMuscleRegion
+    let setCount: Int
+    let hoursSinceTraining: Int
+}
+
+struct CompletedWorkoutPresentation {
+    let workout: CompletedWorkout
+    let exercises: [WorkoutExerciseSnapshot]
+    let completedSetsByExercise: [UUID: [WorkoutSetLog]]
+    let trackingKinds: [String: ExerciseTrackingKind]
+}
+
 enum ExerciseProgressSeries {
     static func dailyHighest(
         from points: [ExerciseProgressPoint],
@@ -63,6 +76,28 @@ final class TrainingProgressStore {
     private var cachedHomeWeeklySummarySignature: HomeWeeklySummarySignature?
     private var cachedWeeklyVolumeByBodyPart: [String: Double]?
     private var cachedWeeklyVolumeByBodyPartSignature: WeeklyVolumeByBodyPartSignature?
+    private var cachedExerciseHistory: [ExerciseHistoryEntry]?
+    private var cachedExerciseHistorySignature: ExerciseHistorySignature?
+    private var cachedExerciseProgressPoints: [ExerciseProgressPoint]?
+    private var cachedExerciseProgressPointsSignature: ExerciseProgressPointsSignature?
+    private var cachedExerciseRecords: ExerciseRecords?
+    private var cachedExerciseRecordsSignature: ExerciseHistorySignature?
+    private var cachedProgressExerciseOptions: [TrainingExerciseCatalogItem]?
+    private var cachedProgressExerciseOptionsSignature: ProgressExerciseOptionsSignature?
+    private var cachedPreviousComparableWorkout: CompletedWorkout?
+    private var cachedPreviousComparableWorkoutSignature: PreviousComparableWorkoutSignature?
+    private var cachedPlateauInsights: [PlateauInsight]?
+    private var cachedPlateauInsightsSignature: WorkoutHistorySignature?
+    private var cachedRecoverySummaries: [TrainingRecoverySummary]?
+    private var cachedRecoverySummariesSignature: RecoverySummariesSignature?
+    private var cachedWeekCompletion: Double?
+    private var cachedWeekCompletionSignature: WeekCompletionSignature?
+    private var cachedWorkoutHistoryIndex: WorkoutHistoryIndex?
+    private var cachedWorkoutHistoryRevision: Int?
+    private var cachedWorkoutHistoryPresentation: WorkoutHistoryCalendarPresentation?
+    private var cachedWorkoutHistoryPresentationSignature: WorkoutHistoryPresentationSignature?
+    private var cachedCompletedWorkoutPresentation: CompletedWorkoutPresentation?
+    private var cachedCompletedWorkoutPresentationSignature: CompletedWorkoutPresentationSignature?
 
     init(
         repository: any TrainingProgressRepository,
@@ -74,23 +109,66 @@ final class TrainingProgressStore {
     }
 
     var completedWorkouts: [CompletedWorkout] { repository.completedWorkouts }
+
+    func previousComparableWorkout(sessionID: UUID, workoutName: String) -> CompletedWorkout? {
+        resetAccountScopedEntriesIfNeeded()
+        let signature = PreviousComparableWorkoutSignature(
+            accountID: repository.currentProfile.id,
+            sessionID: sessionID,
+            workoutName: workoutName,
+            completedWorkoutsRevision: repository.completedWorkoutsRevision
+        )
+        if cachedPreviousComparableWorkoutSignature == signature {
+            return cachedPreviousComparableWorkout
+        }
+        let workout = repository.completedWorkouts.first {
+            $0.sourceSessionID == sessionID || $0.name == workoutName
+        }
+        cachedPreviousComparableWorkout = workout
+        cachedPreviousComparableWorkoutSignature = signature
+        return workout
+    }
+
+    func progressExerciseOptions(
+        catalog: [TrainingExerciseCatalogItem],
+        customTrainingExercisesRevision: Int
+    ) -> [TrainingExerciseCatalogItem] {
+        resetAccountScopedEntriesIfNeeded()
+        let signature = ProgressExerciseOptionsSignature(
+            accountID: repository.currentProfile.id,
+            completedWorkoutsRevision: repository.completedWorkoutsRevision,
+            customTrainingExercisesRevision: customTrainingExercisesRevision
+        )
+        if let cachedProgressExerciseOptions,
+           cachedProgressExerciseOptionsSignature == signature {
+            return cachedProgressExerciseOptions
+        }
+        let exerciseIDs = Set(repository.completedWorkouts.flatMap { $0.exercises.map(\.exerciseID) })
+        let options = catalog
+            .filter { exerciseIDs.contains($0.id) && ExerciseTrackingKind($0.trackingType) == .weightReps }
+            .sorted { $0.name < $1.name }
+        cachedProgressExerciseOptions = options
+        cachedProgressExerciseOptionsSignature = signature
+        return options
+    }
+
     var strengthTierSummary: StrengthTierSummary {
+        strengthTierSummary(including: [])
+    }
+
+    func strengthTierSummary(including additionalPerformances: [StrengthLiftPerformance]) -> StrengthTierSummary {
         let signature = StrengthTierSignature(
             completedWorkoutsRevision: repository.completedWorkoutsRevision,
-            profile: repository.currentProfile
+            profile: repository.currentProfile,
+            additionalPerformances: additionalPerformances
         )
         if let cachedStrengthTierSummary, cachedStrengthTierSignature == signature {
             return cachedStrengthTierSummary
         }
-        let summary = calculateStrengthTierSummary(including: [])
+        let summary = calculateStrengthTierSummary(including: additionalPerformances)
         cachedStrengthTierSignature = signature
         cachedStrengthTierSummary = summary
         return summary
-    }
-
-    func strengthTierSummary(including additionalPerformances: [StrengthLiftPerformance]) -> StrengthTierSummary {
-        guard !additionalPerformances.isEmpty else { return strengthTierSummary }
-        return calculateStrengthTierSummary(including: additionalPerformances)
     }
 
     private func calculateStrengthTierSummary(including additionalPerformances: [StrengthLiftPerformance]) -> StrengthTierSummary {
@@ -150,7 +228,177 @@ final class TrainingProgressStore {
         cachedHomeWeeklySummarySignature = nil
         cachedWeeklyVolumeByBodyPart = nil
         cachedWeeklyVolumeByBodyPartSignature = nil
+        cachedExerciseHistory = nil
+        cachedExerciseHistorySignature = nil
+        cachedExerciseProgressPoints = nil
+        cachedExerciseProgressPointsSignature = nil
+        cachedExerciseRecords = nil
+        cachedExerciseRecordsSignature = nil
+        cachedProgressExerciseOptions = nil
+        cachedProgressExerciseOptionsSignature = nil
+        cachedPreviousComparableWorkout = nil
+        cachedPreviousComparableWorkoutSignature = nil
+        cachedPlateauInsights = nil
+        cachedPlateauInsightsSignature = nil
+        cachedRecoverySummaries = nil
+        cachedRecoverySummariesSignature = nil
+        cachedWeekCompletion = nil
+        cachedWeekCompletionSignature = nil
+        cachedWorkoutHistoryIndex = nil
+        cachedWorkoutHistoryRevision = nil
+        cachedWorkoutHistoryPresentation = nil
+        cachedWorkoutHistoryPresentationSignature = nil
+        cachedCompletedWorkoutPresentation = nil
+        cachedCompletedWorkoutPresentationSignature = nil
         repository.clearTrainingHealthEntries()
+    }
+
+    func completedWorkoutPresentation(
+        for workoutID: UUID,
+        fallback: CompletedWorkout,
+        catalog: [TrainingExerciseCatalogItem],
+        customTrainingExercisesRevision: Int
+    ) -> CompletedWorkoutPresentation {
+        let signature = CompletedWorkoutPresentationSignature(
+            workoutID: workoutID,
+            accountID: repository.currentProfile.id,
+            completedWorkoutsRevision: repository.completedWorkoutsRevision,
+            customTrainingExercisesRevision: customTrainingExercisesRevision
+        )
+        if let cachedCompletedWorkoutPresentation,
+           cachedCompletedWorkoutPresentationSignature == signature {
+            return cachedCompletedWorkoutPresentation
+        }
+
+        let workout = repository.completedWorkouts.first { $0.id == workoutID } ?? fallback
+        let exercises = workout.exercises.sorted { $0.order < $1.order }
+        let completedSetsByExercise = Dictionary(
+            grouping: workout.sets.filter(\.isComplete),
+            by: \.prescriptionID
+        ).mapValues { $0.sorted { $0.setNumber < $1.setNumber } }
+        let exerciseIDs = Set(exercises.map(\.exerciseID))
+        let trackingKinds = Dictionary(uniqueKeysWithValues: catalog.lazy
+            .filter { exerciseIDs.contains($0.id) }
+            .map { ($0.id, ExerciseTrackingKind($0.trackingType)) })
+        let presentation = CompletedWorkoutPresentation(
+            workout: workout,
+            exercises: exercises,
+            completedSetsByExercise: completedSetsByExercise,
+            trackingKinds: trackingKinds
+        )
+        cachedCompletedWorkoutPresentationSignature = signature
+        cachedCompletedWorkoutPresentation = presentation
+        return presentation
+    }
+
+    var trainingHistoryWorkouts: [CompletedWorkout] {
+        workoutHistoryIndex().workouts
+    }
+
+    func workoutHistoryPresentation(
+        displayedMonth: Date,
+        selectedDate: Date?,
+        referenceDate: Date = .now
+    ) -> WorkoutHistoryCalendarPresentation {
+        let displayedMonth = WorkoutHistoryCalendarData.monthStart(for: displayedMonth, calendar: calendar)
+        let currentMonth = WorkoutHistoryCalendarData.monthStart(for: referenceDate, calendar: calendar)
+        let selectedDay = selectedDate.map(calendar.startOfDay)
+        let signature = WorkoutHistoryPresentationSignature(
+            displayedMonth: displayedMonth,
+            selectedDay: selectedDay,
+            currentMonth: currentMonth,
+            completedWorkoutsRevision: repository.completedWorkoutsRevision
+        )
+        if let cachedWorkoutHistoryPresentation,
+           cachedWorkoutHistoryPresentationSignature == signature {
+            return cachedWorkoutHistoryPresentation
+        }
+
+        let index = workoutHistoryIndex()
+        let presentation = WorkoutHistoryCalendarPresentation(
+            workoutCount: index.workouts.count,
+            currentMonth: currentMonth,
+            firstBrowsableMonth: min(index.earliestMonth ?? currentMonth, currentMonth),
+            lastBrowsableMonth: max(index.latestMonth ?? currentMonth, currentMonth),
+            calendarDays: WorkoutHistoryCalendarData.days(
+                in: displayedMonth,
+                workoutCountsByDay: index.workoutCountsByDay,
+                calendar: calendar
+            ),
+            selectedWorkouts: selectedDay.flatMap { index.workoutsByDay[$0] } ?? [],
+            mostRecentWorkoutDateByMonth: index.mostRecentWorkoutDateByMonth
+        )
+        cachedWorkoutHistoryPresentation = presentation
+        cachedWorkoutHistoryPresentationSignature = signature
+        return presentation
+    }
+
+    private func workoutHistoryIndex() -> WorkoutHistoryIndex {
+        let revision = repository.completedWorkoutsRevision
+        if let cachedWorkoutHistoryIndex, cachedWorkoutHistoryRevision == revision {
+            return cachedWorkoutHistoryIndex
+        }
+        let index = WorkoutHistoryIndex(
+            workouts: repository.completedWorkouts.filter { !$0.completedWorkingSets.isEmpty },
+            calendar: calendar
+        )
+        cachedWorkoutHistoryIndex = index
+        cachedWorkoutHistoryRevision = revision
+        cachedWorkoutHistoryPresentation = nil
+        cachedWorkoutHistoryPresentationSignature = nil
+        return index
+    }
+
+    func recoverySummaries(referenceDate: Date = .now) -> [TrainingRecoverySummary] {
+        let referenceMinute = calendar.dateInterval(of: .minute, for: referenceDate)?.start ?? referenceDate
+        let signature = RecoverySummariesSignature(
+            referenceMinute: referenceMinute,
+            completedWorkoutsRevision: repository.completedWorkoutsRevision
+        )
+        if let cachedRecoverySummaries,
+           cachedRecoverySummariesSignature == signature {
+            return cachedRecoverySummaries
+        }
+
+        let weekAgo = calendar.date(byAdding: .day, value: -7, to: referenceDate) ?? referenceDate
+        var workingSets: [ExerciseMuscleRegion: (lastTrained: Date, setCount: Int)] = [:]
+
+        for workout in repository.completedWorkouts where workout.completedAt >= weekAgo {
+            let workingSetCounts = Dictionary(
+                grouping: workout.sets.lazy.filter { $0.isComplete && !$0.isWarmup },
+                by: \.prescriptionID
+            ).mapValues(\.count)
+            for exercise in workout.exercises {
+                let count = workingSetCounts[exercise.id] ?? 0
+                guard count > 0 else { continue }
+
+                for muscle in exercise.muscleProfile?.primary ?? [] {
+                    let existing = workingSets[muscle]
+                    workingSets[muscle] = (
+                        max(existing?.lastTrained ?? workout.completedAt, workout.completedAt),
+                        (existing?.setCount ?? 0) + count
+                    )
+                }
+            }
+        }
+
+        let summaries = workingSets.map { muscle, entry in
+            TrainingRecoverySummary(
+                muscle: muscle,
+                setCount: entry.setCount,
+                hoursSinceTraining: max(0, Int(referenceDate.timeIntervalSince(entry.lastTrained) / 3_600))
+            )
+        }
+        .sorted {
+            if $0.hoursSinceTraining == $1.hoursSinceTraining {
+                return $0.setCount > $1.setCount
+            }
+            return $0.hoursSinceTraining < $1.hoursSinceTraining
+        }
+
+        cachedRecoverySummaries = summaries
+        cachedRecoverySummariesSignature = signature
+        return summaries
     }
 
     private func trackingKind(for exerciseID: String) -> ExerciseTrackingKind {
@@ -168,12 +416,30 @@ final class TrainingProgressStore {
     }
 
     func weekCompletion(for week: WorkoutWeek) -> Double {
+        resetAccountScopedEntriesIfNeeded()
+        let signature = WeekCompletionSignature(
+            weekID: week.id,
+            accountID: repository.currentProfile.id,
+            programDataRevision: repository.programDataRevision,
+            workoutSetLogsRevision: repository.workoutSetLogsRevision
+        )
+        if let cachedWeekCompletion,
+           cachedWeekCompletionSignature == signature {
+            return cachedWeekCompletion
+        }
         let plannedPrescriptionIDs = Set(sessions(for: week).flatMap { prescriptions(for: $0).map(\.id) })
-        guard !plannedPrescriptionIDs.isEmpty else { return 0 }
+        guard !plannedPrescriptionIDs.isEmpty else {
+            cachedWeekCompletion = 0
+            cachedWeekCompletionSignature = signature
+            return 0
+        }
         let completedIDs = Set(repository.workoutSetLogs.filter { log in
             log.isComplete && !log.isWarmup && plannedPrescriptionIDs.contains(log.prescriptionID)
         }.map(\.prescriptionID))
-        return Double(completedIDs.count) / Double(plannedPrescriptionIDs.count)
+        let completion = Double(completedIDs.count) / Double(plannedPrescriptionIDs.count)
+        cachedWeekCompletion = completion
+        cachedWeekCompletionSignature = signature
+        return completion
     }
 
     func lastCompletedWorkoutDate() -> Date? {
@@ -267,7 +533,7 @@ final class TrainingProgressStore {
             week: interval,
             preferredUnit: preferredUnit,
             currentWeekID: currentWeek?.id,
-            workoutSessions: repository.workoutSessions,
+            programDataRevision: repository.programDataRevision,
             completedWorkoutsRevision: repository.completedWorkoutsRevision
         )
         if let cachedHomeWeeklySummary, cachedHomeWeeklySummarySignature == signature {
@@ -305,23 +571,28 @@ final class TrainingProgressStore {
 
     private func volumeByBodyPart(workouts: [CompletedWorkout], preferredUnit: UnitSystem) -> [String: Double] {
         var totals: [String: Double] = [:]
+        let trackingKindsByExerciseID = Dictionary(uniqueKeysWithValues: repository.trainingExerciseCatalog.map {
+            ($0.id, ExerciseTrackingKind($0.trackingType))
+        })
         for workout in workouts {
+            let workingSetsByExercise = Dictionary(
+                grouping: workout.sets.lazy.filter { $0.isComplete && !$0.isWarmup },
+                by: \.prescriptionID
+            )
             for exercise in workout.exercises {
-                guard trackingKind(for: exercise.exerciseID) == .weightReps else { continue }
-                let volume = workout.sets
-                    .filter { $0.prescriptionID == exercise.id && $0.isComplete && !$0.isWarmup }
-                    .reduce(0) { total, set in
-                        guard let weight = set.weight, let reps = set.reps else { return total }
-                        let displayedWeight: Double
-                        if set.recordedUnit == preferredUnit {
-                            displayedWeight = weight
-                        } else if preferredUnit == .kilograms {
-                            displayedWeight = RankingCalculator.poundsToKilograms(weight)
-                        } else {
-                            displayedWeight = RankingCalculator.kilogramsToPounds(weight)
-                        }
-                        return total + (displayedWeight * Double(reps))
+                guard (trackingKindsByExerciseID[exercise.exerciseID] ?? .weightReps) == .weightReps else { continue }
+                let volume = (workingSetsByExercise[exercise.id] ?? []).reduce(0) { total, set in
+                    guard let weight = set.weight, let reps = set.reps else { return total }
+                    let displayedWeight: Double
+                    if set.recordedUnit == preferredUnit {
+                        displayedWeight = weight
+                    } else if preferredUnit == .kilograms {
+                        displayedWeight = RankingCalculator.poundsToKilograms(weight)
+                    } else {
+                        displayedWeight = RankingCalculator.kilogramsToPounds(weight)
                     }
+                    return total + (displayedWeight * Double(reps))
+                }
                 totals[exercise.bodyPart, default: 0] += volume
             }
         }
@@ -369,7 +640,16 @@ final class TrainingProgressStore {
 
     func exerciseHistory(for exerciseID: String) -> [ExerciseHistoryEntry] {
         let trackingKind = trackingKind(for: exerciseID)
-        return repository.completedWorkouts.compactMap { workout -> ExerciseHistoryEntry? in
+        let signature = ExerciseHistorySignature(
+            userID: repository.currentProfile.id,
+            exerciseID: exerciseID,
+            trackingKind: trackingKind,
+            completedWorkoutsRevision: repository.completedWorkoutsRevision
+        )
+        if let cachedExerciseHistory, cachedExerciseHistorySignature == signature {
+            return cachedExerciseHistory
+        }
+        let history = repository.completedWorkouts.compactMap { workout -> ExerciseHistoryEntry? in
             let snapshotIDs = Set(workout.exercises.filter { $0.exerciseID == exerciseID }.map(\.id))
             let sets = workout.sets.filter {
                 snapshotIDs.contains($0.prescriptionID) && $0.isComplete && !$0.isWarmup
@@ -400,10 +680,43 @@ final class TrainingProgressStore {
             )
         }
         .sorted { $0.workout.completedAt > $1.workout.completedAt }
+        cachedExerciseHistorySignature = signature
+        cachedExerciseHistory = history
+        return history
+    }
+
+    func exerciseProgressPoints(for exerciseID: String, preferredUnit: UnitSystem) -> [ExerciseProgressPoint] {
+        let signature = ExerciseProgressPointsSignature(
+            userID: repository.currentProfile.id,
+            exerciseID: exerciseID,
+            preferredUnit: preferredUnit,
+            completedWorkoutsRevision: repository.completedWorkoutsRevision
+        )
+        if let cachedExerciseProgressPoints,
+           cachedExerciseProgressPointsSignature == signature {
+            return cachedExerciseProgressPoints
+        }
+        let points = WorkoutProgressPresentation.progressPoints(
+            from: repository.completedWorkouts,
+            exerciseID: exerciseID,
+            preferredUnit: preferredUnit
+        )
+        cachedExerciseProgressPointsSignature = signature
+        cachedExerciseProgressPoints = points
+        return points
     }
 
     func exerciseRecords(for exerciseID: String) -> ExerciseRecords {
         let trackingKind = trackingKind(for: exerciseID)
+        let signature = ExerciseHistorySignature(
+            userID: repository.currentProfile.id,
+            exerciseID: exerciseID,
+            trackingKind: trackingKind,
+            completedWorkoutsRevision: repository.completedWorkoutsRevision
+        )
+        if let cachedExerciseRecords, cachedExerciseRecordsSignature == signature {
+            return cachedExerciseRecords
+        }
         let history = exerciseHistory(for: exerciseID)
         let normalizedSets = history.flatMap(\.sets).compactMap { set -> (weight: Double, reps: Int)? in
             guard trackingKind == .weightReps else { return nil }
@@ -415,16 +728,26 @@ final class TrainingProgressStore {
         }
         let setVolumes = normalizedSets.map { $0.weight * Double($0.reps) }
         let sessionVolumes = history.map(\.sessionVolumeKilograms).filter { $0 > 0 }
-        return ExerciseRecords(
+        let records = ExerciseRecords(
             bestEstimatedOneRepMaxKilograms: estimatedMaxes.max(),
             bestSessionVolumeKilograms: sessionVolumes.max(),
             bestSetVolumeKilograms: setVolumes.max(),
             heaviestWeightKilograms: normalizedSets.map(\.weight).max(),
             mostRepetitions: history.flatMap(\.sets).compactMap(\.reps).max()
         )
+        cachedExerciseRecordsSignature = signature
+        cachedExerciseRecords = records
+        return records
     }
 
     var plateauInsights: [PlateauInsight] {
+        let signature = WorkoutHistorySignature(
+            userID: repository.currentProfile.id,
+            completedWorkoutsRevision: repository.completedWorkoutsRevision
+        )
+        if let cachedPlateauInsights, cachedPlateauInsightsSignature == signature {
+            return cachedPlateauInsights
+        }
         var exerciseNames: [String: String] = [:]
         var performancesByExercise: [String: [PlateauPerformance]] = [:]
 
@@ -466,7 +789,7 @@ final class TrainingProgressStore {
             }
         }
 
-        return performancesByExercise.compactMap { exerciseID, performances in
+        let insights: [PlateauInsight] = performancesByExercise.compactMap { exerciseID, performances in
             let recent = Array(performances.sorted { $0.performedAt > $1.performedAt }.prefix(3))
             guard RankingCalculator.isPlateau(performances: recent), let latest = recent.first else { return nil }
             return PlateauInsight(
@@ -477,6 +800,9 @@ final class TrainingProgressStore {
             )
         }
         .sorted { $0.latestPerformance.performedAt > $1.latestPerformance.performedAt }
+        cachedPlateauInsightsSignature = signature
+        cachedPlateauInsights = insights
+        return insights
     }
 
     private func sessions(for week: WorkoutWeek) -> [WorkoutSession] {
@@ -512,11 +838,17 @@ private struct StrengthTierSignature: Equatable {
     let bodyweightPounds: Double
     let sexCategory: SexCategory
     let completedWorkoutsRevision: Int
+    let additionalPerformances: [StrengthLiftPerformance]
 
-    init(completedWorkoutsRevision: Int, profile: UserProfile) {
+    init(
+        completedWorkoutsRevision: Int,
+        profile: UserProfile,
+        additionalPerformances: [StrengthLiftPerformance]
+    ) {
         bodyweightPounds = profile.bodyweightPounds
         sexCategory = profile.sexCategory
         self.completedWorkoutsRevision = completedWorkoutsRevision
+        self.additionalPerformances = additionalPerformances
     }
 }
 
@@ -528,6 +860,100 @@ private struct WorkoutStreakSignature: Equatable {
         self.referenceDay = referenceDay
         self.completedWorkoutsRevision = completedWorkoutsRevision
     }
+}
+
+private struct ExerciseHistorySignature: Equatable {
+    let userID: UUID
+    let exerciseID: String
+    let trackingKind: ExerciseTrackingKind
+    let completedWorkoutsRevision: Int
+}
+
+private struct ExerciseProgressPointsSignature: Equatable {
+    let userID: UUID
+    let exerciseID: String
+    let preferredUnit: UnitSystem
+    let completedWorkoutsRevision: Int
+}
+
+private struct WorkoutHistorySignature: Equatable {
+    let userID: UUID
+    let completedWorkoutsRevision: Int
+}
+
+private struct ProgressExerciseOptionsSignature: Equatable {
+    let accountID: UUID
+    let completedWorkoutsRevision: Int
+    let customTrainingExercisesRevision: Int
+}
+
+private struct PreviousComparableWorkoutSignature: Equatable {
+    let accountID: UUID
+    let sessionID: UUID
+    let workoutName: String
+    let completedWorkoutsRevision: Int
+}
+
+private struct WorkoutHistoryPresentationSignature: Equatable {
+    let displayedMonth: Date
+    let selectedDay: Date?
+    let currentMonth: Date
+    let completedWorkoutsRevision: Int
+}
+
+private struct CompletedWorkoutPresentationSignature: Equatable {
+    let workoutID: UUID
+    let accountID: UUID
+    let completedWorkoutsRevision: Int
+    let customTrainingExercisesRevision: Int
+}
+
+private struct WorkoutHistoryIndex {
+    let workouts: [CompletedWorkout]
+    let workoutCountsByDay: [Date: Int]
+    let workoutsByDay: [Date: [CompletedWorkout]]
+    let mostRecentWorkoutDateByMonth: [Date: Date]
+    let earliestMonth: Date?
+    let latestMonth: Date?
+
+    init(workouts: [CompletedWorkout], calendar: Calendar) {
+        self.workouts = workouts
+        let workoutsByDay = Dictionary(grouping: workouts) {
+            calendar.startOfDay(for: $0.completedAt)
+        }.mapValues { workouts in
+            workouts.sorted { $0.completedAt > $1.completedAt }
+        }
+        self.workoutsByDay = workoutsByDay
+        workoutCountsByDay = workoutsByDay.mapValues(\.count)
+
+        var mostRecentWorkoutDateByMonth: [Date: Date] = [:]
+        for workout in workouts {
+            let month = WorkoutHistoryCalendarData.monthStart(for: workout.completedAt, calendar: calendar)
+            mostRecentWorkoutDateByMonth[month] = max(
+                mostRecentWorkoutDateByMonth[month] ?? workout.completedAt,
+                workout.completedAt
+            )
+        }
+        self.mostRecentWorkoutDateByMonth = mostRecentWorkoutDateByMonth
+        earliestMonth = workouts.map(\.completedAt).min().map {
+            WorkoutHistoryCalendarData.monthStart(for: $0, calendar: calendar)
+        }
+        latestMonth = workouts.map(\.completedAt).max().map {
+            WorkoutHistoryCalendarData.monthStart(for: $0, calendar: calendar)
+        }
+    }
+}
+
+private struct RecoverySummariesSignature: Equatable {
+    let referenceMinute: Date
+    let completedWorkoutsRevision: Int
+}
+
+private struct WeekCompletionSignature: Equatable {
+    let weekID: UUID
+    let accountID: UUID
+    let programDataRevision: Int
+    let workoutSetLogsRevision: Int
 }
 
 private struct WeeklyVolumeByBodyPartSignature: Equatable {
@@ -553,32 +979,21 @@ private struct HomeWeeklySummarySignature: Equatable {
     let weekEnd: Date
     let preferredUnit: UnitSystem
     let currentWeekID: UUID?
-    private let sessions: [SessionValue]
+    private let programDataRevision: Int
     private let completedWorkoutsRevision: Int
 
     init(
         week: DateInterval,
         preferredUnit: UnitSystem,
         currentWeekID: UUID?,
-        workoutSessions: [WorkoutSession],
+        programDataRevision: Int,
         completedWorkoutsRevision: Int
     ) {
         self.weekStart = week.start
         self.weekEnd = week.end
         self.preferredUnit = preferredUnit
         self.currentWeekID = currentWeekID
-        self.sessions = workoutSessions.map(SessionValue.init)
+        self.programDataRevision = programDataRevision
         self.completedWorkoutsRevision = completedWorkoutsRevision
     }
-
-    private struct SessionValue: Equatable {
-        let id: UUID
-        let weekID: UUID
-
-        init(session: WorkoutSession) {
-            self.id = session.id
-            self.weekID = session.weekID
-        }
-    }
-
 }

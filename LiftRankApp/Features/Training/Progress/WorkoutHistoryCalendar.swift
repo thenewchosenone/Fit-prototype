@@ -6,6 +6,16 @@ struct WorkoutHistoryCalendarDay: Identifiable, Equatable {
     let workoutCount: Int
 }
 
+struct WorkoutHistoryCalendarPresentation {
+    let workoutCount: Int
+    let currentMonth: Date
+    let firstBrowsableMonth: Date
+    let lastBrowsableMonth: Date
+    let calendarDays: [WorkoutHistoryCalendarDay]
+    let selectedWorkouts: [CompletedWorkout]
+    let mostRecentWorkoutDateByMonth: [Date: Date]
+}
+
 enum WorkoutHistoryCalendarData {
     static func monthStart(for date: Date, calendar: Calendar = .current) -> Date {
         let components = calendar.dateComponents([.year, .month], from: date)
@@ -25,12 +35,20 @@ enum WorkoutHistoryCalendarData {
         workouts: [CompletedWorkout],
         calendar: Calendar = .current
     ) -> [WorkoutHistoryCalendarDay] {
+        let counts = Dictionary(grouping: workouts) { calendar.startOfDay(for: $0.completedAt) }
+            .mapValues(\.count)
+        return days(in: month, workoutCountsByDay: counts, calendar: calendar)
+    }
+
+    static func days(
+        in month: Date,
+        workoutCountsByDay: [Date: Int],
+        calendar: Calendar = .current
+    ) -> [WorkoutHistoryCalendarDay] {
         let monthStart = monthStart(for: month, calendar: calendar)
         guard let dayRange = calendar.range(of: .day, in: .month, for: monthStart) else { return [] }
         let weekday = calendar.component(.weekday, from: monthStart)
         let leadingCount = (weekday - calendar.firstWeekday + 7) % 7
-        let counts = Dictionary(grouping: workouts) { calendar.startOfDay(for: $0.completedAt) }
-            .mapValues(\.count)
 
         var result = (0..<leadingCount).map {
             WorkoutHistoryCalendarDay(id: $0, date: nil, workoutCount: 0)
@@ -47,7 +65,7 @@ enum WorkoutHistoryCalendarData {
                 WorkoutHistoryCalendarDay(
                     id: result.count,
                     date: date,
-                    workoutCount: counts[calendar.startOfDay(for: date), default: 0]
+                    workoutCount: workoutCountsByDay[calendar.startOfDay(for: date), default: 0]
                 )
             )
         }
@@ -78,7 +96,7 @@ enum WorkoutHistoryCalendarData {
 }
 
 struct WorkoutHistoryCalendar: View {
-    let workouts: [CompletedWorkout]
+    let presentation: WorkoutHistoryCalendarPresentation
     @Binding var displayedMonth: Date
     @Binding var selectedDate: Date?
     let onSelectWorkout: (CompletedWorkout) -> Void
@@ -86,51 +104,22 @@ struct WorkoutHistoryCalendar: View {
     private let calendar = Calendar.current
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
 
-    private var monthStart: Date {
-        WorkoutHistoryCalendarData.monthStart(for: displayedMonth, calendar: calendar)
-    }
-
-    private var currentMonth: Date {
-        WorkoutHistoryCalendarData.monthStart(for: .now, calendar: calendar)
-    }
-
-    private var earliestMonth: Date {
-        workouts.map(\.completedAt).min().map {
-            WorkoutHistoryCalendarData.monthStart(for: $0, calendar: calendar)
-        } ?? currentMonth
-    }
-
-    private var latestMonth: Date {
-        workouts.map(\.completedAt).max().map {
-            WorkoutHistoryCalendarData.monthStart(for: $0, calendar: calendar)
-        } ?? currentMonth
-    }
-
-    private var firstBrowsableMonth: Date { min(earliestMonth, currentMonth) }
-    private var lastBrowsableMonth: Date { max(latestMonth, currentMonth) }
-
-    private var calendarDays: [WorkoutHistoryCalendarDay] {
-        WorkoutHistoryCalendarData.days(in: monthStart, workouts: workouts, calendar: calendar)
-    }
-
-    private var selectedWorkouts: [CompletedWorkout] {
-        WorkoutHistoryCalendarData.workouts(on: selectedDate, from: workouts, calendar: calendar)
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let monthStart = WorkoutHistoryCalendarData.monthStart(for: displayedMonth, calendar: calendar)
+        let weekdaySymbols = WorkoutHistoryCalendarData.weekdaySymbols(calendar: calendar)
+        return VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Workout calendar")
                         .font(.subheadline.weight(.bold))
-                    Text("\(workouts.count) completed")
+                    Text("\(presentation.workoutCount) completed")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
                 Spacer()
-                if monthStart != currentMonth {
+                if monthStart != presentation.currentMonth {
                     Button("Today") {
-                        displayedMonth = currentMonth
+                        displayedMonth = presentation.currentMonth
                         selectedDate = calendar.startOfDay(for: .now)
                     }
                     .font(.caption.weight(.bold))
@@ -140,33 +129,33 @@ struct WorkoutHistoryCalendar: View {
             }
 
             HStack(spacing: 8) {
-                monthButton(symbol: "chevron.left", label: "Previous month", disabled: monthStart <= firstBrowsableMonth) {
+                monthButton(symbol: "chevron.left", label: "Previous month", disabled: monthStart <= presentation.firstBrowsableMonth) {
                     moveMonth(by: -1)
                 }
                 Text(LiftTimeFormatter.shortMonthAndYear(monthStart))
                     .font(.headline.weight(.bold))
                     .frame(maxWidth: .infinity)
-                monthButton(symbol: "chevron.right", label: "Next month", disabled: monthStart >= lastBrowsableMonth) {
+                monthButton(symbol: "chevron.right", label: "Next month", disabled: monthStart >= presentation.lastBrowsableMonth) {
                     moveMonth(by: 1)
                 }
             }
 
             LazyVGrid(columns: columns, spacing: 6) {
-                ForEach(Array(WorkoutHistoryCalendarData.weekdaySymbols(calendar: calendar).enumerated()), id: \.offset) { _, symbol in
+                ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                     Text(symbol)
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(Color.liftMuted)
                         .frame(maxWidth: .infinity)
                 }
 
-                ForEach(calendarDays) { day in
+                ForEach(presentation.calendarDays) { day in
                     calendarDay(day)
                 }
             }
 
             Divider().overlay(Color.white.opacity(0.07))
 
-            selectedDayHistory
+            selectedDayHistory(presentation.selectedWorkouts)
         }
         .padding(14)
         .background(Color.liftCard)
@@ -215,8 +204,8 @@ struct WorkoutHistoryCalendar: View {
     }
 
     @ViewBuilder
-    private var selectedDayHistory: some View {
-        if workouts.isEmpty {
+    private func selectedDayHistory(_ selectedWorkouts: [CompletedWorkout]) -> some View {
+        if presentation.workoutCount == 0 {
             Text("Finish a workout to begin your training history.")
                 .font(.caption)
                 .foregroundStyle(Color.liftMuted)
@@ -277,14 +266,13 @@ struct WorkoutHistoryCalendar: View {
     }
 
     private func moveMonth(by offset: Int) {
+        let monthStart = WorkoutHistoryCalendarData.monthStart(for: displayedMonth, calendar: calendar)
         guard let destination = calendar.date(byAdding: .month, value: offset, to: monthStart) else { return }
         let normalized = WorkoutHistoryCalendarData.monthStart(for: destination, calendar: calendar)
-        guard normalized >= firstBrowsableMonth, normalized <= lastBrowsableMonth else { return }
+        guard normalized >= presentation.firstBrowsableMonth,
+              normalized <= presentation.lastBrowsableMonth else { return }
         displayedMonth = normalized
-        selectedDate = workouts
-            .filter { calendar.isDate($0.completedAt, equalTo: normalized, toGranularity: .month) }
-            .max(by: { $0.completedAt < $1.completedAt })
-            .map { calendar.startOfDay(for: $0.completedAt) }
+        selectedDate = presentation.mostRecentWorkoutDateByMonth[normalized].map(calendar.startOfDay)
     }
 
     private func monthButton(

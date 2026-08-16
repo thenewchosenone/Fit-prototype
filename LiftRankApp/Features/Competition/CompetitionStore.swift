@@ -9,7 +9,13 @@ final class CompetitionStore: ObservableObject {
     @Published var focusRequestID: UUID?
     @Published var uploadProgress = 0.0
     @Published var lastSubmissionResult: LiftSubmission?
-    @Published private(set) var remoteLeaderboardEntries: [LeaderboardEntry]?
+    @Published private(set) var remoteLeaderboardEntries: [LeaderboardEntry]? {
+        didSet {
+            if oldValue != remoteLeaderboardEntries {
+                remoteLeaderboardRevision &+= 1
+            }
+        }
+    }
     @Published private(set) var leaderboardError: String?
     @Published private(set) var isLeaderboardLoading = false
 
@@ -24,14 +30,22 @@ final class CompetitionStore: ObservableObject {
     private let now: () -> Date
     private let makeID: () -> UUID
     private var hasLoadedProductionData = false
+    private var lastProductionRefreshAt: Date?
     private var productionUserID: UUID?
+    private var loadingProductionUserID: UUID?
     private var leaderboardRequestID: UUID?
+    private var loadingLeaderboardUserID: UUID?
+    private var loadingLeaderboardFilters: LeaderboardFilters?
+    private var loadingLeaderboardVerifiedOnly: Bool?
     private var loadedLeaderboardFilters: LeaderboardFilters?
     private var loadedLeaderboardVerifiedOnly: Bool?
     private var activeUploadID: UUID?
     private var achievementRefreshTask: Task<Void, Never>?
     private var cachedLeaderboardEntries: [LeaderboardEntry]?
     private var cachedLeaderboardSignature: LeaderboardCacheSignature?
+    private var remoteLeaderboardRevision = 0
+    private var cachedLeaderboardEligibilityDates: [Date] = []
+    private var cachedLeaderboardEligibilityLiftsRevision: Int?
     private var cachedCurrentUserLifts: [LiftSubmission]?
     private var cachedCurrentUserLiftsSignature: CurrentUserLiftsSignature?
     private var cachedPowerliftingTotal: Double?
@@ -40,6 +54,10 @@ final class CompetitionStore: ObservableObject {
     private var cachedOverallScoreSignature: OverallScoreSignature?
     private var cachedBestStrengthLifts: [String: LiftSubmission]?
     private var cachedBestStrengthLiftsSignature: CurrentUserLiftsSignature?
+    private var cachedStrengthPerformances: [StrengthLiftPerformance]?
+    private var cachedStrengthPerformancesSignature: CurrentUserLiftsSignature?
+    private var cachedVisibleProfileLifts: [LiftSubmission]?
+    private var cachedVisibleProfileLiftsSignature: VisibleProfileLiftsSignature?
     private var cachedPlaybackURLs: [UUID: (url: URL, expiresAt: Date)] = [:]
     private let uploadProgressStep = 0.025
 
@@ -88,10 +106,23 @@ final class CompetitionStore: ObservableObject {
         self.analyticsService = analyticsService
     }
 
-    func refreshProductionData() async {
+    func refreshProductionData(force: Bool = false) async {
         guard let liftService else { return }
         resetProductionDataIfNeeded()
         let userID = repository.currentProfile.id
+        if !force,
+           hasLoadedProductionData,
+           let lastProductionRefreshAt,
+           now().timeIntervalSince(lastProductionRefreshAt) < 30 {
+            return
+        }
+        guard loadingProductionUserID != userID else { return }
+        loadingProductionUserID = userID
+        defer {
+            if loadingProductionUserID == userID {
+                loadingProductionUserID = nil
+            }
+        }
         // Production must never retain seeded/demo rankings when loading fails.
         if !hasLoadedProductionData {
             repository.lifts = []
@@ -101,18 +132,28 @@ final class CompetitionStore: ObservableObject {
             return
         }
         guard repository.currentProfile.id == userID else { return }
-        repository.lifts = submissions
+        if repository.lifts != submissions {
+            repository.lifts = submissions
+        }
         hasLoadedProductionData = true
+        lastProductionRefreshAt = now()
         await refreshLeaderboard()
     }
 
     func refreshLeaderboard() async {
         guard let leaderboardService else { return }
         let userID = repository.currentProfile.id
-        let requestID = makeID()
-        leaderboardRequestID = requestID
         let requestFilters = filters
         let requestVerifiedOnly = verifiedOnly
+        guard !isLeaderboardLoading ||
+                loadingLeaderboardUserID != userID ||
+                loadingLeaderboardFilters != requestFilters ||
+                loadingLeaderboardVerifiedOnly != requestVerifiedOnly else { return }
+        let requestID = makeID()
+        leaderboardRequestID = requestID
+        loadingLeaderboardUserID = userID
+        loadingLeaderboardFilters = requestFilters
+        loadingLeaderboardVerifiedOnly = requestVerifiedOnly
         isLeaderboardLoading = true
         do {
             let entries = try await leaderboardService.entries(
@@ -123,8 +164,13 @@ final class CompetitionStore: ObservableObject {
             guard leaderboardRequestID == requestID else { return }
             loadedLeaderboardFilters = requestFilters
             loadedLeaderboardVerifiedOnly = requestVerifiedOnly
-            remoteLeaderboardEntries = entries
+            if remoteLeaderboardEntries != entries {
+                remoteLeaderboardEntries = entries
+            }
             leaderboardError = nil
+            loadingLeaderboardUserID = nil
+            loadingLeaderboardFilters = nil
+            loadingLeaderboardVerifiedOnly = nil
             isLeaderboardLoading = false
         } catch {
             guard repository.currentProfile.id == userID else { return }
@@ -137,6 +183,9 @@ final class CompetitionStore: ObservableObject {
             loadedLeaderboardFilters = requestFilters
             loadedLeaderboardVerifiedOnly = requestVerifiedOnly
             leaderboardError = error.localizedDescription
+            loadingLeaderboardUserID = nil
+            loadingLeaderboardFilters = nil
+            loadingLeaderboardVerifiedOnly = nil
             isLeaderboardLoading = false
         }
     }
@@ -196,11 +245,75 @@ final class CompetitionStore: ObservableObject {
         return best
     }
 
+    var strengthPerformances: [StrengthLiftPerformance] {
+        let signature = CurrentUserLiftsSignature(
+            currentUserID: repository.currentProfile.id,
+            liftsRevision: repository.liftsRevision
+        )
+        if let cachedStrengthPerformances, cachedStrengthPerformancesSignature == signature {
+            return cachedStrengthPerformances
+        }
+        let performances = RankingCalculator.strengthPerformances(fromSubmissions: currentUserLifts)
+        cachedStrengthPerformances = performances
+        cachedStrengthPerformancesSignature = signature
+        return performances
+    }
+
     var relativeTotal: Double {
         RankingCalculator.relativeTotal(
             total: powerliftingTotal,
             bodyweight: repository.currentProfile.bodyweightPounds
         )
+    }
+
+    func visibleProfileLifts(
+        for profileID: UUID,
+        viewerID: UUID,
+        includeLiftsWithoutVideo: Bool
+    ) async -> [LiftSubmission] {
+        let signature = VisibleProfileLiftsSignature(
+            profileID: profileID,
+            viewerID: viewerID,
+            includeLiftsWithoutVideo: includeLiftsWithoutVideo,
+            liftsRevision: repository.liftsRevision
+        )
+        if let cached = cachedVisibleProfileLifts(for: signature) {
+            return cached
+        }
+
+        let allLifts = repository.lifts
+        let prepared = await Task.detached(priority: .userInitiated) {
+            ProfileLiftVideoLibrary.visibleLifts(
+                for: profileID,
+                viewerID: viewerID,
+                allLifts: allLifts,
+                includeLiftsWithoutVideo: includeLiftsWithoutVideo
+            )
+        }.value
+        guard repository.liftsRevision == signature.liftsRevision else {
+            return await visibleProfileLifts(
+                for: profileID,
+                viewerID: viewerID,
+                includeLiftsWithoutVideo: includeLiftsWithoutVideo
+            )
+        }
+        guard !Task.isCancelled else { return prepared }
+        cachedVisibleProfileLifts = prepared
+        cachedVisibleProfileLiftsSignature = signature
+        return prepared
+    }
+
+    func cachedVisibleProfileLifts(
+        for profileID: UUID,
+        viewerID: UUID,
+        includeLiftsWithoutVideo: Bool
+    ) -> [LiftSubmission]? {
+        cachedVisibleProfileLifts(for: VisibleProfileLiftsSignature(
+            profileID: profileID,
+            viewerID: viewerID,
+            includeLiftsWithoutVideo: includeLiftsWithoutVideo,
+            liftsRevision: repository.liftsRevision
+        ))
     }
 
     var overallScore: Double {
@@ -231,34 +344,33 @@ final class CompetitionStore: ObservableObject {
     }
 
     func leaderboardSnapshotDate(referenceDate: Date) -> Date {
-        referenceDate
+        calendar.startOfDay(for: referenceDate)
     }
 
     func nextLeaderboardUpdateDate(referenceDate: Date) -> Date {
-        referenceDate
+        calendar.date(byAdding: .day, value: 1, to: leaderboardSnapshotDate(referenceDate: referenceDate))
+            ?? referenceDate
     }
 
     func leaderboardEntries(referenceDate: Date) -> [LeaderboardEntry] {
         let snapshotDate = leaderboardSnapshotDate(referenceDate: referenceDate)
+        let eligibleLiftCount = leaderboardEligibleLiftCount(at: referenceDate)
         let signature = LeaderboardCacheSignature(
             snapshotDate: snapshotDate,
+            eligibleLiftCount: eligibleLiftCount,
             filters: filters,
             verifiedOnly: verifiedOnly,
             currentUserID: repository.currentProfile.id,
             liftsRevision: repository.liftsRevision,
-            profiles: repository.profiles,
-            remoteEntries: remoteLeaderboardEntries
+            profilesRevision: repository.profilesRevision,
+            remoteEntriesRevision: remoteLeaderboardRevision
         )
         if let cachedLeaderboardEntries, cachedLeaderboardSignature == signature {
             return cachedLeaderboardEntries
         }
 
         let entries: [LeaderboardEntry]
-        let remoteEntriesMatchCurrentRequest = loadedLeaderboardFilters == filters
-            && loadedLeaderboardVerifiedOnly == verifiedOnly
-        if leaderboardService != nil && !remoteEntriesMatchCurrentRequest {
-            entries = []
-        } else if let remoteLeaderboardEntries {
+        if let remoteLeaderboardEntries {
             let filtered = remoteLeaderboardEntries.filter { entry in
                 if let repetitionCount = filters.repetitionCount,
                    entry.lift.repetitions != repetitionCount {
@@ -292,7 +404,7 @@ final class CompetitionStore: ObservableObject {
             }
         } else {
             var filtered = repository.lifts.filter {
-                $0.leaderboardEligibleAt <= snapshotDate && $0.resolvedModerationStatus == .clear
+                $0.leaderboardEligibleAt <= referenceDate && $0.resolvedModerationStatus == .clear
             }
             let profileByID = Dictionary(uniqueKeysWithValues: repository.profiles.map { ($0.id, $0) })
 
@@ -649,6 +761,7 @@ final class CompetitionStore: ObservableObject {
         let isAccountChange = productionUserID != nil
         productionUserID = repository.currentProfile.id
         hasLoadedProductionData = false
+        lastProductionRefreshAt = nil
         repository.lifts = []
         if isAccountChange {
             repository.achievementUnlocks = []
@@ -699,20 +812,56 @@ final class CompetitionStore: ObservableObject {
             return true
         }
     }
+
+    private func leaderboardEligibleLiftCount(at referenceDate: Date) -> Int {
+        if cachedLeaderboardEligibilityLiftsRevision != repository.liftsRevision {
+            cachedLeaderboardEligibilityDates = repository.lifts
+                .map(\.leaderboardEligibleAt)
+                .sorted()
+            cachedLeaderboardEligibilityLiftsRevision = repository.liftsRevision
+        }
+
+        var lowerBound = 0
+        var upperBound = cachedLeaderboardEligibilityDates.count
+        while lowerBound < upperBound {
+            let midpoint = lowerBound + (upperBound - lowerBound) / 2
+            if cachedLeaderboardEligibilityDates[midpoint] <= referenceDate {
+                lowerBound = midpoint + 1
+            } else {
+                upperBound = midpoint
+            }
+        }
+        return lowerBound
+    }
+
+    private func cachedVisibleProfileLifts(
+        for signature: VisibleProfileLiftsSignature
+    ) -> [LiftSubmission]? {
+        guard cachedVisibleProfileLiftsSignature == signature else { return nil }
+        return cachedVisibleProfileLifts
+    }
 }
 
 private struct LeaderboardCacheSignature: Equatable {
     let snapshotDate: Date
+    let eligibleLiftCount: Int
     let filters: LeaderboardFilters
     let verifiedOnly: Bool
     let currentUserID: UUID
     let liftsRevision: Int
-    let profiles: [UserProfile]
-    let remoteEntries: [LeaderboardEntry]?
+    let profilesRevision: Int
+    let remoteEntriesRevision: Int
 }
 
 private struct CurrentUserLiftsSignature: Equatable {
     let currentUserID: UUID
+    let liftsRevision: Int
+}
+
+private struct VisibleProfileLiftsSignature: Equatable {
+    let profileID: UUID
+    let viewerID: UUID
+    let includeLiftsWithoutVideo: Bool
     let liftsRevision: Int
 }
 

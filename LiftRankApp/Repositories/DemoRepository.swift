@@ -7,21 +7,23 @@ final class DemoRepository: ObservableObject {
     private static let suppressPersonalWorkoutDemoHistoryKey = "liftrank.suppressPersonalWorkoutDemoHistory"
 
     @Published var currentProfile: UserProfile
-    @Published var profiles: [UserProfile]
+    @Published var profiles: [UserProfile] { didSet { profilesRevision &+= 1 } }
     @Published var gyms: [Gym]
     @Published var joinedGymIDs: Set<UUID>
     @Published var lifts: [LiftSubmission] { didSet { liftsRevision &+= 1 } }
     @Published var challenges: [Challenge]
     @Published var achievements: [Achievement]
     @Published var notifications: [NotificationItem] { didSet { notificationsRevision &+= 1 } }
-    @Published var workoutPlans: [WorkoutPlan]
-    @Published var workoutPhases: [WorkoutPhase]
-    @Published var workoutWeeks: [WorkoutWeek]
-    @Published var workoutSessions: [WorkoutSession]
-    @Published var workoutPrescriptions: [WorkoutExercisePrescription]
+    @Published var workoutPlans: [WorkoutPlan] { didSet { programDataRevision &+= 1 } }
+    @Published var workoutPhases: [WorkoutPhase] { didSet { programDataRevision &+= 1 } }
+    @Published var workoutWeeks: [WorkoutWeek] { didSet { programDataRevision &+= 1 } }
+    @Published var workoutSessions: [WorkoutSession] { didSet { programDataRevision &+= 1 } }
+    @Published var workoutPrescriptions: [WorkoutExercisePrescription] { didSet { programDataRevision &+= 1 } }
     @Published var workoutSetLogs: [WorkoutSetLog] { didSet { workoutSetLogsRevision &+= 1 } }
     @Published var workoutFeedback: [WorkoutFeedback]
-    @Published var customTrainingExercises: [TrainingExerciseCatalogItem]
+    @Published var customTrainingExercises: [TrainingExerciseCatalogItem] {
+        didSet { customTrainingExercisesRevision &+= 1 }
+    }
     @Published var workoutEntries: [WorkoutExerciseEntry]
     @Published var bodyweightEntries: [BodyweightEntry]
     @Published var strainEntries: [StrainEntry]
@@ -47,9 +49,12 @@ final class DemoRepository: ObservableObject {
         ProcessInfo.processInfo.arguments.contains { $0.hasPrefix("-uiTesting") }
     }
     private(set) var liftsRevision = 0
+    private(set) var profilesRevision = 0
     private(set) var workoutSetLogsRevision = 0
     private(set) var notificationsRevision = 0
     private(set) var completedWorkoutsRevision = 0
+    private(set) var programDataRevision = 0
+    private(set) var customTrainingExercisesRevision = 0
 
     init(
         workoutPersistenceStore: WorkoutPersistenceStore? = nil
@@ -205,16 +210,17 @@ final class DemoRepository: ObservableObject {
             .store(in: &persistenceCancellables)
     }
 
-    private func scheduleWorkoutSnapshotPersistence() {
+    func scheduleWorkoutSnapshotPersistence() {
         guard !isRestoringWorkoutSnapshot, !isUITesting else { return }
         pendingPersistenceTask?.cancel()
         pendingPersistenceTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(350))
+            try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
-            await MainActor.run {
-                self?.pendingPersistenceTask = nil
-                self?.persistWorkoutSnapshot()
-            }
+            guard let self else { return }
+            let snapshot = makeWorkoutPersistenceSnapshot()
+            await workoutPersistenceStore.saveSnapshotWithoutBlockingUI(snapshot)
+            guard !Task.isCancelled else { return }
+            pendingPersistenceTask = nil
         }
     }
 
@@ -222,39 +228,53 @@ final class DemoRepository: ObservableObject {
         guard !isRestoringWorkoutSnapshot, !isUITesting else { return }
         pendingPersistenceTask?.cancel()
         pendingPersistenceTask = nil
-        workoutPersistenceStore.saveSnapshot(
-            WorkoutPersistenceSnapshot(
-                schemaVersion: WorkoutPersistenceSnapshot.currentVersion,
-                currentProfile: currentProfile,
-                profiles: profiles,
-                gyms: gyms,
-                gymRequests: gymRequests,
-                joinedGymIDs: joinedGymIDs,
-                plans: workoutPlans,
-                phases: workoutPhases,
-                weeks: workoutWeeks,
-                sessions: workoutSessions,
-                prescriptions: workoutPrescriptions,
-                setLogs: workoutSetLogs,
-                feedback: workoutFeedback,
-                customExercises: customTrainingExercises,
-                legacyEntries: workoutEntries,
-                bodyweightEntries: bodyweightEntries,
-                strainEntries: strainEntries,
-                injuryEntries: injuryEntries,
-                activeWorkout: activeWorkout,
-                completedWorkouts: completedWorkouts,
-                pendingPRSubmissions: pendingWorkoutPRSubmissions,
-                preferences: workoutPreferences,
-                planProgressionSettings: workoutPlanProgressionSettings,
-                achievementUnlocks: achievementUnlocks,
-                rankingHistory: rankingHistory,
-                pendingCompletedWorkoutUploads: pendingCompletedWorkoutUploads,
-                deletedCompletedWorkoutIDs: deletedCompletedWorkoutIDs,
-                workoutPlanSyncRevisions: workoutPlanSyncRevisions,
-                workoutPlanLastSyncedPayloads: workoutPlanLastSyncedPayloads,
-                pendingRemoteWorkoutPlanDeletions: pendingRemoteWorkoutPlanDeletions
-            )
+        workoutPersistenceStore.saveSnapshot(makeWorkoutPersistenceSnapshot())
+    }
+
+    func persistWorkoutSnapshotWithoutBlockingUI() {
+        guard !isRestoringWorkoutSnapshot, !isUITesting else { return }
+        pendingPersistenceTask?.cancel()
+        let snapshot = makeWorkoutPersistenceSnapshot()
+        pendingPersistenceTask = Task { [weak self] in
+            guard let self else { return }
+            await workoutPersistenceStore.saveSnapshotWithoutBlockingUI(snapshot)
+            guard !Task.isCancelled else { return }
+            pendingPersistenceTask = nil
+        }
+    }
+
+    private func makeWorkoutPersistenceSnapshot() -> WorkoutPersistenceSnapshot {
+        WorkoutPersistenceSnapshot(
+            schemaVersion: WorkoutPersistenceSnapshot.currentVersion,
+            currentProfile: currentProfile,
+            profiles: profiles,
+            gyms: gyms,
+            gymRequests: gymRequests,
+            joinedGymIDs: joinedGymIDs,
+            plans: workoutPlans,
+            phases: workoutPhases,
+            weeks: workoutWeeks,
+            sessions: workoutSessions,
+            prescriptions: workoutPrescriptions,
+            setLogs: workoutSetLogs,
+            feedback: workoutFeedback,
+            customExercises: customTrainingExercises,
+            legacyEntries: workoutEntries,
+            bodyweightEntries: bodyweightEntries,
+            strainEntries: strainEntries,
+            injuryEntries: injuryEntries,
+            activeWorkout: activeWorkout,
+            completedWorkouts: completedWorkouts,
+            pendingPRSubmissions: pendingWorkoutPRSubmissions,
+            preferences: workoutPreferences,
+            planProgressionSettings: workoutPlanProgressionSettings,
+            achievementUnlocks: achievementUnlocks,
+            rankingHistory: rankingHistory,
+            pendingCompletedWorkoutUploads: pendingCompletedWorkoutUploads,
+            deletedCompletedWorkoutIDs: deletedCompletedWorkoutIDs,
+            workoutPlanSyncRevisions: workoutPlanSyncRevisions,
+            workoutPlanLastSyncedPayloads: workoutPlanLastSyncedPayloads,
+            pendingRemoteWorkoutPlanDeletions: pendingRemoteWorkoutPlanDeletions
         )
     }
 

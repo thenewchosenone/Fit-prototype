@@ -52,12 +52,12 @@ final class WorkoutPRSubmissionStore {
     func setAutomaticSubmissionEnabled(_ enabled: Bool) {
         repository.workoutPreferences.automaticallySubmitVideoBackedPRs = enabled
         repository.workoutPreferences.didExplainAutomaticPRs = true
-        repository.persistWorkoutSnapshot()
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
     func markAutomaticSubmissionExplanationShown() {
         repository.workoutPreferences.didExplainAutomaticPRs = true
-        repository.persistWorkoutSnapshot()
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
     func candidates(
@@ -96,8 +96,8 @@ final class WorkoutPRSubmissionStore {
         }
     }
 
-    func persistVideo(_ data: Data, fileExtension: String = "mov") throws -> URL {
-        try videoStore.save(data, fileExtension: fileExtension)
+    func persistVideo(_ data: Data, fileExtension: String = "mov") async throws -> URL {
+        try await videoStore.save(data, fileExtension: fileExtension)
     }
 
     func clearAccountScopedMedia() {
@@ -175,7 +175,7 @@ final class WorkoutPRSubmissionStore {
         cachedUserID = repository.currentProfile.id
         repository.clearPendingPRSubmissions()
         repository.workoutPreferences = WorkoutPreferences()
-        repository.persistWorkoutSnapshot()
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
     private func pruneLocalVideos() {

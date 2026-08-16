@@ -7,11 +7,11 @@ extension DemoRepository {
 
     func clearCustomTrainingExercises() {
         customTrainingExercises.removeAll()
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func addCustomTrainingExercise(_ exercise: TrainingExerciseCatalogItem) {
         customTrainingExercises.insert(exercise, at: 0)
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 }

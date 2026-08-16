@@ -18,6 +18,17 @@ extension AppState {
         programStore.prescriptions(session: session)
     }
 
+    func programWeekPresentation(for week: WorkoutWeek) -> ProgramWeekPresentation {
+        return programStore.weekPresentation(
+            for: week,
+            workoutSetLogs: repository.workoutSetLogs,
+            workoutSetLogsRevision: repository.workoutSetLogsRevision,
+            catalog: trainingExerciseLibrary,
+            accountID: currentProfile.id,
+            customTrainingExercisesRevision: repository.customTrainingExercisesRevision
+        )
+    }
+
     func setLogs(for prescription: WorkoutExercisePrescription) -> [WorkoutSetLog] {
         repository.workoutSetLogs
             .filter { $0.prescriptionID == prescription.id }
@@ -146,15 +157,9 @@ extension AppState {
         let completed = activeWorkoutStore.finish(effort: effort, notes: notes)
         if let completed {
             Haptics.success()
-            if isAuthenticated, !isDemoMode, let payload = try? JSONEncoder().encode(completed) {
-                let snapshot = CompletedWorkoutSnapshot(
-                    id: completed.id,
-                    ownerID: currentProfile.id,
-                    payload: payload,
-                    completedAt: completed.completedAt
-                )
-                workoutSyncStore.enqueueCompletedWorkout(snapshot)
-                Task { await synchronizeCompletedWorkoutHistory() }
+            if isAuthenticated, !isDemoMode {
+                let ownerID = currentProfile.id
+                Task { await enqueueCompletedWorkoutAfterEncoding(completed, ownerID: ownerID) }
             }
             if let completingUserID {
                 Task {
@@ -179,16 +184,32 @@ extension AppState {
 
     func updateCompletedWorkout(_ workout: CompletedWorkout) {
         activeWorkoutStore.updateCompletedWorkout(workout)
-        if isAuthenticated, !isDemoMode, let payload = try? JSONEncoder().encode(workout) {
-            workoutSyncStore.enqueueCompletedWorkout(CompletedWorkoutSnapshot(
-                id: workout.id,
-                ownerID: currentProfile.id,
-                payload: payload,
-                completedAt: workout.completedAt
-            ))
-            Task { await synchronizeCompletedWorkoutHistory() }
+        if isAuthenticated, !isDemoMode {
+            let ownerID = currentProfile.id
+            Task { await enqueueCompletedWorkoutAfterEncoding(workout, ownerID: ownerID) }
         }
         Haptics.success()
+    }
+
+    private func enqueueCompletedWorkoutAfterEncoding(
+        _ workout: CompletedWorkout,
+        ownerID: UUID
+    ) async {
+        let payload = await Task.detached(priority: .utility) {
+            try? JSONEncoder().encode(workout)
+        }.value
+        guard let payload,
+              currentProfile.id == ownerID,
+              isAuthenticated,
+              !isDemoMode,
+              completedWorkouts.first(where: { $0.id == workout.id }) == workout else { return }
+        workoutSyncStore.enqueueCompletedWorkout(CompletedWorkoutSnapshot(
+            id: workout.id,
+            ownerID: ownerID,
+            payload: payload,
+            completedAt: workout.completedAt
+        ))
+        await synchronizeCompletedWorkoutHistory()
     }
 
     func setAutomaticVideoPRSubmission(_ enabled: Bool) {
@@ -212,6 +233,13 @@ extension AppState {
         excludingIDs: Set<String> = []
     ) -> [ExerciseSearchResult] {
         exerciseLibraryStore.search(query: query, filters: filters, excludingIDs: excludingIDs)
+    }
+
+    func exerciseLibraryPresentation(
+        query: String,
+        filters: ExerciseLibraryFilterSelection? = nil
+    ) -> ExerciseLibraryPresentation {
+        exerciseLibraryStore.searchPresentation(query: query, filters: filters)
     }
 
     func substitutionRecommendations(
@@ -292,8 +320,8 @@ extension AppState {
         await workoutPRSubmissionStore.retryFailedSubmissions()
     }
 
-    func persistWorkoutVideo(_ data: Data, fileExtension: String = "mov") throws -> URL {
-        try workoutPRSubmissionStore.persistVideo(data, fileExtension: fileExtension)
+    func persistWorkoutVideo(_ data: Data, fileExtension: String = "mov") async throws -> URL {
+        try await workoutPRSubmissionStore.persistVideo(data, fileExtension: fileExtension)
     }
 
 }

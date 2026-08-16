@@ -78,6 +78,7 @@ protocol ActiveWorkoutRepository: AnyObject {
         source: WorkoutSetCompletionSource
     ) -> WorkoutSetLog?
 
+    func scheduleWorkoutSnapshotPersistence()
     func persistWorkoutSnapshot()
 }
 
@@ -88,6 +89,7 @@ protocol ProgramRepository: AnyObject {
     var workoutWeeks: [WorkoutWeek] { get }
     var workoutSessions: [WorkoutSession] { get }
     var workoutPrescriptions: [WorkoutExercisePrescription] { get }
+    var programDataRevision: Int { get }
 
     func currentProgramWeek(planID: UUID, at date: Date) -> WorkoutWeek?
     func addWorkoutPlan(_ plan: WorkoutPlan)
@@ -136,9 +138,11 @@ protocol TrainingProgressRepository: AnyObject {
     var workoutSessions: [WorkoutSession] { get }
     var workoutPrescriptions: [WorkoutExercisePrescription] { get }
     var workoutSetLogs: [WorkoutSetLog] { get }
+    var workoutSetLogsRevision: Int { get }
     var workoutEntries: [WorkoutExerciseEntry] { get }
     var completedWorkouts: [CompletedWorkout] { get }
     var completedWorkoutsRevision: Int { get }
+    var programDataRevision: Int { get }
     var bodyweightEntries: [BodyweightEntry] { get }
     var strainEntries: [StrainEntry] { get }
     var injuryEntries: [InjuryEntry] { get }
@@ -155,6 +159,7 @@ protocol TrainingProgressRepository: AnyObject {
 protocol ExerciseRepository: AnyObject {
     var currentProfile: UserProfile { get }
     var customTrainingExercises: [TrainingExerciseCatalogItem] { get }
+    var customTrainingExercisesRevision: Int { get }
 
     func addCustomTrainingExercise(_ exercise: TrainingExerciseCatalogItem)
     func clearCustomTrainingExercises()
@@ -165,6 +170,7 @@ protocol CompetitionRepository: AnyObject {
     var lifts: [LiftSubmission] { get set }
     var liftsRevision: Int { get }
     var profiles: [UserProfile] { get }
+    var profilesRevision: Int { get }
     var currentProfile: UserProfile { get }
     var joinedGymIDs: Set<UUID> { get }
     var achievementUnlocks: [AchievementUnlock] { get set }
@@ -215,6 +221,7 @@ protocol WorkoutSyncRepository: AnyObject {
     func clearAccountScopedWorkoutHistory()
     func refreshAchievementUnlocks(now: Date)
     func persistWorkoutSnapshot()
+    func persistWorkoutSnapshotWithoutBlockingUI()
 }
 
 @MainActor
@@ -229,6 +236,7 @@ protocol WorkoutPRSubmissionRepository: AnyObject {
     func clearPendingPRSubmissions()
     func linkSubmission(_ submissionID: UUID, to workoutID: UUID)
     func persistWorkoutSnapshot()
+    func persistWorkoutSnapshotWithoutBlockingUI()
 }
 
 @MainActor

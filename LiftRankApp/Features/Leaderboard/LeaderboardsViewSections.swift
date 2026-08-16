@@ -3,7 +3,13 @@ import SwiftUI
 extension LeaderboardsView {
     @ViewBuilder
     var featureBody: some View {
-        leaderboardContent
+        if appState.router.selectedTab == .leaderboards {
+            leaderboardContent
+        } else {
+            AppBackground {
+                Color.clear
+            }
+        }
     }
 
     private var leaderboardContent: some View {
@@ -52,7 +58,7 @@ extension LeaderboardsView {
                                     .padding(.top, 12)
                             } else {
                                 Section {
-                                    VStack(spacing: 0) {
+                                    LazyVStack(spacing: 0) {
                                         ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                                             Button {
                                                 appState.selectedProfile = entry.profile
@@ -170,6 +176,7 @@ extension LeaderboardsView {
             .task(id: appState.leaderboardRequestKey) {
                 guard lastRefreshedLeaderboardRequestKey != appState.leaderboardRequestKey else { return }
                 lastRefreshedLeaderboardRequestKey = appState.leaderboardRequestKey
+                guard appState.isLeaderboardRequestPending else { return }
                 await appState.refreshLeaderboard()
             }
     }

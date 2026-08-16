@@ -52,6 +52,7 @@ struct ProfileLiftVideosSection: View {
     }
 
     var body: some View {
+        let videoLifts = videoLifts
         VStack(alignment: .leading, spacing: 10) {
             CompactSectionHeader(title: "Lift videos")
             if profile.hideLiftVideos && !isCurrentUser {
@@ -133,11 +134,16 @@ private struct ProfileVideoThumbnail: View {
             generator.appliesPreferredTrackTransform = true
             generator.maximumSize = CGSize(width: 360, height: 360)
             let time = CMTime(seconds: 0, preferredTimescale: 600)
-            let thumbnail = await withCheckedContinuation { continuation in
-                generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: time)]) { _, image, _, _, _ in
-                    continuation.resume(returning: image)
+            let thumbnail = await withTaskCancellationHandler(operation: {
+                await withCheckedContinuation { continuation in
+                    generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: time)]) { _, image, _, _, _ in
+                        continuation.resume(returning: image)
+                    }
                 }
-            }
+            }, onCancel: {
+                generator.cancelAllCGImageGeneration()
+            })
+            guard !Task.isCancelled else { return }
             guard let thumbnail else { return }
             let image = UIImage(cgImage: thumbnail)
             Self.cache.setObject(image, forKey: lift.id.uuidString as NSString)
@@ -222,6 +228,25 @@ private struct EditProfileLocation: Identifiable, Hashable {
     let city: String
     let state: String
     var id: String { "\(state.lowercased())|\(city.lowercased())" }
+
+    static let catalog: [EditProfileLocation] = {
+        var unique: [String: EditProfileLocation] = [:]
+        for country in LaunchLocationCatalog.countries {
+            for region in country.regions {
+                for city in region.cities {
+                    let location = EditProfileLocation(city: city, state: region.name)
+                    unique[location.id] = location
+                }
+            }
+        }
+        return unique.values.sorted(by: locationSort)
+    }()
+
+    static func locationSort(_ lhs: EditProfileLocation, _ rhs: EditProfileLocation) -> Bool {
+        lhs.state == rhs.state
+            ? lhs.city.localizedCaseInsensitiveCompare(rhs.city) == .orderedAscending
+            : lhs.state.localizedCaseInsensitiveCompare(rhs.state) == .orderedAscending
+    }
 }
 
 struct EditProfileView: View {
@@ -243,15 +268,7 @@ struct EditProfileView: View {
     }
 
     private var locations: [EditProfileLocation] {
-        var unique: [String: EditProfileLocation] = [:]
-        for country in LaunchLocationCatalog.countries {
-            for region in country.regions {
-                for city in region.cities {
-                    let location = EditProfileLocation(city: city, state: region.name)
-                    unique[location.id] = location
-                }
-            }
-        }
+        var unique = Dictionary(uniqueKeysWithValues: EditProfileLocation.catalog.map { ($0.id, $0) })
         for gym in appState.gyms where !gym.city.isEmpty && !gym.state.isEmpty {
             let location = EditProfileLocation(city: gym.city, state: gym.state)
             unique[location.id] = location
@@ -260,10 +277,7 @@ struct EditProfileView: View {
             let current = EditProfileLocation(city: draft.city, state: draft.state)
             unique[current.id] = current
         }
-        return unique.values.sorted {
-            $0.state == $1.state ? $0.city.localizedCaseInsensitiveCompare($1.city) == .orderedAscending :
-                $0.state.localizedCaseInsensitiveCompare($1.state) == .orderedAscending
-        }
+        return unique.values.sorted(by: EditProfileLocation.locationSort)
     }
 
     private var orderedGyms: [Gym] {
@@ -530,13 +544,15 @@ struct ProfilePhotoManagerView: View {
     @State private var loading = false
     @State private var selectedSourceImage: UIImage?
     @State private var previewImage: UIImage?
+    @State private var storedImage: UIImage?
     @State private var showingCropEditor = false
     @State private var showingRemoveConfirmation = false
 
     private var displayedImage: UIImage? {
         previewImage ??
-        LocalProfilePhotoStore.shared.image(for: appState.currentProfile.avatarPath) ??
-        LocalProfilePhotoStore.shared.thumbnail(for: appState.currentProfile.avatarPath)
+        LocalProfilePhotoStore.shared.cachedImage(for: appState.currentProfile.avatarPath) ??
+        LocalProfilePhotoStore.shared.cachedThumbnail(for: appState.currentProfile.avatarPath) ??
+        storedImage
     }
 
     private var hasExistingOrPendingPhoto: Bool {
@@ -594,9 +610,13 @@ struct ProfilePhotoManagerView: View {
 
                                     Button("Use Photo") {
                                         guard let previewImage else { return }
-                                        appState.saveProfilePhoto(previewImage)
+                                        storedImage = previewImage
                                         self.previewImage = nil
                                         selectedSourceImage = nil
+                                        Task { @MainActor in
+                                            await Task.yield()
+                                            await appState.saveProfilePhoto(previewImage)
+                                        }
                                     }
                                     .buttonStyle(LiftPrimaryButtonStyle())
                                 }
@@ -651,13 +671,23 @@ struct ProfilePhotoManagerView: View {
                 loading = true
                 Task {
                     defer { loading = false }
-                    guard let data = try? await newItem.loadTransferable(type: Data.self),
-                          let image = UIImage(data: data)?.preparedForProfileEditing() else { return }
+                    guard let data = try? await newItem.loadTransferable(type: Data.self) else { return }
+                    let image = await Task.detached(priority: .userInitiated) {
+                        UIImage(data: data)?.preparedForProfileEditing()
+                    }.value
+                    guard let image else { return }
                     await MainActor.run {
                         selectedSourceImage = image
                         showingCropEditor = true
                         item = nil
                     }
+                }
+            }
+            .task(id: appState.currentProfile.avatarPath) {
+                if let fullImage = await LocalProfilePhotoStore.shared.loadImage(for: appState.currentProfile.avatarPath) {
+                    storedImage = fullImage
+                } else {
+                    storedImage = await LocalProfilePhotoStore.shared.loadThumbnail(for: appState.currentProfile.avatarPath)
                 }
             }
         }

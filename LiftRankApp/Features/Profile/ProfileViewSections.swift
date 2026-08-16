@@ -6,16 +6,16 @@ extension ProfileView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
-                    summary(profileLifts: visibleProfileLifts)
-                    recentSubmissions(profileLifts: visibleProfileLifts)
-                    ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: visibleProfileLifts)
-                    athleteDetails(profileLifts: visibleProfileLifts)
+                    summary(presentation: liftPresentation)
+                    recentSubmissions(profileLifts: liftPresentation.lifts)
+                    ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: liftPresentation.lifts)
+                    athleteDetails(presentation: liftPresentation)
                 }
                 .padding()
                 .padding(.bottom, 24)
             }
             .refreshable {
-                await refreshProfileData()
+                await refreshProfileData(force: true)
             }
             .sheet(isPresented: $showingPhotoManager) {
                 ProfilePhotoManagerView()
@@ -60,17 +60,17 @@ extension ProfileView {
             }
         }
         .task(id: profile.id) {
-            await refreshProfileData()
+            await refreshProfileData(force: false)
         }
         .onChange(of: appState.repository.liftsRevision) { _, _ in
-            refreshVisibleProfileLifts()
+            Task { await refreshVisibleProfileLifts() }
         }
     }
 
-    private func refreshProfileData() async {
+    private func refreshProfileData(force: Bool) async {
         if isCurrentUser {
-            await appState.refreshProductionLifts()
+            await appState.refreshProductionLifts(force: force)
         }
-        refreshVisibleProfileLifts()
+        await refreshVisibleProfileLifts()
     }
 }

@@ -104,11 +104,15 @@ final class NotificationStore: ObservableObject {
 
     func markAllRead() {
         resetAccountScopedCacheIfNeeded()
-        for index in repository.notifications.indices {
-            repository.notifications[index].isRead = true
+        let unreadNotifications = repository.notifications.filter { !$0.isRead }
+        guard !unreadNotifications.isEmpty else { return }
+        repository.notifications = repository.notifications.map { notification in
+            var notification = notification
+            notification.isRead = true
+            return notification
         }
         guard let notificationService else { return }
-        let notificationIDs = repository.notifications.map(\.id)
+        let notificationIDs = unreadNotifications.map(\.id)
         let userID = repository.currentProfile.id
         Task {
             for notificationID in notificationIDs {

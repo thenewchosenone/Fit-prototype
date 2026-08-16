@@ -126,6 +126,22 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertFalse(LiftVideoPolicy.allows(duration: .infinity))
     }
 
+    func testProfileThumbnailLoadsFromDiskWithoutRenderPathIO() async throws {
+        let userID = UUID()
+        let store = LocalProfilePhotoStore.shared
+        let image = try XCTUnwrap(UIImage(systemName: "person.crop.circle.fill"))
+        let avatarPath = try await store.save(image: image, userID: userID, mode: .demo)
+
+        store.clearMemoryCache()
+        XCTAssertNil(store.cachedThumbnail(for: avatarPath))
+
+        let loaded = await store.loadThumbnail(for: avatarPath)
+
+        XCTAssertNotNil(loaded)
+        XCTAssertNotNil(store.cachedThumbnail(for: avatarPath))
+        store.remove(avatarPath: avatarPath)
+    }
+
     func testProductionConfigurationRejectsServiceRoleKey() {
         let serviceRoleKey = "eyJhbGciOiJub25lIn0.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature"
         let environment = [
@@ -322,7 +338,7 @@ final class BackendFoundationTests: XCTestCase {
                 .withTintColor(.systemGreen, renderingMode: .alwaysOriginal)
         )
 
-        appState.saveProfilePhoto(image)
+        await appState.saveProfilePhoto(image)
         for _ in 0..<120 where appState.currentProfile.avatarPath != serverAvatarPath {
             try await Task.sleep(nanoseconds: 25_000_000)
         }
@@ -370,7 +386,7 @@ final class BackendFoundationTests: XCTestCase {
         await appState.signIn(email: "avatar-edit-race@example.test", password: "password")
 
         let image = try XCTUnwrap(UIImage(systemName: "person.crop.circle.fill"))
-        let avatarPath = try LocalProfilePhotoStore.shared.save(
+        let avatarPath = try await LocalProfilePhotoStore.shared.save(
             image: image,
             userID: userID,
             mode: .authenticated
@@ -474,7 +490,7 @@ final class BackendFoundationTests: XCTestCase {
         await appState.signIn(email: "avatar-race@example.test", password: "password")
         let image = try XCTUnwrap(UIImage(systemName: "person.crop.circle.fill"))
 
-        appState.saveProfilePhoto(image)
+        await appState.saveProfilePhoto(image)
         for _ in 0..<20 where !service.avatarUploadStarted {
             try await Task.sleep(nanoseconds: 25_000_000)
         }
@@ -507,7 +523,7 @@ final class BackendFoundationTests: XCTestCase {
         await appState.signIn(email: "avatar-account-race@example.test", password: "password")
         let image = try XCTUnwrap(UIImage(systemName: "person.crop.circle.fill"))
 
-        appState.saveProfilePhoto(image)
+        await appState.saveProfilePhoto(image)
         for _ in 0..<20 where !service.avatarUploadStarted {
             try await Task.sleep(nanoseconds: 25_000_000)
         }
@@ -745,7 +761,7 @@ final class BackendFoundationTests: XCTestCase {
         let avatarPath = "\(userID.uuidString.lowercased())/avatar"
         LocalProfilePhotoStore.shared.remove(avatarPath: avatarPath)
         let image = try XCTUnwrap(UIImage(systemName: "person.crop.circle.fill"))
-        let savedPath = try LocalProfilePhotoStore.shared.save(
+        let savedPath = try await LocalProfilePhotoStore.shared.save(
             image: image,
             userID: userID,
             mode: .authenticated
@@ -1900,12 +1916,13 @@ final class BackendFoundationTests: XCTestCase {
     }
 
     @MainActor
-    func testGymRequestPersistsInLocalWorkoutSnapshot() {
+    func testGymRequestPersistsInLocalWorkoutSnapshot() async throws {
         let persistence = InMemoryWorkoutPersistenceStore()
         let repository = DemoRepository(workoutPersistenceStore: persistence)
         let appState = AppState(repository: repository)
 
         appState.requestGym(name: "  New Gym  ", city: "Austin", state: "Texas", note: "Please verify")
+        try await Task.sleep(for: .milliseconds(1_200))
 
         XCTAssertEqual(persistence.loadSnapshot()?.gymRequests?.first?.name, "New Gym")
         XCTAssertEqual(persistence.loadSnapshot()?.gymRequests?.first?.createdBy, repository.currentProfile.id)
@@ -1965,6 +1982,45 @@ final class BackendFoundationTests: XCTestCase {
         let firstUpdatedAt = record.updatedAt
         store.saveSnapshot(snapshot)
         XCTAssertEqual(record.updatedAt, firstUpdatedAt)
+    }
+
+    @MainActor
+    func testLargeWorkoutSnapshotImmediatePersistencePerformance() async throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: PersistentLiftRecord.self, PersistentSettings.self,
+            PersistentWorkoutRecord.self, PersistentWorkoutState.self,
+            configurations: configuration
+        )
+        let persistence = SwiftDataWorkoutPersistenceStore(context: container.mainContext)
+        let repository = DemoRepository(workoutPersistenceStore: persistence)
+        var logs: [WorkoutSetLog] = []
+        logs.reserveCapacity(25_000)
+        for index in 0..<25_000 {
+            let log = WorkoutSetLog(
+                id: UUID(),
+                prescriptionID: UUID(),
+                performedAt: Date(timeIntervalSince1970: 1_800_000_000 - Double(index)),
+                setNumber: index % 5 + 1,
+                weight: Double(100 + index % 400),
+                reps: index % 12 + 1,
+                rpe: index % 10,
+                isWarmup: index.isMultiple(of: 5),
+                isComplete: true,
+                workoutID: UUID(),
+                recordedUnit: .pounds
+            )
+            logs.append(log)
+        }
+        repository.workoutSetLogs = logs
+        let options = XCTMeasureOptions()
+        options.iterationCount = 3
+
+        measure(metrics: [XCTClockMetric()], options: options) {
+            repository.persistWorkoutSnapshotWithoutBlockingUI()
+        }
+        try await Task.sleep(for: .seconds(1))
+        XCTAssertEqual(persistence.loadSnapshot()?.setLogs.count, 25_000)
     }
 
 

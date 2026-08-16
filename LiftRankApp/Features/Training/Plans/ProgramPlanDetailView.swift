@@ -12,26 +12,18 @@ struct ProgramPlanDetailView: View {
 
     private let days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
-    private var selectedWeek: WorkoutWeek? {
-        if let selectedWeekID, let week = appState.selectedPlanWeeks.first(where: { $0.id == selectedWeekID }) {
-            return week
-        }
-        return appState.selectedPlanWeeks.first
-    }
-
-    private var selectedWeekPosition: Int? {
-        guard let selectedWeek else { return nil }
-        return appState.selectedPlanWeeks.firstIndex(where: { $0.id == selectedWeek.id })
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let weeks = appState.selectedPlanWeeks
+        let selectedWeek = selectedWeekID.flatMap { id in weeks.first { $0.id == id } } ?? weeks.first
+        let selectedWeekPosition = selectedWeek.flatMap { selected in weeks.firstIndex { $0.id == selected.id } }
+        let phaseName = appState.selectedPlanPhases.first?.name ?? "Base Phase"
+        return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(appState.selectedWorkoutPlan?.name ?? "Workout Plan")
                         .font(.headline.weight(.bold))
                         .lineLimit(1)
-                    Text("\(appState.selectedPlanPhases.first?.name ?? "Base Phase") • \(appState.selectedPlanWeeks.count) weeks")
+                    Text("\(phaseName) • \(weeks.count) weeks")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
@@ -87,14 +79,14 @@ struct ProgramPlanDetailView: View {
             }
 
             if detailTab == "Weeks" {
-                if appState.selectedPlanWeeks.isEmpty {
+                if weeks.isEmpty {
                     emptyWeeksState
                 } else {
-                    weekNavigator
-                    weekSessions
+                    weekNavigator(weeks: weeks, selectedWeek: selectedWeek, selectedWeekPosition: selectedWeekPosition)
+                    weekSessions(selectedWeek: selectedWeek)
                 }
             } else if detailTab == "Overview" {
-                overview
+                overview(selectedWeek: selectedWeek)
             } else {
                 notes
             }
@@ -138,10 +130,14 @@ struct ProgramPlanDetailView: View {
         }
     }
 
-    private var weekNavigator: some View {
+    private func weekNavigator(
+        weeks: [WorkoutWeek],
+        selectedWeek: WorkoutWeek?,
+        selectedWeekPosition: Int?
+    ) -> some View {
         HStack(spacing: 8) {
             Button {
-                selectAdjacentWeek(offset: -1)
+                selectAdjacentWeek(offset: -1, weeks: weeks, selectedWeekPosition: selectedWeekPosition)
             } label: {
                 Image(systemName: "chevron.left")
                     .frame(width: 44, height: 44)
@@ -152,7 +148,7 @@ struct ProgramPlanDetailView: View {
             .accessibilityLabel("Previous week")
 
             Menu {
-                ForEach(appState.selectedPlanWeeks) { week in
+                ForEach(weeks) { week in
                     Button {
                         selectedWeekID = week.id
                     } label: {
@@ -169,7 +165,7 @@ struct ProgramPlanDetailView: View {
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(Color.liftText)
                     if let selectedWeekPosition {
-                        Text("\(selectedWeekPosition + 1) of \(appState.selectedPlanWeeks.count)")
+                        Text("\(selectedWeekPosition + 1) of \(weeks.count)")
                             .font(.caption2)
                             .foregroundStyle(Color.liftMuted)
                     }
@@ -180,14 +176,14 @@ struct ProgramPlanDetailView: View {
             .accessibilityLabel("Selected workout week")
 
             Button {
-                selectAdjacentWeek(offset: 1)
+                selectAdjacentWeek(offset: 1, weeks: weeks, selectedWeekPosition: selectedWeekPosition)
             } label: {
                 Image(systemName: "chevron.right")
                     .frame(width: 44, height: 44)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(selectedWeekPosition == appState.selectedPlanWeeks.count - 1 ? Color.liftMuted.opacity(0.35) : Color.liftMuted)
-            .disabled(selectedWeekPosition == nil || selectedWeekPosition == appState.selectedPlanWeeks.count - 1)
+            .foregroundStyle(selectedWeekPosition == weeks.count - 1 ? Color.liftMuted.opacity(0.35) : Color.liftMuted)
+            .disabled(selectedWeekPosition == nil || selectedWeekPosition == weeks.count - 1)
             .accessibilityLabel("Next week")
         }
         .background(Color.liftCard)
@@ -198,11 +194,11 @@ struct ProgramPlanDetailView: View {
         }
     }
 
-    private func selectAdjacentWeek(offset: Int) {
+    private func selectAdjacentWeek(offset: Int, weeks: [WorkoutWeek], selectedWeekPosition: Int?) {
         guard let selectedWeekPosition else { return }
         let destination = selectedWeekPosition + offset
-        guard appState.selectedPlanWeeks.indices.contains(destination) else { return }
-        selectedWeekID = appState.selectedPlanWeeks[destination].id
+        guard weeks.indices.contains(destination) else { return }
+        selectedWeekID = weeks[destination].id
     }
 
     private var emptyWeeksState: some View {
@@ -237,10 +233,11 @@ struct ProgramPlanDetailView: View {
         }
     }
 
-    private var weekSessions: some View {
+    private func weekSessions(selectedWeek: WorkoutWeek?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             if let selectedWeek {
-                let sessions = appState.sessions(for: selectedWeek)
+                let presentation = appState.programWeekPresentation(for: selectedWeek)
+                let sessions = presentation.sessions
                 if sessions.isEmpty {
                     LiftCard {
                         VStack(alignment: .leading, spacing: 10) {
@@ -253,14 +250,21 @@ struct ProgramPlanDetailView: View {
                     }
                 } else {
                     ForEach(sessions) { session in
-                        ProgramSessionCard(session: session, week: selectedWeek, onStart: {
+                        let prescriptions = presentation.prescriptionsBySessionID[session.id] ?? []
+                        ProgramSessionCard(
+                            session: session,
+                            prescriptions: prescriptions,
+                            completedPrescriptionCount: prescriptions.lazy.filter {
+                                presentation.completedPrescriptionIDs.contains($0.id)
+                            }.count,
+                            catalogByID: presentation.catalogByID,
+                            onStart: {
                             selectedSessionToRun = session
                         }, onAddExercise: {
                             selectedSessionForAdd = session
                         }, onDelete: {
                             appState.deleteSession(session)
                         })
-                        .environmentObject(appState)
                     }
                 }
                 Button {
@@ -274,16 +278,17 @@ struct ProgramPlanDetailView: View {
         }
     }
 
-    private var overview: some View {
+    private func overview(selectedWeek: WorkoutWeek?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             if let selectedWeek {
+                let presentation = appState.programWeekPresentation(for: selectedWeek)
                 LiftCard {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("\(selectedWeek.title) Overview")
                             .font(.headline)
-                        Text("\(appState.sessions(for: selectedWeek).count) workout days")
+                        Text("\(presentation.sessions.count) workout days")
                             .foregroundStyle(Color.liftMuted)
-                        ProgressView(value: appState.weekCompletion(for: selectedWeek))
+                        ProgressView(value: presentation.completion)
                             .tint(Color.liftGreen)
                     }
                 }

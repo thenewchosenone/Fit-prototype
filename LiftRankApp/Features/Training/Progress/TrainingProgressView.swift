@@ -15,8 +15,13 @@ extension TrainingTrackerView {
             }
         let bodyweightEntries = recentBodyweightEntries
         let weekCompletion = selectedWeek.map(appState.weekCompletion(for:))
+        let historyPresentation = appState.workoutHistoryPresentation(
+            displayedMonth: workoutHistoryMonth,
+            selectedDate: selectedWorkoutHistoryDate
+        )
+        let exerciseOptions = appState.progressExerciseOptions()
 
-        return VStack(alignment: .leading, spacing: 14) {
+        return LazyVStack(alignment: .leading, spacing: 14) {
             Text("Progress")
                 .font(.title3.weight(.black))
 
@@ -24,10 +29,10 @@ extension TrainingTrackerView {
                 strainAndInjurySection
             }
 
-            workoutHistorySection
+            workoutHistorySection(presentation: historyPresentation)
 
-            if !progressExerciseOptions.isEmpty {
-                exerciseProgressSection
+            if !exerciseOptions.isEmpty {
+                exerciseProgressSection(options: exerciseOptions)
             }
 
             if let week = selectedWeek {
@@ -285,9 +290,9 @@ extension TrainingTrackerView {
         return .liftBlue
     }
 
-    private var workoutHistorySection: some View {
+    private func workoutHistorySection(presentation: WorkoutHistoryCalendarPresentation) -> some View {
         WorkoutHistoryCalendar(
-            workouts: completedTrainingHistoryWorkouts,
+            presentation: presentation,
             displayedMonth: $workoutHistoryMonth,
             selectedDate: $selectedWorkoutHistoryDate
         ) { workout in
@@ -295,10 +300,12 @@ extension TrainingTrackerView {
         }
     }
 
-    private var exerciseProgressSection: some View {
-        let exerciseID = selectedProgressExerciseID ?? progressExerciseOptions.first?.id
-        let exercise = progressExerciseOptions.first { $0.id == exerciseID }
-        let setPoints = exercise.map { exerciseProgressPoints(for: $0.id) } ?? []
+    private func exerciseProgressSection(
+        options: [TrainingExerciseCatalogItem]
+    ) -> some View {
+        let exerciseID = selectedProgressExerciseID ?? options.first?.id
+        let exercise = options.first { $0.id == exerciseID }
+        let setPoints = exercise.map { appState.exerciseProgressPoints(for: $0.id) } ?? []
         let chartPoints = ExerciseProgressSeries.dailyHighest(from: setPoints)
         let prs = MeasurementFormatting.bestPRsByReps(from: setPoints)
 
@@ -312,7 +319,7 @@ extension TrainingTrackerView {
                     .font(.subheadline.weight(.bold))
                 Spacer()
                 Menu {
-                    ForEach(progressExerciseOptions) { option in
+                    ForEach(options) { option in
                         Button(option.name) { selectedProgressExerciseID = option.id }
                     }
                 } label: {
@@ -473,22 +480,11 @@ extension TrainingTrackerView {
     }
 
     private var completedTrainingHistoryWorkouts: [CompletedWorkout] {
-        appState.completedWorkouts.filter { !$0.completedWorkingSets.isEmpty }
+        appState.trainingHistoryWorkouts
     }
 
     private var progressExerciseOptions: [TrainingExerciseCatalogItem] {
-        let IDs = Set(completedTrainingHistoryWorkouts.flatMap { $0.exercises.map(\.exerciseID) })
-        return appState.trainingExerciseLibrary
-            .filter { IDs.contains($0.id) && ExerciseTrackingKind($0.trackingType) == .weightReps }
-            .sorted { $0.name < $1.name }
-    }
-
-    private func exerciseProgressPoints(for exerciseID: String) -> [ExerciseProgressPoint] {
-        WorkoutProgressPresentation.progressPoints(
-            from: completedTrainingHistoryWorkouts,
-            exerciseID: exerciseID,
-            preferredUnit: appState.currentProfile.preferredUnit
-        )
+        appState.progressExerciseOptions()
     }
 
     private func syncWorkoutHistorySelection() {
@@ -504,13 +500,14 @@ extension TrainingTrackerView {
     }
 
     private func syncProgressExerciseSelection() {
-        let optionIDs = Set(progressExerciseOptions.map(\.id))
+        let options = progressExerciseOptions
+        let optionIDs = Set(options.map(\.id))
         guard let selectedProgressExerciseID else {
-            self.selectedProgressExerciseID = progressExerciseOptions.first?.id
+            self.selectedProgressExerciseID = options.first?.id
             return
         }
         if !optionIDs.contains(selectedProgressExerciseID) {
-            self.selectedProgressExerciseID = progressExerciseOptions.first?.id
+            self.selectedProgressExerciseID = options.first?.id
         }
     }
 

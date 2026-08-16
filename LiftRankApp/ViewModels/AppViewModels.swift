@@ -584,7 +584,7 @@ final class AppState: ObservableObject {
             workoutPRSubmissionStore.clearAccountScopedMedia()
             repository.clearLocalUserData()
         }
-        let pendingAvatarPath = profilePhotoStore.pendingUploadPath(
+        let pendingAvatarPath = await profilePhotoStore.pendingUploadPathWithoutBlockingUI(
             userID: accountUserID,
             mode: .authenticated
         )
@@ -759,9 +759,10 @@ final class AppState: ObservableObject {
 
     func refreshProductionLaunchData() async {
         guard isAuthenticated, !isDemoMode else { return }
-        await competitionStore.refreshProductionData()
-        await notificationStore.refreshProductionData()
-        await accountSocialStore.refreshBlocks()
+        async let competitionRefresh: Void = competitionStore.refreshProductionData()
+        async let notificationRefresh: Void = notificationStore.refreshProductionData()
+        async let blockRefresh: Void = accountSocialStore.refreshBlocks()
+        _ = await (competitionRefresh, notificationRefresh, blockRefresh)
     }
 
     func isBlocked(_ userID: UUID) -> Bool { accountSocialStore.isBlocked(userID) }
@@ -884,7 +885,7 @@ final class AppState: ObservableObject {
     var completedWorkouts: [CompletedWorkout] { trainingProgressStore.completedWorkouts }
     var strengthTierSummary: StrengthTierSummary {
         trainingProgressStore.strengthTierSummary(
-            including: RankingCalculator.strengthPerformances(fromSubmissions: currentUserLifts)
+            including: competitionStore.strengthPerformances
         )
     }
     func strengthTierSummary(including performances: [StrengthLiftPerformance]) -> StrengthTierSummary {
@@ -909,7 +910,7 @@ final class AppState: ObservableObject {
             status: note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Pending" : "Pending: \(note.trimmingCharacters(in: .whitespacesAndNewlines))",
             createdAt: .now
         ))
-        repository.persistWorkoutSnapshot()
+        repository.scheduleWorkoutSnapshotPersistence()
     }
 
     func isGymJoined(_ gym: Gym) -> Bool {
@@ -1067,6 +1068,13 @@ final class AppState: ObservableObject {
 }
 
 extension AppState {
+    func exerciseProgressPoints(for exerciseID: String) -> [ExerciseProgressPoint] {
+        trainingProgressStore.exerciseProgressPoints(
+            for: exerciseID,
+            preferredUnit: currentProfile.preferredUnit
+        )
+    }
+
     func exerciseHistory(for exerciseID: String) -> [ExerciseHistoryEntry] {
         trainingProgressStore.exerciseHistory(for: exerciseID)
     }
@@ -1078,19 +1086,37 @@ extension AppState {
     var plateauInsights: [PlateauInsight] {
         trainingProgressStore.plateauInsights
     }
+
+    func recoverySummaries(referenceDate: Date = .now) -> [TrainingRecoverySummary] {
+        trainingProgressStore.recoverySummaries(referenceDate: referenceDate)
+    }
+
+    func previousComparableWorkout(for summary: WorkoutSummary) -> CompletedWorkout? {
+        trainingProgressStore.previousComparableWorkout(
+            sessionID: summary.sessionID,
+            workoutName: summary.workoutName
+        )
+    }
 }
 
+@MainActor
 enum Haptics {
+    private static let lightGenerator = UIImpactFeedbackGenerator(style: .light)
+    private static let notificationGenerator = UINotificationFeedbackGenerator()
+
     static func light() {
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        lightGenerator.impactOccurred()
+        lightGenerator.prepare()
     }
 
     static func success() {
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        notificationGenerator.notificationOccurred(.success)
+        notificationGenerator.prepare()
     }
 
     static func warning() {
-        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        notificationGenerator.notificationOccurred(.warning)
+        notificationGenerator.prepare()
     }
 }
 

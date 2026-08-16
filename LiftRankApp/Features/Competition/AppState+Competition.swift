@@ -65,13 +65,13 @@ extension AppState {
     }
 
     func refreshLeaderboard() async {
-        guard isAuthenticated, !isDemoMode else { return }
+        guard isAuthenticated || isDemoMode else { return }
         await competitionStore.refreshLeaderboard()
     }
 
-    func refreshProductionLifts() async {
+    func refreshProductionLifts(force: Bool = false) async {
         guard isAuthenticated, !isDemoMode else { return }
-        await competitionStore.refreshProductionData()
+        await competitionStore.refreshProductionData(force: force)
     }
 
     func selectLeaderboardExercise(_ exerciseID: String?) {

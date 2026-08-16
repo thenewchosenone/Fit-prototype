@@ -35,7 +35,7 @@ extension DemoRepository {
         )
         activeWorkout = workout
         createInitialSetLogs(for: workout)
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
         return workout
     }
 
@@ -68,7 +68,7 @@ extension DemoRepository {
             restTimerExerciseID: nil
         )
         activeWorkout = workout
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
         return workout
     }
 
@@ -116,7 +116,7 @@ extension DemoRepository {
             }
         }
         activeWorkout = workout
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func removeExerciseFromActiveWorkout(_ exercise: WorkoutExerciseSnapshot) {
@@ -129,7 +129,7 @@ extension DemoRepository {
             workout.restTimerExerciseID = nil
         }
         activeWorkout = workout
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     @discardableResult
@@ -144,7 +144,7 @@ extension DemoRepository {
             return exercise
         }
         activeWorkout = workout
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
         return true
     }
 
@@ -158,7 +158,7 @@ extension DemoRepository {
         workout.exercises.insert(moved, at: target)
         normalizeActiveExerciseOrder(&workout)
         activeWorkout = workout
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
         return true
     }
 
@@ -166,7 +166,7 @@ extension DemoRepository {
         guard var workout = activeWorkout else { return }
         workout.automaticRestTimerEnabled = enabled
         activeWorkout = workout
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     @discardableResult
@@ -184,7 +184,7 @@ extension DemoRepository {
         if completedSets.isEmpty {
             workout.exercises[index] = replacementSnapshot(from: current, substitute: substitute, preserveID: true)
             activeWorkout = workout
-            persistWorkoutSnapshot()
+            scheduleWorkoutSnapshotPersistence()
             return workout.exercises[index]
         }
 
@@ -209,7 +209,7 @@ extension DemoRepository {
             )
         }
         activeWorkout = workout
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
         return replacement
     }
 
@@ -238,7 +238,7 @@ extension DemoRepository {
                 targetLoadKilograms: exercise.targetLoadKilograms
             )
         }
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
         return true
     }
 
@@ -246,7 +246,7 @@ extension DemoRepository {
         guard var workout = activeWorkout, workout.pausedAt == nil else { return }
         workout.pausedAt = date
         activeWorkout = workout
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func resumeActiveWorkout(at date: Date = .now) {
@@ -254,7 +254,7 @@ extension DemoRepository {
         workout.accumulatedPausedTime += max(0, date.timeIntervalSince(pausedAt))
         workout.pausedAt = nil
         activeWorkout = workout
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func updateActiveRestTimer(endsAt: Date?, exerciseID: UUID?) {
@@ -262,14 +262,14 @@ extension DemoRepository {
         workout.restTimerEndsAt = endsAt
         workout.restTimerExerciseID = exerciseID
         activeWorkout = workout
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func discardActiveWorkout() {
         guard let workoutID = activeWorkout?.id else { return }
         workoutSetLogs.removeAll { $0.workoutID == workoutID }
         activeWorkout = nil
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func clearActiveWorkoutDraft() {
@@ -306,7 +306,7 @@ extension DemoRepository {
         workoutSetLogs.removeAll { $0.workoutID == workout.id }
         activeWorkout = nil
         refreshAchievementUnlocks()
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
         return completed
     }
 
@@ -317,7 +317,7 @@ extension DemoRepository {
         pendingWorkoutPRSubmissions.removeAll {
             $0.candidate.completedWorkoutID == workout.id && $0.state != .submitted
         }
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func updateCompletedWorkout(_ workout: CompletedWorkout) {
@@ -326,7 +326,7 @@ extension DemoRepository {
         completedWorkouts[index] = workout
         completedWorkouts.sort { $0.completedAt > $1.completedAt }
         refreshAchievementUnlocks()
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func linkSubmission(_ submissionID: UUID, to workoutID: UUID) {
@@ -335,7 +335,7 @@ extension DemoRepository {
             completedWorkouts[index].linkedSubmissionIDs.append(submissionID)
         }
         refreshAchievementUnlocks()
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func upsertPendingPRSubmission(_ pending: PendingWorkoutPRSubmission) {
@@ -344,17 +344,17 @@ extension DemoRepository {
         } else {
             pendingWorkoutPRSubmissions.append(pending)
         }
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func removePendingPRSubmissions(ids: Set<UUID>) {
         pendingWorkoutPRSubmissions.removeAll { ids.contains($0.id) }
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func clearPendingPRSubmissions() {
         pendingWorkoutPRSubmissions.removeAll()
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func exerciseSnapshot(_ prescription: WorkoutExercisePrescription) -> WorkoutExerciseSnapshot {
@@ -430,7 +430,7 @@ extension DemoRepository {
         let log = WorkoutSetLog(id: UUID(), prescriptionID: prescriptionID, performedAt: .now, setNumber: nextNumber, weight: nil, reps: nil, rpe: nil, isWarmup: false, isComplete: false, workoutID: workoutID, recordedUnit: unit)
         workoutSetLogs.append(log)
         if persistImmediately {
-            persistWorkoutSnapshot()
+            scheduleWorkoutSnapshotPersistence()
         }
         return log
     }
@@ -523,7 +523,7 @@ extension DemoRepository {
         )
         workoutFeedback.removeAll { $0.sessionID == sessionID && Calendar.current.isDateInToday($0.completedAt) }
         workoutFeedback.append(feedback)
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
 

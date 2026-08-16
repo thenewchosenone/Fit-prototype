@@ -29,6 +29,7 @@ struct WorkoutSessionRunView: View {
     @State private var isReorderingExercises = false
     @State private var dismissAfterSummary = false
     @State private var showSummaryAfterSheetDismiss = false
+    @State private var catalogByID: [String: TrainingExerciseCatalogItem] = [:]
 
     private var workout: ActiveWorkoutState? { appState.activeWorkout }
 
@@ -40,7 +41,7 @@ struct WorkoutSessionRunView: View {
                     VStack(spacing: 0) {
                         activeHeader(workout, displayState: displayState)
                         ScrollView {
-                            VStack(alignment: .leading, spacing: 16) {
+                            LazyVStack(alignment: .leading, spacing: 16) {
                                 if displayState.exercises.isEmpty {
                                     emptyCard
                                 } else {
@@ -59,6 +60,9 @@ struct WorkoutSessionRunView: View {
                                     }
 
                                     ForEach(displayState.exercises) { exercise in
+                                        let catalogExercise = catalogByID[exercise.exerciseID]
+                                            ?? appState.trainingExerciseLibrary.first { $0.id == exercise.exerciseID }
+                                            ?? fallbackCatalogExercise(for: exercise)
                                         let progress = displayState.progressByExerciseID[exercise.id]
                                             ?? appState.activeWorkoutExerciseProgress(for: exercise)
                                         ExerciseSwipeActionRow(
@@ -72,10 +76,17 @@ struct WorkoutSessionRunView: View {
                                             }
                                         ) {
                                             NavigationLink {
-                                                PrescriptionTrackView(exercise: exercise)
-                                                    .environmentObject(appState)
+                                                PrescriptionTrackView(
+                                                    exercise: exercise,
+                                                    catalogExercise: catalogExercise
+                                                )
+                                                .environmentObject(appState)
                                             } label: {
-                                                exerciseCard(exercise, progress: progress)
+                                                exerciseCard(
+                                                    exercise,
+                                                    progress: progress,
+                                                    catalogExercise: catalogExercise
+                                                )
                                             }
                                             .buttonStyle(.plain)
                                             .accessibilityIdentifier("workout.exercise.\(exercise.id.uuidString)")
@@ -125,6 +136,11 @@ struct WorkoutSessionRunView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            .task(id: appState.repository.customTrainingExercisesRevision) {
+                catalogByID = Dictionary(
+                    uniqueKeysWithValues: appState.trainingExerciseLibrary.map { ($0.id, $0) }
+                )
+            }
             .sheet(item: $presentedSheet, onDismiss: {
                 if showSummaryAfterSheetDismiss {
                     showSummaryAfterSheetDismiss = false
@@ -327,7 +343,8 @@ struct WorkoutSessionRunView: View {
 
     private func exerciseCard(
         _ exercise: WorkoutExerciseSnapshot,
-        progress: ActiveWorkoutExerciseProgress
+        progress: ActiveWorkoutExerciseProgress,
+        catalogExercise: TrainingExerciseCatalogItem
     ) -> some View {
         HStack(spacing: 12) {
             if isReorderingExercises {
@@ -354,7 +371,7 @@ struct WorkoutSessionRunView: View {
                 }
                 .foregroundStyle(Color.liftBlue)
             }
-            ExerciseCatalogIcon(exercise: catalogExercise(for: exercise))
+            ExerciseCatalogIcon(exercise: catalogExercise)
                 .frame(width: 48, height: 48)
                 .overlay(alignment: .bottomTrailing) {
                     if progress.isComplete {
@@ -440,8 +457,8 @@ struct WorkoutSessionRunView: View {
         .background(.ultraThinMaterial)
     }
 
-    private func catalogExercise(for exercise: WorkoutExerciseSnapshot) -> TrainingExerciseCatalogItem {
-        appState.trainingExerciseLibrary.first { $0.id == exercise.exerciseID } ?? TrainingExerciseCatalogItem(
+    private func fallbackCatalogExercise(for exercise: WorkoutExerciseSnapshot) -> TrainingExerciseCatalogItem {
+        TrainingExerciseCatalogItem(
             id: exercise.exerciseID,
             name: exercise.exerciseName,
             bodyPart: exercise.bodyPart,
@@ -610,7 +627,9 @@ private struct ActiveWorkoutSubstitutePickerView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        let recommendations = recommendations
+        let activeExerciseIDs = activeExerciseIDs
+        return NavigationStack {
             AppBackground {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {

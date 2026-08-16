@@ -405,7 +405,8 @@ struct LeaderboardFiltersView: View {
     }
 
     private var resultsPreview: some View {
-        LiftCard(padding: 14, radius: 16) {
+        let resultCount = resultCount
+        return LiftCard(padding: 14, radius: 16) {
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: "line.3.horizontal.decrease.circle.fill")
                     .font(.title2)

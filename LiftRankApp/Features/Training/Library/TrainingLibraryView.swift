@@ -1,18 +1,12 @@
 import SwiftUI
 
 extension TrainingTrackerView {
-    private var librarySections: [(letter: String, results: [ExerciseSearchResult])] {
-        let grouped = Dictionary(grouping: filteredLibraryResults.sorted {
-            $0.exercise.name.localizedStandardCompare($1.exercise.name) == .orderedAscending
-        }) { result in
-            result.exercise.name.first.map { String($0).uppercased() } ?? "#"
-        }
-        return grouped.keys.sorted().map { ($0, grouped[$0] ?? []) }
-    }
-
-    func libraryAlphabetIndex(scrollProxy: ScrollViewProxy) -> some View {
+    func libraryAlphabetIndex(
+        scrollProxy: ScrollViewProxy,
+        sections: [ExerciseLibrarySection]
+    ) -> some View {
         VStack(spacing: 1) {
-            ForEach(librarySections.map(\.letter), id: \.self) { letter in
+            ForEach(sections.map(\.letter), id: \.self) { letter in
                 Button(letter) {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         scrollProxy.scrollTo("library-letter-\(letter)", anchor: .top)
@@ -66,7 +60,11 @@ extension TrainingTrackerView {
         .accessibilityHint("Opens exercise details, history, records, and charts")
     }
 
-    func library(scrollProxy: ScrollViewProxy) -> some View {
+    func library(
+        scrollProxy: ScrollViewProxy,
+        results: [ExerciseSearchResult],
+        sections: [ExerciseLibrarySection]
+    ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Image(systemName: "magnifyingglass")
@@ -158,11 +156,11 @@ extension TrainingTrackerView {
                 }
             }
 
-            Text("\(filteredLibraryResults.count) exercises")
+            Text("\(results.count) exercises")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color.liftMuted)
 
-            if filteredLibraryResults.isEmpty {
+            if results.isEmpty {
                 LiftEmptyState(
                     title: "No exercises found",
                     message: "Try another search or clear the active filters.",
@@ -176,8 +174,8 @@ extension TrainingTrackerView {
             } else {
 
                 LazyVStack(alignment: .leading, spacing: 12) {
-                    ForEach(librarySections, id: \.letter) { section in
-                        VStack(alignment: .leading, spacing: 0) {
+                    ForEach(sections) { section in
+                        LazyVStack(alignment: .leading, spacing: 0) {
                             Text(section.letter)
                                 .font(.caption.weight(.black))
                                 .foregroundStyle(Color.liftBlue)

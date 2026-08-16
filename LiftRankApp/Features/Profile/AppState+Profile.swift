@@ -2,6 +2,17 @@ import Foundation
 
 @MainActor
 extension AppState {
+    func visibleProfileLifts(
+        for profileID: UUID,
+        includeLiftsWithoutVideo: Bool = true
+    ) async -> [LiftSubmission] {
+        await competitionStore.visibleProfileLifts(
+            for: profileID,
+            viewerID: currentProfile.id,
+            includeLiftsWithoutVideo: includeLiftsWithoutVideo
+        )
+    }
+
     func connectOnboardingPrimaryGym(_ gym: Gym) async throws {
         guard isAuthenticated, !isDemoMode else { return }
         guard try await accountSocialStore.ensureGymJoined(
@@ -16,7 +27,7 @@ extension AppState {
         Task {
             do {
                 _ = try await profileStore.updateProfile(profile)
-                repository.persistWorkoutSnapshot()
+                repository.scheduleWorkoutSnapshotPersistence()
             } catch {
                 accountMessage = userMessage(error)
             }
@@ -76,7 +87,7 @@ extension AppState {
             if isAuthenticated && !isDemoMode {
                 await refreshRemoteSocialState()
             }
-            repository.persistWorkoutSnapshot()
+            repository.persistWorkoutSnapshotWithoutBlockingUI()
             Haptics.success()
             return true
         } catch {

@@ -55,7 +55,4 @@ extension TrainingTrackerView {
         return appState.sessions(for: selectedWeek).first { $0.day == todayName }
     }
 
-    var filteredLibraryResults: [ExerciseSearchResult] {
-        appState.searchExercises(query: librarySearch, filters: libraryFilters)
-    }
 }

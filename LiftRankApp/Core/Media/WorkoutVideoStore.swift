@@ -1,7 +1,7 @@
 import Foundation
 
 protocol WorkoutVideoStoring: AnyObject {
-    func save(_ data: Data, fileExtension: String) throws -> URL
+    func save(_ data: Data, fileExtension: String) async throws -> URL
     func remove(_ url: URL)
     func prune(retaining URLs: Set<URL>, olderThan cutoff: Date)
 }
@@ -18,7 +18,13 @@ final class LocalWorkoutVideoStore: WorkoutVideoStoring {
         self.makeID = makeID
     }
 
-    func save(_ data: Data, fileExtension: String) throws -> URL {
+    func save(_ data: Data, fileExtension: String) async throws -> URL {
+        try await Task.detached(priority: .userInitiated) { [self] in
+            try saveSynchronously(data, fileExtension: fileExtension)
+        }.value
+    }
+
+    private func saveSynchronously(_ data: Data, fileExtension: String) throws -> URL {
         let root = try rootURL(create: true)
         let url = root.appendingPathComponent("\(makeID().uuidString).\(fileExtension)")
         try data.write(to: url, options: .atomic)
@@ -27,32 +33,38 @@ final class LocalWorkoutVideoStore: WorkoutVideoStoring {
     }
 
     func remove(_ url: URL) {
-        guard isManaged(url) else { return }
-        try? fileManager.removeItem(at: url)
-    }
-
-    func prune(retaining URLs: Set<URL>, olderThan cutoff: Date) {
-        guard let root = try? rootURL(create: false),
-              let files = try? fileManager.contentsOfDirectory(
-                at: root,
-                includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
-                options: [.skipsHiddenFiles]
-              ) else { return }
-        let retainedPaths = Set(URLs.map { $0.standardizedFileURL.path })
-        for file in files where !retainedPaths.contains(file.standardizedFileURL.path) {
-            let values = try? file.resourceValues(forKeys: [.contentModificationDateKey, .isRegularFileKey])
-            guard values?.isRegularFile == true,
-                  (values?.contentModificationDate ?? .distantPast) < cutoff else { continue }
-            try? fileManager.removeItem(at: file)
+        let fileManager = fileManager
+        Task.detached(priority: .utility) {
+            guard let root = try? Self.rootURL(fileManager: fileManager, create: false),
+                  url.standardizedFileURL.path.hasPrefix(root.standardizedFileURL.path + "/") else { return }
+            try? fileManager.removeItem(at: url)
         }
     }
 
-    private func isManaged(_ url: URL) -> Bool {
-        guard let root = try? rootURL(create: false) else { return false }
-        return url.standardizedFileURL.path.hasPrefix(root.standardizedFileURL.path + "/")
+    func prune(retaining URLs: Set<URL>, olderThan cutoff: Date) {
+        let fileManager = fileManager
+        Task.detached(priority: .utility) {
+            guard let root = try? Self.rootURL(fileManager: fileManager, create: false),
+                  let files = try? fileManager.contentsOfDirectory(
+                    at: root,
+                    includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
+                    options: [.skipsHiddenFiles]
+                  ) else { return }
+            let retainedPaths = Set(URLs.map { $0.standardizedFileURL.path })
+            for file in files where !retainedPaths.contains(file.standardizedFileURL.path) {
+                let values = try? file.resourceValues(forKeys: [.contentModificationDateKey, .isRegularFileKey])
+                guard values?.isRegularFile == true,
+                      (values?.contentModificationDate ?? .distantPast) < cutoff else { continue }
+                try? fileManager.removeItem(at: file)
+            }
+        }
     }
 
     private func rootURL(create: Bool) throws -> URL {
+        try Self.rootURL(fileManager: fileManager, create: create)
+    }
+
+    private static func rootURL(fileManager: FileManager, create: Bool) throws -> URL {
         let root = try fileManager.url(
             for: .applicationSupportDirectory,
             in: .userDomainMask,

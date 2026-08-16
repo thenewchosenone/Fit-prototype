@@ -146,9 +146,14 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
+                        let update = profileSettingsUpdate()
+                        let hasChanges = update.profile != appState.currentProfile
+                            || update.privacy != appState.authenticatedPrivacy
+                        appState.showingSettings = false
+                        guard hasChanges else { return }
                         Task {
-                            await persistProfileSettings()
-                            dismiss()
+                            try? await Task.sleep(for: .milliseconds(350))
+                            await persistProfileSettings(profile: update.profile, privacy: update.privacy)
                         }
                     }
                 }
@@ -173,7 +178,7 @@ struct SettingsView: View {
         .preferredColorScheme(LiftAppearance(rawValue: appearance)?.colorScheme)
     }
 
-    private func persistProfileSettings() async {
+    private func profileSettingsUpdate() -> (profile: UserProfile, privacy: ProfilePrivacySettings) {
         var profile = appState.currentProfile
         var updatedPrivacy = privacy
         profile.preferredUnit = preferredUnit
@@ -194,11 +199,15 @@ struct SettingsView: View {
             updatedPrivacy.locationAudience = .privateProfile
             updatedPrivacy.gymAudience = .privateProfile
         }
+        return (profile, updatedPrivacy)
+    }
+
+    private func persistProfileSettings(profile: UserProfile, privacy: ProfilePrivacySettings) async {
         if appState.isAuthenticated && !appState.isDemoMode {
-            _ = await appState.saveEditedProfile(profile, primaryGym: nil, privacy: updatedPrivacy)
+            _ = await appState.saveEditedProfile(profile, primaryGym: nil, privacy: privacy)
         } else {
             appState.updateProfile(profile)
-            appState.setAuthenticatedPrivacy(updatedPrivacy)
+            appState.setAuthenticatedPrivacy(privacy)
         }
     }
 }

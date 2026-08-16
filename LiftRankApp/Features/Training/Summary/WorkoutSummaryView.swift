@@ -42,9 +42,7 @@ struct WorkoutSummaryView: View {
     }
 
     private var previousComparableWorkout: CompletedWorkout? {
-        appState.completedWorkouts.first {
-            $0.sourceSessionID == summary.sessionID || $0.name == summary.workoutName
-        }
+        appState.previousComparableWorkout(for: summary)
     }
 
     private var projectedWorkoutCount: Int {
@@ -55,11 +53,17 @@ struct WorkoutSummaryView: View {
         max(appState.competitiveStatistics.currentStreak, 0) + 1
     }
 
-    private var newlyUnlockedAchievements: [AchievementUnlock] {
+    private func newlyUnlockedAchievements(
+        workingSets: [WorkoutSetLog],
+        activeDuration: TimeInterval
+    ) -> [AchievementUnlock] {
         let alreadyEarnedTitles = Set(currentAchievementTitles())
             .union(Set(appState.achievementUnlocks.map(\.title)))
         return Self.newlyUnlockedTitles(
-            projected: projectedAchievementTitles(),
+            projected: projectedAchievementTitles(
+                workingSets: workingSets,
+                activeDuration: activeDuration
+            ),
             alreadyEarned: alreadyEarnedTitles
         )
             .map {
@@ -78,11 +82,13 @@ struct WorkoutSummaryView: View {
         projected.filter { !alreadyEarned.contains($0) }
     }
 
-    private var projectedStrengthTierSummary: StrengthTierSummary {
-        let workout = appState.activeWorkout
-        let performances = currentWorkoutWorkingSets.compactMap { set -> StrengthLiftPerformance? in
-            guard let workout,
-                  let exercise = workout.exercises.first(where: { $0.id == set.prescriptionID }),
+    private func projectedStrengthTierSummary(workingSets: [WorkoutSetLog]) -> StrengthTierSummary {
+        guard let workout = appState.activeWorkout else {
+            return appState.strengthTierSummary
+        }
+        let exercisesByID = Dictionary(uniqueKeysWithValues: workout.exercises.map { ($0.id, $0) })
+        let performances = workingSets.compactMap { set -> StrengthLiftPerformance? in
+            guard let exercise = exercisesByID[set.prescriptionID],
                   let weight = set.weight, weight > 0,
                   let repetitions = set.reps, (1...10).contains(repetitions) else { return nil }
             let exerciseID = exercise.rankingExerciseID ?? exercise.exerciseID
@@ -99,11 +105,18 @@ struct WorkoutSummaryView: View {
         return appState.strengthTierSummary(including: performances)
     }
 
-    private var advancedStrengthLifts: [LiftTierProgress] {
-        projectedStrengthTierSummary.advancedLifts(comparedTo: appState.strengthTierSummary)
-    }
-
     var body: some View {
+        let activeDuration = activeDuration
+        let workingSets = currentWorkoutWorkingSets
+        let projectedStrengthTierSummary = projectedStrengthTierSummary(workingSets: workingSets)
+        let advancedStrengthLifts = projectedStrengthTierSummary.advancedLifts(
+            comparedTo: appState.strengthTierSummary
+        )
+        let newlyUnlockedAchievements = newlyUnlockedAchievements(
+            workingSets: workingSets,
+            activeDuration: activeDuration
+        )
+
         NavigationStack {
             AppBackground {
                 ScrollView {
@@ -164,7 +177,10 @@ struct WorkoutSummaryView: View {
                         }
 
                         if !advancedStrengthLifts.isEmpty {
-                            rivalTierProgressSection
+                            rivalTierProgressSection(
+                                advancedStrengthLifts: advancedStrengthLifts,
+                                projectedStrengthTierSummary: projectedStrengthTierSummary
+                            )
                         }
 
                         if !newlyUnlockedAchievements.isEmpty {
@@ -271,7 +287,10 @@ struct WorkoutSummaryView: View {
         }
     }
 
-    private var rivalTierProgressSection: some View {
+    private func rivalTierProgressSection(
+        advancedStrengthLifts: [LiftTierProgress],
+        projectedStrengthTierSummary: StrengthTierSummary
+    ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Label("Rival Tier progress", systemImage: "medal.fill")
                 .font(.headline.weight(.bold))
@@ -454,12 +473,15 @@ struct WorkoutSummaryView: View {
         MeasurementFormatting.signedShortClockText(seconds: Int(value.rounded()))
     }
 
-    private func projectedAchievementTitles() -> [String] {
+    private func projectedAchievementTitles(
+        workingSets: [WorkoutSetLog],
+        activeDuration: TimeInterval
+    ) -> [String] {
         let stats = appState.competitiveStatistics
         let workoutCount = stats.totalWorkouts + 1
-        let volumeKilograms = stats.lifetimeWorkingSetVolume + currentWorkoutVolumeKilograms
+        let volumeKilograms = stats.lifetimeWorkingSetVolume + currentWorkoutVolumeKilograms(workingSets)
         let trainingTime = stats.totalActiveTrainingTime + activeDuration
-        let repetitions = stats.totalWorkingSetRepetitions + currentWorkoutWorkingSetRepetitions
+        let repetitions = stats.totalWorkingSetRepetitions + currentWorkoutWorkingSetRepetitions(workingSets)
         var titles: [String] = []
 
         addWorkoutMilestones(to: &titles, count: workoutCount)
@@ -500,26 +522,29 @@ struct WorkoutSummaryView: View {
         catalog: [TrainingExerciseCatalogItem]
     ) -> [WorkoutSetLog] {
         guard let workout else { return [] }
+        let exercisesByID = Dictionary(uniqueKeysWithValues: workout.exercises.map { ($0.id, $0) })
+        let trackingTypesByExerciseID = Dictionary(uniqueKeysWithValues: catalog.map { ($0.id, $0.trackingType) })
+
         return logs.filter { log in
             guard log.workoutID == workout.id,
                   log.isComplete,
                   !log.isWarmup,
-                  let exercise = workout.exercises.first(where: { $0.id == log.prescriptionID }) else {
+                  let exercise = exercisesByID[log.prescriptionID] else {
                 return false
             }
             let rawTrackingType = exercise.trackingType ??
-                catalog.first(where: { $0.id == exercise.exerciseID })?.trackingType
+                trackingTypesByExerciseID[exercise.exerciseID]
             return ExerciseTrackingKind(rawTrackingType ?? "Weight + Reps") == .weightReps
         }
     }
 
-    private var currentWorkoutWorkingSetRepetitions: Int {
-        currentWorkoutWorkingSets.reduce(0) { $0 + ($1.reps ?? 0) }
+    private func currentWorkoutWorkingSetRepetitions(_ workingSets: [WorkoutSetLog]) -> Int {
+        workingSets.reduce(0) { $0 + ($1.reps ?? 0) }
     }
 
-    private var currentWorkoutVolumeKilograms: Double {
+    private func currentWorkoutVolumeKilograms(_ workingSets: [WorkoutSetLog]) -> Double {
         let unit = appState.activeWorkout?.unit ?? appState.currentProfile.preferredUnit
-        let volume = currentWorkoutWorkingSets.reduce(0) { $0 + $1.volume(in: unit) }
+        let volume = workingSets.reduce(0) { $0 + $1.volume(in: unit) }
         return unit == .kilograms ? volume : RankingCalculator.poundsToKilograms(volume)
     }
 
@@ -555,7 +580,7 @@ struct WorkoutSummaryView: View {
                 guard let data = try await item.loadTransferable(type: Data.self) else {
                     throw CocoaError(.fileReadUnknown)
                 }
-                let url = try appState.persistWorkoutVideo(data)
+                let url = try await appState.persistWorkoutVideo(data)
                 await MainActor.run {
                     videoURLsBySetID[candidate.setID] = url
                     loadingVideoSetIDs.remove(candidate.setID)

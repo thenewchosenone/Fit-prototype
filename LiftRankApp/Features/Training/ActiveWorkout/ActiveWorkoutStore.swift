@@ -72,6 +72,16 @@ private struct ActiveWorkoutPRCandidatesSignature: Equatable {
     let liftsRevision: Int
 }
 
+private struct ActiveWorkoutSetLogIndexSignature: Equatable {
+    let workoutID: UUID
+    let workoutSetLogsRevision: Int
+}
+
+private struct ActiveWorkoutSetLogIndex {
+    let allLogs: [WorkoutSetLog]
+    let logsByExerciseID: [UUID: [WorkoutSetLog]]
+}
+
 @MainActor
 final class ActiveWorkoutStore {
     private let repository: any ActiveWorkoutRepository
@@ -86,6 +96,8 @@ final class ActiveWorkoutStore {
     private var cachedPreviousWorkoutSetLookup: [Int: WorkoutSetLog]?
     private var cachedPRCandidatesSignature: ActiveWorkoutPRCandidatesSignature?
     private var cachedPRCandidates: [WorkoutPRCandidate]?
+    private var cachedSetLogIndexSignature: ActiveWorkoutSetLogIndexSignature?
+    private var cachedSetLogIndex: ActiveWorkoutSetLogIndex?
 
     init(
         repository: any ActiveWorkoutRepository,
@@ -132,8 +144,7 @@ final class ActiveWorkoutStore {
             return cachedDisplayState
         }
 
-        let activeLogs = repository.workoutSetLogs.filter { $0.workoutID == workout.id }
-        let logsByExerciseID = Dictionary(grouping: activeLogs, by: \.prescriptionID)
+        let setLogIndex = activeSetLogIndex(for: workout.id)
         var progressByExerciseID: [UUID: ActiveWorkoutExerciseProgress] = [:]
         var completedWorkingSets = 0
         var plannedWorkingSets = 0
@@ -141,7 +152,7 @@ final class ActiveWorkoutStore {
         var totalVolume = 0.0
 
         for exercise in exercises {
-            let workingLogs = (logsByExerciseID[exercise.id] ?? []).filter { !$0.isWarmup }
+            let workingLogs = (setLogIndex.logsByExerciseID[exercise.id] ?? []).filter { !$0.isWarmup }
             let planned = workingLogs.isEmpty ? exercise.targetSets : workingLogs.count
             let completed = workingLogs.filter(\.isComplete).count
             completedWorkingSets += completed
@@ -227,9 +238,7 @@ final class ActiveWorkoutStore {
 
     func setLogs(for exercise: WorkoutExerciseSnapshot) -> [WorkoutSetLog] {
         guard let workoutID = workout?.id else { return [] }
-        return repository.workoutSetLogs
-            .filter { $0.workoutID == workoutID && $0.prescriptionID == exercise.id }
-            .sorted { $0.setNumber < $1.setNumber }
+        return activeSetLogIndex(for: workoutID).logsByExerciseID[exercise.id] ?? []
     }
 
     func updateSet(_ log: WorkoutSetLog) {
@@ -239,10 +248,7 @@ final class ActiveWorkoutStore {
     @discardableResult
     func addSet(to exercise: WorkoutExerciseSnapshot, persistImmediately: Bool = true) -> WorkoutSetLog? {
         guard let workout else { return nil }
-        let nextSetNumber = repository.workoutSetLogs.reduce(0) { currentMax, log in
-            guard log.workoutID == workout.id, log.prescriptionID == exercise.id else { return currentMax }
-            return max(currentMax, log.setNumber)
-        } + 1
+        let nextSetNumber = (setLogs(for: exercise).map(\.setNumber).max() ?? 0) + 1
         return repository.addWorkoutSetLog(
             prescriptionID: exercise.id,
             setNumber: nextSetNumber,
@@ -267,7 +273,7 @@ final class ActiveWorkoutStore {
         if let cachedPRCandidates, cachedPRCandidatesSignature == signature {
             return cachedPRCandidates
         }
-        let sets = repository.workoutSetLogs.filter { $0.workoutID == workout.id }
+        let sets = activeSetLogIndex(for: workout.id).allLogs
         let candidates = WorkoutPRDetector.candidates(
             workoutID: workout.id,
             exercises: workout.exercises,
@@ -283,9 +289,7 @@ final class ActiveWorkoutStore {
 
     var completedWorkingSets: [WorkoutSetLog] {
         guard let workoutID = workout?.id else { return [] }
-        return repository.workoutSetLogs.filter {
-            $0.workoutID == workoutID && $0.isComplete && !$0.isWarmup
-        }
+        return activeSetLogIndex(for: workoutID).allLogs.filter { $0.isComplete && !$0.isWarmup }
     }
 
     var plannedWorkingSetCount: Int {
@@ -364,7 +368,7 @@ final class ActiveWorkoutStore {
     func discard() {
         repository.discardActiveWorkout()
         restNotificationScheduler.cancel()
-        repository.persistWorkoutSnapshot()
+        repository.scheduleWorkoutSnapshotPersistence()
     }
 
     func deleteCompletedWorkout(_ workout: CompletedWorkout) {
@@ -389,7 +393,7 @@ final class ActiveWorkoutStore {
 
     func setDefaultRestTimerEnabled(_ enabled: Bool) {
         repository.workoutPreferences.defaultRestTimerEnabled = enabled
-        repository.persistWorkoutSnapshot()
+        repository.scheduleWorkoutSnapshotPersistence()
     }
 
     @discardableResult
@@ -409,7 +413,7 @@ final class ActiveWorkoutStore {
             return nil
         }
         restNotificationScheduler.cancel()
-        repository.persistWorkoutSnapshot()
+        repository.scheduleWorkoutSnapshotPersistence()
         return completed
     }
 
@@ -434,9 +438,7 @@ final class ActiveWorkoutStore {
         }
 
         let displayState = displayState
-        let logs = repository.workoutSetLogs.filter {
-            $0.workoutID == workout.id && $0.isComplete && !$0.isWarmup
-        }
+        let logs = activeSetLogIndex(for: workout.id).allLogs.filter { $0.isComplete && !$0.isWarmup }
         let summary = WorkoutSummary(
             id: workout.id,
             sessionID: workout.sourceSessionID ?? workout.id,
@@ -472,6 +474,8 @@ final class ActiveWorkoutStore {
         cachedSummarySignature = nil
         cachedPreviousWorkoutSetLookup = nil
         cachedPreviousWorkoutSetLookupSignature = nil
+        cachedSetLogIndex = nil
+        cachedSetLogIndexSignature = nil
         repository.clearActiveWorkoutDraft()
     }
 
@@ -498,7 +502,7 @@ final class ActiveWorkoutStore {
     func attemptAutomaticCompletion(before log: WorkoutSetLog) -> Bool {
         guard let workout else { return false }
         var previous: WorkoutSetLog?
-        for candidate in repository.workoutSetLogs where candidate.workoutID == workout.id && candidate.prescriptionID == log.prescriptionID {
+        for candidate in activeSetLogIndex(for: workout.id).logsByExerciseID[log.prescriptionID] ?? [] {
             guard candidate.setNumber < log.setNumber else { continue }
             if previous?.setNumber ?? 0 < candidate.setNumber {
                 previous = candidate
@@ -521,5 +525,25 @@ final class ActiveWorkoutStore {
         }
 
         return applySetCompletion(previous, isComplete: true, source: .automatic)
+    }
+
+    private func activeSetLogIndex(for workoutID: UUID) -> ActiveWorkoutSetLogIndex {
+        let signature = ActiveWorkoutSetLogIndexSignature(
+            workoutID: workoutID,
+            workoutSetLogsRevision: repository.workoutSetLogsRevision
+        )
+        if let cachedSetLogIndex, cachedSetLogIndexSignature == signature {
+            return cachedSetLogIndex
+        }
+
+        let allLogs = repository.workoutSetLogs.filter { $0.workoutID == workoutID }
+        let index = ActiveWorkoutSetLogIndex(
+            allLogs: allLogs,
+            logsByExerciseID: Dictionary(grouping: allLogs, by: \.prescriptionID)
+                .mapValues { $0.sorted { $0.setNumber < $1.setNumber } }
+        )
+        cachedSetLogIndex = index
+        cachedSetLogIndexSignature = signature
+        return index
     }
 }

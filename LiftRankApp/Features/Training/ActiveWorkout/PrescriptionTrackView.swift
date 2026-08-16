@@ -3,6 +3,7 @@ import SwiftUI
 struct PrescriptionTrackView: View {
     @EnvironmentObject private var appState: AppState
     let exercise: WorkoutExerciseSnapshot
+    let catalogExercise: TrainingExerciseCatalogItem
     @State private var restEndsAt: Date?
     @State private var showingExerciseInfo = false
     @State private var activeLogs: [WorkoutSetLog] = []
@@ -210,22 +211,6 @@ struct PrescriptionTrackView: View {
             for: exercise,
             setNumbers: logs.map(\.setNumber)
         )
-    }
-
-    private var catalogExercise: TrainingExerciseCatalogItem {
-        appState.trainingExerciseLibrary.first { $0.id == exercise.exerciseID } ??
-            TrainingExerciseCatalogItem(
-                id: exercise.exerciseID,
-                name: exercise.exerciseName,
-                bodyPart: exercise.bodyPart,
-                workoutCategory: exercise.bodyPart,
-                defaultSets: exercise.targetSets,
-                defaultReps: exercise.targetReps,
-                symbolName: "dumbbell.fill",
-                equipment: exercise.equipment,
-                muscleProfile: exercise.muscleProfile,
-                rankingExerciseID: exercise.rankingExerciseID
-            )
     }
 
     private var trackingKind: ExerciseTrackingKind {

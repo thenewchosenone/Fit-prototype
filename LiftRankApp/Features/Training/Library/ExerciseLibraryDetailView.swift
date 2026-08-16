@@ -170,8 +170,9 @@ struct ExerciseLibraryDetailView: View {
     }
 
     private var historyTab: some View {
-        Group {
-            if history.isEmpty {
+        let entries = history
+        return Group {
+            if entries.isEmpty {
                 LiftEmptyState(
                     title: "No history yet",
                     message: "Complete this exercise in a workout to see its history here.",
@@ -180,7 +181,7 @@ struct ExerciseLibraryDetailView: View {
                 .padding(.vertical, 44)
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(history.enumerated()), id: \.element.id) { index, entry in
+                    ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                         Button { selectedWorkout = entry.workout } label: {
                             HStack(spacing: 12) {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -207,7 +208,7 @@ struct ExerciseLibraryDetailView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        if index < history.count - 1 {
+                        if index < entries.count - 1 {
                             Divider().overlay(Color.liftSeparator).padding(.leading, 14)
                         }
                     }
@@ -218,24 +219,26 @@ struct ExerciseLibraryDetailView: View {
     }
 
     private var recordsTab: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let exerciseRecords = records
+        let entries = history
+        return VStack(alignment: .leading, spacing: 12) {
             Text("Personal records")
                 .font(.headline)
             VStack(spacing: 0) {
                 if trackingKind == .weightReps {
-                    recordRow("Best estimated 1RM", weightText(records.bestEstimatedOneRepMaxKilograms), symbol: "trophy.fill")
+                    recordRow("Best estimated 1RM", weightText(exerciseRecords.bestEstimatedOneRepMaxKilograms), symbol: "trophy.fill")
                     Divider().overlay(Color.liftSeparator)
-                    recordRow("Best session volume", volumeText(records.bestSessionVolumeKilograms), symbol: "chart.bar.fill")
+                    recordRow("Best session volume", volumeText(exerciseRecords.bestSessionVolumeKilograms), symbol: "chart.bar.fill")
                     Divider().overlay(Color.liftSeparator)
-                    recordRow("Best set volume", volumeText(records.bestSetVolumeKilograms), symbol: "square.stack.3d.up.fill")
+                    recordRow("Best set volume", volumeText(exerciseRecords.bestSetVolumeKilograms), symbol: "square.stack.3d.up.fill")
                     Divider().overlay(Color.liftSeparator)
-                    recordRow("Heaviest weight", weightText(records.heaviestWeightKilograms), symbol: "dumbbell.fill")
+                    recordRow("Heaviest weight", weightText(exerciseRecords.heaviestWeightKilograms), symbol: "dumbbell.fill")
                 } else {
-                    recordRow(trackingKind.usesDuration ? "Best duration" : "Best reps", repOrDurationText(records.mostRepetitions), symbol: "trophy.fill")
+                    recordRow(trackingKind.usesDuration ? "Best duration" : "Best reps", repOrDurationText(exerciseRecords.mostRepetitions), symbol: "trophy.fill")
                     Divider().overlay(Color.liftSeparator)
-                    recordRow("Completed sets", "\(history.flatMap(\.sets).count)", symbol: "checkmark.circle.fill")
+                    recordRow("Completed sets", "\(entries.flatMap(\.sets).count)", symbol: "checkmark.circle.fill")
                     Divider().overlay(Color.liftSeparator)
-                    recordRow(trackingKind.usesDuration ? "Total duration" : "Total reps", repOrDurationText(history.flatMap(\.sets).compactMap(\.reps).reduce(0, +)), symbol: "sum")
+                    recordRow(trackingKind.usesDuration ? "Total duration" : "Total reps", repOrDurationText(entries.flatMap(\.sets).compactMap(\.reps).reduce(0, +)), symbol: "sum")
                 }
             }
             .padding(.horizontal, 14)
@@ -247,13 +250,14 @@ struct ExerciseLibraryDetailView: View {
     }
 
     private var chartsTab: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        let entries = chartEntries
+        return VStack(alignment: .leading, spacing: 14) {
             Picker("Chart metric", selection: $chartMetric) {
                 ForEach(chartMetricOptions) { Text(chartMetricTitle($0)).tag($0) }
             }
             .pickerStyle(.segmented)
 
-            if chartEntries.isEmpty {
+            if entries.isEmpty {
                 LiftEmptyState(
                     title: "Not enough data",
                     message: trackingKind == .weightReps ? "Complete weighted working sets to build this chart." : "Complete working sets to build this chart.",
@@ -262,7 +266,7 @@ struct ExerciseLibraryDetailView: View {
                 .padding(.vertical, 44)
             } else {
                 VStack(alignment: .leading, spacing: 12) {
-                    Chart(chartEntries) { entry in
+                    Chart(entries) { entry in
                         LineMark(
                             x: .value("Date", entry.workout.completedAt),
                             y: .value(chartMetricTitle(chartMetric), chartValue(entry))
@@ -276,11 +280,11 @@ struct ExerciseLibraryDetailView: View {
                     }
                     .frame(height: 220)
                     .chartYAxis { AxisMarks(position: .trailing) }
-                    .accessibilityLabel("\(exercise.name) \(chartMetricTitle(chartMetric)) chart with \(chartEntries.count) workouts")
+                    .accessibilityLabel("\(exercise.name) \(chartMetricTitle(chartMetric)) chart with \(entries.count) workouts")
 
                     DisclosureGroup("Show data table", isExpanded: $showsChartTable) {
                         VStack(spacing: 0) {
-                            ForEach(chartEntries.suffix(8)) { entry in
+                            ForEach(entries.suffix(8)) { entry in
                                 HStack {
                                     Text(entry.workout.completedAt, style: .date)
                                     Spacer()

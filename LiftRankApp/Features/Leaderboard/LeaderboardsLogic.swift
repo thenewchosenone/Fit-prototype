@@ -9,16 +9,20 @@ extension LeaderboardsView {
         visibleEntries(from: allEntries)
     }
 
-    func visibleEntries(from entries: [LeaderboardEntry]) -> [LeaderboardEntry] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    func visibleEntries(from entries: [LeaderboardEntry], query: String? = nil) -> [LeaderboardEntry] {
+        let query = (query ?? searchText).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !query.isEmpty else { return entries }
         return entries.filter { entry in
-            entry.profile.username.lowercased().contains(query) ||
-            entry.profile.displayName.lowercased().contains(query) ||
-            (entry.profile.primaryGymName.lowercased().contains(query)) ||
-            entry.profile.city.lowercased().contains(query) ||
-            entry.lift.exerciseName.lowercased().contains(query)
+            containsLeaderboardSearchTerm(entry.profile.username, query: query) ||
+            containsLeaderboardSearchTerm(entry.profile.displayName, query: query) ||
+            containsLeaderboardSearchTerm(entry.profile.primaryGymName, query: query) ||
+            containsLeaderboardSearchTerm(entry.profile.city, query: query) ||
+            containsLeaderboardSearchTerm(entry.lift.exerciseName, query: query)
         }
+    }
+
+    private func containsLeaderboardSearchTerm(_ value: String, query: String) -> Bool {
+        value.range(of: query, options: .caseInsensitive) != nil
     }
 
     var currentUserEntry: LeaderboardEntry? {

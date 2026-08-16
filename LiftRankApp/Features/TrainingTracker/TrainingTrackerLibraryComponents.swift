@@ -401,12 +401,13 @@ struct ProgramAddExercisePickerView: View {
     }
 
     private var filteredExercises: [ExerciseSearchResult] {
-        appState.searchExercises(query: searchText)
+        let currentExistingExerciseIDs = existingExerciseIDs
+        return appState.searchExercises(query: searchText)
             .filter { selectedBodyPart == "All" || matchesBodyPart($0.exercise, filter: selectedBodyPart) }
             .filter { selectedEquipment == "All" || $0.exercise.equipment == selectedEquipment }
             .sorted { lhs, rhs in
-                let lhsExists = existingExerciseIDs.contains(lhs.exercise.id)
-                let rhsExists = existingExerciseIDs.contains(rhs.exercise.id)
+                let lhsExists = currentExistingExerciseIDs.contains(lhs.exercise.id)
+                let rhsExists = currentExistingExerciseIDs.contains(rhs.exercise.id)
                 if lhsExists != rhsExists { return !lhsExists }
                 if lhs.score == rhs.score { return lhs.exercise.name < rhs.exercise.name }
                 return lhs.score > rhs.score
@@ -420,6 +421,8 @@ struct ProgramAddExercisePickerView: View {
     }
 
     var body: some View {
+        let filteredExercises = filteredExercises
+        let currentExistingExerciseIDs = existingExerciseIDs
         NavigationStack {
             AppBackground {
                 VStack(spacing: 0) {
@@ -450,7 +453,7 @@ struct ProgramAddExercisePickerView: View {
                                 emptyResults
                             } else {
                                 ForEach(filteredExercises) { result in
-                                    exerciseRow(result)
+                                    exerciseRow(result, existingExerciseIDs: currentExistingExerciseIDs)
                                 }
                             }
                         }
@@ -559,7 +562,10 @@ struct ProgramAddExercisePickerView: View {
         .buttonStyle(.plain)
     }
 
-    private func exerciseRow(_ result: ExerciseSearchResult) -> some View {
+    private func exerciseRow(
+        _ result: ExerciseSearchResult,
+        existingExerciseIDs: Set<String>
+    ) -> some View {
         let exercise = result.exercise
         let isExisting = existingExerciseIDs.contains(exercise.id)
         let isSelected = selectedExerciseIDs.contains(exercise.id)

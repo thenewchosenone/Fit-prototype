@@ -12,6 +12,7 @@ struct MainTabView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject var router: AppRouter
     @State private var mePath: [MeRoute] = []
+    @State private var showsMeTabBar = true
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -34,6 +35,13 @@ struct MainTabView: View {
         .toolbar(.hidden, for: .tabBar)
         .toolbarBackground(.hidden, for: .tabBar)
         .tint(Color.liftLime)
+        .onChange(of: mePath) { _, path in
+            if path.isEmpty {
+                showsMeTabBar = true
+            } else {
+                showsMeTabBar = false
+            }
+        }
         .sheet(item: $router.sheet) { destination in
             appSheet(destination)
         }
@@ -47,26 +55,39 @@ struct MainTabView: View {
 
     @ViewBuilder
     private var selectedTabContent: some View {
-        switch router.selectedTab {
-        case .home:
+        TabView(selection: $router.selectedTab) {
             NavigationStack { HomeView() }
-        case .leaderboards:
+                .tag(AppTab.home)
+
             NavigationStack { LeaderboardsView() }
-        case .track:
+                .tag(AppTab.leaderboards)
+
             TrainingTrackerView(
                 startOnProgress: appState.trainingTrackerStartOnProgress,
                 isEmbeddedInTab: true
             )
-        case .profile:
+            .tag(AppTab.track)
+
             NavigationStack(path: $mePath) {
                 meTabContent
             }
+            .tag(AppTab.profile)
         }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .toolbar(.hidden, for: .tabBar)
     }
 
     @ViewBuilder
     private var meTabContent: some View {
-        MeHubContentView()
+        Group {
+            if router.selectedTab == .profile {
+                MeHubContentView()
+            } else {
+                AppBackground {
+                    Color.clear
+                }
+            }
+        }
         .navigationDestination(for: MeRoute.self) { route in
             switch route {
             case .publicProfile:
@@ -78,7 +99,7 @@ struct MainTabView: View {
     }
 
     private var showsFloatingTabBar: Bool {
-        router.selectedTab != .profile || mePath.isEmpty
+        router.selectedTab != .profile || showsMeTabBar
     }
 
     private var tabItems: [FloatingTabItem] {
@@ -335,7 +356,7 @@ private struct MeHubContentView: View {
             }
             .scrollIndicators(.hidden)
             .refreshable {
-                await appState.refreshProductionLifts()
+                await appState.refreshProductionLifts(force: true)
             }
         }
         .navigationTitle("Me")

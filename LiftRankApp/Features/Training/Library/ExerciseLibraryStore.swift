@@ -1,5 +1,29 @@
 import Foundation
 
+struct ExerciseLibrarySection: Identifiable {
+    var id: String { letter }
+    let letter: String
+    let results: [ExerciseSearchResult]
+}
+
+struct ExerciseLibraryPresentation {
+    static let empty = ExerciseLibraryPresentation(results: [], sections: [])
+    let results: [ExerciseSearchResult]
+    let sections: [ExerciseLibrarySection]
+}
+
+enum ExerciseLibrarySectioning {
+    static func sections(for results: [ExerciseSearchResult]) -> [ExerciseLibrarySection] {
+        let grouped = Dictionary(grouping: results.sorted {
+            $0.exercise.name.localizedStandardCompare($1.exercise.name) == .orderedAscending
+        }) { result in
+            result.exercise.name.first.map { String($0).uppercased() } ?? "#"
+        }
+        return grouped.keys.sorted().map {
+            ExerciseLibrarySection(letter: $0, results: grouped[$0] ?? [])
+        }
+    }
+}
 
 enum ExerciseLibraryBodyArea: String, CaseIterable, Hashable, Identifiable {
     case upperBody = "Upper body"
@@ -105,8 +129,21 @@ final class ExerciseLibraryStore {
     private let repository: any ExerciseRepository
     private let bundledExercisesProvider: () -> [TrainingExerciseCatalogItem]
     private var cachedBundledExercises: [TrainingExerciseCatalogItem]?
+    private var cachedExercisesRevision: Int?
+    private var cachedExercises: [TrainingExerciseCatalogItem]?
+    private var cachedSearchSignature: SearchSignature?
+    private var cachedSearchResults: [ExerciseSearchResult]?
+    private var cachedSearchSections: [ExerciseLibrarySection]?
+    private var cachedSubstitutionRecommendations: [SubstitutionSignature: [ExerciseSubstitutionRecommendation]] = [:]
     private let makeID: () -> UUID
     private var cachedUserID: UUID
+
+    private struct SubstitutionSignature: Hashable {
+        let exerciseID: String
+        let equipmentFilter: [String]
+        let limit: Int
+        let customExercisesRevision: Int
+    }
 
     init(
         repository: any ExerciseRepository,
@@ -138,7 +175,14 @@ final class ExerciseLibraryStore {
 
     var exercises: [TrainingExerciseCatalogItem] {
         resetAccountScopedExercisesIfNeeded()
-        return bundledExercises + repository.customTrainingExercises
+        let revision = repository.customTrainingExercisesRevision
+        if let cachedExercises, cachedExercisesRevision == revision {
+            return cachedExercises
+        }
+        let exercises = bundledExercises + repository.customTrainingExercises
+        cachedExercises = exercises
+        cachedExercisesRevision = revision
+        return exercises
     }
 
     private var bundledExercises: [TrainingExerciseCatalogItem] {
@@ -153,9 +197,37 @@ final class ExerciseLibraryStore {
         filters: ExerciseLibraryFilterSelection? = nil,
         excludingIDs: Set<String> = []
     ) -> [ExerciseSearchResult] {
-        ExerciseCatalogSearch.search(exercises: exercises, query: query)
+        resetAccountScopedExercisesIfNeeded()
+        let signature = SearchSignature(
+            query: query,
+            filters: filters,
+            excludingIDs: excludingIDs,
+            customExercisesRevision: repository.customTrainingExercisesRevision
+        )
+        if cachedSearchSignature == signature, let cachedSearchResults {
+            return cachedSearchResults
+        }
+        let results = ExerciseCatalogSearch.search(exercises: exercises, query: query)
             .filter { !excludingIDs.contains($0.exercise.id) }
             .filter { filters?.matches($0.exercise) ?? true }
+        cachedSearchSignature = signature
+        cachedSearchResults = results
+        cachedSearchSections = nil
+        return results
+    }
+
+    func searchPresentation(
+        query: String,
+        filters: ExerciseLibraryFilterSelection? = nil,
+        excludingIDs: Set<String> = []
+    ) -> ExerciseLibraryPresentation {
+        let results = search(query: query, filters: filters, excludingIDs: excludingIDs)
+        if let cachedSearchSections {
+            return ExerciseLibraryPresentation(results: results, sections: cachedSearchSections)
+        }
+        let sections = ExerciseLibrarySectioning.sections(for: results)
+        cachedSearchSections = sections
+        return ExerciseLibraryPresentation(results: results, sections: sections)
     }
 
     func substitutionRecommendations(
@@ -163,7 +235,17 @@ final class ExerciseLibraryStore {
         equipmentFilter: Set<String> = [],
         limit: Int = 8
     ) -> [ExerciseSubstitutionRecommendation] {
-        exercises
+        let signature = SubstitutionSignature(
+            exerciseID: exercise.id,
+            equipmentFilter: equipmentFilter.sorted(),
+            limit: limit,
+            customExercisesRevision: repository.customTrainingExercisesRevision
+        )
+        if let cached = cachedSubstitutionRecommendations[signature] {
+            return cached
+        }
+
+        let recommendations: [ExerciseSubstitutionRecommendation] = exercises
             .filter { $0.id != exercise.id }
             .filter { equipmentFilter.isEmpty || equipmentFilter.contains($0.equipment) }
             .compactMap { candidate in
@@ -206,6 +288,9 @@ final class ExerciseLibraryStore {
             }
             .prefix(limit)
             .map { $0 }
+
+        cachedSubstitutionRecommendations[signature] = recommendations
+        return recommendations
     }
 
     @discardableResult
@@ -255,6 +340,11 @@ final class ExerciseLibraryStore {
     private func resetAccountScopedExercisesIfNeeded() {
         guard cachedUserID != repository.currentProfile.id else { return }
         cachedUserID = repository.currentProfile.id
+        cachedExercises = nil
+        cachedExercisesRevision = nil
+        cachedSearchSignature = nil
+        cachedSearchResults = nil
+        cachedSearchSections = nil
         repository.clearCustomTrainingExercises()
     }
 
@@ -331,4 +421,11 @@ final class ExerciseLibraryStore {
         }
         return Array(reasons.prefix(3))
     }
+}
+
+private struct SearchSignature: Equatable {
+    let query: String
+    let filters: ExerciseLibraryFilterSelection?
+    let excludingIDs: Set<String>
+    let customExercisesRevision: Int
 }

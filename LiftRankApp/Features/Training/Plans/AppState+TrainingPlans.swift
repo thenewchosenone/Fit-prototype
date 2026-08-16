@@ -38,6 +38,38 @@ extension AppState {
         )
     }
 
+    var trainingHistoryWorkouts: [CompletedWorkout] {
+        trainingProgressStore.trainingHistoryWorkouts
+    }
+
+    func progressExerciseOptions() -> [TrainingExerciseCatalogItem] {
+        trainingProgressStore.progressExerciseOptions(
+            catalog: trainingExerciseLibrary,
+            customTrainingExercisesRevision: repository.customTrainingExercisesRevision
+        )
+    }
+
+    func completedWorkoutPresentation(for workout: CompletedWorkout) -> CompletedWorkoutPresentation {
+        trainingProgressStore.completedWorkoutPresentation(
+            for: workout.id,
+            fallback: workout,
+            catalog: trainingExerciseLibrary,
+            customTrainingExercisesRevision: repository.customTrainingExercisesRevision
+        )
+    }
+
+    func workoutHistoryPresentation(
+        displayedMonth: Date,
+        selectedDate: Date?,
+        referenceDate: Date = .now
+    ) -> WorkoutHistoryCalendarPresentation {
+        trainingProgressStore.workoutHistoryPresentation(
+            displayedMonth: displayedMonth,
+            selectedDate: selectedDate,
+            referenceDate: referenceDate
+        )
+    }
+
     func homeWeeklySummary(referenceDate: Date = .now) -> HomeWeeklySummary {
         trainingProgressStore.homeWeeklySummary(
             referenceDate: referenceDate,

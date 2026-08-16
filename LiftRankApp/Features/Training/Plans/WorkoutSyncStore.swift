@@ -35,7 +35,7 @@ final class WorkoutSyncStore {
         } else {
             repository.pendingCompletedWorkoutUploads.append(snapshot)
         }
-        repository.persistWorkoutSnapshot()
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
     func synchronizeCompletedWorkoutHistory() async {
@@ -71,23 +71,29 @@ final class WorkoutSyncStore {
 
         guard let remote = try? await service.completedWorkouts(since: nil) else {
             guard repository.currentProfile.id == userID else { return }
-            repository.persistWorkoutSnapshot()
+            repository.persistWorkoutSnapshotWithoutBlockingUI()
             return
         }
         guard repository.currentProfile.id == userID else { return }
+        let deletedWorkoutIDs = repository.deletedCompletedWorkoutIDs
+        let pendingUploadIDs = Set(repository.pendingCompletedWorkoutUploads.map(\.id))
+        var workoutIndexesByID = Dictionary(
+            uniqueKeysWithValues: repository.completedWorkouts.enumerated().map { ($0.element.id, $0.offset) }
+        )
         for snapshot in remote where snapshot.ownerID == userID
-            && !repository.deletedCompletedWorkoutIDs.contains(snapshot.id) {
+            && !deletedWorkoutIDs.contains(snapshot.id)
+            && !pendingUploadIDs.contains(snapshot.id) {
             guard let workout = try? decoder.decode(CompletedWorkout.self, from: snapshot.payload) else { continue }
-            if let index = repository.completedWorkouts.firstIndex(where: { $0.id == snapshot.id }) {
-                guard !repository.pendingCompletedWorkoutUploads.contains(where: { $0.id == snapshot.id }) else { continue }
+            if let index = workoutIndexesByID[snapshot.id] {
                 repository.completedWorkouts[index] = workout
             } else {
+                workoutIndexesByID[snapshot.id] = repository.completedWorkouts.count
                 repository.completedWorkouts.append(workout)
             }
         }
         repository.completedWorkouts.sort { $0.completedAt > $1.completedAt }
         repository.refreshAchievementUnlocks(now: .now)
-        repository.persistWorkoutSnapshot()
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
     func synchronizeDeletedCompletedWorkout(id: UUID) async {
@@ -101,7 +107,7 @@ final class WorkoutSyncStore {
         } catch {
             guard repository.currentProfile.id == userID else { return }
         }
-        repository.persistWorkoutSnapshot()
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
     func synchronizeWorkoutPlans() async {
@@ -199,7 +205,7 @@ final class WorkoutSyncStore {
             apply(payload, replacing: nil)
             remember(document)
         }
-        repository.persistWorkoutSnapshot()
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
     private func resetAccountScopedDataIfNeeded() {
@@ -223,19 +229,19 @@ final class WorkoutSyncStore {
         repository.workoutPlanSyncRevisions.removeAll()
         repository.workoutPlanLastSyncedPayloads.removeAll()
         repository.pendingRemoteWorkoutPlanDeletions.removeAll()
-        repository.persistWorkoutSnapshot()
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
     func forgetPlan(_ planID: UUID) {
         repository.workoutPlanSyncRevisions[planID] = nil
         repository.workoutPlanLastSyncedPayloads[planID] = nil
-        repository.persistWorkoutSnapshot()
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
     func deleteRemotePlan(_ planID: UUID) async {
         let userID = repository.currentProfile.id
         repository.pendingRemoteWorkoutPlanDeletions.insert(planID)
-        repository.persistWorkoutSnapshot()
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
         do {
             try await service.deletePlan(id: planID)
             guard repository.currentProfile.id == userID else { return }
@@ -243,7 +249,7 @@ final class WorkoutSyncStore {
         } catch {
             guard repository.currentProfile.id == userID else { return }
         }
-        repository.persistWorkoutSnapshot()
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
     func payload(planID: UUID) -> WorkoutPlanSyncPayload? {

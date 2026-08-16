@@ -7,12 +7,13 @@ struct CompletedWorkoutDetailView: View {
     @State private var showingDeleteConfirmation = false
     @State private var editingWorkout: CompletedWorkout?
 
-    private var displayedWorkout: CompletedWorkout {
-        appState.completedWorkouts.first { $0.id == workout.id } ?? workout
-    }
-
     var body: some View {
-        NavigationStack {
+        let presentation = appState.completedWorkoutPresentation(for: workout)
+        let displayedWorkout = presentation.workout
+        let exercises = presentation.exercises
+        let completedSetsByExercise = presentation.completedSetsByExercise
+        let trackingKinds = presentation.trackingKinds
+        return NavigationStack {
             AppBackground {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
@@ -23,7 +24,7 @@ struct CompletedWorkoutDetailView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(Color.liftMuted)
                             HStack(spacing: 8) {
-                                detailMetric("Duration", durationText, "timer")
+                                detailMetric("Duration", MeasurementFormatting.shortDurationText(displayedWorkout.duration), "timer")
                                 detailMetric("Sets", "\(displayedWorkout.completedWorkingSets.count)", "checkmark.circle")
                                 detailMetric("Volume", MeasurementFormatting.formatRecordedWeight(displayedWorkout.totalVolume, unit: displayedWorkout.unit), "scalemass")
                             }
@@ -31,16 +32,18 @@ struct CompletedWorkoutDetailView: View {
                         .padding(14)
                         .liftSurface()
 
-                        ForEach(displayedWorkout.exercises.sorted { $0.order < $1.order }) { exercise in
-                            let trackingKind = trackingKind(for: exercise)
-                            let sets = displayedWorkout.sets
-                                .filter { $0.prescriptionID == exercise.id && $0.isComplete }
-                                .sorted { $0.setNumber < $1.setNumber }
+                        ForEach(exercises) { exercise in
+                            let trackingKind = trackingKinds[exercise.exerciseID] ?? .weightReps
+                            let sets = completedSetsByExercise[exercise.id] ?? []
                             if !sets.isEmpty {
+                                let muscleProfile = exercise.muscleProfile ?? ExerciseMuscleProfileResolver.profile(
+                                    name: exercise.exerciseName,
+                                    bodyPart: exercise.bodyPart
+                                )
                                 VStack(alignment: .leading, spacing: 10) {
                                     HStack(spacing: 10) {
                                         ExerciseMuscleMap(
-                                            profile: exercise.muscleProfile ?? ExerciseMuscleProfileResolver.profile(name: exercise.exerciseName, bodyPart: exercise.bodyPart),
+                                            profile: muscleProfile,
                                             displayStyle: .compact
                                         )
                                             .frame(width: 46, height: 46)
@@ -48,7 +51,7 @@ struct CompletedWorkoutDetailView: View {
                                         VStack(alignment: .leading, spacing: 3) {
                                             Text(exercise.exerciseName)
                                                 .font(.headline.weight(.bold))
-                                            Text((exercise.muscleProfile ?? ExerciseMuscleProfileResolver.profile(name: exercise.exerciseName, bodyPart: exercise.bodyPart)).primaryDescription)
+                                            Text(muscleProfile.primaryDescription)
                                                 .font(.caption)
                                                 .foregroundStyle(Color.liftMuted)
                                         }
@@ -142,15 +145,6 @@ struct CompletedWorkoutDetailView: View {
         }
     }
 
-    private var durationText: String {
-        MeasurementFormatting.shortDurationText(displayedWorkout.duration)
-    }
-
-    private func trackingKind(for exercise: WorkoutExerciseSnapshot) -> ExerciseTrackingKind {
-        let catalog = appState.trainingExerciseLibrary.first { $0.id == exercise.exerciseID }
-        return ExerciseTrackingKind(catalog?.trackingType ?? "Weight + Reps")
-    }
-
     private func detailMetric(_ title: String, _ value: String, _ symbol: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Label(title, systemImage: symbol)
@@ -176,14 +170,21 @@ private struct CompletedWorkoutEditView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        let sortedExercises = sortedExercises
+        let setIndicesByExercise = Dictionary(
+            grouping: draft.sets.indices,
+            by: { draft.sets[$0].prescriptionID }
+        ).mapValues { indices in
+            indices.sorted { draft.sets[$0].setNumber < draft.sets[$1].setNumber }
+        }
+        return NavigationStack {
             AppBackground {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
                         detailsSection
 
                         ForEach(sortedExercises) { exercise in
-                            exerciseSection(exercise)
+                            exerciseSection(exercise, setIndices: setIndicesByExercise[exercise.id] ?? [])
                         }
                     }
                     .padding(16)
@@ -242,9 +243,8 @@ private struct CompletedWorkoutEditView: View {
         .liftSurface()
     }
 
-    private func exerciseSection(_ exercise: WorkoutExerciseSnapshot) -> some View {
-        let sets = sets(for: exercise)
-        return VStack(alignment: .leading, spacing: 12) {
+    private func exerciseSection(_ exercise: WorkoutExerciseSnapshot, setIndices: [Int]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(exercise.exerciseName)
@@ -263,13 +263,13 @@ private struct CompletedWorkoutEditView: View {
                 .buttonStyle(.bordered)
             }
 
-            if sets.isEmpty {
+            if setIndices.isEmpty {
                 Text("No sets logged.")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
             } else {
-                ForEach(sets) { set in
-                    setRow(set, exercise: exercise)
+                ForEach(setIndices, id: \.self) { index in
+                    setRow(at: index, exercise: exercise)
                 }
             }
         }
@@ -277,10 +277,11 @@ private struct CompletedWorkoutEditView: View {
         .liftSurface()
     }
 
-    private func setRow(_ set: WorkoutSetLog, exercise: WorkoutExerciseSnapshot) -> some View {
-        VStack(spacing: 8) {
+    private func setRow(at index: Int, exercise: WorkoutExerciseSnapshot) -> some View {
+        let set = draft.sets[index]
+        return VStack(spacing: 8) {
             HStack {
-                Toggle(set.isWarmup ? "Warmup \(set.setNumber)" : "Set \(set.setNumber)", isOn: completeBinding(for: set.id))
+                Toggle(set.isWarmup ? "Warmup \(set.setNumber)" : "Set \(set.setNumber)", isOn: $draft.sets[index].isComplete)
                     .font(.subheadline.weight(.bold))
                 Button(role: .destructive) {
                     deleteSet(set, from: exercise)
@@ -292,9 +293,9 @@ private struct CompletedWorkoutEditView: View {
             }
 
             HStack(spacing: 8) {
-                editableField("Reps", value: intBinding(for: set.id, keyPath: \.reps))
-                editableField(draft.unit.shortLabel.uppercased(), value: doubleBinding(for: set.id, keyPath: \.weight))
-                editableField("RPE", value: intBinding(for: set.id, keyPath: \.rpe))
+                editableField("Reps", value: intBinding(at: index, keyPath: \.reps))
+                editableField(draft.unit.shortLabel.uppercased(), value: doubleBinding(at: index, keyPath: \.weight))
+                editableField("RPE", value: intBinding(at: index, keyPath: \.rpe))
             }
         }
         .padding(10)
@@ -357,44 +358,29 @@ private struct CompletedWorkoutEditView: View {
         }
     }
 
-    private func completeBinding(for setID: UUID) -> Binding<Bool> {
+    private func intBinding(at index: Int, keyPath: WritableKeyPath<WorkoutSetLog, Int?>) -> Binding<String> {
         Binding(
             get: {
-                guard let index = draft.sets.firstIndex(where: { $0.id == setID }) else {
-                    return false
-                }
-                return draft.sets[index].isComplete
-            },
-            set: { value in
-                guard let index = draft.sets.firstIndex(where: { $0.id == setID }) else { return }
-                draft.sets[index].isComplete = value
-            }
-        )
-    }
-
-    private func intBinding(for setID: UUID, keyPath: WritableKeyPath<WorkoutSetLog, Int?>) -> Binding<String> {
-        Binding(
-            get: {
-                guard let index = draft.sets.firstIndex(where: { $0.id == setID }),
+                guard draft.sets.indices.contains(index),
                       let value = draft.sets[index][keyPath: keyPath] else { return "" }
                 return "\(value)"
             },
             set: { text in
-                guard let index = draft.sets.firstIndex(where: { $0.id == setID }) else { return }
+                guard draft.sets.indices.contains(index) else { return }
                 draft.sets[index][keyPath: keyPath] = Int(text.trimmingCharacters(in: .whitespacesAndNewlines))
             }
         )
     }
 
-    private func doubleBinding(for setID: UUID, keyPath: WritableKeyPath<WorkoutSetLog, Double?>) -> Binding<String> {
+    private func doubleBinding(at index: Int, keyPath: WritableKeyPath<WorkoutSetLog, Double?>) -> Binding<String> {
         Binding(
             get: {
-                guard let index = draft.sets.firstIndex(where: { $0.id == setID }),
+                guard draft.sets.indices.contains(index),
                       let value = draft.sets[index][keyPath: keyPath] else { return "" }
                 return value.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(value))" : "\(value)"
             },
             set: { text in
-                guard let index = draft.sets.firstIndex(where: { $0.id == setID }) else { return }
+                guard draft.sets.indices.contains(index) else { return }
                 draft.sets[index][keyPath: keyPath] = Double(text.trimmingCharacters(in: .whitespacesAndNewlines))
             }
         )
@@ -412,11 +398,15 @@ private struct CompletedWorkoutEditView: View {
     }
 
     private func normalizedExercises(for workout: CompletedWorkout) -> [WorkoutExerciseSnapshot] {
-        workout.exercises.map { exercise in
+        let workingSetCounts = Dictionary(
+            grouping: workout.sets.filter { !$0.isWarmup },
+            by: \.prescriptionID
+        ).mapValues { $0.count }
+        return workout.exercises.map { exercise in
             var normalized = exercise
             normalized.targetSets = max(
                 normalized.targetSets,
-                workout.sets.filter { $0.prescriptionID == exercise.id && !$0.isWarmup }.count
+                workingSetCounts[exercise.id] ?? 0
             )
             return normalized
         }

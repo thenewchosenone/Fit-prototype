@@ -460,9 +460,7 @@ struct SubmitLiftView: View {
                     throw CocoaError(.fileReadUnknown)
                 }
                 let fileExtension = pickerItem.supportedContentTypes.first?.preferredFilenameExtension ?? "mov"
-                let url = try await MainActor.run {
-                    try appState.persistWorkoutVideo(data, fileExtension: fileExtension)
-                }
+                let url = try await appState.persistWorkoutVideo(data, fileExtension: fileExtension)
                 do {
                     try await LiftVideoPolicy.validateDuration(of: url)
                 } catch {

@@ -49,10 +49,10 @@ struct LiftCard<Content: View>: View {
 struct ProfileAvatar: View {
     let profile: UserProfile
     var size: CGFloat = 44
+    @State private var loadedImage: UIImage?
 
     private var localImage: UIImage? {
-        let image = LocalProfilePhotoStore.shared.thumbnail(for: profile.avatarPath) ??
-            LocalProfilePhotoStore.shared.image(for: profile.avatarPath)
+        let image = LocalProfilePhotoStore.shared.cachedThumbnail(for: profile.avatarPath) ?? loadedImage
         guard let image, image.size.width > 0, image.size.height > 0 else { return nil }
         return image
     }
@@ -76,6 +76,9 @@ struct ProfileAvatar: View {
         .frame(width: size, height: size)
         .clipShape(Circle())
         .accessibilityLabel("\(profile.displayName) profile photo")
+        .task(id: profile.avatarPath) {
+            loadedImage = await LocalProfilePhotoStore.shared.loadThumbnail(for: profile.avatarPath)
+        }
     }
 }
 

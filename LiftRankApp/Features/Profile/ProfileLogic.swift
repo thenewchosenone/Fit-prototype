@@ -7,18 +7,36 @@ private struct ProfileChartPoint: Identifiable {
     let value: Double
 }
 
-extension ProfileView {
-    var profileLifts: [LiftSubmission] {
-        ProfileLiftVideoLibrary.visibleLifts(
-            for: profile.id,
-            viewerID: appState.currentProfile.id,
-            allLifts: appState.lifts,
-            includeLiftsWithoutVideo: true
-        )
-    }
+struct ProfileLiftPresentation {
+    let lifts: [LiftSubmission]
+    let threeLiftTotalPounds: Double
+    let bestEstimatedOneRepMaxByExerciseID: [String: Double]
+    let chartLifts: [LiftSubmission]
+    let bestSubmittedLift: LiftSubmission?
+    let latestSubmittedLift: LiftSubmission?
 
-    func refreshVisibleProfileLifts() {
-        visibleProfileLifts = profileLifts
+    static let empty = ProfileLiftPresentation(profileID: UUID(), lifts: [])
+
+    init(profileID: UUID, lifts: [LiftSubmission]) {
+        self.lifts = lifts
+        threeLiftTotalPounds = RankingCalculator.totalForUser(profileID, lifts: lifts)
+        bestEstimatedOneRepMaxByExerciseID = Dictionary(uniqueKeysWithValues: ["bench", "squat", "deadlift"].map {
+            ($0, RankingCalculator.bestLift(exerciseID: $0, submissions: lifts)?.estimatedOneRepMax ?? 0)
+        })
+        chartLifts = Array(lifts.sorted { $0.performedAt < $1.performedAt }.suffix(6))
+        bestSubmittedLift = lifts.max { $0.estimatedOneRepMax < $1.estimatedOneRepMax }
+        latestSubmittedLift = lifts.max { $0.performedAt < $1.performedAt }
+    }
+}
+
+extension ProfileView {
+    func refreshVisibleProfileLifts() async {
+        let lifts = await appState.visibleProfileLifts(for: profile.id)
+        let presentation = await Task.detached(priority: .userInitiated) {
+            ProfileLiftPresentation(profileID: profile.id, lifts: lifts)
+        }.value
+        guard !Task.isCancelled else { return }
+        liftPresentation = presentation
     }
 
     var header: some View {
@@ -61,12 +79,12 @@ extension ProfileView {
         }
     }
 
-    func athleteDetails(profileLifts: [LiftSubmission]) -> some View {
+    func athleteDetails(presentation: ProfileLiftPresentation) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             DisclosureGroup(isExpanded: $showingAthleteDetails) {
                 VStack(alignment: .leading, spacing: 18) {
                     rankings
-                    progress(profileLifts: profileLifts)
+                    progress(presentation: presentation)
                     achievements
                 }
                 .padding(.top, 18)
@@ -93,8 +111,8 @@ extension ProfileView {
         return value.isEmpty ? "Gym and location hidden" : value
     }
 
-    func summary(profileLifts: [LiftSubmission]) -> some View {
-        let totalPounds = RankingCalculator.totalForUser(profile.id, lifts: profileLifts)
+    func summary(presentation: ProfileLiftPresentation) -> some View {
+        let totalPounds = presentation.threeLiftTotalPounds
         let profileTotalText = RankingFormatting.threeLiftTotalText(totalPounds: totalPounds, preferredUnit: profile.preferredUnit)
         let relativeTotalText = RankingFormatting.ratioText(
             RankingCalculator.relativeTotal(total: totalPounds, bodyweight: profile.bodyweightPounds)
@@ -124,11 +142,11 @@ extension ProfileView {
                     }
                     Divider().overlay(Color.liftSeparator)
                     HStack(spacing: 0) {
-                        strengthMetric("Bench", liftValue("bench", profileLifts: profileLifts))
+                        strengthMetric("Bench", liftValue("bench", presentation: presentation))
                         profileDivider
-                        strengthMetric("Squat", liftValue("squat", profileLifts: profileLifts))
+                        strengthMetric("Squat", liftValue("squat", presentation: presentation))
                         profileDivider
-                        strengthMetric("Deadlift", liftValue("deadlift", profileLifts: profileLifts))
+                        strengthMetric("Deadlift", liftValue("deadlift", presentation: presentation))
                     }
                     Divider().overlay(Color.liftSeparator)
                     HStack {
@@ -166,8 +184,8 @@ extension ProfileView {
         }
     }
 
-    func progress(profileLifts: [LiftSubmission]) -> some View {
-        let chartPoints = chartPoints(profileLifts: profileLifts)
+    func progress(presentation: ProfileLiftPresentation) -> some View {
+        let chartPoints = chartPoints(lifts: presentation.chartLifts)
         return VStack(alignment: .leading, spacing: 10) {
             CompactSectionHeader(title: "Progress")
             LiftCard {
@@ -206,9 +224,9 @@ extension ProfileView {
                     }
                     .frame(height: 190)
                     HStack {
-                        metric("Lifts", "\(profileLifts.count)")
-                        metric("Best", bestSubmittedLiftText(profileLifts: profileLifts))
-                        metric("Latest", latestSubmittedLiftText(profileLifts: profileLifts))
+                        metric("Lifts", "\(presentation.lifts.count)")
+                        metric("Best", bestSubmittedLiftText(presentation.bestSubmittedLift))
+                        metric("Latest", latestSubmittedLiftText(presentation.latestSubmittedLift))
                     }
                 }
             }
@@ -328,8 +346,8 @@ extension ProfileView {
         return appState.earnedExperienceLevel
     }
 
-    func liftValue(_ exerciseID: String, profileLifts: [LiftSubmission]) -> String {
-        let best = RankingCalculator.bestLift(exerciseID: exerciseID, submissions: profileLifts)?.estimatedOneRepMax ?? 0
+    func liftValue(_ exerciseID: String, presentation: ProfileLiftPresentation) -> String {
+        let best = presentation.bestEstimatedOneRepMaxByExerciseID[exerciseID] ?? 0
         return RankingFormatting.threeLiftTotalText(totalPounds: best, preferredUnit: profile.preferredUnit)
     }
 
@@ -348,25 +366,22 @@ extension ProfileView {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func chartPoints(profileLifts: [LiftSubmission]) -> [ProfileChartPoint] {
-        profileLifts
-            .sorted { $0.performedAt < $1.performedAt }
-            .suffix(6)
-            .map {
-                ProfileChartPoint(
-                    label: $0.performedAt.formatted(.dateTime.month(.abbreviated)),
-                    value: MeasurementFormatting.convert($0.estimatedOneRepMax, from: .kilograms, to: profile.preferredUnit)
-                )
-            }
+    private func chartPoints(lifts: [LiftSubmission]) -> [ProfileChartPoint] {
+        lifts.map {
+            ProfileChartPoint(
+                label: $0.performedAt.formatted(.dateTime.month(.abbreviated)),
+                value: MeasurementFormatting.convert($0.estimatedOneRepMax, from: .kilograms, to: profile.preferredUnit)
+            )
+        }
     }
 
-    private func bestSubmittedLiftText(profileLifts: [LiftSubmission]) -> String {
-        guard let best = profileLifts.max(by: { $0.estimatedOneRepMax < $1.estimatedOneRepMax }) else { return "—" }
+    private func bestSubmittedLiftText(_ best: LiftSubmission?) -> String {
+        guard let best else { return "—" }
         return MeasurementFormatting.formatDisplayedWeight(best.estimatedOneRepMax, unit: profile.preferredUnit)
     }
 
-    private func latestSubmittedLiftText(profileLifts: [LiftSubmission]) -> String {
-        guard let latest = profileLifts.max(by: { $0.performedAt < $1.performedAt }) else { return "—" }
+    private func latestSubmittedLiftText(_ latest: LiftSubmission?) -> String {
+        guard let latest else { return "—" }
         return MeasurementFormatting.formatDisplayedWeight(latest.estimatedOneRepMax, unit: profile.preferredUnit)
     }
 }

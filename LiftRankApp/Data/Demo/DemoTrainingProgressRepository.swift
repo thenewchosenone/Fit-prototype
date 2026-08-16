@@ -5,7 +5,7 @@ extension DemoRepository {
         bodyweightEntries.removeAll()
         strainEntries.removeAll()
         injuryEntries.removeAll()
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func updateBodyweight(_ entry: BodyweightEntry) {
@@ -15,7 +15,7 @@ extension DemoRepository {
             bodyweightEntries.append(entry)
         }
         bodyweightEntries.sort { $0.targetDate < $1.targetDate }
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func updateStrainEntry(_ entry: StrainEntry) {
@@ -25,12 +25,12 @@ extension DemoRepository {
             strainEntries.append(entry)
         }
         strainEntries.sort { $0.occurredAt > $1.occurredAt }
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func deleteStrainEntry(_ entryID: UUID) {
         strainEntries.removeAll { $0.id == entryID }
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func updateInjuryEntry(_ entry: InjuryEntry) {
@@ -40,11 +40,11 @@ extension DemoRepository {
             injuryEntries.append(entry)
         }
         injuryEntries.sort { $0.occurredAt > $1.occurredAt }
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func deleteInjuryEntry(_ entryID: UUID) {
         injuryEntries.removeAll { $0.id == entryID }
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 }

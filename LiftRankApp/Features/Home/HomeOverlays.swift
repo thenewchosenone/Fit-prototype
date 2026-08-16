@@ -18,19 +18,8 @@ struct RecentPRDetailView: View {
     let lift: LiftSubmission
     @State private var playbackURL: URL?
     @State private var isResolvingPlayback = false
-
-    private var setContext: RecentPRSetContext? {
-        let linked = appState.completedWorkouts.filter { $0.linkedSubmissionIDs.contains(lift.id) }
-        for workout in linked {
-            if let context = matchingContext(in: workout, requiresExactMatch: false) { return context }
-        }
-
-        return appState.completedWorkouts
-            .filter { abs($0.completedAt.timeIntervalSince(lift.performedAt)) <= 172_800 }
-            .sorted { abs($0.completedAt.timeIntervalSince(lift.performedAt)) < abs($1.completedAt.timeIntervalSince(lift.performedAt)) }
-            .compactMap { matchingContext(in: $0, requiresExactMatch: true) }
-            .first
-    }
+    @State private var setContext: RecentPRSetContext?
+    @State private var hasResolvedSetContext = false
 
     var body: some View {
         NavigationStack {
@@ -67,7 +56,7 @@ struct RecentPRDetailView: View {
 
                         if let setContext {
                             workoutSetCard(setContext)
-                        } else if playbackURL == nil && lift.videoAssetID == nil &&
+                        } else if hasResolvedSetContext && playbackURL == nil && lift.videoAssetID == nil &&
                                     lift.localVideoURL == nil && lift.remoteVideoURL == nil {
                             LiftEmptyState(
                                 title: "Workout set unavailable",
@@ -91,8 +80,16 @@ struct RecentPRDetailView: View {
                 }
             }
             .task(id: lift.id) {
+                let workouts = appState.completedWorkouts
+                let contextTask = Task.detached(priority: .userInitiated) {
+                    Self.resolveSetContext(for: lift, in: workouts)
+                }
+                async let playbackTask = appState.competitionStore.playbackURL(for: lift)
                 isResolvingPlayback = true
-                playbackURL = await appState.competitionStore.playbackURL(for: lift)
+                setContext = await contextTask.value
+                guard !Task.isCancelled else { return }
+                hasResolvedSetContext = true
+                playbackURL = await playbackTask
                 isResolvingPlayback = false
             }
         }
@@ -220,14 +217,47 @@ struct RecentPRDetailView: View {
         .font(.subheadline)
     }
 
-    private func matchingContext(in workout: CompletedWorkout, requiresExactMatch: Bool) -> RecentPRSetContext? {
-        let exercises = workout.exercises.filter(exerciseMatchesLift)
+    nonisolated static func resolveSetContext(
+        for lift: LiftSubmission,
+        in workouts: [CompletedWorkout]
+    ) -> RecentPRSetContext? {
+        for workout in workouts where workout.linkedSubmissionIDs.contains(lift.id) {
+            if let context = matchingContext(in: workout, lift: lift, requiresExactMatch: false) {
+                return context
+            }
+        }
+
+        var nearestDistance = TimeInterval.greatestFiniteMagnitude
+        var nearestContext: RecentPRSetContext?
+        for workout in workouts {
+            let distance = abs(workout.completedAt.timeIntervalSince(lift.performedAt))
+            guard distance <= 172_800, distance < nearestDistance,
+                  let context = matchingContext(in: workout, lift: lift, requiresExactMatch: true) else {
+                continue
+            }
+            nearestDistance = distance
+            nearestContext = context
+        }
+        return nearestContext
+    }
+
+    private nonisolated static func matchingContext(
+        in workout: CompletedWorkout,
+        lift: LiftSubmission,
+        requiresExactMatch: Bool
+    ) -> RecentPRSetContext? {
+        let exercises = workout.exercises.filter { exerciseMatchesLift($0, lift: lift) }
+        guard !exercises.isEmpty else { return nil }
+        let workingSetsByPrescriptionID = Dictionary(
+            grouping: workout.sets.lazy.filter { $0.isComplete && !$0.isWarmup },
+            by: \.prescriptionID
+        )
         let candidates = exercises.flatMap { exercise in
-            workout.sets
-                .filter { $0.prescriptionID == exercise.id && $0.isComplete && !$0.isWarmup }
+            (workingSetsByPrescriptionID[exercise.id] ?? [])
                 .map { RecentPRSetContext(workout: workout, exercise: exercise, set: $0) }
         }
         guard !candidates.isEmpty else { return nil }
+        let liftWeightInPounds = MeasurementFormatting.convert(lift.weight, from: lift.unit, to: .pounds)
 
         if let exact = candidates.first(where: { context in
             context.set.reps == lift.repetitions && abs(setWeightInPounds(context.set) - liftWeightInPounds) < 0.6
@@ -242,18 +272,14 @@ struct RecentPRDetailView: View {
         }
     }
 
-    private func exerciseMatchesLift(_ exercise: WorkoutExerciseSnapshot) -> Bool {
+    private nonisolated static func exerciseMatchesLift(_ exercise: WorkoutExerciseSnapshot, lift: LiftSubmission) -> Bool {
         if exercise.exerciseID == lift.exerciseID || exercise.rankingExerciseID == lift.exerciseID { return true }
         let exerciseName = exercise.exerciseName.lowercased().filter(\.isLetter)
         let liftName = lift.exerciseName.lowercased().filter(\.isLetter)
         return exerciseName == liftName
     }
 
-    private var liftWeightInPounds: Double {
-        MeasurementFormatting.convert(lift.weight, from: lift.unit, to: .pounds)
-    }
-
-    private func setWeightInPounds(_ set: WorkoutSetLog) -> Double {
+    private nonisolated static func setWeightInPounds(_ set: WorkoutSetLog) -> Double {
         guard let weight = set.weight else { return 0 }
         return MeasurementFormatting.convert(weight, from: set.recordedUnit, to: .pounds)
     }
@@ -278,8 +304,11 @@ struct HomeNotificationCenterView: View {
                         } else {
                             ForEach(appState.sortedNotifications) { notification in
                                 Button {
-                                    appState.openNotification(notification)
                                     dismiss()
+                                    Task {
+                                        await Task.yield()
+                                        appState.openNotification(notification)
+                                    }
                                 } label: {
                                     notificationRow(notification)
                                 }

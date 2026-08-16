@@ -1,23 +1,23 @@
 import SwiftUI
 
 struct ProgramSessionCard: View {
-    @EnvironmentObject private var appState: AppState
     let session: WorkoutSession
-    let week: WorkoutWeek
+    let prescriptions: [WorkoutExercisePrescription]
+    let completedPrescriptionCount: Int
+    let catalogByID: [String: TrainingExerciseCatalogItem]
     let onStart: () -> Void
     let onAddExercise: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
         LiftCard {
-            let prescriptions = appState.prescriptions(for: session)
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("\(session.day) · \(session.name)")
                             .font(.headline)
                             .fixedSize(horizontal: false, vertical: true)
-                        Text("\(prescriptions.count) exercises - \(appState.completedPrescriptionCount(for: session)) complete")
+                        Text("\(prescriptions.count) exercises - \(completedPrescriptionCount) complete")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                     }
@@ -80,7 +80,7 @@ struct ProgramSessionCard: View {
     }
 
     private func catalogExercise(for prescription: WorkoutExercisePrescription) -> TrainingExerciseCatalogItem {
-        appState.trainingExerciseLibrary.first { $0.id == prescription.exerciseID } ?? TrainingExerciseCatalogItem(
+        catalogByID[prescription.exerciseID] ?? TrainingExerciseCatalogItem(
             id: prescription.exerciseID,
             name: prescription.exerciseName,
             bodyPart: prescription.bodyPart,

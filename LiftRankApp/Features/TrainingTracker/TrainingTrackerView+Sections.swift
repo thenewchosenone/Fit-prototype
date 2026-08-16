@@ -2,10 +2,15 @@ import Charts
 import SwiftUI
 
 extension TrainingTrackerView {
+    @ViewBuilder
     var featureBody: some View {
         NavigationStack {
             AppBackground {
-                trackerContent
+                if !isEmbeddedInTab || appState.router.selectedTab == .track {
+                    trackerContent
+                } else {
+                    Color.clear
+                }
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(item: $selectedLibraryExercise) { exercise in
@@ -115,7 +120,10 @@ extension TrainingTrackerView {
     }
 
     private var trackerContent: some View {
-        VStack(spacing: 0) {
+        let libraryPresentation = segment == .library
+            ? appState.exerciseLibraryPresentation(query: librarySearch, filters: libraryFilters)
+            : .empty
+        return VStack(spacing: 0) {
             controls
             ScrollViewReader { scrollProxy in
                 ScrollView {
@@ -125,7 +133,11 @@ extension TrainingTrackerView {
                         } else if segment == .plans {
                             plans
                         } else if segment == .library {
-                            library(scrollProxy: scrollProxy)
+                            library(
+                                scrollProxy: scrollProxy,
+                                results: libraryPresentation.results,
+                                sections: libraryPresentation.sections
+                            )
                         } else {
                             progress
                         }
@@ -138,7 +150,7 @@ extension TrainingTrackerView {
                 .scrollIndicators(.hidden)
                 .overlay(alignment: .trailing) {
                     if segment == .library && librarySearch.isEmpty {
-                        libraryAlphabetIndex(scrollProxy: scrollProxy)
+                        libraryAlphabetIndex(scrollProxy: scrollProxy, sections: libraryPresentation.sections)
                             .padding(.trailing, 2)
                     }
                 }
@@ -240,7 +252,8 @@ extension TrainingTrackerView {
             HStack(spacing: 0) {
                 ForEach(TrackerSegment.allCases, id: \.self) { option in
                     Button {
-                        withAnimation(.snappy) { segment = option }
+                        segment = option
+                        appState.requestedTrackerSegment = option.rawValue
                     } label: {
                         VStack(spacing: 8) {
                             Text(option.rawValue)
@@ -253,8 +266,11 @@ extension TrainingTrackerView {
                         }
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .accessibilityIdentifier("tracker.segment.\(option.rawValue.lowercased())")
                     .accessibilityAddTraits(segment == option ? .isSelected : [])
                 }
             }

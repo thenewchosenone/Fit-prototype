@@ -11,20 +11,20 @@ extension DemoRepository {
     func addWorkoutPlan(_ plan: WorkoutPlan) {
         workoutPlans.insert(plan, at: 0)
         createDefaultProgramScaffold(for: plan)
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     /// Retained for importing and maintaining legacy workout records while the
     /// active tracker uses snapshot-based workouts.
     func addWorkoutEntry(_ entry: WorkoutExerciseEntry) {
         workoutEntries.insert(entry, at: 0)
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func updateWorkoutEntry(_ entry: WorkoutExerciseEntry) {
         guard let index = workoutEntries.firstIndex(where: { $0.id == entry.id }) else { return }
         workoutEntries[index] = entry
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func deleteWorkoutPlan(_ plan: WorkoutPlan) {
@@ -40,13 +40,13 @@ extension DemoRepository {
         workoutSetLogs.removeAll { prescriptionIDs.contains($0.prescriptionID) }
         workoutEntries.removeAll { $0.planID == plan.id }
         workoutPlanProgressionSettings.removeAll { $0.planID == plan.id }
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func updateWorkoutPlan(_ plan: WorkoutPlan) {
         guard let index = workoutPlans.firstIndex(where: { $0.id == plan.id }) else { return }
         workoutPlans[index] = plan
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     @discardableResult
@@ -95,6 +95,12 @@ extension DemoRepository {
         }
         workoutPhases.append(contentsOf: phases)
 
+        var generatedWeeks: [WorkoutWeek] = []
+        var generatedSessions: [WorkoutSession] = []
+        var generatedPrescriptions: [WorkoutExercisePrescription] = []
+        var generatedEntries: [WorkoutExerciseEntry] = []
+        var generatedEntryKeys: Set<String> = []
+
         for weekNumber in 1...12 {
             let phaseOrder = (weekNumber - 1) / 4
             let week = WorkoutWeek(
@@ -105,7 +111,7 @@ extension DemoRepository {
                 title: WorkoutProgramCatalog.weekTitle(weekNumber),
                 notes: weekNumber == 12 ? "Recover first. A performance check is optional, never required." : ""
             )
-            workoutWeeks.append(week)
+            generatedWeeks.append(week)
 
             for (sessionIndex, sessionTemplate) in template.sessions.enumerated() {
                 let weekday = settings.scheduledWeekdays.indices.contains(sessionIndex)
@@ -119,7 +125,7 @@ extension DemoRepository {
                     order: sessionIndex,
                     notes: ""
                 )
-                workoutSessions.append(session)
+                generatedSessions.append(session)
 
                 for (exerciseIndex, exerciseTemplate) in sessionTemplate.exercises.enumerated() {
                     guard let prescription = programPrescription(
@@ -130,13 +136,34 @@ extension DemoRepository {
                         method: method,
                         trainingMaxKilograms: trainingMaxKilograms
                     ) else { continue }
-                    workoutPrescriptions.append(prescription)
-                    bridgePrescriptionToWorkoutEntry(prescription)
+                    generatedPrescriptions.append(prescription)
+                    let entryKey = "\(weekNumber)|\(session.name)|\(prescription.exerciseName)"
+                    guard generatedEntryKeys.insert(entryKey).inserted else { continue }
+                    generatedEntries.append(WorkoutExerciseEntry(
+                        id: UUID(),
+                        planID: plan.id,
+                        week: weekNumber,
+                        date: .now,
+                        day: session.day,
+                        workout: session.name,
+                        exercise: prescription.exerciseName,
+                        muscleGroup: prescription.bodyPart,
+                        targetSets: prescription.sets,
+                        targetReps: prescription.reps,
+                        sets: [],
+                        isDone: false,
+                        notes: prescription.notes
+                    ))
                 }
             }
         }
 
-        persistWorkoutSnapshot()
+        workoutWeeks.append(contentsOf: generatedWeeks)
+        workoutSessions.append(contentsOf: generatedSessions)
+        workoutPrescriptions.append(contentsOf: generatedPrescriptions)
+        workoutEntries.insert(contentsOf: generatedEntries.reversed(), at: 0)
+
+        scheduleWorkoutSnapshotPersistence()
         return plan
     }
 
@@ -194,7 +221,7 @@ extension DemoRepository {
                 }
             }
         }
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
         return true
     }
 
@@ -275,7 +302,7 @@ extension DemoRepository {
             workoutPlanProgressionSettings.append(settings)
         }
 
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
         return copy
     }
 
@@ -286,7 +313,7 @@ extension DemoRepository {
         let nextNumber = (workoutWeeks.filter { $0.planID == planID }.map(\.weekNumber).max() ?? 0) + 1
         let week = WorkoutWeek(id: UUID(), planID: planID, phaseID: resolvedPhase.id, weekNumber: nextNumber, title: title ?? "Week \(nextNumber)", notes: "")
         workoutWeeks.append(week)
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
         return week
     }
 
@@ -320,7 +347,7 @@ extension DemoRepository {
                 targetLoadKilograms: prescription.targetLoadKilograms
             ))
         }
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
         return newWeek
     }
 
@@ -332,7 +359,7 @@ extension DemoRepository {
         workoutPrescriptions.removeAll { sessionIDs.contains($0.sessionID) }
         workoutSetLogs.removeAll { prescriptionIDs.contains($0.prescriptionID) }
         workoutEntries.removeAll { $0.planID == week.planID && $0.week == week.weekNumber }
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     @discardableResult
@@ -340,7 +367,7 @@ extension DemoRepository {
         let nextOrder = (workoutSessions.filter { $0.weekID == weekID }.map(\.order).max() ?? -1) + 1
         let session = WorkoutSession(id: UUID(), weekID: weekID, day: day, name: name, order: nextOrder, notes: "")
         workoutSessions.append(session)
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
         return session
     }
 
@@ -351,7 +378,7 @@ extension DemoRepository {
         workoutPrescriptions.removeAll { $0.sessionID == session.id }
         workoutSetLogs.removeAll { prescriptionIDs.contains($0.prescriptionID) }
         workoutEntries.removeAll { $0.planID == week.planID && $0.week == week.weekNumber && $0.workout == session.name }
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func cancelWorkoutSession(_ session: WorkoutSession) {
@@ -364,28 +391,28 @@ extension DemoRepository {
         workoutSetLogs.removeAll { log in
             prescriptionIDs.contains(log.prescriptionID) && Calendar.current.isDateInToday(log.performedAt)
         }
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     @discardableResult
     func addWorkoutPrescription(_ prescription: WorkoutExercisePrescription) -> WorkoutExercisePrescription {
         workoutPrescriptions.append(prescription)
         bridgePrescriptionToWorkoutEntry(prescription)
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
         return prescription
     }
 
     func updateWorkoutPrescription(_ prescription: WorkoutExercisePrescription) {
         guard let index = workoutPrescriptions.firstIndex(where: { $0.id == prescription.id }) else { return }
         workoutPrescriptions[index] = prescription
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func deleteWorkoutPrescription(_ prescription: WorkoutExercisePrescription) {
         workoutPrescriptions.removeAll { $0.id == prescription.id }
         workoutSetLogs.removeAll { $0.prescriptionID == prescription.id }
         workoutEntries.removeAll { $0.exercise == prescription.exerciseName && $0.workout == session(for: prescription)?.name }
-        persistWorkoutSnapshot()
+        scheduleWorkoutSnapshotPersistence()
     }
 
 

@@ -5,8 +5,15 @@ import SwiftData
 protocol WorkoutPersistenceStore: AnyObject {
     func loadSnapshot() -> WorkoutPersistenceSnapshot?
     func saveSnapshot(_ snapshot: WorkoutPersistenceSnapshot)
+    func saveSnapshotWithoutBlockingUI(_ snapshot: WorkoutPersistenceSnapshot) async
     func legacyWorkoutRecords() -> [LegacyWorkoutRecordValue]
     func reset()
+}
+
+extension WorkoutPersistenceStore {
+    func saveSnapshotWithoutBlockingUI(_ snapshot: WorkoutPersistenceSnapshot) async {
+        saveSnapshot(snapshot)
+    }
 }
 
 @MainActor
@@ -40,6 +47,7 @@ final class SwiftDataWorkoutPersistenceStore: WorkoutPersistenceStore {
     private let encoder: PropertyListEncoder
     private let decoder = PropertyListDecoder()
     private let legacyDecoder = JSONDecoder()
+    private var snapshotRecord: PersistentWorkoutState?
     private var lastSavedPayload: Data?
 
     init(context: ModelContext) {
@@ -51,6 +59,7 @@ final class SwiftDataWorkoutPersistenceStore: WorkoutPersistenceStore {
 
     func loadSnapshot() -> WorkoutPersistenceSnapshot? {
         guard let record = try? context.fetch(FetchDescriptor<PersistentWorkoutState>()).first else { return nil }
+        snapshotRecord = record
         lastSavedPayload = record.payload
         return (try? decoder.decode(WorkoutPersistenceSnapshot.self, from: record.payload)) ??
             (try? legacyDecoder.decode(WorkoutPersistenceSnapshot.self, from: record.payload))
@@ -58,13 +67,29 @@ final class SwiftDataWorkoutPersistenceStore: WorkoutPersistenceStore {
 
     func saveSnapshot(_ snapshot: WorkoutPersistenceSnapshot) {
         guard let payload = try? encoder.encode(snapshot), payload != lastSavedPayload else { return }
-        let descriptor = FetchDescriptor<PersistentWorkoutState>()
-        if let existing = try? context.fetch(descriptor).first {
-            existing.schemaVersion = snapshot.schemaVersion
+        savePayload(payload, schemaVersion: snapshot.schemaVersion)
+    }
+
+    func saveSnapshotWithoutBlockingUI(_ snapshot: WorkoutPersistenceSnapshot) async {
+        let payload = await Task.detached(priority: .utility) {
+            let encoder = PropertyListEncoder()
+            encoder.outputFormat = .binary
+            return try? encoder.encode(snapshot)
+        }.value
+        guard !Task.isCancelled, let payload, payload != lastSavedPayload else { return }
+        savePayload(payload, schemaVersion: snapshot.schemaVersion)
+    }
+
+    private func savePayload(_ payload: Data, schemaVersion: Int) {
+        if let existing = snapshotRecord ?? (try? context.fetch(FetchDescriptor<PersistentWorkoutState>()).first) {
+            snapshotRecord = existing
+            existing.schemaVersion = schemaVersion
             existing.updatedAt = .now
             existing.payload = payload
         } else {
-            context.insert(PersistentWorkoutState(schemaVersion: snapshot.schemaVersion, payload: payload))
+            let record = PersistentWorkoutState(schemaVersion: schemaVersion, payload: payload)
+            context.insert(record)
+            snapshotRecord = record
         }
         guard (try? context.save()) != nil else { return }
         lastSavedPayload = payload
@@ -95,6 +120,7 @@ final class SwiftDataWorkoutPersistenceStore: WorkoutPersistenceStore {
         let legacyRecords = (try? context.fetch(FetchDescriptor<PersistentWorkoutRecord>())) ?? []
         legacyRecords.forEach(context.delete)
         try? context.save()
+        snapshotRecord = nil
         lastSavedPayload = nil
     }
 }

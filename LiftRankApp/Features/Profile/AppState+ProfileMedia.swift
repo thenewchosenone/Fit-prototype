@@ -6,12 +6,10 @@ extension AppState {
     func updateBodyweight(_ entry: BodyweightEntry) {
         Haptics.light()
         trainingProgressStore.updateBodyweight(entry)
-        repository.persistWorkoutSnapshot()
         guard let actual = entry.actual, actual > 0 else { return }
         var profile = currentProfile
         profile.bodyweightPounds = actual
         profileStore.saveProfile(profile)
-        repository.persistWorkoutSnapshot()
         guard isAuthenticated, !isDemoMode else { return }
         let userID = profile.id
         Task {
@@ -24,7 +22,7 @@ extension AppState {
                 _ = try await profileStore.updateProfile(profile)
                 guard accountSession?.userID == userID,
                       repository.currentProfile.id == userID else { return }
-                repository.persistWorkoutSnapshot()
+                repository.persistWorkoutSnapshotWithoutBlockingUI()
             } catch {
                 guard accountSession?.userID == userID else { return }
                 accountMessage = userMessage(error)
@@ -32,16 +30,16 @@ extension AppState {
         }
     }
 
-    func saveProfilePhoto(_ image: UIImage) {
+    func saveProfilePhoto(_ image: UIImage) async {
         do {
             profilePhotoMutation += 1
             let mutation = profilePhotoMutation
             var profile = currentProfile
             let userID = profile.id
             let mode: AccountMode = isDemoMode ? .demo : .authenticated
-            profile.avatarPath = try profilePhotoStore.save(image: image, userID: profile.id, mode: mode)
+            profile.avatarPath = try await profilePhotoStore.save(image: image, userID: profile.id, mode: mode)
             profileStore.saveProfile(profile)
-            repository.persistWorkoutSnapshot()
+            repository.persistWorkoutSnapshotWithoutBlockingUI()
             guard isAuthenticated, !isDemoMode else {
                 Haptics.success()
                 return
@@ -64,9 +62,13 @@ extension AppState {
                     guard repository.currentProfile.id == userID,
                           mutation == profilePhotoMutation else { return }
                     if uploadedAvatarPath != avatarPath {
-                        let fullImageData = try Data(contentsOf: fileURLs.fullImageURL)
-                        let thumbnailData = try Data(contentsOf: fileURLs.thumbnailURL)
-                        try profilePhotoStore.cache(
+                        let (fullImageData, thumbnailData) = try await Task.detached(priority: .utility) {
+                            try (
+                                Data(contentsOf: fileURLs.fullImageURL),
+                                Data(contentsOf: fileURLs.thumbnailURL)
+                            )
+                        }.value
+                        try await profilePhotoStore.cache(
                             fullImageData: fullImageData,
                             thumbnailData: thumbnailData,
                             avatarPath: uploadedAvatarPath
@@ -81,7 +83,7 @@ extension AppState {
                     if uploadedAvatarPath != avatarPath {
                         profilePhotoStore.remove(avatarPath: avatarPath)
                     }
-                    repository.persistWorkoutSnapshot()
+                    repository.persistWorkoutSnapshotWithoutBlockingUI()
                 } catch {
                     accountMessage = userMessage(error)
                 }
@@ -101,7 +103,7 @@ extension AppState {
         profile.avatarPath = nil
         profileStore.saveProfile(profile)
         profilePhotoStore.remove(avatarPath: oldPath)
-        repository.persistWorkoutSnapshot()
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
         guard isAuthenticated, !isDemoMode else {
             Haptics.warning()
             return
@@ -114,7 +116,7 @@ extension AppState {
                 guard repository.currentProfile.id == userID,
                       mutation == profilePhotoMutation else { return }
                 _ = try await profileStore.updateProfile(profile)
-                repository.persistWorkoutSnapshot()
+                repository.persistWorkoutSnapshotWithoutBlockingUI()
             } catch {
                 accountMessage = userMessage(error)
             }
@@ -124,21 +126,21 @@ extension AppState {
 
     func cacheAuthenticatedProfilePhotoIfNeeded() async {
         guard isAuthenticated, !isDemoMode,
-              let avatarPath = currentProfile.avatarPath,
-              profilePhotoStore.thumbnail(for: avatarPath) == nil else { return }
+              let avatarPath = currentProfile.avatarPath else { return }
+        guard !(await profilePhotoStore.hasThumbnailWithoutBlockingUI(for: avatarPath)) else { return }
         let userID = currentProfile.id
         do {
             guard let download = try await profileStore.downloadProfileAvatar(avatarPath: avatarPath) else { return }
             guard repository.currentProfile.id == userID,
                   repository.currentProfile.avatarPath == avatarPath else { return }
-            try profilePhotoStore.cache(
+            try await profilePhotoStore.cache(
                 fullImageData: download.fullImageData,
                 thumbnailData: download.thumbnailData,
                 avatarPath: avatarPath
             )
             profilePhotoStore.markUploadComplete(avatarPath: avatarPath)
             objectWillChange.send()
-            repository.persistWorkoutSnapshot()
+            repository.persistWorkoutSnapshotWithoutBlockingUI()
         } catch {
             accountMessage = userMessage(error)
         }
@@ -158,9 +160,13 @@ extension AppState {
         )
         guard repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
         if uploadedAvatarPath != avatarPath {
-            let fullImageData = try Data(contentsOf: fileURLs.fullImageURL)
-            let thumbnailData = try Data(contentsOf: fileURLs.thumbnailURL)
-            try profilePhotoStore.cache(
+            let (fullImageData, thumbnailData) = try await Task.detached(priority: .utility) {
+                try (
+                    Data(contentsOf: fileURLs.fullImageURL),
+                    Data(contentsOf: fileURLs.thumbnailURL)
+                )
+            }.value
+            try await profilePhotoStore.cache(
                 fullImageData: fullImageData,
                 thumbnailData: thumbnailData,
                 avatarPath: uploadedAvatarPath

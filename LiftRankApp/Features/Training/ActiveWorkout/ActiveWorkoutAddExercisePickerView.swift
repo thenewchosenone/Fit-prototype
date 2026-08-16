@@ -27,7 +27,9 @@ struct ActiveWorkoutAddExercisePickerView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        let results = results
+        let existingIDs = existingIDs
+        return NavigationStack {
             AppBackground {
                 VStack(spacing: 0) {
                     VStack(spacing: 12) {

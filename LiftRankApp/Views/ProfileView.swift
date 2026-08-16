@@ -6,7 +6,7 @@ struct ProfileView: View {
     let isCurrentUser: Bool
     @State var showingPhotoManager = false
     @State var showingAthleteDetails = false
-    @State var visibleProfileLifts: [LiftSubmission] = []
+    @State var liftPresentation = ProfileLiftPresentation.empty
 
     var body: some View { featureBody }
 }

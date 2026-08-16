@@ -401,27 +401,9 @@ struct TrainingTodayView: View {
     }
 
     private var recoverySummaries: [TodayRecoveryRow] {
-        let calendar = Calendar.current
-        let weekAgo = calendar.date(byAdding: .day, value: -7, to: .now) ?? .now
-        var workingSets: [ExerciseMuscleRegion: [(date: Date, sets: Int)]] = [:]
-
-        for workout in appState.completedWorkouts where workout.completedAt >= weekAgo {
-            for exercise in workout.exercises {
-                let count = workout.sets.filter {
-                    $0.prescriptionID == exercise.id && $0.isComplete && !$0.isWarmup
-                }.count
-                guard count > 0 else { continue }
-
-                for muscle in exercise.muscleProfile?.primary ?? [] {
-                    workingSets[muscle, default: []].append((workout.completedAt, count))
-                }
-            }
-        }
-
-        return workingSets.compactMap { muscle, entries in
-            let setCount = entries.reduce(0) { $0 + $1.sets }
-            guard let lastTrained = entries.map(\.date).max() else { return nil }
-            let hours = max(0, Int(Date.now.timeIntervalSince(lastTrained) / 3_600))
+        appState.recoverySummaries().map { summary in
+            let setCount = summary.setCount
+            let hours = summary.hoursSinceTraining
             let loadFraction = min(1, Double(setCount) / 12)
 
             let status: String
@@ -446,7 +428,7 @@ struct TrainingTodayView: View {
             }
 
             return TodayRecoveryRow(
-                muscle: muscle,
+                muscle: summary.muscle,
                 setCount: setCount,
                 hoursSinceTraining: hours,
                 loadFraction: loadFraction,
@@ -455,12 +437,6 @@ struct TrainingTodayView: View {
                 recommendation: recommendation,
                 tint: tint
             )
-        }
-        .sorted {
-            if $0.hoursSinceTraining == $1.hoursSinceTraining {
-                return $0.setCount > $1.setCount
-            }
-            return $0.hoursSinceTraining < $1.hoursSinceTraining
         }
     }
 
