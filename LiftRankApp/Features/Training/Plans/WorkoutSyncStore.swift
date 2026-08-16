@@ -11,7 +11,8 @@ final class WorkoutSyncStore {
     private let passiveSyncInterval: TimeInterval = 30
     private var lastPassiveHistorySyncAt: Date?
     private var lastPassivePlanSyncAt: Date?
-    private var syncInFlight = false
+    private var historySyncInFlight = false
+    private var planSyncInFlight = false
 
     init(
         repository: any WorkoutSyncRepository,
@@ -45,15 +46,15 @@ final class WorkoutSyncStore {
     func synchronizeCompletedWorkoutHistory(force: Bool = true) async {
         resetAccountScopedDataIfNeeded()
         let userID = repository.currentProfile.id
-        guard !syncInFlight else { return }
+        guard !historySyncInFlight else { return }
         if !force,
            let lastPassiveHistorySyncAt,
            Date.now.timeIntervalSince(lastPassiveHistorySyncAt) < passiveSyncInterval {
             return
         }
-        syncInFlight = true
+        historySyncInFlight = true
         defer {
-            syncInFlight = false
+            historySyncInFlight = false
             if repository.currentProfile.id == userID, !force {
                 lastPassiveHistorySyncAt = .now
             }
@@ -130,15 +131,15 @@ final class WorkoutSyncStore {
     func synchronizeWorkoutPlans(force: Bool = true) async {
         resetAccountScopedDataIfNeeded()
         let userID = repository.currentProfile.id
-        guard !syncInFlight else { return }
+        guard !planSyncInFlight else { return }
         if !force,
            let lastPassivePlanSyncAt,
            Date.now.timeIntervalSince(lastPassivePlanSyncAt) < passiveSyncInterval {
             return
         }
-        syncInFlight = true
+        planSyncInFlight = true
         defer {
-            syncInFlight = false
+            planSyncInFlight = false
             if repository.currentProfile.id == userID, !force {
                 lastPassivePlanSyncAt = .now
             }

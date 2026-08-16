@@ -702,6 +702,43 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["profile.liftVideoPlayer"].waitForExistence(timeout: 5))
     }
 
+    func testProfileLiftVideoOpenPerformance() {
+        let app = launchDemo(arguments: ["-uiTestingCompetitionFixture"])
+        XCTAssertTrue(tab("profile", in: app).waitForExistence(timeout: 8))
+        tab("profile", in: app).tap()
+        let publicProfile = app.buttons["me.publicProfile"]
+        XCTAssertTrue(publicProfile.waitForExistence(timeout: 5))
+        publicProfile.tap()
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 5))
+
+        let videoLibrary = app.descendants(matching: .any)["profile.liftVideos"]
+        var attempts = 0
+        while !videoLibrary.exists && attempts < 6 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(videoLibrary.waitForExistence(timeout: 5))
+        let video = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "profile.liftVideo.")
+        ).firstMatch
+        XCTAssertTrue(video.waitForExistence(timeout: 5))
+
+        let options = XCTMeasureOptions()
+        options.iterationCount = 3
+        options.invocationOptions = [.manuallyStart, .manuallyStop]
+
+        measure(metrics: [XCTClockMetric()], options: options) {
+            startMeasuring()
+            video.tap()
+            XCTAssertTrue(app.navigationBars["Lift video"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.descendants(matching: .any)["profile.liftVideoPlayer"].waitForExistence(timeout: 5))
+            stopMeasuring()
+
+            app.buttons["Done"].tap()
+            XCTAssertTrue(app.navigationBars["Lift video"].waitForNonExistence(timeout: 5))
+        }
+    }
+
     func testCurrentAccountShowsSubmittedVideoAndLeaderboardEntry() {
         let app = launchCurrentAccount()
         XCTAssertTrue(tab("profile", in: app).waitForExistence(timeout: 8))
@@ -1287,6 +1324,27 @@ final class LiftRankUITests: XCTestCase {
 
             app.buttons["Done"].tap()
             XCTAssertTrue(app.navigationBars["PR details"].waitForNonExistence(timeout: 5))
+        }
+    }
+
+    func testLeaderboardOpenPerformance() {
+        let app = launchDemo(arguments: ["-uiTestingCompetitionFixture"])
+        let home = tab("home", in: app)
+        let leaderboards = tab("leaderboards", in: app)
+        XCTAssertTrue(home.waitForExistence(timeout: 8))
+        XCTAssertTrue(leaderboards.waitForExistence(timeout: 8))
+        let options = XCTMeasureOptions()
+        options.iterationCount = 3
+        options.invocationOptions = [.manuallyStart, .manuallyStop]
+
+        measure(metrics: [XCTClockMetric()], options: options) {
+            startMeasuring()
+            leaderboards.tap()
+            XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 8))
+            stopMeasuring()
+
+            home.tap()
+            XCTAssertTrue(home.waitForExistence(timeout: 5))
         }
     }
 
