@@ -8,6 +8,10 @@ final class WorkoutSyncStore {
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
     private var syncedUserID: UUID
+    private let passiveSyncInterval: TimeInterval = 30
+    private var lastPassiveHistorySyncAt: Date?
+    private var lastPassivePlanSyncAt: Date?
+    private var syncInFlight = false
 
     init(
         repository: any WorkoutSyncRepository,
@@ -38,9 +42,22 @@ final class WorkoutSyncStore {
         repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
-    func synchronizeCompletedWorkoutHistory() async {
+    func synchronizeCompletedWorkoutHistory(force: Bool = true) async {
         resetAccountScopedDataIfNeeded()
         let userID = repository.currentProfile.id
+        guard !syncInFlight else { return }
+        if !force,
+           let lastPassiveHistorySyncAt,
+           Date.now.timeIntervalSince(lastPassiveHistorySyncAt) < passiveSyncInterval {
+            return
+        }
+        syncInFlight = true
+        defer {
+            syncInFlight = false
+            if repository.currentProfile.id == userID, !force {
+                lastPassiveHistorySyncAt = .now
+            }
+        }
 
         let deletedIDs = repository.deletedCompletedWorkoutIDs
         for deletedID in deletedIDs {
@@ -110,9 +127,22 @@ final class WorkoutSyncStore {
         repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
-    func synchronizeWorkoutPlans() async {
+    func synchronizeWorkoutPlans(force: Bool = true) async {
         resetAccountScopedDataIfNeeded()
         let userID = repository.currentProfile.id
+        guard !syncInFlight else { return }
+        if !force,
+           let lastPassivePlanSyncAt,
+           Date.now.timeIntervalSince(lastPassivePlanSyncAt) < passiveSyncInterval {
+            return
+        }
+        syncInFlight = true
+        defer {
+            syncInFlight = false
+            if repository.currentProfile.id == userID, !force {
+                lastPassivePlanSyncAt = .now
+            }
+        }
 
         for planID in repository.pendingRemoteWorkoutPlanDeletions {
             guard repository.currentProfile.id == userID else { return }
@@ -211,6 +241,8 @@ final class WorkoutSyncStore {
     private func resetAccountScopedDataIfNeeded() {
         guard syncedUserID != repository.currentProfile.id else { return }
         syncedUserID = repository.currentProfile.id
+        lastPassiveHistorySyncAt = nil
+        lastPassivePlanSyncAt = nil
         repository.completedWorkouts.removeAll()
         repository.pendingCompletedWorkoutUploads.removeAll()
         repository.deletedCompletedWorkoutIDs.removeAll()

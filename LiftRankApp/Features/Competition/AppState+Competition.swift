@@ -73,9 +73,9 @@ extension AppState {
         await competitionStore.refreshLeaderboard()
     }
 
-    func refreshCurrentUserTotalRanking() async {
+    func refreshCurrentUserTotalRanking(force: Bool = false) async {
         guard isAuthenticated, !isDemoMode else { return }
-        await competitionStore.refreshCurrentUserTotalEntry()
+        await competitionStore.refreshCurrentUserTotalEntry(force: force)
     }
 
     func refreshProductionLifts(force: Bool = false) async {

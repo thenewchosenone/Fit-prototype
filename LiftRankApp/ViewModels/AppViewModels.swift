@@ -750,14 +750,14 @@ final class AppState: ObservableObject {
 #endif
     }
 
-    func synchronizeCompletedWorkoutHistory() async {
+    func synchronizeCompletedWorkoutHistory(force: Bool = true) async {
         guard isAuthenticated, !isDemoMode else { return }
-        await workoutSyncStore.synchronizeCompletedWorkoutHistory()
+        await workoutSyncStore.synchronizeCompletedWorkoutHistory(force: force)
     }
 
-    func synchronizeWorkoutPlans() async {
+    func synchronizeWorkoutPlans(force: Bool = true) async {
         guard isAuthenticated, !isDemoMode else { return }
-        await workoutSyncStore.synchronizeWorkoutPlans()
+        await workoutSyncStore.synchronizeWorkoutPlans(force: force)
     }
 
     func refreshProductionLaunchData() async {

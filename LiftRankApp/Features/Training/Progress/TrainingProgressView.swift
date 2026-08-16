@@ -169,7 +169,7 @@ extension TrainingTrackerView {
         .onAppear {
             syncProgressExerciseSelection()
             syncWorkoutHistorySelection()
-            Task { await appState.synchronizeCompletedWorkoutHistory() }
+            Task { await appState.synchronizeCompletedWorkoutHistory(force: false) }
         }
         .onChange(of: appState.completedWorkoutsRevision) {
             syncProgressExerciseSelection()

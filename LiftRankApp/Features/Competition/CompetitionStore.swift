@@ -34,6 +34,8 @@ final class CompetitionStore: ObservableObject {
     private var lastProductionRefreshAt: Date?
     private var productionUserID: UUID?
     private var loadingProductionUserID: UUID?
+    private var lastCurrentUserTotalRefreshAt: Date?
+    private var loadingCurrentUserTotalUserID: UUID?
     private var leaderboardRequestID: UUID?
     private var loadingLeaderboardUserID: UUID?
     private var loadingLeaderboardFilters: LeaderboardFilters?
@@ -191,12 +193,24 @@ final class CompetitionStore: ObservableObject {
         }
     }
 
-    func refreshCurrentUserTotalEntry() async {
+    func refreshCurrentUserTotalEntry(force: Bool = false) async {
         guard let leaderboardService else {
             currentUserTotalEntry = nil
             return
         }
         let userID = repository.currentProfile.id
+        if !force,
+           let lastCurrentUserTotalRefreshAt,
+           now().timeIntervalSince(lastCurrentUserTotalRefreshAt) < 30 {
+            return
+        }
+        guard loadingCurrentUserTotalUserID != userID else { return }
+        loadingCurrentUserTotalUserID = userID
+        defer {
+            if loadingCurrentUserTotalUserID == userID {
+                loadingCurrentUserTotalUserID = nil
+            }
+        }
         do {
             let entries = try await leaderboardService.entries(
                 filters: LeaderboardFilters(rankingType: .total),
@@ -204,9 +218,11 @@ final class CompetitionStore: ObservableObject {
             )
             guard repository.currentProfile.id == userID else { return }
             currentUserTotalEntry = entries.first { $0.profile.id == userID }
+            lastCurrentUserTotalRefreshAt = now()
         } catch {
             guard repository.currentProfile.id == userID else { return }
             currentUserTotalEntry = nil
+            lastCurrentUserTotalRefreshAt = now()
         }
     }
 
@@ -793,6 +809,8 @@ final class CompetitionStore: ObservableObject {
         productionUserID = repository.currentProfile.id
         hasLoadedProductionData = false
         lastProductionRefreshAt = nil
+        lastCurrentUserTotalRefreshAt = nil
+        loadingCurrentUserTotalUserID = nil
         repository.lifts = []
         if isAccountChange {
             repository.achievementUnlocks = []

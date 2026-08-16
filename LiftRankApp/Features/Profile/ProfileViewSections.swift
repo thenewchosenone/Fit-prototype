@@ -93,12 +93,12 @@ extension ProfileView {
     }
 
     private func refreshProfileData(force: Bool) async {
+        await refreshVisibleProfileLifts()
         if isCurrentUser {
             async let lifts: Void = appState.refreshProductionLifts(force: force)
-            async let ranking: Void = appState.refreshCurrentUserTotalRanking()
+            async let ranking: Void = appState.refreshCurrentUserTotalRanking(force: force)
             _ = await (lifts, ranking)
         }
-        await refreshVisibleProfileLifts()
     }
 
     @MainActor
