@@ -29,7 +29,11 @@ struct MainTabView: View {
                             }
                         )
                         .padding(.bottom, 18)
-                        .background(Color.liftBackground.ignoresSafeArea(edges: .bottom))
+                        .background(
+                            Color.liftBackground
+                                .ignoresSafeArea(edges: .bottom)
+                                .allowsHitTesting(false)
+                        )
                     }
                 }
         }
@@ -43,7 +47,9 @@ struct MainTabView: View {
                 showsMeTabBar = false
             }
         }
-        .sheet(item: $router.sheet) { destination in
+        .sheet(item: $router.sheet, onDismiss: {
+            router.sheet = nil
+        }) { destination in
             appSheet(destination)
         }
         .fullScreenCover(item: $router.cover) { destination in
@@ -56,26 +62,21 @@ struct MainTabView: View {
 
     @ViewBuilder
     private var selectedTabContent: some View {
-        TabView(selection: $router.selectedTab) {
+        switch router.selectedTab {
+        case .home:
             NavigationStack { HomeView() }
-                .tag(AppTab.home)
-
+        case .leaderboards:
             NavigationStack { LeaderboardsView() }
-                .tag(AppTab.leaderboards)
-
+        case .track:
             TrainingTrackerView(
                 startOnProgress: appState.trainingTrackerStartOnProgress,
                 isEmbeddedInTab: true
             )
-            .tag(AppTab.track)
-
+        case .profile:
             NavigationStack(path: $mePath) {
                 meTabContent
             }
-            .tag(AppTab.profile)
         }
-        .tabViewStyle(.page(indexDisplayMode: .never))
-        .toolbar(.hidden, for: .tabBar)
     }
 
     @ViewBuilder
@@ -134,6 +135,10 @@ struct MainTabView: View {
             SettingsView(initialSection: section).environmentObject(appState)
         case .requestGym:
             RequestGymView().environmentObject(appState).presentationDetents([.medium])
+        case .recentPR(let lift):
+            RecentPRDetailView(lift: lift)
+                .environmentObject(appState)
+                .presentationDetents([.large])
         case .reportLift(let lift):
             ReportLiftView(lift: lift).environmentObject(appState).presentationDetents([.medium])
         case .reportProfile(let profile):

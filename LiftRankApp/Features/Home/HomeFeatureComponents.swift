@@ -434,8 +434,9 @@ extension HomeView {
                     .accessibilityIdentifier("home.recentPRs.emptyAction")
                 } else {
                     ForEach(Array(recentLifts.enumerated()), id: \.element.id) { index, lift in
+                        let prAccessibilityLabel = "Open \(lift.exerciseName) PR, \(MeasurementFormatting.formatRecordedWeight(lift.weight, unit: lift.unit)), \(lift.resolvedEvidenceStatus.displayName)"
                         Button {
-                            selectedRecentPR = lift
+                            appState.router.sheet = .recentPR(lift)
                         } label: {
                             HStack(spacing: 13) {
                                 Image(systemName: liftSymbol(for: lift.exerciseName))
@@ -466,7 +467,7 @@ extension HomeView {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Open \(lift.exerciseName) PR, \(MeasurementFormatting.formatRecordedWeight(lift.weight, unit: lift.unit)), \(lift.resolvedEvidenceStatus.displayName)")
+                        .accessibilityLabel(prAccessibilityLabel)
                         .accessibilityHint(liftHasVideo(lift) ? "Shows PR video and attempt details" : "Shows the workout set and attempt details")
 
                         if index < recentLifts.count - 1 {
@@ -698,11 +699,6 @@ extension HomeView {
         .sheet(isPresented: $showingGyms) {
             NavigationStack { GymDirectoryView() }
                 .environmentObject(appState)
-        }
-        .sheet(item: $selectedRecentPR) { lift in
-            RecentPRDetailView(lift: lift)
-                .environmentObject(appState)
-                .presentationDetents([.large])
         }
     }
 }
