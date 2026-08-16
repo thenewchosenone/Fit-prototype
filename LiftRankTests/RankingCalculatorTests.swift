@@ -4465,6 +4465,24 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
+    func testActiveWorkoutStoreCanReadANewAccountDraftAfterScopeSynchronization() throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let store = ActiveWorkoutStore(repository: repository)
+        repository.currentProfile.id = UUID()
+        store.synchronizeAccountScope()
+
+        let workout = try XCTUnwrap(repository.startFreestyleWorkout(
+            name: "New account workout",
+            gymID: nil,
+            bodyweight: nil,
+            unit: .pounds,
+            at: .now
+        ))
+
+        XCTAssertEqual(store.workout?.id, workout.id)
+    }
+
+    @MainActor
     func testUpdatingCompletedWorkoutReplacesAndPersistsHistoryEntry() async throws {
         let store = InMemoryWorkoutPersistenceStore()
         let repository = DemoRepository(workoutPersistenceStore: store)

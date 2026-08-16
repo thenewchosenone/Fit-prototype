@@ -72,6 +72,27 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Finish Workout"].exists || app.buttons["Workout options"].exists)
     }
 
+    func testActiveWorkoutOpenPerformance() {
+        let app = launchDemo(arguments: ["-uiTestingActiveWorkout"])
+        let resume = app.buttons["home.activeWorkout.resume"]
+        XCTAssertTrue(resume.waitForExistence(timeout: 8))
+
+        let options = XCTMeasureOptions()
+        options.iterationCount = 3
+        options.invocationOptions = [.manuallyStart, .manuallyStop]
+
+        measure(metrics: [XCTClockMetric()], options: options) {
+            startMeasuring()
+            resume.tap()
+            XCTAssertTrue(app.staticTexts["Upper Strength"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["Finish workout"].waitForExistence(timeout: 5))
+            stopMeasuring()
+
+            app.buttons["Minimize workout"].tap()
+            XCTAssertTrue(resume.waitForExistence(timeout: 5))
+        }
+    }
+
     func testEmptyActiveWorkoutCanEndAndReturnToHome() {
         let app = launchDemo(arguments: ["-uiTestingActiveWorkout"])
         let resume = app.buttons["home.activeWorkout.resume"]
@@ -354,6 +375,49 @@ final class LiftRankUITests: XCTestCase {
             stopMeasuring()
         }
         app.terminate()
+    }
+
+    func testNotificationsOpenPerformance() {
+        let app = launchDemo()
+        XCTAssertTrue(tab("home", in: app).waitForExistence(timeout: 8))
+        let notifications = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Notifications")
+        ).firstMatch
+        XCTAssertTrue(notifications.waitForExistence(timeout: 5))
+
+        let options = XCTMeasureOptions()
+        options.iterationCount = 3
+        options.invocationOptions = [.manuallyStart, .manuallyStop]
+
+        measure(metrics: [XCTClockMetric()], options: options) {
+            startMeasuring()
+            notifications.tap()
+            XCTAssertTrue(app.navigationBars["Notifications"].waitForExistence(timeout: 5))
+            stopMeasuring()
+
+            app.buttons["Close"].tap()
+            XCTAssertTrue(app.navigationBars["Notifications"].waitForNonExistence(timeout: 5))
+        }
+    }
+
+    func testHomeScrollPerformance() {
+        let app = launchDemo(arguments: ["-uiTestingCompetitionFixture"])
+        XCTAssertTrue(tab("home", in: app).waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Recent PRs"].waitForExistence(timeout: 5))
+
+        let options = XCTMeasureOptions()
+        options.iterationCount = 3
+        options.invocationOptions = [.manuallyStart, .manuallyStop]
+
+        measure(metrics: [XCTClockMetric()], options: options) {
+            startMeasuring()
+            app.swipeUp()
+            XCTAssertTrue(app.staticTexts["Training this week"].waitForExistence(timeout: 5))
+            stopMeasuring()
+
+            app.swipeDown()
+            XCTAssertTrue(app.staticTexts["Recent PRs"].waitForExistence(timeout: 5))
+        }
     }
 
     func testSettingsDoneDismissalPerformance() {

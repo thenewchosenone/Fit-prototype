@@ -115,6 +115,10 @@ final class ActiveWorkoutStore {
         return repository.activeWorkout
     }
 
+    func synchronizeAccountScope() {
+        resetAccountScopedDraftIfNeeded()
+    }
+
     var displayState: ActiveWorkoutDisplayState {
         guard let workout else {
             return ActiveWorkoutDisplayState(

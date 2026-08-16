@@ -244,6 +244,7 @@ final class AppState: ObservableObject {
             repository.currentProfile = profile
             repository.profiles = [profile]
             profileStore.saveProfile(profile)
+            activeWorkoutStore.synchronizeAccountScope()
         }
         if ProcessInfo.processInfo.arguments.contains("-uiTestingAuthenticatedAccount") {
             installServiceContainer(.demo(repository: repository))
@@ -253,6 +254,7 @@ final class AppState: ObservableObject {
             repository.currentProfile = profile
             repository.profiles = [profile]
             profileStore.saveProfile(profile)
+            activeWorkoutStore.synchronizeAccountScope()
             accountSession = AccountSession(
                 userID: profile.id,
                 email: "deletion@example.test",
@@ -265,6 +267,7 @@ final class AppState: ObservableObject {
             installServiceContainer(.demo(repository: repository))
             repository.currentProfile = MockData.demoProfile
             profileStore.saveProfile(repository.currentProfile)
+            activeWorkoutStore.synchronizeAccountScope()
             accountSession = AccountSession(
                 userID: repository.currentProfile.id,
                 email: "onboarding@example.test",
@@ -457,6 +460,7 @@ final class AppState: ObservableObject {
         do {
             let profile = try await sessionStore.enterDemoAuthentication()
             profileStore.saveProfile(profile)
+            activeWorkoutStore.synchronizeAccountScope()
             await synchronizeCompletedWorkoutHistory()
             await synchronizeWorkoutPlans()
             accountStatus = .demo
@@ -595,6 +599,7 @@ final class AppState: ObservableObject {
             profile,
             retainingDemoProfiles: sessionStore.usesDemoAuthenticationService
         )
+        activeWorkoutStore.synchronizeAccountScope()
         if profile.avatarPath == nil, let pendingAvatarPath {
             var localProfile = repository.currentProfile
             localProfile.avatarPath = pendingAvatarPath
