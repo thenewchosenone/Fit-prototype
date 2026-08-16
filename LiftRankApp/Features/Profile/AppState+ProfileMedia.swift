@@ -22,10 +22,6 @@ extension AppState {
                 try await profileStore.saveBodyweightEntry(entry)
                 guard accountSession?.userID == userID,
                       repository.currentProfile.id == userID else { return }
-                _ = try await profileStore.updateProfile(profile)
-                guard accountSession?.userID == userID,
-                      repository.currentProfile.id == userID else { return }
-                repository.persistWorkoutSnapshotWithoutBlockingUI()
                 trainingProgressStore.updateBodyweight(entry)
                 profileStore.saveProfile(profile)
                 repository.persistWorkoutSnapshotWithoutBlockingUI()

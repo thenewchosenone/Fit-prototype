@@ -241,7 +241,7 @@ final class WorkoutSyncStore {
     func deleteRemotePlan(_ planID: UUID) async {
         let userID = repository.currentProfile.id
         repository.pendingRemoteWorkoutPlanDeletions.insert(planID)
-        repository.persistWorkoutSnapshotWithoutBlockingUI()
+        repository.persistWorkoutSnapshot()
         do {
             try await service.deletePlan(id: planID)
             guard repository.currentProfile.id == userID else { return }
@@ -249,7 +249,7 @@ final class WorkoutSyncStore {
         } catch {
             guard repository.currentProfile.id == userID else { return }
         }
-        repository.persistWorkoutSnapshotWithoutBlockingUI()
+        repository.persistWorkoutSnapshot()
     }
 
     func payload(planID: UUID) -> WorkoutPlanSyncPayload? {
