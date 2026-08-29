@@ -296,7 +296,7 @@ struct LegalAcceptanceView: View {
                                     }
                                 }
 
-                                Toggle("I have read and accept \(document.title)", isOn: Binding(
+                                Toggle(acceptanceLabel(for: document), isOn: Binding(
                                     get: { acknowledged.contains(document.kind) },
                                     set: { accepted in
                                         if accepted { acknowledged.insert(document.kind) }
@@ -324,6 +324,12 @@ struct LegalAcceptanceView: View {
                 .padding(20)
             }
         }
+    }
+
+    private func acceptanceLabel(for document: LegalDocument) -> String {
+        document.kind == .privacy
+            ? "I have read and acknowledge \(document.title)"
+            : "I have read and accept \(document.title)"
     }
 }
 

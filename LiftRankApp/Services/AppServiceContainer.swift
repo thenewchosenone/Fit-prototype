@@ -209,7 +209,8 @@ final class UnavailableAccountDataService: ProfileService, GymService, GymMember
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile { throw error }
     func authenticatedProfile() async throws -> AuthenticatedProfile { throw error }
     func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile { throw error }
-    func claimUsername(_ username: String) async throws -> String { throw error }
+    func saveTrainingGoals(_ goalIDs: [String]) async throws { throw error }
+    func changeUsername(currentUsername: String, newUsername: String) async throws -> String { throw error }
     func profileCard(userID: UUID) async throws -> PublicProfileCard { throw error }
     func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String { throw error }
     func downloadProfileAvatar(avatarPath: String) async throws -> ProfileAvatarDownload? { throw error }

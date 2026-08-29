@@ -1,13 +1,17 @@
 import SwiftUI
 import UIKit
 
+private enum OnboardingLocationPicker: String, Identifiable {
+    case country, region, city
+    var id: String { rawValue }
+}
+
 struct OnboardingView: View {
     @EnvironmentObject private var appState: AppState
     @State private var step = 0
-    @State private var goals: Set<String> = ["Get stronger", "Compare with my weight class"]
+    @State private var goals: Set<String> = []
     @State private var profile = MockData.emptyProfile
     @State private var birthDate = Calendar.current.date(byAdding: .year, value: -25, to: .now) ?? .now
-    @State private var selectedAgeGroup = "25-29"
     @State private var isSavingProfile = false
     @State private var saveError: String?
     @State private var bench = ""
@@ -16,6 +20,9 @@ struct OnboardingView: View {
     @State private var press = ""
     @State private var bio = ""
     @State private var yearsTraining = 0
+    @State private var bodyweightText = ""
+    @State private var showingBodyweightPicker = false
+    @State private var showingHeightPicker = false
     @State private var showingPhotoManager = false
     @State private var selectedCountryCode = ""
     @State private var selectedRegionName = ""
@@ -25,18 +32,18 @@ struct OnboardingView: View {
     @State private var citySuggestions: [LocationCitySuggestion] = []
     @State private var citySearchTask: Task<Void, Never>?
     @State private var isSearchingCities = false
+    @State private var locationPicker: OnboardingLocationPicker?
     let complete: () -> Void
 
-    private let ageGroups = MockData.standardAgeGroups
-    private var goalOptions: [(String, String, String)] {
+    private var goalOptions: [(id: String, title: String, symbol: String, subtitle: String)] {
         let base = [
-            ("Get stronger", "bolt.fill", "Build measurable strength"),
-            ("Compete locally", "medal.fill", "Prepare for the platform"),
-            ("Track personal records", "chart.line.uptrend.xyaxis", "See progress over time"),
-            ("Compare with my weight class", "person.2.fill", "Rank against similar lifters"),
-            ("Prepare for powerlifting", "figure.strengthtraining.traditional", "Train the competition lifts")
+            ("get_stronger", "Get stronger", "bolt.fill", "Build measurable strength"),
+            ("compete_locally", "Compete locally", "medal.fill", "Prepare for the platform"),
+            ("track_personal_records", "Track personal records", "chart.line.uptrend.xyaxis", "See progress over time"),
+            ("compare_weight_class", "Compare with my weight class", "person.2.fill", "Rank against similar lifters"),
+            ("prepare_powerlifting", "Prepare for powerlifting", "figure.strengthtraining.traditional", "Train the competition lifts")
         ]
-        return base + [("Represent my gym", "building.2.fill", "Climb your local leaderboard")]
+        return base + [("represent_gym", "Represent my gym", "building.2.fill", "Climb your local leaderboard")]
     }
     private let launchCountries = LaunchLocationCatalog.countries
 
@@ -52,24 +59,22 @@ struct OnboardingView: View {
         ProfileDisplayFormatting.ageGroup(for: birthDate)
     }
 
-    private func representativeBirthDate(for ageGroup: String) -> Date {
-        ProfileDisplayFormatting.representativeBirthDate(for: ageGroup, fallback: birthDate)
-    }
-
     private var onboardingScoreTier: (label: String, tint: Color) {
         RankingFormatting.strengthTier(for: appState.overallScore)
     }
 
     var body: some View {
         AppBackground {
-            TabView(selection: $step) {
-                welcome.tag(0)
-                goalsView.tag(1)
-                profileView.tag(2)
-                recordsView.tag(3)
-                ratingView.tag(4)
+            Group {
+                switch step {
+                case 0: welcome
+                case 1: goalsView
+                case 2: profileView
+                case 3: recordsView
+                default: ratingView
+                }
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .animation(.snappy, value: step)
             .safeAreaInset(edge: .top, spacing: 0) {
                 topBar
@@ -86,16 +91,18 @@ struct OnboardingView: View {
             }
         }
         .interactiveDismissDisabled()
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .onAppear {
             profile = appState.currentProfile
             profile.username = ""
             profile.displayName = ""
             bio = profile.bio ?? ""
             yearsTraining = max(0, profile.yearsExperience)
+            bodyweightText = bodyweightInputText(for: profile.bodyweightPounds, unit: profile.preferredUnit)
             if profile.heightInches < 48 || profile.heightInches > 84 {
                 profile.heightInches = 70
             }
-            selectedAgeGroup = ageGroup(for: birthDate)
+            profile.ageGroup = ageGroup(for: birthDate)
             selectedCountryCode = ""
             selectedRegionName = ""
             selectedCity = ""
@@ -122,11 +129,17 @@ struct OnboardingView: View {
 #endif
         }
         .onChange(of: appState.gyms.map(\.id)) { _, _ in normalizeSelectedGym() }
+        .onChange(of: profile.preferredUnit) { _, newUnit in
+            bodyweightText = bodyweightInputText(for: profile.bodyweightPounds, unit: newUnit)
+        }
         .sheet(isPresented: $showingPhotoManager, onDismiss: {
             profile.avatarPath = appState.currentProfile.avatarPath
         }) {
             ProfilePhotoManagerView()
                 .environmentObject(appState)
+        }
+        .sheet(item: $locationPicker) { picker in
+            locationPickerSheet(picker)
         }
     }
 
@@ -155,6 +168,8 @@ struct OnboardingView: View {
                     .font(.caption.weight(.bold))
                     .tracking(1.2)
                     .foregroundStyle(Color.liftMuted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
 
                 Spacer()
 
@@ -164,7 +179,16 @@ struct OnboardingView: View {
                         .foregroundStyle(Color.liftMuted)
                         .frame(width: 42)
                 } else {
-                    Color.clear.frame(width: 42)
+                    Button {
+                        Task { await appState.signOutAccount() }
+                    } label: {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(Color.liftMuted)
+                            .frame(width: 42, height: 42)
+                    }
+                    .accessibilityLabel("Sign out")
+                    .disabled(appState.accountOperationInProgress)
                 }
             }
 
@@ -197,7 +221,7 @@ struct OnboardingView: View {
                         .font(.system(size: 62, weight: .bold))
                         .foregroundStyle(
                             LinearGradient(
-                                colors: [.white, Color.liftBlue],
+                                colors: [Color.liftText, Color.liftBlue],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -210,6 +234,8 @@ struct OnboardingView: View {
                         .font(.caption.weight(.black))
                         .tracking(1.8)
                         .foregroundStyle(Color.liftBlue)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.65)
                     Text("Turn every lift into a ranking.")
                         .font(.system(size: 40, weight: .black, design: .rounded))
                         .fixedSize(horizontal: false, vertical: true)
@@ -226,15 +252,17 @@ struct OnboardingView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.vertical, 24)
+            .padding(.top, 24)
+            .padding(.bottom, 124)
         }
         .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.interactively)
     }
 
     private func onboardingStat(_ symbol: String, _ title: String) -> some View {
         VStack(spacing: 9) {
             Image(systemName: symbol)
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
             Text(title)
                 .font(.caption2.weight(.semibold))
                 .multilineTextAlignment(.center)
@@ -253,7 +281,7 @@ struct OnboardingView: View {
     private var bodyweightField: some View {
         HStack(spacing: 12) {
             Image(systemName: "scalemass.fill")
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
                 .frame(width: 22)
 
             Text("Bodyweight")
@@ -261,18 +289,20 @@ struct OnboardingView: View {
 
             Spacer()
 
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                TextField(
-                    "0",
-                    value: bodyweightDisplayValue,
-                    format: .number.precision(.fractionLength(0...1))
-                )
-                .accessibilityIdentifier("onboarding.bodyweight")
-                .keyboardType(.decimalPad)
-                .multilineTextAlignment(.trailing)
-                .font(.subheadline.weight(.bold).monospacedDigit())
-                .frame(width: 82)
+            Button { showingBodyweightPicker = true } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(profile.bodyweightPounds > 0 ? bodyweightInputText(for: profile.bodyweightPounds, unit: profile.preferredUnit) : "—")
+                        .font(.subheadline.weight(.bold).monospacedDigit())
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.liftMuted)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("onboarding.bodyweight")
+            .accessibilityLabel("Bodyweight")
 
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(profile.preferredUnit.shortLabel)
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(Color.liftMuted)
@@ -287,97 +317,114 @@ struct OnboardingView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Bodyweight \(MeasurementFormatting.formatBodyweight(profile.bodyweightPounds, preferredUnit: profile.preferredUnit))")
-    }
-
-    private var bodyweightDisplayValue: Binding<Double> {
-        Binding(
-            get: {
-                MeasurementFormatting.convert(profile.bodyweightPounds, from: .pounds, to: profile.preferredUnit)
-            },
-            set: { newValue in
-                profile.bodyweightPounds = MeasurementFormatting.convert(newValue, from: profile.preferredUnit, to: .pounds)
+        .sheet(isPresented: $showingBodyweightPicker) {
+            NavigationStack {
+                Form {
+                    TextField("Bodyweight", text: $bodyweightText)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .font(.title3.weight(.bold).monospacedDigit())
+                        .onChange(of: bodyweightText) { _, newValue in
+                            let sanitized = sanitizedNumericInput(newValue)
+                            if sanitized != newValue {
+                                bodyweightText = sanitized
+                                return
+                            }
+                            profile.bodyweightPounds = Double(sanitized).map {
+                                MeasurementFormatting.convert($0, from: profile.preferredUnit, to: .pounds)
+                            } ?? 0
+                        }
+                }
+                .navigationTitle("Bodyweight (\(profile.preferredUnit.shortLabel))")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { showingBodyweightPicker = false }
+                    }
+                }
             }
-        )
+            .presentationDetents([.height(220)])
+        }
     }
 
-    private var heightSlider: some View {
-        sliderField(
-            title: "Height",
-            value: formattedHeight,
-            symbol: "ruler",
-            rangeLabel: "4'0\" – 7'0\""
-        ) {
-            Slider(value: $profile.heightInches, in: 48...84, step: 1)
+    private func bodyweightInputText(for pounds: Double, unit: UnitSystem) -> String {
+        guard pounds > 0 else { return "" }
+        let value = MeasurementFormatting.convert(pounds, from: .pounds, to: unit)
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = 1
+        formatter.minimumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+    }
+
+    private func sanitizedNumericInput(_ input: String) -> String {
+        var result = ""
+        var hasDecimal = false
+        for character in input {
+            if character.isNumber {
+                result.append(character)
+            } else if character == ".", !hasDecimal {
+                hasDecimal = true
+                result.append(character)
+            }
         }
+        return result
+    }
+
+    private var heightScroller: some View {
+        Button { showingHeightPicker = true } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "ruler")
+                    .foregroundStyle(Color.liftAccentText)
+                    .frame(width: 22)
+                Text("Height")
+                    .foregroundStyle(Color.liftMuted)
+                Spacer()
+                Text(formattedHeight)
+                    .font(.subheadline.weight(.bold))
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.liftMuted)
+            }
+            .padding(15)
+        }
+        .buttonStyle(.plain)
+        .background(Color.liftCard)
+        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        }
+        .sheet(isPresented: $showingHeightPicker) {
+            NavigationStack {
+                Picker("Height", selection: Binding(
+                    get: { Int(profile.heightInches.rounded()) },
+                    set: { profile.heightInches = Double($0) }
+                )) {
+                    ForEach(48...84, id: \.self) { inches in
+                        Text(heightLabel(for: inches)).tag(inches)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .navigationTitle("Height")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { showingHeightPicker = false }
+                    }
+                }
+            }
+            .presentationDetents([.height(280)])
+        }
+    }
+
+    private func heightLabel(for totalInches: Int) -> String {
+        "\(totalInches / 12)'\(totalInches % 12)\""
     }
 
     private var formattedHeight: String {
         let totalInches = Int(profile.heightInches.rounded())
         return "\(totalInches / 12)'\(totalInches % 12)\""
-    }
-
-    private var earnedExperienceField: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "checkmark.seal.fill")
-                .foregroundStyle(Color.liftBlue)
-                .frame(width: 22)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Experience")
-                    .foregroundStyle(Color.liftMuted)
-                Text("Based on verified lifting performance")
-                    .font(.caption2)
-                    .foregroundStyle(Color.liftMuted)
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 3) {
-                Text(appState.earnedExperienceLevel.rawValue)
-                    .font(.subheadline.weight(.bold))
-                Text(appState.earnedExperienceDescription)
-                    .font(.caption2)
-                    .foregroundStyle(Color.liftMuted)
-                    .lineLimit(1)
-            }
-        }
-        .padding(15)
-        .background(Color.liftCard)
-        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        }
-    }
-
-    private func sliderField<Content: View>(
-        title: String,
-        value: String,
-        symbol: String,
-        rangeLabel: String,
-        @ViewBuilder slider: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                Image(systemName: symbol)
-                    .foregroundStyle(Color.liftBlue)
-                    .frame(width: 22)
-                Text(title)
-                    .foregroundStyle(Color.liftMuted)
-                Spacer()
-                Text(value)
-                    .font(.subheadline.weight(.bold))
-            }
-            slider()
-                .tint(Color.liftBlue)
-            Text(rangeLabel)
-                .font(.caption2)
-                .foregroundStyle(Color.liftMuted)
-        }
-        .padding(15)
-        .background(Color.liftCard)
-        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-        }
     }
 
     private var goalsView: some View {
@@ -386,56 +433,57 @@ struct OnboardingView: View {
                 screenHeader(
                     eyebrow: "YOUR TRAINING",
                     title: "What are you working toward?",
-                    subtitle: "Choose as many as you want. We’ll shape your Lift Rivals experience around them."
+                    subtitle: "Choose what matters to you. This helps us decide what to build and improve."
                 )
 
-                ForEach(goalOptions, id: \.0) { goal, symbol, subtitle in
+                ForEach(goalOptions, id: \.id) { option in
                     Button {
                         Haptics.light()
-                        if goals.contains(goal) {
-                            goals.remove(goal)
+                        if goals.contains(option.id) {
+                            goals.remove(option.id)
                         } else {
-                            goals.insert(goal)
+                            goals.insert(option.id)
                         }
                     } label: {
                         HStack(spacing: 15) {
-                            Image(systemName: symbol)
+                            Image(systemName: option.symbol)
                                 .font(.title3.weight(.semibold))
-                                .foregroundStyle(goals.contains(goal) ? Color.liftBackground : Color.liftBlue)
+                                .foregroundStyle(goals.contains(option.id) ? Color.liftOnAccent : Color.liftAccentText)
                                 .frame(width: 46, height: 46)
-                                .background(goals.contains(goal) ? Color.liftBlue : Color.liftBlue.opacity(0.12))
+                                .background(goals.contains(option.id) ? Color.liftBlue : Color.liftBlue.opacity(0.12))
                                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(goal)
+                                Text(option.title)
                                     .font(.headline)
                                     .foregroundStyle(Color.liftText)
-                                Text(subtitle)
+                                Text(option.subtitle)
                                     .font(.caption)
                                     .foregroundStyle(Color.liftMuted)
                             }
 
                             Spacer()
 
-                            Image(systemName: goals.contains(goal) ? "checkmark.circle.fill" : "circle")
+                            Image(systemName: goals.contains(option.id) ? "checkmark.circle.fill" : "circle")
                                 .font(.title2)
-                                .foregroundStyle(goals.contains(goal) ? Color.liftBlue : Color.liftMuted.opacity(0.55))
+                                .foregroundStyle(goals.contains(option.id) ? Color.liftAccentText : Color.liftMuted.opacity(0.55))
                         }
                         .padding(15)
-                        .background(goals.contains(goal) ? Color.liftBlue.opacity(0.10) : Color.liftCard)
+                        .background(goals.contains(option.id) ? Color.liftBlue.opacity(0.10) : Color.liftCard)
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .stroke(goals.contains(goal) ? Color.liftBlue.opacity(0.75) : Color.white.opacity(0.06), lineWidth: 1)
+                                .stroke(goals.contains(option.id) ? Color.liftBlue.opacity(0.75) : Color.white.opacity(0.06), lineWidth: 1)
                         }
                     }
                     .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 12)
+            .padding(.bottom, 124)
         }
         .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.interactively)
     }
 
     private var profileView: some View {
@@ -444,7 +492,7 @@ struct OnboardingView: View {
                 screenHeader(
                     eyebrow: "YOUR PROFILE",
                     title: "Build your lifter profile.",
-                    subtitle: "Your bodyweight and category make rankings fair and useful."
+                    subtitle: "Username, bodyweight, and location are required. Your details make rankings fair and useful."
                 )
 
                 Button {
@@ -457,7 +505,7 @@ struct OnboardingView: View {
                                     .font(.caption)
                                     .padding(7)
                                     .background(Color.liftBlue)
-                                    .foregroundStyle(Color.liftBackground)
+                                    .foregroundStyle(Color.liftOnAccent)
                                     .clipShape(Circle())
                             }
                         VStack(alignment: .leading, spacing: 4) {
@@ -480,17 +528,6 @@ struct OnboardingView: View {
                 profileSection("Identity") {
                     field("Username", text: $profile.username, symbol: "at")
                     field("Bio (optional)", text: $bio, symbol: "text.quote")
-                    labeledPicker("Age group", symbol: "person.crop.circle.badge.clock") {
-                        Picker("Age group", selection: $selectedAgeGroup) {
-                            ForEach(ageGroups, id: \.self) { ageGroup in
-                                Text(ageGroup).tag(ageGroup)
-                            }
-                        }
-                        .onChange(of: selectedAgeGroup) { _, newValue in
-                            birthDate = representativeBirthDate(for: newValue)
-                            profile.ageGroup = newValue
-                        }
-                    }
                     labeledPicker("Birth date", symbol: "calendar") {
                         DatePicker(
                             "Birth date",
@@ -500,12 +537,11 @@ struct OnboardingView: View {
                         )
                         .labelsHidden()
                         .onChange(of: birthDate) { _, newValue in
-                            selectedAgeGroup = ageGroup(for: newValue)
-                            profile.ageGroup = selectedAgeGroup
+                            profile.ageGroup = ageGroup(for: newValue)
                         }
                     }
-                    labeledPicker("Division", symbol: "person.2.fill") {
-                        Picker("Division", selection: $profile.sexCategory) {
+                    labeledPicker("Gender", symbol: "person.2.fill") {
+                        Picker("Gender", selection: $profile.sexCategory) {
                             ForEach([SexCategory.male, .female]) { category in
                                 Text(category.rawValue).tag(category)
                             }
@@ -515,13 +551,47 @@ struct OnboardingView: View {
 
                 profileSection("Ranking details") {
                     bodyweightField
-                    heightSlider
-                    earnedExperienceField
+                    heightScroller
                     labeledPicker("Years training", symbol: "calendar.badge.clock") {
-                        Stepper(value: $yearsTraining, in: 0...100) {
+                        HStack(spacing: 0) {
+                            Button {
+                                dismissKeyboard()
+                                yearsTraining = max(0, yearsTraining - 1)
+                            } label: {
+                                Image(systemName: "minus")
+                                    .frame(width: 38, height: 36)
+                            }
+                            .disabled(yearsTraining == 0)
+                            .accessibilityLabel("Decrease years training")
+                            .accessibilityIdentifier("onboarding.yearsTraining.decrement")
+
+                            Divider()
+                                .frame(height: 22)
+
                             Text("\(yearsTraining)")
                                 .font(.subheadline.weight(.bold).monospacedDigit())
+                                .frame(minWidth: 34)
+                                .accessibilityIdentifier("onboarding.yearsTraining.value")
+
+                            Divider()
+                                .frame(height: 22)
+
+                            Button {
+                                dismissKeyboard()
+                                yearsTraining = min(100, yearsTraining + 1)
+                            } label: {
+                                Image(systemName: "plus")
+                                    .frame(width: 38, height: 36)
+                            }
+                            .disabled(yearsTraining == 100)
+                            .accessibilityLabel("Increase years training")
+                            .accessibilityIdentifier("onboarding.yearsTraining.increment")
                         }
+                        .foregroundStyle(Color.liftText)
+                        .padding(.horizontal, 8)
+                        .background(Color.liftCardRaised)
+                        .clipShape(Capsule())
+                        .accessibilityElement(children: .contain)
                         .accessibilityIdentifier("onboarding.yearsTraining")
                     }
                     labeledPicker("Preferred unit", symbol: "scalemass.fill") {
@@ -532,41 +602,9 @@ struct OnboardingView: View {
                 }
 
                 profileSection("Location") {
-                    labeledPicker("Country", symbol: "globe.americas.fill") {
-                        Picker("Country", selection: $selectedCountryCode) {
-                            Text("Select country").tag("")
-                            ForEach(launchCountries) { country in
-                                Text(country.name).tag(country.code)
-                            }
-                        }
-                        .accessibilityIdentifier("onboarding.country")
-                        .pickerStyle(.menu)
-                        .frame(minWidth: 190, alignment: .trailing)
-                        .onChange(of: selectedCountryCode) { _, _ in
-                            selectedRegionName = ""
-                            resetCitySelection()
-                            profile.state = ""
-                        }
-                    }
-
-                    labeledPicker("State / province", symbol: "map.fill") {
-                        Picker("State or province", selection: $selectedRegionName) {
-                            Text(selectedCountry == nil ? "Choose country first" : "Select state").tag("")
-                            ForEach(selectedCountry?.regions ?? []) { region in
-                                Text(region.name).tag(region.name)
-                            }
-                        }
-                        .accessibilityIdentifier("onboarding.region")
-                        .pickerStyle(.menu)
-                        .frame(minWidth: 190, alignment: .trailing)
-                        .disabled(selectedCountry == nil)
-                        .onChange(of: selectedRegionName) { _, newValue in
-                            resetCitySelection()
-                            profile.state = newValue
-                        }
-                    }
-
-                    citySearchField
+                    locationPickerRow("Country", value: selectedCountry?.name ?? "Select country", symbol: "globe.americas.fill", picker: .country)
+                    locationPickerRow("State / province", value: selectedCountry == nil ? "Choose country first" : (selectedRegionName.isEmpty ? "Select state" : selectedRegionName), symbol: "map.fill", picker: .region, disabled: selectedCountry == nil)
+                    locationPickerRow("City", value: selectedRegion == nil ? "Choose state first" : (selectedCity.isEmpty ? "Select city" : selectedCity), symbol: "mappin.and.ellipse", picker: .city, disabled: selectedRegion == nil)
                     if !appState.gyms.isEmpty {
                         labeledPicker("Primary gym (optional)", symbol: "building.2.fill") {
                             Picker("Primary gym", selection: $profile.primaryGymName) {
@@ -588,9 +626,10 @@ struct OnboardingView: View {
                 privacyToggles
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 12)
+            .padding(.bottom, 124)
         }
         .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.interactively)
     }
 
     private func profileSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -603,11 +642,116 @@ struct OnboardingView: View {
         }
     }
 
+    private func locationPickerRow(
+        _ title: String,
+        value: String,
+        symbol: String,
+        picker: OnboardingLocationPicker,
+        disabled: Bool = false
+    ) -> some View {
+        Button { locationPicker = picker } label: {
+            HStack(spacing: 12) {
+                Image(systemName: symbol)
+                    .foregroundStyle(Color.liftAccentText)
+                    .frame(width: 22)
+                Text(title).foregroundStyle(Color.liftMuted)
+                Spacer()
+                Text(value)
+                    .foregroundStyle(disabled ? Color.liftTextDisabled : Color.liftText)
+                    .multilineTextAlignment(.trailing)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.liftMuted)
+            }
+            .padding(15)
+            .background(Color.liftCard)
+            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+    }
+
+    @ViewBuilder
+    private func locationPickerSheet(_ picker: OnboardingLocationPicker) -> some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                if picker == .city {
+                    TextField("Search cities in \(selectedRegionName)", text: $cityQuery)
+                        .textFieldStyle(.roundedBorder)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
+                        .padding()
+                        .onChange(of: cityQuery) { _, query in searchCities(matching: query) }
+                }
+                switch picker {
+                case .country:
+                    Picker("Country", selection: $selectedCountryCode) {
+                        Text("Select country").tag("")
+                        ForEach(launchCountries) { Text($0.name).tag($0.code) }
+                    }
+                    .pickerStyle(.wheel)
+                    .onChange(of: selectedCountryCode) { _, _ in
+                        selectedRegionName = ""
+                        resetCitySelection()
+                        profile.state = ""
+                    }
+                case .region:
+                    Picker("State or province", selection: $selectedRegionName) {
+                        Text("Select state").tag("")
+                        ForEach(selectedCountry?.regions ?? []) { Text($0.name).tag($0.name) }
+                    }
+                    .pickerStyle(.wheel)
+                    .onChange(of: selectedRegionName) { _, value in
+                        resetCitySelection()
+                        profile.state = value
+                    }
+                case .city:
+                    let bundledCities = selectedRegion?.cities ?? []
+                    let cityNames = cityQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? bundledCities
+                        : citySuggestions.map(\.city)
+                    if cityNames.isEmpty {
+                        ContentUnavailableView(
+                            cityQuery.count < 2 ? "Search for a city" : "No matching cities",
+                            systemImage: "mappin.and.ellipse"
+                        )
+                    } else {
+                        Picker("City", selection: $selectedCity) {
+                            Text("Select city").tag("")
+                            ForEach(cityNames, id: \.self) { Text($0).tag($0) }
+                        }
+                        .pickerStyle(.wheel)
+                        .onChange(of: selectedCity) { _, value in
+                            guard !value.isEmpty else { return }
+                            if let suggestion = citySuggestions.first(where: { $0.city == value }) {
+                                selectedCityID = suggestion.canonicalID
+                                profile.city = suggestion.city
+                                profile.state = suggestion.region
+                            } else {
+                                selectedCityID = nil
+                                profile.city = value
+                                profile.state = selectedRegionName
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle(picker == .country ? "Country" : picker == .region ? "State / province" : "City")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { locationPicker = nil }
+                }
+            }
+        }
+        .presentationDetents([.height(picker == .city ? 390 : 300)])
+    }
+
     private var citySearchField: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
                 Image(systemName: "mappin.and.ellipse")
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
                     .frame(width: 22)
                 if selectedRegion == nil {
                     Text("City")
@@ -617,13 +761,18 @@ struct OnboardingView: View {
                         .font(.subheadline)
                         .foregroundStyle(Color.liftMuted)
                 } else {
-                    TextField("Search city", text: $cityQuery)
-                        .accessibilityIdentifier("onboarding.city")
-                        .textInputAutocapitalization(.words)
-                        .autocorrectionDisabled()
-                        .onChange(of: cityQuery) { _, query in
-                            searchCities(matching: query)
-                        }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("City")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                        TextField("Search city", text: $cityQuery)
+                            .accessibilityIdentifier("onboarding.city")
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled()
+                            .onChange(of: cityQuery) { _, query in
+                                searchCities(matching: query)
+                            }
+                    }
                 }
             }
             .padding(15)
@@ -652,7 +801,7 @@ struct OnboardingView: View {
                                 Spacer()
                                 if selectedCity == suggestion.city {
                                     Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(Color.liftBlue)
+                                        .foregroundStyle(Color.liftAccentText)
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -738,10 +887,13 @@ struct OnboardingView: View {
                 citySuggestions = results
                 isSearchingCities = false
 
-                if let exactMatch = results.first(where: {
+                if let selection = results.first(where: {
                     $0.city.caseInsensitiveCompare(trimmedQuery) == .orderedSame
-                }) {
-                    selectCity(exactMatch)
+                }) ?? results.first {
+                    selectedCity = selection.city
+                    selectedCityID = selection.canonicalID
+                    profile.city = selection.city
+                    profile.state = selection.region
                 }
             }
         }
@@ -772,14 +924,14 @@ struct OnboardingView: View {
                     subtitle: "Enter a current one-rep max. Leave anything blank if you don’t know it yet."
                 )
 
-                recordField("Bench press", text: $bench, symbol: "figure.strengthtraining.traditional", tint: .liftBlue)
-                recordField("Back squat", text: $squat, symbol: "figure.strengthtraining.functional", tint: .liftPurple)
-                recordField("Deadlift", text: $deadlift, symbol: "dumbbell.fill", tint: .liftGold)
-                recordField("Overhead press", text: $press, symbol: "arrow.up.circle.fill", tint: .liftGreen)
+                recordField("Bench press", text: $bench, badge: "BP", tint: .liftAccentText)
+                recordField("Back squat", text: $squat, badge: "SQ", tint: .liftPurple)
+                recordField("Deadlift", text: $deadlift, badge: "DL", tint: .liftGold)
+                recordField("Overhead press", text: $press, badge: "OHP", tint: .liftGreen)
 
                 HStack(spacing: 10) {
                     Image(systemName: "lock.shield.fill")
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                     Text("These starting numbers are private until you choose to share or verify a lift.")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
@@ -789,9 +941,10 @@ struct OnboardingView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 12)
+            .padding(.bottom, 124)
         }
         .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.interactively)
     }
 
     private var ratingView: some View {
@@ -802,6 +955,8 @@ struct OnboardingView: View {
                         .font(.caption.weight(.black))
                         .tracking(1.8)
                         .foregroundStyle(Color.liftBlue)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.65)
                     Text("You’re ready to compete.")
                         .font(.system(size: 34, weight: .black, design: .rounded))
                         .multilineTextAlignment(.center)
@@ -872,7 +1027,7 @@ struct OnboardingView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Your next milestone")
                                 .font(.headline)
-                            Text("Submit verified lifts to unlock your next strength milestone.")
+                            Text("Submit more lifts to unlock your next strength milestone.")
                                 .font(.subheadline)
                                 .foregroundStyle(Color.liftMuted)
                         }
@@ -880,9 +1035,10 @@ struct OnboardingView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 12)
+            .padding(.bottom, 124)
         }
         .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.interactively)
     }
 
     private func resultCard(_ value: String, _ title: String, _ symbol: String, _ tint: Color) -> some View {
@@ -922,6 +1078,8 @@ struct OnboardingView: View {
                     saveOnboardingProfile()
                 } else {
                     dismissKeyboard()
+                    guard step != 2 || validateProfileDetails() else { return }
+                    saveError = nil
                     withAnimation(.snappy) { step += 1 }
                 }
             }
@@ -945,34 +1103,11 @@ struct OnboardingView: View {
 
     private func saveOnboardingProfile() {
         guard !isSavingProfile else { return }
+        guard validateProfileDetails() else { return }
         let username = profile.username.trimmingCharacters(in: .whitespacesAndNewlines)
         let city = selectedCity.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !username.isEmpty else {
-            saveError = "Choose a username to continue."
-            Haptics.warning()
-            return
-        }
-        guard !selectedCountryCode.isEmpty,
-              !selectedRegionName.isEmpty,
-              !city.isEmpty else {
-            saveError = "Choose your country, state or province, and city to continue."
-            Haptics.warning()
-            return
-        }
-        guard profile.bodyweightPounds > 0 else {
-            saveError = "Enter your current bodyweight to continue."
-            Haptics.warning()
-            return
-        }
-        let hasBackendCanonicalCity = selectedCityID != nil
-        let hasBundledCanonicalCity = selectedRegion?.cities.contains(where: { $0.caseInsensitiveCompare(city) == .orderedSame }) == true
-        guard hasBackendCanonicalCity || hasBundledCanonicalCity else {
-            saveError = "Choose a city from the available \(selectedRegionName) options to continue."
-            Haptics.warning()
-            return
-        }
         profile.avatarPath = appState.currentProfile.avatarPath
-        profile.ageGroup = selectedAgeGroup
+        profile.ageGroup = ageGroup(for: birthDate)
         profile.city = city
         profile.cityID = selectedCityID
         isSavingProfile = true
@@ -1015,7 +1150,8 @@ struct OnboardingView: View {
         }
         Task {
             do {
-                try await appState.saveAuthenticatedProfile(profileDraft(false))
+                try await appState.saveAuthenticatedProfile(profileDraft(false), allowUsernameChange: true)
+                try await appState.saveTrainingGoals(Array(goals).sorted())
                 if let primaryGym = appState.gyms.first(where: { $0.id == profile.primaryGymID }) {
                     try await appState.connectOnboardingPrimaryGym(primaryGym)
                 }
@@ -1034,6 +1170,32 @@ struct OnboardingView: View {
             }
             isSavingProfile = false
         }
+    }
+
+    private func validateProfileDetails() -> Bool {
+        let username = profile.username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let city = selectedCity.trimmingCharacters(in: .whitespacesAndNewlines)
+        if username.isEmpty {
+            saveError = "Choose a username to continue."
+        } else if profile.bodyweightPounds <= 0 {
+            saveError = "Enter your current bodyweight to continue."
+        } else if profile.bodyweightPounds > 1_000 {
+            saveError = "Enter a bodyweight under 1,000 lb to continue."
+        } else if selectedCountryCode.isEmpty || selectedRegionName.isEmpty || city.isEmpty {
+            saveError = "Choose your country, state or province, and city to continue."
+        } else {
+            let hasBackendCanonicalCity = selectedCityID != nil
+            let hasBundledCanonicalCity = selectedRegion?.cities.contains {
+                $0.caseInsensitiveCompare(city) == .orderedSame
+            } == true
+            if !hasBackendCanonicalCity && !hasBundledCanonicalCity {
+                saveError = "Choose a city from the available \(selectedRegionName) options to continue."
+            } else {
+                return true
+            }
+        }
+        Haptics.warning()
+        return false
     }
 
     private func normalizeSelectedGym() {
@@ -1055,8 +1217,8 @@ struct OnboardingView: View {
         switch step {
         case 0: return "Build My Lift Rivals"
         case 1: return "Continue"
-        case 2: return "Save Profile"
-        case 3: return "Calculate My Rank"
+        case 2: return "Continue"
+        case 3: return "Continue"
         default: return "Continue"
         }
     }
@@ -1067,6 +1229,8 @@ struct OnboardingView: View {
                 .font(.caption.weight(.black))
                 .tracking(1.6)
                 .foregroundStyle(Color.liftBlue)
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
             Text(title)
                 .font(.system(size: 32, weight: .black, design: .rounded))
                 .fixedSize(horizontal: false, vertical: true)
@@ -1081,7 +1245,7 @@ struct OnboardingView: View {
     private func field(_ title: String, text: Binding<String>, symbol: String, keyboard: UIKeyboardType = .default) -> some View {
         HStack(spacing: 12) {
             Image(systemName: symbol)
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
                 .frame(width: 22)
             TextField(title, text: text)
                 .keyboardType(keyboard)
@@ -1097,10 +1261,10 @@ struct OnboardingView: View {
         .accessibilityLabel(title)
     }
 
-    private func recordField(_ title: String, text: Binding<String>, symbol: String, tint: Color) -> some View {
+    private func recordField(_ title: String, text: Binding<String>, badge: String, tint: Color) -> some View {
         HStack(spacing: 15) {
-            Image(systemName: symbol)
-                .font(.title2)
+            Text(badge)
+                .font(.caption.weight(.black))
                 .foregroundStyle(tint)
                 .frame(width: 52, height: 52)
                 .background(tint.opacity(0.12))
@@ -1142,14 +1306,14 @@ struct OnboardingView: View {
     private func labeledPicker<Content: View>(_ title: String, symbol: String, @ViewBuilder content: () -> Content) -> some View {
         HStack(spacing: 12) {
             Image(systemName: symbol)
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
                 .frame(width: 22)
             Text(title)
                 .foregroundStyle(Color.liftMuted)
             Spacer()
             content()
                 .labelsHidden()
-                .tint(.white)
+                .tint(Color.liftText)
         }
         .padding(15)
         .background(Color.liftCard)
@@ -1158,6 +1322,7 @@ struct OnboardingView: View {
             RoundedRectangle(cornerRadius: 15, style: .continuous)
                 .stroke(Color.white.opacity(0.06), lineWidth: 1)
         }
+        .simultaneousGesture(TapGesture().onEnded { dismissKeyboard() })
     }
 }
 

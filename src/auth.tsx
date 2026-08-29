@@ -51,7 +51,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
       const { error } = await supabase.auth.signUp({ email, password, options: { data: { display_name: displayName, handle: handle.startsWith("@") ? handle : `@${handle}` } } });
       return error ? error.message : null;
     },
-    async signOut() { if (supabase) await supabase.auth.signOut({ scope: "local" }); else if (authDemoMode) setUser(null); },
+    async signOut() {
+      if (supabase) await supabase.auth.signOut({ scope: "local" });
+      if (supabase || authDemoMode) { setSession(null); setUser(null); }
+    },
     async requestPasswordReset(email) {
       if (!supabase) return "Authentication is not configured.";
       const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}${window.location.pathname}#/reset-password` });

@@ -232,6 +232,7 @@ struct EditProfileView: View {
     @State private var activeSelector: EditProfileSelector?
     @State private var selectedGymID: UUID?
     @State private var privacy = ProfilePrivacySettings()
+    @State private var showingUsernameChangeConfirmation = false
     private var ageGroups: [String] {
         MockData.standardAgeGroups.contains(draft.ageGroup)
             ? MockData.standardAgeGroups
@@ -337,8 +338,8 @@ struct EditProfileView: View {
                                 Text(ageGroup).tag(ageGroup)
                             }
                         }
-                        Picker("Division", selection: $draft.sexCategory) {
-                            ForEach(SexCategory.allCases.filter { $0 != .open }) { Text($0.rawValue).tag($0) }
+                        Picker("Gender", selection: $draft.sexCategory) {
+                            ForEach(SexCategory.allCases) { Text($0.rawValue).tag($0) }
                         }
                         LabeledContent("Experience") {
                             VStack(alignment: .trailing, spacing: 2) {
@@ -419,7 +420,15 @@ struct EditProfileView: View {
                 draft = appState.currentProfile
             }) {
                 ProfilePhotoManagerView()
-                    .environmentObject(appState)
+                .environmentObject(appState)
+            }
+            .alert("Change username?", isPresented: $showingUsernameChangeConfirmation) {
+                Button("Cancel", role: .cancel) {}
+                Button("Change username and save", role: .destructive) {
+                    saveDraft(allowUsernameChange: true)
+                }
+            } message: {
+                Text("This changes the username shown on your profile. Other profile and settings saves will not change it.")
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -427,17 +436,36 @@ struct EditProfileView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        var outgoingDraft = draft
-                        outgoingDraft.experienceLevel = appState.earnedExperienceLevel
-                        outgoingDraft.hideLiftVideos = !privacy.showLiftVideos
-                        Task {
-                            if await appState.saveEditedProfile(outgoingDraft, primaryGym: selectedGym, privacy: privacy) {
-                                dismiss()
-                            }
+                        let requested = draft.username
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                            .lowercased()
+                        let current = appState.currentProfile.username
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                            .lowercased()
+                        if requested != current {
+                            showingUsernameChangeConfirmation = true
+                        } else {
+                            saveDraft(allowUsernameChange: false)
                         }
                     }
                     .disabled(appState.accountOperationInProgress)
                 }
+            }
+        }
+    }
+
+    private func saveDraft(allowUsernameChange: Bool) {
+        var outgoingDraft = draft
+        outgoingDraft.experienceLevel = appState.earnedExperienceLevel
+        outgoingDraft.hideLiftVideos = !privacy.showLiftVideos
+        Task {
+            if await appState.saveEditedProfile(
+                outgoingDraft,
+                primaryGym: selectedGym,
+                privacy: privacy,
+                allowUsernameChange: allowUsernameChange
+            ) {
+                dismiss()
             }
         }
     }

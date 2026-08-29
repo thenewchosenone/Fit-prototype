@@ -23,7 +23,8 @@ protocol ProfileService {
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile
     func authenticatedProfile() async throws -> AuthenticatedProfile
     func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile
-    func claimUsername(_ username: String) async throws -> String
+    func saveTrainingGoals(_ goalIDs: [String]) async throws
+    func changeUsername(currentUsername: String, newUsername: String) async throws -> String
     func profileCard(userID: UUID) async throws -> PublicProfileCard
     func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String
     func downloadProfileAvatar(avatarPath: String) async throws -> ProfileAvatarDownload?

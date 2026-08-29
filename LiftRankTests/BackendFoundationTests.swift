@@ -840,7 +840,8 @@ final class BackendFoundationTests: XCTestCase {
             edited,
             primaryGym: gym,
             privacy: privacy,
-            authenticated: true
+            authenticated: true,
+            allowUsernameChange: true
         )
 
         XCTAssertEqual(saved.id, userID)
@@ -1153,6 +1154,8 @@ final class BackendFoundationTests: XCTestCase {
         )
 
         XCTAssertEqual(saved.displayName, "Updated Lifter")
+        XCTAssertEqual(saved.username, "remote_lifter")
+        XCTAssertEqual(service.usernameChangeCount, 0)
         XCTAssertEqual(saved.primaryGymID, originalGymID)
         XCTAssertEqual(saved.primaryGymName, originalGymName)
         XCTAssertEqual(saved.city, "Miami")
@@ -1189,6 +1192,7 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(store.currentProfile.bio, loaded.bio)
 
         let cityID = UUID()
+        _ = try await store.changeAuthenticatedUsername("ready_lifter", retainingDemoProfiles: false)
         let saved = try await store.saveAuthenticatedProfile(ProfileDraft(
             username: "ready_lifter",
             displayName: "Ready Lifter",
@@ -1467,6 +1471,13 @@ final class BackendFoundationTests: XCTestCase {
             "LIFTRANK_SUPABASE_URL": "https://example.supabase.co",
             "LIFTRANK_SUPABASE_ANON_KEY": "public-key"
         ]))
+    }
+
+    func testPasswordRecoveryCallbackKeepsRecoveryMarker() {
+        XCTAssertEqual(
+            SupabaseConfiguration.passwordRecoveryCallbackURL.absoluteString,
+            "liftrank://auth-callback?type=recovery"
+        )
     }
 
     func testSupabaseProfileMapperDoesNotInheritSeededDemoIdentity() {
@@ -2074,7 +2085,7 @@ final class BackendFoundationTests: XCTestCase {
     func testUsernameValidationRejectsAtSymbol() async {
         let service = MockProfileService(repository: DemoRepository())
         do {
-            _ = try await service.claimUsername("@Not Valid")
+            _ = try await service.changeUsername(currentUsername: "current", newUsername: "@Not Valid")
             XCTFail("Expected validation failure")
         } catch {
             XCTAssertEqual(error as? LiftRankServiceError, .invalidInput("Use 3–24 lowercase letters, numbers, or underscores."))
@@ -2882,6 +2893,7 @@ private final class TestProfileService: ProfileService {
     var avatarDownload: ProfileAvatarDownload?
     var uploadedAvatarReturnPath: String?
     private(set) var saveProfileCount = 0
+    private(set) var usernameChangeCount = 0
     private(set) var updateProfileCount = 0
     private(set) var uploadedAvatarPaths: [String] = []
     private(set) var downloadedAvatarPaths: [String] = []
@@ -2916,7 +2928,6 @@ private final class TestProfileService: ProfileService {
     func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile {
         saveProfileCount += 1
         lastSavedProfileDraft = draft
-        profile.username = draft.username
         profile.displayName = draft.displayName
         profile.bio = draft.bio
         profile.preferredUnit = draft.preferredUnit
@@ -2938,14 +2949,26 @@ private final class TestProfileService: ProfileService {
         }
         return profile
     }
-    func claimUsername(_ username: String) async throws -> String { username }
+    func changeUsername(currentUsername: String, newUsername: String) async throws -> String {
+        usernameChangeCount += 1
+        guard profile.username.caseInsensitiveCompare(currentUsername) == .orderedSame else {
+            throw LiftRankServiceError.sessionExpired
+        }
+        let normalized = newUsername.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "@"))
+        guard normalized.range(of: "^[a-z0-9_]{3,24}$", options: .regularExpression) != nil else {
+            throw LiftRankServiceError.invalidInput("Use 3–24 lowercase letters, numbers, or underscores.")
+        }
+        profile.username = normalized
+        return normalized
+    }
     func profileCard(userID: UUID) async throws -> PublicProfileCard {
         PublicProfileCard(id: userID, username: profile.username, displayName: profile.displayName, bio: profile.bio, avatarPath: nil, ageBand: nil, sexCategory: profile.sexCategory, city: nil, region: nil, countryCode: nil, primaryGymID: nil, primaryGymName: nil)
     }
     func currentProfile() async throws -> UserProfile { MockData.demoProfile }
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {
         updateProfileCount += 1
-        self.profile.username = profile.username
+        var savedProfile = profile
+        savedProfile.username = self.profile.username
         self.profile.displayName = profile.displayName
         self.profile.avatarPath = profile.avatarPath
         self.profile.preferredUnit = profile.preferredUnit
@@ -2958,7 +2981,7 @@ private final class TestProfileService: ProfileService {
         self.profile.yearsExperience = profile.yearsExperience
         self.profile.experienceLevel = profile.experienceLevel
         self.profile.privacy.bodyweightAudience = profile.hideBodyweight ? .privateProfile : .publicProfile
-        return profile
+        return savedProfile
     }
     func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String {
         uploadedAvatarPaths.append(avatarPath)

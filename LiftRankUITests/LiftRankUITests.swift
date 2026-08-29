@@ -1145,13 +1145,35 @@ final class LiftRankUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Build your lifter profile."].waitForExistence(timeout: 5))
         XCTAssertEqual(app.textFields["Username"].value as? String, "launch_lifter")
-        app.buttons["Save Profile"].tap()
+        app.buttons["Continue"].tap()
         XCTAssertTrue(app.staticTexts["What are your best lifts?"].waitForExistence(timeout: 5))
         app.buttons["I’ll add my lifts later"].tap()
 
         XCTAssertTrue(app.staticTexts["You’re ready to compete."].waitForExistence(timeout: 5))
         app.buttons["Enter Lift Rivals"].tap()
         XCTAssertTrue(app.staticTexts["Before you compete"].waitForExistence(timeout: 8))
+    }
+
+    func testOnboardingYearsTrainingControlChangesValue() {
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTestingOnboarding", "-uiTestingPrefilledOnboarding"]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["Build My Lift Rivals"].waitForExistence(timeout: 8))
+        app.buttons["Build My Lift Rivals"].tap()
+        app.buttons["Continue"].tap()
+
+        let increment = app.buttons["onboarding.yearsTraining.increment"]
+        var attempts = 0
+        while !increment.isHittable && attempts < 8 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(increment.waitForExistence(timeout: 5))
+        let value = app.staticTexts["onboarding.yearsTraining.value"]
+        XCTAssertEqual(value.label, "0")
+        increment.tap()
+        XCTAssertEqual(value.label, "1")
     }
 
     func testUnauthenticatedRoutingDoesNotExposeDemoEntryInReleaseContract() {

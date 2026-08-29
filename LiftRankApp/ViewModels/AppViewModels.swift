@@ -525,9 +525,18 @@ final class AppState: ObservableObject {
         }
     }
 
-    func saveAuthenticatedProfile(_ draft: ProfileDraft) async throws {
+    func saveAuthenticatedProfile(
+        _ draft: ProfileDraft,
+        allowUsernameChange: Bool = false
+    ) async throws {
         guard CommunityContentPolicy.allows(draft.username, draft.displayName, draft.bio) else {
             throw LiftRankServiceError.invalidInput(CommunityContentPolicy.rejectionMessage)
+        }
+        if allowUsernameChange {
+            _ = try await profileStore.changeAuthenticatedUsername(
+                draft.username,
+                retainingDemoProfiles: sessionStore.usesDemoAuthenticationService
+            )
         }
         var uploadReadyDraft = draft
         uploadReadyDraft.avatarPath = try await uploadProfilePhotoIfNeeded(avatarPath: draft.avatarPath)
@@ -543,6 +552,10 @@ final class AppState: ObservableObject {
             accountStatus = .needsOnboarding
         }
         await refreshRemoteSocialState()
+    }
+
+    func saveTrainingGoals(_ goalIDs: [String]) async throws {
+        try await serviceContainer.profile.saveTrainingGoals(goalIDs)
     }
 
     func searchCities(countryCode: String, region: String, query: String, limit: Int = 8) async -> [LocationCitySuggestion] {

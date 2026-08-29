@@ -40,6 +40,25 @@ final class ProfileStore: ObservableObject {
         return remote
     }
 
+    func changeAuthenticatedUsername(
+        _ username: String,
+        retainingDemoProfiles: Bool
+    ) async throws -> AuthenticatedProfile {
+        guard let profileService else { throw LiftRankServiceError.configurationMissing }
+        let expectedUserID = repository.currentProfile.id
+        let existing = try await profileService.authenticatedProfile()
+        guard existing.id == expectedUserID else { throw LiftRankServiceError.sessionExpired }
+        _ = try await profileService.changeUsername(
+            currentUsername: existing.username,
+            newUsername: username
+        )
+        let remote = try await profileService.authenticatedProfile()
+        guard repository.currentProfile.id == expectedUserID,
+              remote.id == expectedUserID else { throw LiftRankServiceError.sessionExpired }
+        applyAuthenticatedProfile(remote, retainingDemoProfiles: retainingDemoProfiles)
+        return remote
+    }
+
     var currentProfile: UserProfile { repository.currentProfile }
     var profiles: [UserProfile] { repository.profiles }
     var gyms: [Gym] { repository.gyms }
@@ -96,18 +115,28 @@ final class ProfileStore: ObservableObject {
         _ profile: UserProfile,
         primaryGym: Gym?,
         privacy: ProfilePrivacySettings,
-        authenticated: Bool
+        authenticated: Bool,
+        allowUsernameChange: Bool = false
     ) async throws -> UserProfile {
         guard let profileService else { throw LiftRankServiceError.configurationMissing }
         let expectedUserID = repository.currentProfile.id
         guard profile.id == expectedUserID else { throw LiftRankServiceError.sessionExpired }
         var saved: UserProfile
+        var profileToSave = profile
         if authenticated {
             let existing = try await profileService.authenticatedProfile()
             guard repository.currentProfile.id == expectedUserID,
                   existing.id == expectedUserID else { throw LiftRankServiceError.sessionExpired }
+            if allowUsernameChange {
+                _ = try await profileService.changeUsername(
+                    currentUsername: existing.username,
+                    newUsername: profile.username
+                )
+            } else {
+                profileToSave.username = existing.username
+            }
             let remote = try await profileService.saveProfile(ProfileDraft(
-                username: profile.username,
+                username: profileToSave.username,
                 displayName: profile.displayName,
                 bio: profile.bio ?? existing.bio,
                 avatarPath: profile.avatarPath,
@@ -133,7 +162,15 @@ final class ProfileStore: ObservableObject {
             applyAuthenticatedProfile(remote, retainingDemoProfiles: false)
             saved = currentProfile
         } else {
-            saved = try await profileService.updateProfile(profile)
+            if allowUsernameChange {
+                _ = try await profileService.changeUsername(
+                    currentUsername: repository.currentProfile.username,
+                    newUsername: profile.username
+                )
+            } else {
+                profileToSave.username = repository.currentProfile.username
+            }
+            saved = try await profileService.updateProfile(profileToSave)
             guard repository.currentProfile.id == expectedUserID,
                   saved.id == expectedUserID else { throw LiftRankServiceError.sessionExpired }
         }
@@ -183,7 +220,7 @@ final class ProfileStore: ObservableObject {
         local.displayName = remote.displayName
         local.bio = remote.bio
         local.preferredUnit = remote.preferredUnit
-        local.sexCategory = remote.sexCategory ?? .open
+        local.sexCategory = remote.sexCategory ?? .male
         local.heightInches = (remote.heightCentimeters ?? 0) / 2.54
         local.bodyweightPounds = remote.bodyweightPounds ?? 0
         local.city = remote.city ?? ""
@@ -250,7 +287,7 @@ final class ProfileStore: ObservableObject {
         profile.displayName = card.displayName
         profile.bio = card.bio
         profile.ageGroup = card.ageBand ?? "Hidden"
-        profile.sexCategory = card.sexCategory ?? .open
+        profile.sexCategory = card.sexCategory ?? .male
         profile.city = card.city ?? ""
         profile.state = card.region ?? ""
         profile.primaryGymID = card.primaryGymID ?? UUID()

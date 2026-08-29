@@ -573,8 +573,7 @@ struct LeaderboardFiltersView: View {
                     appState.leaderboardFilters.weightClassID = nil
                 }
             }
-            if let sex = appState.leaderboardFilters.sexCategory,
-               sex != .open {
+            if let sex = appState.leaderboardFilters.sexCategory {
                 weightClassGroup(sex.rawValue, classes: WeightClassCatalog.all.filter { $0.sexCategory == sex })
             } else {
                 weightClassGroup("Men", classes: WeightClassCatalog.male)

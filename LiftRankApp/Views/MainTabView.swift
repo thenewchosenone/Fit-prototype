@@ -1526,27 +1526,97 @@ struct AuthenticationView: View {
         }
         .sheet(isPresented: $showingReset) {
             NavigationStack {
-                Form {
-                    TextField("Account email", text: $email)
-                        .textContentType(.emailAddress)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                    Text("For privacy, Lift Rivals gives the same response whether or not an account exists.")
-                        .font(.caption)
-                    Button("Send reset instructions") {
-                        Task {
-                            await appState.requestPasswordReset(email: email)
-                            showingReset = false
+                AppBackground {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 18) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Image(systemName: "lock.rotation")
+                                    .font(.system(size: 30, weight: .bold))
+                                    .foregroundStyle(Color.liftLime)
+                                Text("Get back into your account")
+                                    .font(.title2.weight(.black))
+                                Text("We’ll send a secure recovery link to the email connected to your Lift Rivals account.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.liftMuted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            LiftCard(padding: 15, radius: 18) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Account email")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(Color.liftMuted)
+                                    TextField("you@example.com", text: $email)
+                                        .textContentType(.emailAddress)
+                                        .keyboardType(.emailAddress)
+                                        .textInputAutocapitalization(.never)
+                                        .autocorrectionDisabled()
+                                        .padding(.horizontal, 13)
+                                        .frame(minHeight: 50)
+                                        .background(Color.liftField)
+                                        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                                }
+                            }
+
+                            VStack(alignment: .leading, spacing: 9) {
+                                Label("What happens next", systemImage: "list.number")
+                                    .font(.subheadline.weight(.bold))
+                                resetStep("1", "Open the newest email from Lift Rivals.")
+                                resetStep("2", "Tap the recovery link to return to the app.")
+                                resetStep("3", "Choose and confirm your new password.")
+                            }
+                            .padding(15)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.liftLime.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .stroke(Color.liftLime.opacity(0.22), lineWidth: 1)
+                            }
+
+                            PrimaryButton(
+                                title: appState.accountOperationInProgress ? "Sending…" : "Send reset instructions",
+                                symbolName: "paperplane.fill"
+                            ) {
+                                Task {
+                                    await appState.requestPasswordReset(email: email.trimmingCharacters(in: .whitespacesAndNewlines))
+                                    showingReset = false
+                                }
+                            }
+                            .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || appState.accountOperationInProgress)
+
+                            Text("For privacy, Lift Rivals gives the same response whether or not an account exists. Check spam if the email does not arrive within a few minutes.")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity)
                         }
+                        .padding(.horizontal, 22)
+                        .padding(.vertical, 22)
                     }
-                    .disabled(email.isEmpty || appState.accountOperationInProgress)
                 }
-                .navigationTitle("Reset Password")
+                .navigationTitle("Reset access")
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showingReset = false } }
                 }
             }
-            .presentationDetents([.medium])
+            .presentationDetents([.medium, .large])
+        }
+    }
+
+    private func resetStep(_ number: String, _ text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(number)
+                .font(.caption.weight(.black))
+                .foregroundStyle(Color.liftOnAccent)
+                .frame(width: 22, height: 22)
+                .background(Color.liftLime)
+                .clipShape(Circle())
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(Color.liftMuted)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -1585,33 +1655,167 @@ struct PasswordUpdateView: View {
     @EnvironmentObject private var appState: AppState
     @State private var password = ""
     @State private var confirmation = ""
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable {
+        case password
+        case confirmation
+    }
+
+    private var hasMinimumLength: Bool { password.count >= 10 }
+    private var passwordsMatch: Bool { !confirmation.isEmpty && password == confirmation }
+    private var canSubmit: Bool { hasMinimumLength && passwordsMatch }
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    SecureField("New password", text: $password)
-                        .textContentType(.newPassword)
-                    SecureField("Confirm password", text: $confirmation)
-                        .textContentType(.newPassword)
-                } footer: {
-                    Text("Use at least 10 characters.")
+            AppBackground {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.liftLime.opacity(0.15))
+                                    .frame(width: 58, height: 58)
+                                Image(systemName: "lock.rotation")
+                                    .font(.system(size: 25, weight: .bold))
+                                    .foregroundStyle(Color.liftLime)
+                            }
+
+                            Text("Choose a new password")
+                                .font(.system(size: 30, weight: .black, design: .rounded))
+                            Text("Your recovery link is verified. Set a new password to secure your Lift Rivals account.")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.liftMuted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        LiftCard(padding: 15, radius: 18) {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label("Password recovery", systemImage: "checkmark.shield.fill")
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(Color.liftLime)
+                                Text("This password will replace your old password. Use one you do not reuse on another site.")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.liftMuted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 13) {
+                            secureInput(
+                                label: "New password",
+                                placeholder: "Enter a new password",
+                                text: $password,
+                                field: .password
+                            )
+                            secureInput(
+                                label: "Confirm new password",
+                                placeholder: "Enter it again",
+                                text: $confirmation,
+                                field: .confirmation
+                            )
+                        }
+
+                        LiftCard(padding: 15, radius: 18) {
+                            VStack(alignment: .leading, spacing: 11) {
+                                Text("Password requirements")
+                                    .font(.subheadline.weight(.bold))
+                                requirementRow(
+                                    "At least 10 characters",
+                                    isSatisfied: hasMinimumLength,
+                                    isError: !password.isEmpty && !hasMinimumLength
+                                )
+                                requirementRow(
+                                    confirmation.isEmpty ? "Confirm your password" : passwordsMatch ? "Passwords match" : "Passwords do not match",
+                                    isSatisfied: passwordsMatch,
+                                    isError: !confirmation.isEmpty && !passwordsMatch
+                                )
+                            }
+                        }
+
+                        if let message = appState.accountMessage {
+                            Label {
+                                Text(message)
+                                    .font(.subheadline)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            } icon: {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                            }
+                            .foregroundStyle(Color.liftRed)
+                            .padding(14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.liftRed.opacity(0.10))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+
+                        PrimaryButton(
+                            title: appState.accountOperationInProgress ? "Updating…" : "Update password",
+                            symbolName: appState.accountOperationInProgress ? "arrow.triangle.2.circlepath" : "checkmark.shield.fill"
+                        ) {
+                            Task { await appState.updatePassword(password) }
+                        }
+                        .disabled(appState.accountOperationInProgress || !canSubmit)
+                        .accessibilityIdentifier("authentication.password.update")
+
+                        Text("If this link expires or stops working, request a new reset email from the sign-in screen.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 24)
                 }
-                if let message = appState.accountMessage {
-                    Text(message).foregroundStyle(Color.liftMuted)
-                }
-                Button(appState.accountOperationInProgress ? "Updating…" : "Update password") {
-                    Task { await appState.updatePassword(password) }
-                }
-                .disabled(
-                    appState.accountOperationInProgress ||
-                    password.count < 10 ||
-                    password != confirmation
-                )
             }
-            .navigationTitle("Choose New Password")
+            .navigationTitle("Account recovery")
+            .navigationBarTitleDisplayMode(.inline)
         }
         .interactiveDismissDisabled()
+    }
+
+    private func secureInput(
+        label: String,
+        placeholder: String,
+        text: Binding<String>,
+        field: Field
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(label)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.liftMuted)
+            HStack(spacing: 10) {
+                Image(systemName: "lock.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.liftMuted)
+                    .frame(width: 20)
+                SecureField(placeholder, text: text)
+                    .textContentType(.newPassword)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($focusedField, equals: field)
+                    .submitLabel(field == .password ? .next : .done)
+                    .onSubmit {
+                        if field == .password { focusedField = .confirmation }
+                    }
+            }
+            .padding(.horizontal, 14)
+            .frame(minHeight: 52)
+            .background(Color.liftField)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(focusedField == field ? Color.liftLime.opacity(0.75) : Color.clear, lineWidth: 1.5)
+            }
+        }
+        .onChange(of: text.wrappedValue) { _, _ in
+            if appState.accountMessage != nil { appState.accountMessage = nil }
+        }
+    }
+
+    private func requirementRow(_ title: String, isSatisfied: Bool, isError: Bool) -> some View {
+        Label(title, systemImage: isSatisfied ? "checkmark.circle.fill" : isError ? "xmark.circle.fill" : "circle")
+            .font(.caption)
+            .foregroundStyle(isSatisfied ? Color.liftLime : isError ? Color.liftRed : Color.liftMuted)
     }
 }
 

@@ -213,7 +213,7 @@ enum MockData {
         username: "",
         displayName: "",
         ageGroup: "",
-        sexCategory: .open,
+        sexCategory: .male,
         heightInches: 0,
         bodyweightPounds: 0,
         preferredUnit: .pounds,
