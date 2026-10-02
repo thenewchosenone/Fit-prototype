@@ -73,6 +73,10 @@ extension AppState {
         await competitionStore.refreshLeaderboard()
     }
 
+    func onboardingLeaderboardPreview(filters: LeaderboardFilters) async -> [LeaderboardEntry] {
+        await competitionStore.previewLeaderboardEntries(filters: filters)
+    }
+
     func refreshCurrentUserTotalRanking() async {
         guard isAuthenticated, !isDemoMode else { return }
         await competitionStore.refreshCurrentUserTotalEntry()

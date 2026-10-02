@@ -403,6 +403,24 @@ final class LiftRankUITests: XCTestCase {
         )
     }
 
+    func testPublicProfileUsesStrengthRecordSectionsAndKeepsAccountControlsSeparate() {
+        let app = launchDemo()
+        XCTAssertTrue(tab("profile", in: app).waitForExistence(timeout: 8))
+        tab("profile", in: app).tap()
+
+        let publicProfile = app.descendants(matching: .any)["me.publicProfile"]
+        XCTAssertTrue(publicProfile.waitForExistence(timeout: 5))
+        publicProfile.tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)["profile.sectionNavigation"].waitForExistence(timeout: 5))
+        for section in ["overview", "prVideos", "training", "history", "submissions"] {
+            XCTAssertTrue(app.buttons["profile.section.\(section)"].waitForExistence(timeout: 5))
+        }
+        XCTAssertTrue(app.descendants(matching: .any)["profile.prVideos"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["profile.trainingHistory"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Delete account"].exists)
+    }
+
     func testMePublicProfileNavigationDoesNotFreezeOnRepeatedOpen() {
         let app = launchDemo()
         XCTAssertTrue(tab("profile", in: app).waitForExistence(timeout: 8))

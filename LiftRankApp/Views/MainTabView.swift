@@ -34,7 +34,7 @@ struct MainTabView: View {
         }
         .toolbar(.hidden, for: .tabBar)
         .toolbarBackground(.hidden, for: .tabBar)
-        .tint(Color.liftLime)
+        .tint(Color.liftAccentText)
         .sheet(item: $router.sheet) { destination in
             appSheet(destination)
         }
@@ -62,6 +62,8 @@ struct MainTabView: View {
             NavigationStack(path: $mePath) {
                 meTabContent
             }
+        case .forum:
+            NavigationStack { ForumView().environmentObject(appState) }
         }
     }
 
@@ -92,6 +94,9 @@ struct MainTabView: View {
         ]
 
         items.append(.init(tab: .profile, icon: "person.crop.circle.fill", title: "Me", isUtility: false))
+        if appState.features.forum {
+            items.insert(.init(tab: .forum, icon: "bubble.left.and.bubble.right.fill", title: "Forum", isUtility: false), at: items.count - 1)
+        }
 
         let middle = items.count / 2
         items.insert(.init(tab: nil, icon: "plus", title: "Quick log", isUtility: true), at: middle)
@@ -126,6 +131,214 @@ struct MainTabView: View {
             NavigationStack { GymDetailView(gym: gym) }.environmentObject(appState)
         }
     }
+}
+
+private struct ForumView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var groups: [ForumCommunity] = []
+    @State private var posts: [ForumPost] = []
+    @State private var selectedGroupID: UUID?
+    @State private var joinedGroupIDs: Set<UUID> = []
+    @State private var showingComposer = false
+    @State private var showingModeration = false
+    @State private var isLoading = true
+    @State private var message: String?
+
+    var body: some View {
+        AppBackground {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    ScreenContainer {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("LIFT RIVALS FORUM").font(.caption.weight(.bold)).tracking(1.5).foregroundStyle(Color.liftAccentText)
+                            Text(selectedGroup?.name ?? "Training discussions").font(.largeTitle.bold())
+                            Text(selectedGroup?.details ?? "Focused conversations for programming, form, meet preparation, gyms, and competition context.").foregroundStyle(Color.liftTextSecondary)
+                            HStack {
+                                if let group = selectedGroup {
+                                    Button(joinedGroupIDs.contains(group.id) ? "Leave group" : "Join group") {
+                                        Task { await toggleMembership(group) }
+                                    }.buttonStyle(.bordered)
+                                }
+                                Button("New discussion") { showingComposer = true }.buttonStyle(.borderedProminent).tint(Color.liftLime)
+                            }.padding(.top, 4)
+                        }
+                    }
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            forumChip(title: "All groups", id: nil)
+                            ForEach(groups) { group in forumChip(title: group.name, id: group.id) }
+                        }.padding(.horizontal, 16)
+                    }
+                    if isLoading { ProgressView().frame(maxWidth: .infinity).padding(40) }
+                    else if let message { Text(message).foregroundStyle(Color.liftTextSecondary).padding(.horizontal, 16) }
+                    else if posts.isEmpty { LiftEmptyState(title: "No discussions yet", message: "Start the first useful conversation for this training group.") }
+                    else { ForEach(posts) { post in ForumPostCard(post: post).environmentObject(appState) } }
+                }.padding(.vertical, 16)
+            }
+        }
+        .navigationTitle("Forum")
+        .sheet(isPresented: $showingComposer) { ForumComposerView(groups: groups, selectedGroupID: selectedGroupID) { await loadPosts() }.environmentObject(appState) }
+        .sheet(isPresented: $showingModeration) { ForumModerationView().environmentObject(appState) }
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Moderation") { showingModeration = true } } }
+        .task { await load() }
+    }
+
+    private var selectedGroup: ForumCommunity? { groups.first { $0.id == selectedGroupID } }
+
+    private func forumChip(title: String, id: UUID?) -> some View {
+        Button(title) { selectedGroupID = id; Task { await loadPosts() } }
+            .font(.subheadline.weight(.semibold)).foregroundStyle(selectedGroupID == id ? Color.liftOnAccent : Color.liftText)
+            .padding(.horizontal, 14).padding(.vertical, 9)
+            .background(selectedGroupID == id ? Color.liftLime : Color.liftSurfaceElevated, in: Capsule())
+    }
+
+    private func load() async {
+        do { groups = try await appState.serviceContainer.forum.communities(); await loadPosts() }
+        catch { message = error.localizedDescription; isLoading = false }
+    }
+
+    private func loadPosts() async {
+        do { posts = try await appState.serviceContainer.forum.posts(communityID: selectedGroupID, limit: 50); isLoading = false }
+        catch { message = error.localizedDescription; isLoading = false }
+    }
+
+    private func toggleMembership(_ group: ForumCommunity) async {
+        do {
+            if joinedGroupIDs.contains(group.id) { try await appState.serviceContainer.forum.leave(communityID: group.id); joinedGroupIDs.remove(group.id) }
+            else { _ = try await appState.serviceContainer.forum.join(communityID: group.id, requestNote: ""); joinedGroupIDs.insert(group.id) }
+        } catch { message = error.localizedDescription }
+    }
+}
+
+private struct ForumComposerView: View {
+    @EnvironmentObject private var appState: AppState
+    let groups: [ForumCommunity]
+    let selectedGroupID: UUID?
+    let didPublish: () async -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var groupID: UUID?
+    @State private var title = ""
+    @State private var draftBody = ""
+    @State private var error: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Training group") {
+                    Picker("Group", selection: $groupID) {
+                        Text("Choose a group").tag(UUID?.none)
+                        ForEach(groups) { group in Text(group.name).tag(Optional(group.id)) }
+                    }
+                }
+                Section("Discussion") {
+                    TextField("Title", text: $title)
+                    TextField("Share the training context", text: $draftBody, axis: .vertical).lineLimit(5...12)
+                }
+                if let error { Text(error).foregroundStyle(.red) }
+            }
+            .navigationTitle("New discussion")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Publish") { Task { await publish() } }.disabled(groupID == nil || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || draftBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
+            }
+            .onAppear { groupID = selectedGroupID ?? groups.first?.id }
+        }
+    }
+
+    private func publish() async {
+        guard let groupID else { return }
+        do {
+            _ = try await appState.serviceContainer.forum.createPost(ForumPostDraft(communityID: groupID, kind: "Discussion", title: title, body: draftBody, tag: nil, liftID: nil))
+            await didPublish()
+            dismiss()
+        } catch let publishError { error = publishError.localizedDescription }
+    }
+}
+
+private struct ForumPostCard: View {
+    @EnvironmentObject private var appState: AppState
+    let post: ForumPost
+    @State private var isVoting = false
+
+    var body: some View {
+        NavigationLink {
+            ForumThreadView(postID: post.id).environmentObject(appState)
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack { Text(post.kind).font(.caption.weight(.bold)).foregroundStyle(Color.liftAccentText); Spacer(); Text(post.createdAt, style: .date).font(.caption).foregroundStyle(Color.liftTextSecondary) }
+                Text(post.title).font(.headline).foregroundStyle(Color.liftText)
+                Text(post.body).font(.subheadline).foregroundStyle(Color.liftTextSecondary).lineLimit(3)
+                HStack { Text("Open discussion"); Spacer(); if post.isPinned { Text("Pinned") } }
+                    .font(.caption.weight(.semibold)).foregroundStyle(Color.liftAccentText)
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(16)
+                .background(Color.liftSurfaceElevated, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }.buttonStyle(.plain).padding(.horizontal, 16)
+    }
+}
+
+private struct ForumThreadView: View {
+    @EnvironmentObject private var appState: AppState
+    let postID: UUID
+    @State private var thread: ForumThread?
+    @State private var reply = ""
+    @State private var error: String?
+    @State private var isWatching = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                if let thread {
+                    Text(thread.post.title).font(.title.bold())
+                    Text(thread.post.body).foregroundStyle(Color.liftTextSecondary)
+                    HStack { Button("Helpful") { Task { try? await appState.serviceContainer.forum.vote(postID: postID, value: 1) } }; Button(isWatching ? "Watching" : "Watch") { Task { do { try await appState.serviceContainer.forum.watch(postID: postID, watched: !isWatching); isWatching.toggle() } catch let watchError { error = watchError.localizedDescription } } }; Spacer(); Text("\(thread.comments.count) replies").foregroundStyle(Color.liftTextSecondary) }
+                    ForEach(thread.comments) { comment in
+                        Text(comment.body).frame(maxWidth: .infinity, alignment: .leading).padding(14).background(Color.liftSurfaceElevated, in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    TextField("Reply with useful training context", text: $reply, axis: .vertical).lineLimit(3...8).textFieldStyle(.roundedBorder)
+                    Button("Post reply") { Task { await submitReply() } }.buttonStyle(.borderedProminent).tint(Color.liftLime)
+                } else { ProgressView() }
+                if let error { Text(error).foregroundStyle(.red) }
+            }.padding(16)
+        }.navigationTitle("Discussion").task { await load() }
+    }
+
+    private func load() async { do { thread = try await appState.serviceContainer.forum.thread(postID: postID) } catch let loadError { error = loadError.localizedDescription } }
+    private func submitReply() async { do { _ = try await appState.serviceContainer.forum.createComment(postID: postID, body: reply, parentCommentID: nil); reply = ""; await load() } catch let submitError { error = submitError.localizedDescription } }
+}
+
+private struct ForumModerationView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    @State private var reports: [ForumReport] = []
+    @State private var error: String?
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if let error { Text(error).foregroundStyle(.red) }
+                ForEach(reports) { report in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Reported \(report.targetType)").font(.headline)
+                        Text(report.reason).font(.caption.weight(.bold)).foregroundStyle(Color.liftAccentText)
+                        if !report.note.isEmpty { Text(report.note).font(.subheadline).foregroundStyle(Color.liftTextSecondary) }
+                        if report.targetType == "post" {
+                            HStack {
+                                Button("Remove") { Task { await moderate(report, action: "Removed") } }
+                                Button("Lock") { Task { await moderate(report, action: "Locked") } }
+                            }.buttonStyle(.bordered)
+                        }
+                    }.padding(.vertical, 6)
+                }
+                if reports.isEmpty && error == nil { Text("No open reports.").foregroundStyle(Color.liftTextSecondary) }
+            }
+            .navigationTitle("Moderation")
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
+            .task { await load() }
+        }
+    }
+
+    private func load() async { do { reports = try await appState.serviceContainer.forum.reports() } catch let loadError { error = loadError.localizedDescription } }
+    private func moderate(_ report: ForumReport, action: String) async { do { try await appState.serviceContainer.forum.moderate(postID: report.targetID, action: action, reason: report.note); await load() } catch let moderationError { error = moderationError.localizedDescription } }
 }
 
 private enum MeRecentVolumeSelection: String, CaseIterable {
@@ -200,7 +413,7 @@ private struct MeHubContentView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         }
                         .buttonStyle(.plain)
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                         .accessibilityIdentifier("me.publicProfile")
                     }
                     .padding(12)
@@ -251,7 +464,7 @@ private struct MeHubContentView: View {
                             topLiftCard("Bench", lift: bestStrengthLifts["bench"], preferredUnit: preferredUnit, suffix: "", compact: true)
                             topLiftCard("Squat", lift: bestStrengthLifts["squat"], preferredUnit: preferredUnit, suffix: "", compact: true)
                             topLiftCard("Deadlift", lift: bestStrengthLifts["deadlift"], preferredUnit: preferredUnit, suffix: "", compact: true)
-                            topLiftCard("Total strength", value: appState.powerliftingTotal, preferredUnit: preferredUnit, suffix: "total", compact: true)
+                            topLiftCard("Total strength", value: RankingCalculator.poundsToKilograms(appState.powerliftingTotal), preferredUnit: preferredUnit, suffix: "total", compact: true)
                         }
                     } else {
                         VStack(spacing: 10) {
@@ -269,7 +482,7 @@ private struct MeHubContentView: View {
                                 .padding(10)
                                 .frame(maxWidth: .infinity)
                                 .background(Color.liftBlue.opacity(0.15))
-                                .foregroundStyle(Color.liftBlue)
+                                .foregroundStyle(Color.liftAccentText)
                                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                             }
                             .buttonStyle(.plain)
@@ -622,7 +835,7 @@ private struct MeTrainingInsightsView: View {
                         Text(selection.rawValue.uppercased())
                             .font(.system(size: 10, weight: .black, design: .rounded))
                             .tracking(0.8)
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                             .padding(.horizontal, 10)
                             .frame(height: 28)
                             .background(Color.liftBlue.opacity(0.12))
@@ -635,7 +848,7 @@ private struct MeTrainingInsightsView: View {
                 if recentLifts.isEmpty {
                     Text("No recent lifts yet. Log lifts to build your performance feed.")
                         .font(.caption)
-                        .foregroundStyle(Color.liftMuted)
+                        .foregroundStyle(Color.liftText)
                         .padding(.vertical, 4)
                 } else {
                     VStack(spacing: 0) {
@@ -761,7 +974,7 @@ struct AwardsView: View {
         let bestBench = bestStrengthLifts["bench"]
         let bestSquat = bestStrengthLifts["squat"]
         let bestDeadlift = bestStrengthLifts["deadlift"]
-        let totalPowerlifting = appState.powerliftingTotal
+        let totalPowerlifting = RankingCalculator.poundsToKilograms(appState.powerliftingTotal)
         let bodyweightKilograms = RankingCalculator.poundsToKilograms(appState.currentProfile.bodyweightPounds)
         let bodyweightLogCount = appState.bodyweightEntries.reduce(0) { count, entry in
             count + (entry.actual == nil ? 0 : 1)
@@ -810,7 +1023,7 @@ struct AwardsView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         CompactSectionHeader(title: "Unlocked awards (\(unlockedCount))")
                         if unlockedAchievements.isEmpty {
-                            LiftEmptyState(title: "No awards yet", message: "Complete workouts and log lifts to unlock your first award.", symbolName: "sparkles")
+                            LiftEmptyState(title: "No awards yet", message: "Complete workouts and log lifts to unlock your first award.", symbolName: "medal.fill")
                         } else {
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                                 ForEach(unlockedAchievements) { achievement in
@@ -823,7 +1036,7 @@ struct AwardsView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         CompactSectionHeader(title: "Next 3 closest awards")
                         if closestAwardProgress.isEmpty {
-                            LiftEmptyState(title: "No progress data yet", message: "Keep training to reveal your closest next rewards.", symbolName: "bolt.fill")
+                            LiftEmptyState(title: "No progress data yet", message: "Keep training to reveal your closest next rewards.", symbolName: "chart.xyaxis.line")
                         } else {
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                                 ForEach(Array(closestAwardProgress.prefix(3)), id: \.achievement.id) { item in
@@ -994,9 +1207,9 @@ struct AwardsView: View {
         VStack(alignment: .leading, spacing: 8) {
             Image(systemName: "dumbbell.fill").foregroundStyle(Color.liftGold)
             Text("Total").font(.caption.weight(.black)).foregroundStyle(Color.liftMuted)
-            Text(MeasurementFormatting.formatDisplayedWeight(
-                appState.powerliftingTotal,
-                unit: preferredUnit
+            Text(RankingFormatting.threeLiftTotalText(
+                totalPounds: appState.powerliftingTotal,
+                preferredUnit: preferredUnit
             ))
             .font(.headline.weight(.black))
         }
@@ -1358,10 +1571,12 @@ struct AuthenticationView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var showingReset = false
+    @State private var resetEmail = ""
     @State private var appleNonce = ""
     @State private var confirmationEmail: String?
 
     private let emailConfirmationMessage = "Check your email to confirm your account, then sign in."
+    private let emailResentMessage = "A new confirmation email is on the way."
 
     var body: some View {
         AppBackground {
@@ -1370,7 +1585,7 @@ struct AuthenticationView: View {
                     Spacer(minLength: 46)
                     Image(systemName: "lock.shield.fill")
                         .font(.system(size: 54, weight: .bold))
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                     Text("Lift Rivals").font(.largeTitle.bold())
                     Text("Your training can stay local. Your profile and gyms use your secured account.")
                         .foregroundStyle(Color.liftMuted)
@@ -1449,6 +1664,9 @@ struct AuthenticationView: View {
                             Task {
                                 if mode == "Sign In" {
                                     await appState.signIn(email: normalizedEmail, password: password)
+                                    if appState.isAuthenticated {
+                                        appState.selectedTab = 1
+                                    }
                                 } else {
                                     await appState.signUp(email: normalizedEmail, password: password)
                                     if appState.accountMessage == emailConfirmationMessage {
@@ -1483,7 +1701,18 @@ struct AuthenticationView: View {
                                     appState.accountMessage = "Sign in with Apple could not be completed. Please try again."
                                     return
                                 }
-                                Task { await appState.signInWithApple(identityToken: token, nonce: appleNonce) }
+                                let fullName = AppleIdentityStore.displayName(from: credential.fullName)
+                                Task {
+                                    await appState.signInWithApple(
+                                        identityToken: token,
+                                        nonce: appleNonce,
+                                        appleUserIdentifier: credential.user,
+                                        fullName: fullName
+                                    )
+                                    if appState.isAuthenticated {
+                                        appState.selectedTab = 1
+                                    }
+                                }
                             case .failure(let error):
                                 if let authorizationError = error as? ASAuthorizationError,
                                    authorizationError.code == .canceled {
@@ -1498,9 +1727,9 @@ struct AuthenticationView: View {
                         .disabled(appState.accountOperationInProgress)
 #endif
 
-                        Button("Forgot password?") { showingReset = true }
+                        Button("Forgot password?") { resetEmail = email; showingReset = true }
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                     }
 
                     if AppState.allowsDemoMode {
@@ -1513,7 +1742,7 @@ struct AuthenticationView: View {
                                 .frame(minHeight: 48)
                         }
                         .buttonStyle(.bordered)
-                        .tint(Color.liftBlue)
+                        .tint(Color.liftAccentText)
                         Text("Demo mode stays local and never writes to your Supabase account.")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -1526,97 +1755,39 @@ struct AuthenticationView: View {
         }
         .sheet(isPresented: $showingReset) {
             NavigationStack {
-                AppBackground {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 18) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Image(systemName: "lock.rotation")
-                                    .font(.system(size: 30, weight: .bold))
-                                    .foregroundStyle(Color.liftLime)
-                                Text("Get back into your account")
-                                    .font(.title2.weight(.black))
-                                Text("We’ll send a secure recovery link to the email connected to your Lift Rivals account.")
-                                    .font(.subheadline)
-                                    .foregroundStyle(Color.liftMuted)
-                                    .fixedSize(horizontal: false, vertical: true)
+                Form {
+                    Section {
+                        Text("Enter your account email and we’ll send a secure reset link. Open it on this device to choose a new password in Lift Rivals.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.liftMuted)
+                        TextField("Email", text: $resetEmail)
+                            .textContentType(.emailAddress)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+                    Section {
+                        Button(appState.accountOperationInProgress ? "Sending…" : "Send reset link") {
+                            let normalizedEmail = resetEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard normalizedEmail.contains("@") else {
+                                appState.accountMessage = "Enter a valid email address."
+                                return
                             }
-
-                            LiftCard(padding: 15, radius: 18) {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Account email")
-                                        .font(.caption.weight(.bold))
-                                        .foregroundStyle(Color.liftMuted)
-                                    TextField("you@example.com", text: $email)
-                                        .textContentType(.emailAddress)
-                                        .keyboardType(.emailAddress)
-                                        .textInputAutocapitalization(.never)
-                                        .autocorrectionDisabled()
-                                        .padding(.horizontal, 13)
-                                        .frame(minHeight: 50)
-                                        .background(Color.liftField)
-                                        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-                                }
-                            }
-
-                            VStack(alignment: .leading, spacing: 9) {
-                                Label("What happens next", systemImage: "list.number")
-                                    .font(.subheadline.weight(.bold))
-                                resetStep("1", "Open the newest email from Lift Rivals.")
-                                resetStep("2", "Tap the recovery link to return to the app.")
-                                resetStep("3", "Choose and confirm your new password.")
-                            }
-                            .padding(15)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.liftLime.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .stroke(Color.liftLime.opacity(0.22), lineWidth: 1)
-                            }
-
-                            PrimaryButton(
-                                title: appState.accountOperationInProgress ? "Sending…" : "Send reset instructions",
-                                symbolName: "paperplane.fill"
-                            ) {
-                                Task {
-                                    await appState.requestPasswordReset(email: email.trimmingCharacters(in: .whitespacesAndNewlines))
+                            Task {
+                                await appState.requestPasswordReset(email: normalizedEmail)
+                                if appState.accountMessage == "If an account can receive a reset email, instructions are on the way." {
                                     showingReset = false
                                 }
                             }
-                            .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || appState.accountOperationInProgress)
-
-                            Text("For privacy, Lift Rivals gives the same response whether or not an account exists. Check spam if the email does not arrive within a few minutes.")
-                                .font(.caption)
-                                .foregroundStyle(Color.liftMuted)
-                                .multilineTextAlignment(.center)
-                                .frame(maxWidth: .infinity)
                         }
-                        .padding(.horizontal, 22)
-                        .padding(.vertical, 22)
+                        .disabled(appState.accountOperationInProgress)
                     }
                 }
-                .navigationTitle("Reset access")
+                .navigationTitle("Reset password")
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showingReset = false } }
-                }
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showingReset = false } } }
             }
-            .presentationDetents([.medium, .large])
-        }
-    }
-
-    private func resetStep(_ number: String, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Text(number)
-                .font(.caption.weight(.black))
-                .foregroundStyle(Color.liftOnAccent)
-                .frame(width: 22, height: 22)
-                .background(Color.liftLime)
-                .clipShape(Circle())
-            Text(text)
-                .font(.caption)
-                .foregroundStyle(Color.liftMuted)
-                .fixedSize(horizontal: false, vertical: true)
+            .presentationDetents([.medium])
         }
     }
 
@@ -1624,7 +1795,7 @@ struct AuthenticationView: View {
         VStack(alignment: .leading, spacing: 10) {
             Label("Confirmation email sent", systemImage: "envelope.badge.fill")
                 .font(.headline.weight(.bold))
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
 
             Text("We sent a confirmation link to")
                 .font(.subheadline)
@@ -1638,6 +1809,24 @@ struct AuthenticationView: View {
                 .font(.caption)
                 .foregroundStyle(Color.liftMuted)
                 .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                Task { await appState.resendConfirmationEmail(email: email) }
+            } label: {
+                Label(
+                    appState.accountOperationInProgress ? "Sending…" : "Send again",
+                    systemImage: "arrow.clockwise"
+                )
+                .font(.subheadline.weight(.semibold))
+            }
+            .foregroundStyle(Color.liftAccentText)
+            .disabled(appState.accountOperationInProgress)
+
+            if appState.accountMessage == emailResentMessage {
+                Text(emailResentMessage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.liftAccentText)
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1678,7 +1867,7 @@ struct PasswordUpdateView: View {
                                     .frame(width: 58, height: 58)
                                 Image(systemName: "lock.rotation")
                                     .font(.system(size: 25, weight: .bold))
-                                    .foregroundStyle(Color.liftLime)
+                                    .foregroundStyle(Color.liftAccentText)
                             }
 
                             Text("Choose a new password")
@@ -1693,7 +1882,7 @@ struct PasswordUpdateView: View {
                             VStack(alignment: .leading, spacing: 10) {
                                 Label("Password recovery", systemImage: "checkmark.shield.fill")
                                     .font(.subheadline.weight(.bold))
-                                    .foregroundStyle(Color.liftLime)
+                                    .foregroundStyle(Color.liftAccentText)
                                 Text("This password will replace your old password. Use one you do not reuse on another site.")
                                     .font(.caption)
                                     .foregroundStyle(Color.liftMuted)
@@ -1815,7 +2004,7 @@ struct PasswordUpdateView: View {
     private func requirementRow(_ title: String, isSatisfied: Bool, isError: Bool) -> some View {
         Label(title, systemImage: isSatisfied ? "checkmark.circle.fill" : isError ? "xmark.circle.fill" : "circle")
             .font(.caption)
-            .foregroundStyle(isSatisfied ? Color.liftLime : isError ? Color.liftRed : Color.liftMuted)
+            .foregroundStyle(isSatisfied ? Color.liftAccentText : isError ? Color.liftRed : Color.liftMuted)
     }
 }
 

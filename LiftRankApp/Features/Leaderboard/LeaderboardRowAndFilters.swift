@@ -169,7 +169,7 @@ struct LeaderboardFiltersView: View {
                                             }
                                         }
                                         .font(.caption.weight(.bold))
-                                        .foregroundStyle(Color.liftBlue)
+                                        .foregroundStyle(Color.liftAccentText)
                                     }
                                     .padding(12)
                                     .background(Color.liftBackground)
@@ -268,7 +268,7 @@ struct LeaderboardFiltersView: View {
                                     .accessibilityLabel("Clear selected location")
                                 }
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Color.liftBlue)
+                                .foregroundStyle(Color.liftAccentText)
                                 .padding(12)
                                 .background(Color.liftBlue.opacity(0.10))
                                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -321,7 +321,7 @@ struct LeaderboardFiltersView: View {
                                                 if appState.leaderboardFilters.cityID == suggestion.canonicalID,
                                                    appState.leaderboardFilters.city == suggestion.city {
                                                     Image(systemName: "checkmark")
-                                                        .foregroundStyle(Color.liftBlue)
+                                                        .foregroundStyle(Color.liftAccentText)
                                                 }
                                             }
                                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -412,7 +412,7 @@ struct LeaderboardFiltersView: View {
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: "line.3.horizontal.decrease.circle.fill")
                     .font(.title2)
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("\(resultCount) matching \(resultCount == 1 ? "lifter" : "lifters")")
                         .font(.headline)
@@ -427,7 +427,7 @@ struct LeaderboardFiltersView: View {
                     Haptics.light()
                 }
                 .font(.caption.weight(.bold))
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
             }
         }
         .accessibilityIdentifier("leaderboard.filters.results")
@@ -436,7 +436,7 @@ struct LeaderboardFiltersView: View {
     private var quickFilters: some View {
         LiftCard(padding: 14, radius: 16) {
             VStack(alignment: .leading, spacing: 12) {
-                Label("Quick filters", systemImage: "bolt.fill")
+                Label("Quick filters", systemImage: "line.3.horizontal.decrease.circle.fill")
                     .font(.headline)
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                     ForEach(["all", "city", "class"], id: \.self) { filter in
@@ -608,7 +608,7 @@ struct LeaderboardFiltersView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
                 .background(isActive ? Color.liftBlue : Color.liftBlue.opacity(0.10))
-                .foregroundStyle(isActive ? Color.white : Color.liftBlue)
+                .foregroundStyle(isActive ? Color.white : Color.liftAccentText)
                 .clipShape(Capsule())
                 .fixedSize(horizontal: true, vertical: false)
         }
@@ -625,7 +625,7 @@ struct LeaderboardFiltersView: View {
                 .font(.caption.weight(.bold))
                 .frame(maxWidth: .infinity, minHeight: 42)
                 .background(Color.liftBlue.opacity(0.14))
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)

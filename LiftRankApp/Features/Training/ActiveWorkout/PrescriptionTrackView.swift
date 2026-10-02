@@ -43,7 +43,7 @@ struct PrescriptionTrackView: View {
                                     Spacer()
                                     Text("\(progress.completedWorkingSets)/\(progress.plannedWorkingSets)")
                                         .font(.headline.weight(.black).monospacedDigit())
-                                        .foregroundStyle(progress.isComplete ? Color.liftGreen : Color.liftBlue)
+                                        .foregroundStyle(progress.isComplete ? Color.liftGreen : Color.liftAccentText)
                                 }
 
                                 HStack(spacing: 8) {
@@ -67,6 +67,37 @@ struct PrescriptionTrackView: View {
                             }
                             .accessibilityAddTraits(.isButton)
                             .accessibilityHint("Shows exercise information")
+
+                            if let substitutionIDs = exercise.substitutionExerciseIDs,
+                               !substitutionIDs.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Specific substitutions")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(Color.liftMuted)
+                                    ForEach(Array(substitutionIDs.prefix(2).enumerated()), id: \.element) { index, exerciseID in
+                                        if let substitute = appState.trainingExerciseLibrary.first(where: { $0.id == exerciseID }) {
+                                            Button {
+                                                _ = appState.substituteActiveWorkoutExercise(exercise, with: substitute)
+                                            } label: {
+                                                HStack {
+                                                    Text("Option \(index + 1): \(substitute.name)")
+                                                        .font(.subheadline.weight(.semibold))
+                                                    Spacer()
+                                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                                        .font(.caption.weight(.bold))
+                                                }
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 10)
+                                                .foregroundStyle(Color.liftAccentText)
+                                                .background(Color.liftCard)
+                                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                            }
+                                            .buttonStyle(.plain)
+                                            .accessibilityIdentifier("workout.specificSubstitution.\(exerciseID)")
+                                        }
+                                    }
+                                }
+                            }
 
                             setColumnHeader
 
@@ -110,7 +141,7 @@ struct PrescriptionTrackView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 15)
                         .background(Color.liftCard)
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -298,7 +329,7 @@ struct PrescriptionTrackView: View {
                     Text("REST")
                         .font(.caption2.weight(.black))
                         .tracking(1)
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                     Text(remaining > 0 ? "\(remaining / 60):\(String(format: "%02d", remaining % 60))" : "Ready")
                         .font(.title2.weight(.black).monospacedDigit())
                 }
@@ -310,7 +341,7 @@ struct PrescriptionTrackView: View {
                     appState.updateActiveRestTimer(endsAt: nil, exerciseID: nil)
                 }
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 10)
@@ -320,7 +351,7 @@ struct PrescriptionTrackView: View {
                     value: Double(remaining),
                     total: Double(max(1, exercise.restSeconds))
                 )
-                .tint(Color.liftBlue)
+                .tint(Color.liftAccentText)
             }
             .onChange(of: remaining) { _, value in
                 if value == 0 {

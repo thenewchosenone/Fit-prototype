@@ -164,7 +164,7 @@ struct LeaderboardFilterControl: View {
         } label: {
             HStack(spacing: 7) {
                 Image(systemName: symbol)
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).font(.caption2).foregroundStyle(Color.liftMuted)
                     Text(value).font(.caption.weight(.semibold)).foregroundStyle(Color.liftText).lineLimit(1)
@@ -233,12 +233,12 @@ struct CompactLeaderboardRow: View {
                     if entry.lift.verificationStatus != .selfReported {
                         Image(systemName: "checkmark.seal.fill")
                             .font(.caption2)
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                     }
                     if isCurrentUser {
                         Text("YOU")
                             .font(.system(size: 8, weight: .black))
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                     }
                 }
                 if showsGym {
@@ -447,7 +447,7 @@ struct LeaderboardOptionSheet: View {
                                     HStack(spacing: 12) {
                                         if let symbol = option.symbol {
                                             Image(systemName: symbol)
-                                                .foregroundStyle(Color.liftBlue)
+                                                .foregroundStyle(Color.liftAccentText)
                                                 .frame(width: 24)
                                         }
                                         VStack(alignment: .leading, spacing: 3) {
@@ -460,7 +460,7 @@ struct LeaderboardOptionSheet: View {
                                         if option.id == selectedID {
                                             Image(systemName: "checkmark.circle.fill")
                                                 .font(.title3)
-                                                .foregroundStyle(Color.liftBlue)
+                                                .foregroundStyle(Color.liftAccentText)
                                         }
                                     }
                                     .padding(.horizontal, 20)

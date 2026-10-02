@@ -4,15 +4,18 @@ import Supabase
 struct FeatureAvailability: Equatable, Sendable {
     let pushNotifications: Bool
     let advertising: Bool
+    let forum: Bool
 
     static let focusedProduction = FeatureAvailability(
         pushNotifications: true,
-        advertising: false
+        advertising: false,
+        forum: true
     )
 
     static let internalFull = FeatureAvailability(
         pushNotifications: true,
-        advertising: false
+        advertising: false,
+        forum: true
     )
 
     static let deferredFeaturesLaunchArgument = "-enableDeferredFeatures"
@@ -50,6 +53,7 @@ struct AppServiceContainer {
     let lifts: any LiftService
     let leaderboards: any LeaderboardService
     let social: any SocialService
+    let forum: any ForumService
     let verification: any VerificationService
     let media: any MediaUploadService
     let notifications: any NotificationService
@@ -69,6 +73,7 @@ struct AppServiceContainer {
         lifts: (any LiftService)? = nil,
         leaderboards: (any LeaderboardService)? = nil,
         social: (any SocialService)? = nil,
+        forum: (any ForumService)? = nil,
         verification: (any VerificationService)? = nil,
         media: (any MediaUploadService)? = nil,
         notifications: (any NotificationService)? = nil,
@@ -85,6 +90,7 @@ struct AppServiceContainer {
         self.gymMemberships = gymMemberships; self.exercises = exercises
         self.lifts = lifts ?? unavailable; self.leaderboards = leaderboards ?? unavailable
         self.social = social ?? unavailable; self.verification = verification ?? unavailable
+        self.forum = forum ?? unavailable
         self.media = media ?? unavailable; self.notifications = notifications ?? unavailable
         self.workoutSync = workoutSync ?? unavailable; self.analytics = analytics ?? unavailable
         self.legalAcceptances = legalAcceptances ?? unavailable
@@ -112,6 +118,7 @@ struct AppServiceContainer {
                 exercises: unavailableAccountData
                 , lifts: unavailable, leaderboards: unavailable,
                 social: unavailable,
+                forum: unavailable,
                 verification: unavailable, media: unavailable, notifications: unavailable,
                 workoutSync: unavailable, analytics: unavailable, legalAcceptances: unavailable, accountDeletion: unavailable
             )
@@ -137,6 +144,7 @@ struct AppServiceContainer {
             exercises: SupabaseExerciseCatalogService(client: client)
             , lifts: SupabaseLiftService(client: client), leaderboards: SupabaseLeaderboardService(client: client),
             social: SupabaseSocialService(client: client),
+            forum: SupabaseForumService(client: client),
             verification: SupabaseVerificationService(client: client), media: SupabaseMediaUploadService(client: client), notifications: SupabaseNotificationService(client: client),
             workoutSync: SupabaseWorkoutSyncService(client: client), analytics: SupabaseAnalyticsService(client: client), legalAcceptances: SupabaseLegalAcceptanceService(client: client), accountDeletion: SupabaseAccountDeletionService(client: client)
         )
@@ -164,7 +172,7 @@ struct AppServiceContainer {
 /// Production features fail explicitly when configuration is absent. This keeps
 /// release builds from silently presenting local demo users or rankings.
 @MainActor
-final class UnavailableLaunchService: LiftService, LeaderboardService, SocialService, VerificationService, MediaUploadService, NotificationService, WorkoutSyncService, AnalyticsService, LegalAcceptanceService, AccountDeletionService {
+final class UnavailableLaunchService: LiftService, LeaderboardService, SocialService, ForumService, VerificationService, MediaUploadService, NotificationService, WorkoutSyncService, AnalyticsService, LegalAcceptanceService, AccountDeletionService {
     private var error: LiftRankServiceError { .configurationMissing }
     func submissions() async throws -> [LiftSubmission] { throw error }
     func submit(_ submission: LiftSubmission) async throws -> LiftSubmission { throw error }
@@ -177,6 +185,18 @@ final class UnavailableLaunchService: LiftService, LeaderboardService, SocialSer
     func block(userID: UUID) async throws { throw error }
     func unblock(userID: UUID) async throws { throw error }
     func blocks() async throws -> [UserBlockRecord] { throw error }
+    func communities() async throws -> [ForumCommunity] { throw error }
+    func posts(communityID: UUID?, limit: Int) async throws -> [ForumPost] { throw error }
+    func thread(postID: UUID) async throws -> ForumThread? { throw error }
+    func join(communityID: UUID, requestNote: String) async throws -> String { throw error }
+    func leave(communityID: UUID) async throws { throw error }
+    func createPost(_ draft: ForumPostDraft) async throws -> ForumPost { throw error }
+    func createComment(postID: UUID, body: String, parentCommentID: UUID?) async throws -> ForumComment { throw error }
+    func vote(postID: UUID, value: Int?) async throws { throw error }
+    func watch(postID: UUID, watched: Bool) async throws { throw error }
+    func report(targetType: String, targetID: UUID, communityID: UUID?, reason: String, note: String) async throws { throw error }
+    func reports() async throws -> [ForumReport] { throw error }
+    func moderate(postID: UUID, action: String, reason: String) async throws { throw error }
     func pendingSubmissions() async throws -> [LiftSubmission] { throw error }
     func updateVerification(for lift: LiftSubmission, status: VerificationStatus, note: String?) async throws -> LiftSubmission { throw error }
     func moderate(liftID: UUID, decision: LiftModeratorDecision, note: String) async throws -> LiftSubmission { throw error }

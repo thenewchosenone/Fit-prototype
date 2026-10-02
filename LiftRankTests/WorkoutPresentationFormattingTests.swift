@@ -251,7 +251,7 @@ final class WorkoutPresentationFormattingTests: XCTestCase {
     func testWeightClassDisplayNameUsesNameWhenNotPounds() {
         XCTAssertEqual(
             RankingFormatting.weightClassDisplayName(
-                WeightClass(id: "test", sexCategory: .open, name: "Test", minKilograms: 0, maxKilograms: nil),
+                WeightClass(id: "test", sexCategory: .male, name: "Test", minKilograms: 0, maxKilograms: nil),
                 preferredUnit: .kilograms
             ),
             "Test"
@@ -261,7 +261,7 @@ final class WorkoutPresentationFormattingTests: XCTestCase {
     func testWeightClassDisplayNameForOpenClassInPounds() {
         XCTAssertEqual(
             RankingFormatting.weightClassDisplayName(
-                WeightClass(id: "test", sexCategory: .open, name: "Open", minKilograms: 90, maxKilograms: nil),
+                WeightClass(id: "test", sexCategory: .male, name: "Open", minKilograms: 90, maxKilograms: nil),
                 preferredUnit: .pounds
             ),
             "198.4+ lb (Open)"

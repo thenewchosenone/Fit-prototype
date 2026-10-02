@@ -5,7 +5,8 @@ struct ProfileView: View {
     let profile: UserProfile
     let isCurrentUser: Bool
     @State var showingPhotoManager = false
-    @State var showingAthleteDetails = false
+    @State var showingAthleteDetails = true
+    @State var selectedProfileSection: ProfileSection = .overview
     @State var visibleProfileLifts: [LiftSubmission] = []
     @State var submissionPendingDeletion: LiftSubmission?
     @State var submissionDeletionError: String?

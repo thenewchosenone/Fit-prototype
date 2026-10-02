@@ -1,21 +1,85 @@
 import SwiftUI
 
+enum ProfileSection: String, CaseIterable, Identifiable {
+    case overview = "Overview"
+    case prVideos = "PR videos"
+    case training = "Training"
+    case history = "History"
+    case submissions = "Submissions"
+
+    var id: String {
+        switch self {
+        case .overview: return "overview"
+        case .prVideos: return "prVideos"
+        case .training: return "training"
+        case .history: return "history"
+        case .submissions: return "submissions"
+        }
+    }
+}
+
+private struct ProfileSectionNavigation: View {
+    @Binding var selection: ProfileSection
+    let onSelect: (ProfileSection) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(ProfileSection.allCases, id: \.id) { section in
+                    let isSelected = selection == section
+                    Button(action: { select(section) }) {
+                        Text(section.rawValue)
+                    }
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(isSelected ? Color.liftText : Color.liftMuted)
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: LiftDesign.minimumTouchTarget)
+                    .background(isSelected ? Color.liftLime : Color.liftSurfaceElevated)
+                    .clipShape(Capsule())
+                    .accessibilityIdentifier("profile.section.\(section.id)")
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("profile.sectionNavigation")
+    }
+
+    private func select(_ section: ProfileSection) {
+        selection = section
+        onSelect(section)
+    }
+}
+
 extension ProfileView {
     var featureBody: some View {
         AppBackground {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
                     header
-                    summary(profileLifts: visibleProfileLifts)
-                    recentSubmissions(profileLifts: visibleProfileLifts)
-                    ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: visibleProfileLifts)
-                    athleteDetails(profileLifts: visibleProfileLifts)
+                    ProfileSectionNavigation(selection: $selectedProfileSection) { section in
+                        withAnimation(.easeInOut) { proxy.scrollTo(section.id, anchor: .top) }
+                    }
+                    .padding(.vertical, 2)
+                    Group {
+                        summary(profileLifts: visibleProfileLifts)
+                            .id(ProfileSection.overview.id)
+                        ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: visibleProfileLifts)
+                            .id(ProfileSection.prVideos.id)
+                        athleteDetails(profileLifts: visibleProfileLifts)
+                            .id(ProfileSection.training.id)
+                        trainingHistory
+                            .id(ProfileSection.history.id)
+                        recentSubmissions(profileLifts: visibleProfileLifts)
+                            .id(ProfileSection.submissions.id)
+                    }
                 }
                 .padding()
                 .padding(.bottom, 24)
             }
             .refreshable {
                 await refreshProfileData()
+            }
             }
             .sheet(isPresented: $showingPhotoManager) {
                 ProfilePhotoManagerView()

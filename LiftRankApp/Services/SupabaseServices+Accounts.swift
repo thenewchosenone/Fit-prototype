@@ -28,6 +28,16 @@ final class SupabaseAuthenticationService: AuthenticationService {
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
+    func resendConfirmation(email: String) async throws {
+        do {
+            try await client.auth.resend(
+                email: email,
+                type: .signup,
+                emailRedirectTo: SupabaseConfiguration.authCallbackURL
+            )
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
     func signIn(email: String, password: String) async throws -> AccountSession {
         do { return accountSession(try await client.auth.signIn(email: email, password: password)) }
         catch { throw SupabaseServiceErrorMapper.map(error) }

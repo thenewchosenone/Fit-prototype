@@ -64,7 +64,9 @@ test.describe(`web release route smoke (${gateMode} mode)`, () => {
   test("checks deferred-route redirects and shared auth redirects", async ({ page }) => {
     if (gateMode === "demo") {
       await page.goto("/#/messages");
-      await expect(page).toHaveURL(/#\/home$/);
+      await expect(page.getByRole("heading", { name: "Messages", exact: true })).toBeVisible();
+      await page.goto("/#/community");
+      await expect(page.getByRole("heading", { name: "Strength community", exact: true })).toBeVisible();
       return;
     }
 

@@ -74,7 +74,7 @@ extension TrainingTrackerView {
                         Text(volumeWeek.rawValue.uppercased())
                             .font(.system(size: 10, weight: .black, design: .rounded))
                             .tracking(0.8)
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                             .padding(.horizontal, 9)
                             .frame(height: 26)
                             .background(Color.liftBlue.opacity(0.12))
@@ -181,7 +181,7 @@ extension TrainingTrackerView {
         HStack(spacing: 9) {
             Image(systemName: symbol)
                 .font(.caption.weight(.bold))
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
                 .frame(width: 30, height: 30)
                 .background(Color.liftBlue.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -300,7 +300,13 @@ extension TrainingTrackerView {
         let exercise = progressExerciseOptions.first { $0.id == exerciseID }
         let setPoints = exercise.map { exerciseProgressPoints(for: $0.id) } ?? []
         let chartPoints = ExerciseProgressSeries.dailyHighest(from: setPoints)
+        let estimatedMaxPoints = ExerciseProgressSeries.dailyHighestEstimatedOneRepMax(from: setPoints)
         let prs = MeasurementFormatting.bestPRsByReps(from: setPoints)
+        let startingEstimatedMax = estimatedMaxPoints.first.map(ExerciseProgressSeries.estimatedOneRepMax)
+        let bestEstimatedMax = estimatedMaxPoints.map(ExerciseProgressSeries.estimatedOneRepMax).max()
+        let strengthIncrease = startingEstimatedMax.flatMap { start in
+            bestEstimatedMax.map { $0 - start }
+        }
 
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -308,8 +314,8 @@ extension TrainingTrackerView {
                     ExerciseCatalogIcon(exercise: exercise)
                         .frame(width: 42, height: 42)
                 }
-                Text("Exercise progress")
-                    .font(.subheadline.weight(.bold))
+            Text("Exercise progress")
+                .font(.subheadline.weight(.bold))
                 Spacer()
                 Menu {
                     ForEach(progressExerciseOptions) { option in
@@ -318,7 +324,7 @@ extension TrainingTrackerView {
                 } label: {
                     Label(exercise?.name ?? "Exercise", systemImage: "chevron.down")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                 }
             }
 
@@ -327,12 +333,57 @@ extension TrainingTrackerView {
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
             } else {
+                if let startingEstimatedMax, let bestEstimatedMax, let strengthIncrease {
+                    HStack(spacing: 10) {
+                        progressMetric(
+                            title: "STARTING EST. 1RM",
+                            value: MeasurementFormatting.formatDisplayedWeight(startingEstimatedMax, unit: appState.currentProfile.preferredUnit),
+                            symbol: "flag.fill"
+                        )
+                        progressMetric(
+                            title: "BEST EST. 1RM",
+                            value: MeasurementFormatting.formatDisplayedWeight(bestEstimatedMax, unit: appState.currentProfile.preferredUnit),
+                            symbol: "arrow.up.right"
+                        )
+                        progressMetric(
+                            title: "INCREASE",
+                            value: (strengthIncrease >= 0 ? "+" : "") + MeasurementFormatting.formatDisplayedWeight(strengthIncrease, unit: appState.currentProfile.preferredUnit),
+                            symbol: "chart.line.uptrend.xyaxis"
+                        )
+                    }
+
+                    Text("Estimated 1RM trend")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.liftMuted)
+                        .padding(.top, 2)
+
+                    Chart(estimatedMaxPoints) { point in
+                        LineMark(
+                            x: .value("Date", point.date),
+                            y: .value("Estimated 1RM", ExerciseProgressSeries.estimatedOneRepMax(point))
+                        )
+                        .foregroundStyle(Color.liftAccentText)
+                        PointMark(
+                            x: .value("Date", point.date),
+                            y: .value("Estimated 1RM", ExerciseProgressSeries.estimatedOneRepMax(point))
+                        )
+                        .foregroundStyle(Color.liftGreen)
+                    }
+                    .frame(height: 150)
+                    .chartYAxis { AxisMarks(position: .trailing) }
+                }
+
+                Text("Weight trend")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.liftMuted)
+                    .padding(.top, 2)
+
                 Chart(chartPoints) { point in
                     LineMark(
                         x: .value("Date", point.date),
                         y: .value("Weight", point.weight)
                     )
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
                     PointMark(
                         x: .value("Date", point.date),
                         y: .value("Weight", point.weight)
@@ -343,6 +394,10 @@ extension TrainingTrackerView {
                 .chartYAxis { AxisMarks(position: .trailing) }
 
                 if !prs.isEmpty {
+                    Text("Personal records by rep range")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.liftMuted)
+                        .padding(.top, 2)
                     HStack(spacing: 8) {
                         ForEach(prs.prefix(4), id: \.reps) { pr in
                             VStack(alignment: .leading, spacing: 3) {
@@ -371,6 +426,27 @@ extension TrainingTrackerView {
         }
     }
 
+    private func progressMetric(title: String, value: String, symbol: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Image(systemName: symbol)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.liftAccentText)
+            Text(title)
+                .font(.system(size: 8, weight: .black, design: .rounded))
+                .tracking(0.3)
+                .foregroundStyle(Color.liftMuted)
+                .lineLimit(2)
+            Text(value)
+                .font(.caption.weight(.black).monospacedDigit())
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
+        .padding(9)
+        .background(Color.liftCardRaised.opacity(0.62))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
     private var strainAndInjurySection: some View {
         VStack(alignment: .leading, spacing: 11) {
             Text("Strain & injuries")
@@ -380,7 +456,7 @@ extension TrainingTrackerView {
                 HStack(spacing: 10) {
                     Image(systemName: "heart.text.square.fill")
                         .font(.caption.weight(.black))
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                         .frame(width: 30, height: 30)
                         .background(Color.liftBlue.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
@@ -419,7 +495,7 @@ extension TrainingTrackerView {
                             Spacer()
                             Text("\(entry.strain)/10")
                                 .font(.caption.weight(.black).monospacedDigit())
-                                .foregroundStyle(Color.liftBlue)
+                                .foregroundStyle(Color.liftAccentText)
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
@@ -524,7 +600,7 @@ extension TrainingTrackerView {
                             preferredUnit: appState.currentProfile.preferredUnit
                         )
                         LineMark(x: .value("Week", row.week), y: .value("Bodyweight", displayValue))
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                         PointMark(x: .value("Week", row.week), y: .value("Bodyweight", displayValue))
                             .foregroundStyle(Color.liftGreen)
                     }
@@ -545,7 +621,7 @@ extension TrainingTrackerView {
                 VStack(alignment: .leading, spacing: 8) {
                     Image(systemName: "scalemass.fill")
                         .font(.title2.weight(.black))
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                     Text("No bodyweight logged yet")
                         .font(.headline.weight(.bold))
                     Text("Add today’s bodyweight to start seeing your trend here.")
@@ -621,7 +697,7 @@ extension TrainingTrackerView {
                                 if !row.notes.isEmpty {
                                     Text("Has notes")
                                         .font(.caption2)
-                                        .foregroundStyle(Color.liftBlue)
+                                        .foregroundStyle(Color.liftAccentText)
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)

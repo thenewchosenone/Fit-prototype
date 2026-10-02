@@ -170,7 +170,9 @@ struct SettingsView: View {
                 .disabled(appState.accountOperationInProgress)
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("For security, the server requires a recently authenticated session. Your account data, workout backup, and local training data will be removed. This cannot be undone.")
+                Text(appState.hasAppleAuthorization
+                    ? "For security, the server requires a recently authenticated session. Your account data, workout backup, and local training data will be removed. After deletion, also remove Lift Rivals from Settings > your name > Sign in with Apple to revoke Apple authorization. This cannot be undone."
+                    : "For security, the server requires a recently authenticated session. Your account data, workout backup, and local training data will be removed. This cannot be undone.")
             }
         }
         .preferredColorScheme(LiftAppearance(rawValue: appearance)?.colorScheme)
@@ -303,7 +305,7 @@ struct LegalAcceptanceView: View {
                                         else { acknowledged.remove(document.kind) }
                                     }
                                 ))
-                                .tint(Color.liftBlue)
+                                .tint(Color.liftAccentText)
                             }
                         }
                     }

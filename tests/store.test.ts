@@ -84,6 +84,9 @@ describe("tracker reducer", () => {
     expect(sessions).toHaveLength(36);
     expect(installed.phases.filter((phase) => phase.planId === plan.id)).toHaveLength(3);
     expect(weeks.find((week) => week.weekNumber === 4)?.title).toContain("Deload");
+    expect(installed.prescriptions.find((item) => installed.sessions.some((session) => session.id === item.sessionId && weeks.some((week) => week.id === session.weekId)))?.substitutionExerciseIds).toEqual(
+      workoutProgramTemplates[0].sessions[0].exercises[0].substitutionExerciseIds
+    );
     expect(workoutProgramTemplates[0]).toEqual(templateSnapshot);
   });
 

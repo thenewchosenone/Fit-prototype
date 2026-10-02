@@ -41,32 +41,42 @@ struct ProfileLiftVideosSection: View {
     }
 
     private var videoLifts: [LiftSubmission] {
+        let candidates: [LiftSubmission]
         if let prefilteredLifts {
-            return prefilteredLifts.filter(\.hasVideoReference)
-        }
-        return ProfileLiftVideoLibrary.visibleLifts(
+            candidates = prefilteredLifts.filter(\.hasVideoReference)
+        } else {
+            candidates = ProfileLiftVideoLibrary.visibleLifts(
             for: profile.id,
             viewerID: appState.currentProfile.id,
             allLifts: appState.lifts
         )
+        }
+        var bestByExercise: [String: LiftSubmission] = [:]
+        for lift in candidates {
+            let key = lift.exerciseName.lowercased()
+            if bestByExercise[key] == nil || lift.weight > bestByExercise[key]!.weight {
+                bestByExercise[key] = lift
+            }
+        }
+        return bestByExercise.values.sorted { $0.weight > $1.weight }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            CompactSectionHeader(title: "Lift videos")
+            CompactSectionHeader(title: "PR videos")
             if profile.hideLiftVideos && !isCurrentUser {
                 LiftEmptyState(
-                    title: "Lift videos hidden",
+                    title: "PR videos hidden",
                     message: "This lifter keeps submitted videos private.",
                     symbolName: "eye.slash",
                     compact: true
                 )
             } else if videoLifts.isEmpty {
                 LiftEmptyState(
-                    title: "No lift videos yet",
+                    title: "No PR videos yet",
                     message: isCurrentUser
                         ? "Attach a video when you submit a lift and it will appear here."
-                        : "This athlete has not shared a lift video.",
+                        : "This athlete has not shared a PR video.",
                     symbolName: "video.badge.plus",
                     compact: true
                 )
@@ -85,9 +95,10 @@ struct ProfileLiftVideosSection: View {
                     }
                 }
                 .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("profile.liftVideos")
+                .accessibilityIdentifier("profile.prVideos")
             }
         }
+        .accessibilityIdentifier("profile.prVideos")
         .sheet(item: $selectedLift) { lift in
             ProfileLiftVideoDetailView(lift: lift)
                 .environmentObject(appState)
@@ -322,6 +333,9 @@ struct EditProfileView: View {
                         }
                         LabeledContent("Username") {
                             TextField("Username", text: $draft.username)
+                                .textContentType(.none)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
                                 .multilineTextAlignment(.trailing)
                         }
                         LabeledContent("Display name") {
@@ -344,7 +358,7 @@ struct EditProfileView: View {
                         LabeledContent("Experience") {
                             VStack(alignment: .trailing, spacing: 2) {
                                 Text(appState.earnedExperienceLevel.rawValue)
-                                    .foregroundStyle(Color.liftBlue)
+                                    .foregroundStyle(Color.liftAccentText)
                                 Text(appState.earnedExperienceDescription)
                                     .font(.caption2)
                                     .foregroundStyle(Color.liftMuted)
@@ -500,7 +514,7 @@ struct EditProfileView: View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: symbol)
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
                     .frame(width: 24)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
@@ -653,7 +667,7 @@ struct ProfilePhotoManagerView: View {
 
                     if loading {
                         ProgressView()
-                            .tint(Color.liftBlue)
+                            .tint(Color.liftAccentText)
                     }
 
                     Spacer()
@@ -951,7 +965,7 @@ struct GymDirectoryView: View {
                         VStack(spacing: 12) {
                             Image(systemName: "building.2.crop.circle")
                                 .font(.system(size: 42, weight: .semibold))
-                                .foregroundStyle(Color.liftBlue)
+                                .foregroundStyle(Color.liftAccentText)
                             Text(query.isEmpty ? "No gyms available yet" : "No matching gyms")
                                 .font(.headline)
                             Text(query.isEmpty
@@ -963,11 +977,11 @@ struct GymDirectoryView: View {
                             if query.isEmpty {
                                 Button("Refresh gyms") { Task { await refreshGyms() } }
                                     .buttonStyle(.bordered)
-                                    .tint(Color.liftBlue)
+                                    .tint(Color.liftAccentText)
                             }
                             Button("Request a gym") { appState.showingRequestGym = true }
                                 .buttonStyle(.borderedProminent)
-                                .tint(Color.liftLime)
+                                .tint(Color.liftAccentText)
                                 .foregroundStyle(Color.liftBackground)
                         }
                         .padding(24)
@@ -1013,7 +1027,7 @@ struct GymDirectoryView: View {
                     HStack(spacing: 12) {
                         Image(systemName: appState.isPrimaryGym(gym) ? "star.fill" : "building.2.fill")
                             .frame(width: 34, height: 34)
-                            .foregroundStyle(appState.isPrimaryGym(gym) ? Color.liftGold : Color.liftBlue)
+                            .foregroundStyle(appState.isPrimaryGym(gym) ? Color.liftGold : Color.liftAccentText)
                             .background(Color.liftSurfaceElevated)
                             .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                         VStack(alignment: .leading, spacing: 3) {
@@ -1107,7 +1121,7 @@ struct GymDetailView: View {
                                 .frame(minHeight: 44)
                         }
                         .buttonStyle(.bordered)
-                        .tint(Color.liftBlue)
+                        .tint(Color.liftAccentText)
                     }
                     Text("You can belong to up to \(AppState.maximumJoinedGyms) gyms. Your primary gym counts toward this limit.")
                         .font(.caption)

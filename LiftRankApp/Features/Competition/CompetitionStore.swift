@@ -142,6 +142,21 @@ final class CompetitionStore: ObservableObject {
         }
     }
 
+    func previewLeaderboardEntries(filters: LeaderboardFilters) async -> [LeaderboardEntry] {
+        if let leaderboardService {
+            return (try? await leaderboardService.entries(filters: filters, verifiedOnly: false)) ?? []
+        }
+
+        let previousFilters = self.filters
+        let previousVerifiedOnly = verifiedOnly
+        self.filters = filters
+        verifiedOnly = false
+        let entries = leaderboardEntries(referenceDate: now())
+        self.filters = previousFilters
+        verifiedOnly = previousVerifiedOnly
+        return entries
+    }
+
     func refreshCurrentUserTotalEntry() async {
         guard let leaderboardService else {
             currentUserTotalEntry = nil

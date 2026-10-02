@@ -2,7 +2,10 @@ import SwiftUI
 
 extension Color {
     static let liftLime = Color(red: 0xC7 / 255, green: 0xFF / 255, blue: 0x00 / 255)
-    static let liftOrange = Color(red: 0xFF / 255, green: 0x6B / 255, blue: 0x22 / 255)
+    static let liftOrange = semantic(
+        light: UIColor(red: 0.70, green: 0.24, blue: 0.02, alpha: 1),
+        dark: UIColor(red: 0xFF / 255, green: 0x6B / 255, blue: 0x22 / 255, alpha: 1)
+    )
     static let liftOnAccent = Color(red: 0x08 / 255, green: 0x0A / 255, blue: 0x0D / 255)
 
     private static func semantic(light: UIColor, dark: UIColor) -> Color {
@@ -66,12 +69,30 @@ extension Color {
     )
 
     static let liftBlue = liftLime
-    static let liftPurple = Color(red: 0.74, green: 0.66, blue: 0.98)
-    static let liftGreen = Color(red: 0.36, green: 0.92, blue: 0.65)
-    static let liftGold = Color(red: 1.0, green: 0.80, blue: 0.28)
-    static let liftSilver = Color(red: 0.72, green: 0.74, blue: 0.78)
-    static let liftBronze = Color(red: 0.74, green: 0.46, blue: 0.24)
-    static let liftRed = Color(red: 0.92, green: 0.27, blue: 0.38)
+    static let liftPurple = semantic(
+        light: UIColor(red: 0.36, green: 0.25, blue: 0.66, alpha: 1),
+        dark: UIColor(red: 0.74, green: 0.66, blue: 0.98, alpha: 1)
+    )
+    static let liftGreen = semantic(
+        light: UIColor(red: 0.03, green: 0.46, blue: 0.25, alpha: 1),
+        dark: UIColor(red: 0.36, green: 0.92, blue: 0.65, alpha: 1)
+    )
+    static let liftGold = semantic(
+        light: UIColor(red: 0.58, green: 0.36, blue: 0.02, alpha: 1),
+        dark: UIColor(red: 1.0, green: 0.80, blue: 0.28, alpha: 1)
+    )
+    static let liftSilver = semantic(
+        light: UIColor(red: 0.32, green: 0.35, blue: 0.41, alpha: 1),
+        dark: UIColor(red: 0.72, green: 0.74, blue: 0.78, alpha: 1)
+    )
+    static let liftBronze = semantic(
+        light: UIColor(red: 0.48, green: 0.25, blue: 0.09, alpha: 1),
+        dark: UIColor(red: 0.74, green: 0.46, blue: 0.24, alpha: 1)
+    )
+    static let liftRed = semantic(
+        light: UIColor(red: 0.68, green: 0.08, blue: 0.18, alpha: 1),
+        dark: UIColor(red: 0.92, green: 0.27, blue: 0.38, alpha: 1)
+    )
     static let liftSeparator = semantic(
         light: UIColor.black.withAlphaComponent(0.09),
         dark: UIColor(red: 1, green: 1, blue: 1, alpha: 0.12)

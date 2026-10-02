@@ -298,6 +298,18 @@ final class DemoRepository: ObservableObject {
             workoutPlanProgressionSettings = snapshot.planProgressionSettings ?? []
             achievementUnlocks = snapshot.achievementUnlocks ?? []
             rankingHistory = snapshot.rankingHistory ?? []
+            if currentProfile.username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               currentProfile.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               currentProfile.city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               currentProfile.state.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               completedWorkouts.isEmpty,
+               workoutEntries.isEmpty,
+               bodyweightEntries.isEmpty,
+               workoutSetLogs.isEmpty,
+               pendingWorkoutPRSubmissions.isEmpty,
+               pendingCompletedWorkoutUploads.isEmpty {
+                achievementUnlocks = []
+            }
             migrateSeededWorkoutData(from: snapshot.schemaVersion)
             isRestoringWorkoutSnapshot = false
             return

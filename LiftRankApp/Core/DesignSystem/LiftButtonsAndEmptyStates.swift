@@ -238,7 +238,7 @@ struct SegmentedControl: View {
                 } label: {
                     Text(option)
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundStyle(selection == option ? Color.liftLime : Color.liftTextSecondary)
+                        .foregroundStyle(selection == option ? Color.liftAccentText : Color.liftTextSecondary)
                         .frame(maxWidth: .infinity)
                         .frame(height: 34)
                         .background(selection == option ? Color.liftLime.opacity(0.14) : Color.clear)

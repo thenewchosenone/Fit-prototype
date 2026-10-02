@@ -130,6 +130,7 @@
 		100000000000000000000137 /* Services/SupabaseServiceSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000276 /* Services/SupabaseServiceSupport.swift */; };
 		100000000000000000000138 /* Services/SupabaseServices+Accounts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000277 /* Services/SupabaseServices+Accounts.swift */; };
 		100000000000000000000139 /* Services/SupabaseServices+Analytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000278 /* Services/SupabaseServices+Analytics.swift */; };
+		100000000000000000000140 /* Services/AppleIdentityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000279 /* Services/AppleIdentityStore.swift */; };
 		100000000000000000000141 /* Services/SupabaseServices+Compliance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000281 /* Services/SupabaseServices+Compliance.swift */; };
 		100000000000000000000142 /* Services/SupabaseServices+MediaUpload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000283 /* Services/SupabaseServices+MediaUpload.swift */; };
 		100000000000000000000144 /* Services/SupabaseServices+Notifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000285 /* Services/SupabaseServices+Notifications.swift */; };
@@ -191,6 +192,7 @@
 		200000000000000000000276 /* Services/SupabaseServiceSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/SupabaseServiceSupport.swift; sourceTree = "<group>"; };
 		200000000000000000000277 /* Services/SupabaseServices+Accounts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+Accounts.swift"; sourceTree = "<group>"; };
 		200000000000000000000278 /* Services/SupabaseServices+Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+Analytics.swift"; sourceTree = "<group>"; };
+		200000000000000000000279 /* Services/AppleIdentityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/AppleIdentityStore.swift; sourceTree = "<group>"; };
 		200000000000000000000281 /* Services/SupabaseServices+Compliance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+Compliance.swift"; sourceTree = "<group>"; };
 		200000000000000000000283 /* Services/SupabaseServices+MediaUpload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+MediaUpload.swift"; sourceTree = "<group>"; };
 		200000000000000000000285 /* Services/SupabaseServices+Notifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Services/SupabaseServices+Notifications.swift"; sourceTree = "<group>"; };
@@ -348,6 +350,7 @@
 					200000000000000000000276 /* Services/SupabaseServiceSupport.swift */,
 					200000000000000000000277 /* Services/SupabaseServices+Accounts.swift */,
 					200000000000000000000278 /* Services/SupabaseServices+Analytics.swift */,
+					200000000000000000000279 /* Services/AppleIdentityStore.swift */,
 						200000000000000000000289 /* Services/SupabaseServices+ExerciseCatalog.swift */,
 						200000000000000000000290 /* Services/SupabaseServices+Gyms.swift */,
 						200000000000000000000281 /* Services/SupabaseServices+Compliance.swift */,
@@ -650,6 +653,7 @@
 					100000000000000000000137 /* Services/SupabaseServiceSupport.swift in Sources */,
 					100000000000000000000138 /* Services/SupabaseServices+Accounts.swift in Sources */,
 					100000000000000000000139 /* Services/SupabaseServices+Analytics.swift in Sources */,
+					100000000000000000000140 /* Services/AppleIdentityStore.swift in Sources */,
 						100000000000000000000315 /* Services/SupabaseServices+ExerciseCatalog.swift in Sources */,
 						100000000000000000000316 /* Services/SupabaseServices+Gyms.swift in Sources */,
 						100000000000000000000141 /* Services/SupabaseServices+Compliance.swift in Sources */,
@@ -917,7 +921,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = LiftRankApp/LiftRankDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 32TGWTQNP8;
 				ENABLE_PREVIEWS = YES;
@@ -948,7 +952,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = LiftRankApp/LiftRank.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 6;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 32TGWTQNP8;
 				CLANG_ENABLE_CODE_COVERAGE = NO;

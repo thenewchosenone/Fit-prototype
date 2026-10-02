@@ -212,7 +212,7 @@ struct SubmitLiftView: View {
                 .accessibilityLabel("Maximum type")
                 if selectedMovement == .dumbbellBenchPress {
                     Toggle("Matched dumbbell pair", isOn: $confirmsMatchedDumbbells)
-                        .tint(Color.liftBlue)
+                        .tint(Color.liftAccentText)
                     Text("Enter the weight of one dumbbell. Both dumbbells must match for ranking eligibility.")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
@@ -257,7 +257,7 @@ struct SubmitLiftView: View {
             title: "Estimated max",
             value: "\(RankingCalculator.format(estimate)) \(unit.shortLabel)",
             subtitle: "\(MeasurementFormatting.recordedLiftSetTextWithX(weight: weight, unit: unit, repetitions: repetitions)) estimates a \(RankingCalculator.format(estimate)) \(unit.shortLabel) one-rep max.",
-            symbolName: "function",
+            symbolName: "chart.line.uptrend.xyaxis",
             tint: .liftGreen
         )
     }
@@ -276,7 +276,7 @@ struct SubmitLiftView: View {
                             resetPlateLoadingFromWeight()
                         }
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                     }
 
                     NumericInputField(title: "Barbell", value: $barbellWeight, unit: unit.shortLabel, precision: 0...2, presentation: .inset)
@@ -321,7 +321,7 @@ struct SubmitLiftView: View {
                         .foregroundStyle(Color.liftMuted)
                 }
             }
-            .tint(Color.liftBlue)
+            .tint(Color.liftAccentText)
         }
     }
 
@@ -583,7 +583,7 @@ struct SubmitLiftView: View {
                 }
 
                 Toggle("Request verification", isOn: $requestVerification)
-                    .tint(Color.liftBlue)
+                    .tint(Color.liftAccentText)
                     .frame(minHeight: LiftDesign.minimumTouchTarget)
 
                 if requestVerification {
@@ -598,7 +598,7 @@ struct SubmitLiftView: View {
                         .padding(.top, 8)
                     }
                     .font(.subheadline.weight(.semibold))
-                    .tint(Color.liftBlue)
+                    .tint(Color.liftAccentText)
                 }
 
                 Divider().overlay(Color.liftSeparator)
@@ -764,7 +764,7 @@ struct LiftSubmissionResultView: View {
                     title: "New max",
                     value: "\(RankingCalculator.format(lift.estimatedOneRepMax)) lb",
                     subtitle: lift.isActualOneRepMax ? "Actual one-rep max" : "Estimated one-rep max",
-                    symbolName: "bolt.fill",
+                    symbolName: "chart.line.uptrend.xyaxis",
                     tint: .liftGreen
                 )
                 .accessibilityIdentifier("lift.submissionMax")
@@ -789,7 +789,7 @@ struct LiftSubmissionResultView: View {
 
                 Button("Done", action: done)
                     .buttonStyle(.borderedProminent)
-                    .tint(Color.liftBlue)
+                    .tint(Color.liftAccentText)
                     .frame(maxWidth: .infinity)
                     .accessibilityIdentifier("lift.submissionDone")
                 }

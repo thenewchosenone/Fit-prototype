@@ -28,3 +28,9 @@ The shareable public demo is a separate static sandbox selected by `VITE_PUBLIC_
 - Configure rate limits/CAPTCHA for authentication, posting, messaging, and reporting.
 - Run RLS tests with anon, member, moderator, and admin JWTs before deploying.
 - Add Edge Functions for moderation, role changes, message-thread creation, account export/deletion, and global session revocation.
+
+## Sign in with Apple deletion and revocation
+
+The iOS client stores the Apple user identifier and first-use name in the device Keychain, checks Apple credential state when restoring an Apple session, and signs the user out when Apple reports revocation. The current Supabase `signInWithIdToken` path does not receive or persist Apple’s authorization code, refresh token, or access token.
+
+Automatic Apple token revocation is therefore intentionally not implemented in the client or `delete-account` function. Apple’s `/auth/revoke` endpoint requires a server-held refresh/access token and a developer client secret. To complete server-side revocation, first add a secure server exchange during Apple account creation, store the resulting refresh token in protected server storage, and configure the Edge Function with the Apple App ID/Services ID, Team ID, Key ID, and private key. The deletion function must revoke that token before deleting the Supabase user, then remove the stored token. Until that backend work is deployed, account deletion still removes Lift Rivals data and the app directs Apple users to remove Lift Rivals under Apple ID settings to revoke the authorization manually.

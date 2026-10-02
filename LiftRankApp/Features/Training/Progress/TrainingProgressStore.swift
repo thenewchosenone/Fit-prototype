@@ -47,6 +47,31 @@ enum ExerciseProgressSeries {
             }
             .sorted { $0.date < $1.date }
     }
+
+    static func dailyHighestEstimatedOneRepMax(
+        from points: [ExerciseProgressPoint],
+        calendar: Calendar = .current
+    ) -> [ExerciseProgressPoint] {
+        Dictionary(grouping: points) { calendar.startOfDay(for: $0.date) }
+            .compactMap { day, dailyPoints in
+                guard let best = dailyPoints.max(by: { lhs, rhs in
+                    estimatedOneRepMax(lhs) < estimatedOneRepMax(rhs)
+                }) else { return nil }
+                return ExerciseProgressPoint(
+                    id: best.id,
+                    date: day,
+                    weight: best.weight,
+                    reps: best.reps,
+                    unit: best.unit
+                )
+            }
+            .sorted { $0.date < $1.date }
+    }
+
+    static func estimatedOneRepMax(_ point: ExerciseProgressPoint) -> Double {
+        let kilograms = MeasurementFormatting.normalizeToKilograms(point.weight, unit: point.unit)
+        return RankingCalculator.epleyOneRepMax(weight: kilograms, repetitions: point.reps)
+    }
 }
 
 

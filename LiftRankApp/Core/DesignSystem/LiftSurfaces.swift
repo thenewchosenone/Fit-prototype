@@ -14,7 +14,7 @@ struct AppBackground<Content: View>: View {
             content
         }
         .foregroundStyle(Color.liftText)
-        .tint(Color.liftLime)
+        .tint(Color.liftAccentText)
     }
 }
 
@@ -170,7 +170,7 @@ struct FilterChip: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(isActive ? Color.liftLime.opacity(0.16) : Color.liftCard)
-            .foregroundStyle(isActive ? Color.liftLime : Color.liftMuted)
+            .foregroundStyle(isActive ? Color.liftAccentText : Color.liftMuted)
             .clipShape(Capsule())
             .overlay(Capsule().stroke(Color.liftSurfaceBorder, lineWidth: 1))
         }

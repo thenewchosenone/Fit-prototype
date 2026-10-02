@@ -9,6 +9,7 @@ enum LiftRankBackendEnvironment: String, Equatable {
 
 struct SupabaseConfiguration: Equatable {
     static let authCallbackURL = URL(string: "liftrank://auth-callback")!
+    // Native reset requests use the app callback so the iOS PKCE verifier remains available.
     static let passwordRecoveryCallbackURL = URL(string: "liftrank://auth-callback?type=recovery")!
     let url: URL
     let publicKey: String

@@ -3,7 +3,9 @@ import Foundation
 enum WorkoutProgramCatalog {
     static let templates: [WorkoutProgramTemplate] = [
         fullBodyFoundation,
+        threeMonthFoundationShape,
         bodybuildingUpperLower,
+        bodybuildingTransformationIntermediateAdvanced,
         bodybuildingPushPullLegs,
         beginnerPowerlifting,
         intermediatePowerlifting,
@@ -53,8 +55,151 @@ enum WorkoutProgramCatalog {
         [0.65, 0.675, 0.70, 0.60, 0.725, 0.75, 0.775, 0.625, 0.80, 0.85, 0.90, 0.60][max(0, min(11, week - 1))]
     }
 
+    static func percentage(for week: Int, exerciseID: String) -> Double {
+        switch exerciseID {
+        case "back_squat":
+            return [0.65, 0.675, 0.70, 0.60, 0.725, 0.75, 0.775, 0.625, 0.80, 0.85, 0.875, 0.60][max(0, min(11, week - 1))]
+        case "barbell_bench_press":
+            return [0.675, 0.70, 0.725, 0.625, 0.75, 0.775, 0.80, 0.65, 0.825, 0.875, 0.90, 0.625][max(0, min(11, week - 1))]
+        case "conventional_deadlift":
+            return [0.625, 0.65, 0.675, 0.575, 0.70, 0.725, 0.75, 0.60, 0.775, 0.825, 0.85, 0.575][max(0, min(11, week - 1))]
+        default:
+            return percentage(for: week)
+        }
+    }
+
+    static func phaseSummary(for template: WorkoutProgramTemplate) -> [String] {
+        switch template.id {
+        case "three_month_foundation_shape_12":
+            return [
+                "Weeks 1–4 · Month 1 foundation",
+                "Weeks 5–8 · Month 2 strength and shape",
+                "Weeks 9–12 · Month 3 progressive overload"
+            ]
+        case "bodybuilding_transformation_intermediate_advanced_12":
+            return [
+                "Week 1 · Intro and technique",
+                "Weeks 2–5 · Foundation volume",
+                "Week 6 · Exercise-rotation ramp",
+                "Weeks 7–11 · Progression and higher effort",
+                "Week 12 · Deload and recovery"
+            ]
+        case "intermediate_powerlifting_12":
+            return [
+                "Weeks 1–3 · Base volume",
+                "Week 4 · Deload",
+                "Weeks 5–7 · Intensification",
+                "Week 8 · Deload",
+                "Weeks 9–11 · Peak practice",
+                "Week 12 · Recovery and performance check"
+            ]
+        case "cables_only_foundation_12", "free_weights_only_foundation_12":
+            return [
+                "Weeks 1–3 · Foundation",
+                "Week 4 · Deload",
+                "Weeks 5–7 · Progressive overload",
+                "Week 8 · Deload",
+                "Weeks 9–11 · Intensification",
+                "Week 12 · Recovery and performance check"
+            ]
+        default:
+            return [
+                "Weeks 1–3 · Foundation",
+                "Week 4 · Deload",
+                "Weeks 5–7 · Progressive overload",
+                "Week 8 · Deload",
+                "Weeks 9–11 · Intensification",
+                "Week 12 · Recovery and performance check"
+            ]
+        }
+    }
+
+    static func effectiveTemplateExercise(
+        _ template: WorkoutProgramExerciseTemplate,
+        templateID: String,
+        sessionIndex: Int,
+        exerciseIndex: Int,
+        week: Int
+    ) -> WorkoutProgramExerciseTemplate {
+        if templateID == "three_month_foundation_shape_12" {
+            var adjusted = template
+            let month = min(2, max(0, (week - 1) / 4))
+            if let prescription = threeMonthPrescription(sessionIndex: sessionIndex, exerciseIndex: exerciseIndex, month: month) {
+                adjusted.sets = prescription.sets
+                adjusted.reps = prescription.reps
+            }
+            return adjusted
+        }
+        guard templateID == "bodybuilding_transformation_intermediate_advanced_12", week >= 6 else { return template }
+
+        let rotations = [
+            ["incline_db_press", "pec_deck", "cable_wide_grip_pulldown", "cable_lateral_raise", "machine_smith_row", "overhead_triceps_extension", "cable_bayesian_curl"],
+            ["lying_leg_curl", "machine_smith_lunge", "machine_back_extension", "leg_extension", "machine_smith_calf_raise", "machine_abdominal_crunch"],
+            ["cable_wide_grip_pulldown", "machine_t_bar_row", "cable_rear_delt_fly", "machine_smith_shrug", "cable_rope_hammer_curl", "dumbbell_concentration_curl"],
+            ["machine_chest_press", "db_shoulder_press", "cable_single_arm_fly", "cable_lateral_raise", "dumbbell_skull_crusher", "cable_straight_bar_pushdown", "bodyweight_dead_bug"],
+            ["hack_squat", "seated_leg_curl", "bulgarian_split_squat", "leg_extension", "machine_hip_adductor", "machine_hip_abductor", "machine_standing_calf_raise"]
+        ]
+        guard rotations.indices.contains(sessionIndex), rotations[sessionIndex].indices.contains(exerciseIndex) else { return template }
+        var rotated = template
+        rotated.exerciseID = rotations[sessionIndex][exerciseIndex]
+        return rotated
+    }
+
+    static func workingSetCount(
+        for templateID: String,
+        baseSets: Int,
+        sessionIndex: Int,
+        exerciseIndex: Int,
+        week: Int
+    ) -> Int {
+        if templateID == "three_month_foundation_shape_12" { return baseSets }
+        guard templateID == "bodybuilding_transformation_intermediate_advanced_12" else {
+            return max(1, Int((Double(baseSets) * volumeMultiplier(for: week)).rounded()))
+        }
+        if week <= 2 || week == 6 { return 1 }
+        if week <= 5 { return max(1, Int((Double(baseSets) * volumeMultiplier(for: week)).rounded())) }
+
+        let progressionSets = [
+            [3, 2, 3, 2, 2, 2, 2],
+            [2, 3, 3, 2, 2, 2],
+            [2, 3, 2, 2, 3, 2],
+            [3, 2, 2, 2, 3, 2, 2],
+            [3, 2, 2, 2, 2, 3]
+        ]
+        guard progressionSets.indices.contains(sessionIndex), progressionSets[sessionIndex].indices.contains(exerciseIndex) else {
+            return max(1, Int((Double(baseSets) * volumeMultiplier(for: week)).rounded()))
+        }
+        return max(1, Int((Double(progressionSets[sessionIndex][exerciseIndex]) * volumeMultiplier(for: week)).rounded()))
+    }
+
     private static func exercise(_ id: String, _ sets: Int, _ reps: String, _ rest: Int = 120, _ notes: String = "") -> WorkoutProgramExerciseTemplate {
         WorkoutProgramExerciseTemplate(exerciseID: id, sets: sets, reps: reps, restSeconds: rest, notes: notes)
+    }
+
+    private static func threeMonthPrescription(sessionIndex: Int, exerciseIndex: Int, month: Int) -> (sets: Int, reps: String)? {
+        let prescriptions: [[[(Int, String)]]] = [
+            [
+                [(3, "10-12"), (3, "10-12"), (3, "10-12"), (2, "15-20"), (2, "6-8/side"), (2, "12-15")],
+                [(3, "10-12"), (3, "10-12"), (2, "10-12"), (2, "12-15"), (2, "10-15"), (2, "10-15"), (2, "6-8/side")],
+                [(3, "10-12"), (3, "10-12"), (3, "10-15"), (2, "15-20"), (2, "12/leg"), (2, "8-10/side"), (2, "12-15")]
+            ],
+            [
+                [(3, "10-12"), (2, "10-12"), (3, "10-15"), (2, "15-20"), (2, "6-8/side"), (2, "12-15")],
+                [(3, "8-12"), (3, "8-12"), (3, "10-12"), (3, "12-15"), (3, "10-15"), (3, "10-15"), (2, "15-30 sec/side"), (2, "8/side")],
+                [(3, "10-12"), (3, "10-12"), (2, "10-12"), (2, "12-15/leg"), (2, "15-20"), (2, "10/side"), (2, "10-15")]
+            ],
+            [
+                [(4, "8-12"), (2, "10-12"), (3, "10-15"), (3, "10-12"), (2, "15-20"), (2, "8/side"), (2, "10-15")],
+                [(3, "8-12"), (3, "8-12"), (3, "10-12"), (3, "12-15"), (3, "10-15"), (3, "10-15"), (2, "10/side"), (2, "20-30 sec/side")],
+                [(3, "8-12"), (4, "8-12"), (3, "10-12"), (2, "12-15/leg"), (2, "15-20"), (3, "10-15"), (2, "8/side")]
+            ]
+        ]
+        guard prescriptions.indices.contains(month), prescriptions[month].indices.contains(sessionIndex), prescriptions[month][sessionIndex].indices.contains(exerciseIndex) else { return nil }
+        return prescriptions[month][sessionIndex][exerciseIndex]
+    }
+
+    private static func exercise(_ id: String, _ sets: Int, _ reps: String, _ rest: Int, _ substitutions: [String], _ notes: String = "") -> WorkoutProgramExerciseTemplate {
+        WorkoutProgramExerciseTemplate(exerciseID: id, sets: sets, reps: reps, restSeconds: rest, notes: notes, substitutionExerciseIDs: substitutions)
     }
 
     private static let fullBodyFoundation = WorkoutProgramTemplate(
@@ -83,6 +228,46 @@ enum WorkoutProgramCatalog {
         requiredTrainingMaxExerciseIDs: []
     )
 
+    private static let threeMonthFoundationShape = WorkoutProgramTemplate(
+        id: "three_month_foundation_shape_12",
+        version: 1,
+        name: "Foundation, Strength & Shape",
+        summary: "A 12-week, three-day program progressing from machine-based foundation work to progressive overload for glutes, legs, upper body, and core.",
+        category: .general,
+        level: .beginner,
+        daysPerWeek: 3,
+        defaultProgression: .rirRepRange,
+        sessions: [
+            .init(dayIndex: 2, name: "Glutes + Legs + Abs", exercises: [
+                exercise("hip_thrust", 3, "10-12"),
+                exercise("seated_leg_curl", 3, "10-12"),
+                exercise("leg_extension", 3, "10-12"),
+                exercise("machine_hip_abductor", 2, "15-20"),
+                exercise("bodyweight_dead_bug", 2, "6-8/side"),
+                exercise("machine_abdominal_crunch", 2, "12-15")
+            ]),
+            .init(dayIndex: 4, name: "Back + Shoulders + Arms + Core", exercises: [
+                exercise("chest_supported_row", 3, "10-12"),
+                exercise("lat_pulldown", 3, "10-12"),
+                exercise("machine_chest_press", 2, "10-12"),
+                exercise("machine_lateral_raise", 2, "12-15"),
+                exercise("triceps_pressdown", 2, "10-15"),
+                exercise("dumbbell_curl", 2, "10-15"),
+                exercise("bodyweight_bird_dog", 2, "6-8/side")
+            ]),
+            .init(dayIndex: 6, name: "Glutes + Legs + Abs", exercises: [
+                exercise("hip_thrust", 3, "10-12"),
+                exercise("seated_leg_curl", 3, "10-12"),
+                exercise("leg_extension", 3, "10-15"),
+                exercise("machine_hip_abductor", 2, "15-20"),
+                exercise("cable_kickback", 2, "12/leg"),
+                exercise("cable_pallof_press", 2, "8-10/side"),
+                exercise("machine_abdominal_crunch", 2, "12-15")
+            ])
+        ],
+        requiredTrainingMaxExerciseIDs: []
+    )
+
     private static let bodybuildingUpperLower = WorkoutProgramTemplate(
         id: "bodybuilding_upper_lower_12",
         version: 1,
@@ -99,6 +284,64 @@ enum WorkoutProgramCatalog {
             .init(dayIndex: 6, name: "Lower B", exercises: [exercise("conventional_deadlift", 2, "5-6", 210), exercise("hack_squat", 3, "8-12", 150), exercise("hip_thrust", 3, "8-12", 150), exercise("leg_extension", 3, "12-15", 75), exercise("seated_leg_curl", 3, "10-15", 90), exercise("machine_seated_calf_raise", 3, "10-15", 75)])
         ],
         requiredTrainingMaxExerciseIDs: ["back_squat", "barbell_bench_press", "conventional_deadlift", "barbell_overhead_press"]
+    )
+
+    private static let bodybuildingTransformationIntermediateAdvanced = WorkoutProgramTemplate(
+        id: "bodybuilding_transformation_intermediate_advanced_12",
+        version: 1,
+        name: "Bodybuilding Transformation System · Intermediate–Advanced",
+        summary: "A five-day, 12-week bodybuilding split imported from the Intermediate–Advanced workbook.",
+        category: .bodybuilding,
+        level: .intermediateAdvanced,
+        daysPerWeek: 5,
+        defaultProgression: .fixed,
+        sessions: [
+            .init(dayIndex: 2, name: "Upper (Strength Focus)", exercises: [
+                exercise("barbell_incline_bench_press", 2, "6-8", 240, ["incline_db_press", "machine_incline_chest_press"]),
+                exercise("cable_crossover", 2, "8-10", 90, ["machine_plate_loaded_pec_fly", "cable_low_to_high_fly"]),
+                exercise("pull_up", 2, "8-10", 150, ["machine_neutral_grip_pulldown", "lat_pulldown"]),
+                exercise("cable_lateral_raise", 2, "8-10", 90, ["dumbbell_seated_lateral_raise", "machine_lateral_raise"]),
+                exercise("barbell_pendlay_row", 2, "6-8", 150, ["machine_smith_row", "single_arm_db_row"]),
+                exercise("overhead_triceps_extension", 2, "8-10", 90, ["cable_straight_bar_pushdown", "dumbbell_skull_crusher"]),
+                exercise("cable_bayesian_curl", 2, "8-10", 90, ["incline_db_curl", "ez_bar_curl"])
+            ]),
+            .init(dayIndex: 3, name: "Lower (Strength Focus)", exercises: [
+                exercise("lying_leg_curl", 2, "8-10", 90, ["seated_leg_curl", "bodyweight_nordic_curl"]),
+                exercise("machine_smith_back_squat", 2, "6-8", 240, ["bulgarian_split_squat", "back_squat"]),
+                exercise("romanian_deadlift", 2, "6-8", 150, ["dumbbell_romanian_deadlift", "machine_smith_romanian_deadlift"]),
+                exercise("leg_extension", 2, "8-10", 90, ["bodyweight_reverse_nordic", "machine_sissy_squat"]),
+                exercise("machine_standing_calf_raise", 2, "6-8", 90, ["machine_seated_calf_raise", "machine_smith_calf_raise"]),
+                exercise("cable_crunch", 2, "8-10", 90, ["machine_abdominal_crunch", "bodyweight_crunch"])
+            ]),
+            .init(dayIndex: 5, name: "Pull (Hypertrophy Focus)", exercises: [
+                exercise("machine_neutral_grip_pulldown", 2, "8-10", 150, ["lat_pulldown", "pull_up"]),
+                exercise("chest_supported_row", 2, "8-10", 150, ["machine_t_bar_row", "dumbbell_chest_supported_row"]),
+                exercise("seated_cable_row", 2, "8-10", 150, ["cable_low_row", "single_arm_db_row"]),
+                exercise("cable_rear_delt_fly", 2, "10-12", 90, ["cable_face_pull", "dumbbell_rear_delt_fly"]),
+                exercise("machine_shrug", 2, "10-12", 90, ["machine_smith_shrug", "dumbbell_shrug"]),
+                exercise("cable_biceps_curl", 2, "10-12", 90, ["barbell_preacher_curl", "dumbbell_curl"]),
+                exercise("machine_preacher_curl", 1, "12-15", 90, ["barbell_preacher_curl", "dumbbell_preacher_curl"])
+            ]),
+            .init(dayIndex: 6, name: "Push (Hypertrophy Focus)", exercises: [
+                exercise("barbell_bench_press", 2, "8-10", 240, ["machine_chest_press", "dumbbell_bench_press"]),
+                exercise("machine_shoulder_press", 2, "8-10", 150, ["cable_shoulder_press", "db_shoulder_press"]),
+                exercise("dumbbell_fly", 2, "10-12", 90, ["cable_single_arm_fly", "cable_low_to_high_fly"]),
+                exercise("cable_lateral_raise", 2, "10-12", 90, ["dumbbell_seated_lateral_raise", "machine_lateral_raise"]),
+                exercise("overhead_triceps_extension", 2, "10-12", 90, ["cable_straight_bar_pushdown", "dumbbell_skull_crusher"]),
+                exercise("cable_cross_body_triceps_extension", 1, "12-15", 90, ["dumbbell_single_arm_overhead_extension", "bodyweight_dip"]),
+                exercise("hanging_leg_raise", 2, "10-20", 90, ["bodyweight_sit_up", "bodyweight_dead_bug"])
+            ]),
+            .init(dayIndex: 7, name: "Legs (Hypertrophy Focus)", exercises: [
+                exercise("leg_press", 2, "8-10", 150, ["hack_squat", "dumbbell_walking_lunge"]),
+                exercise("seated_leg_curl", 2, "10-12", 90, ["lying_leg_curl", "machine_nordic_curl"]),
+                exercise("bulgarian_split_squat", 2, "8-10", 150, ["machine_smith_lunge", "dumbbell_walking_lunge"]),
+                exercise("leg_extension", 2, "10-12", 90, ["bodyweight_reverse_nordic", "machine_sissy_squat"]),
+                exercise("machine_hip_adductor", 2, "10-12", 90, ["cable_hip_adduction", "bodyweight_side_plank"]),
+                exercise("machine_hip_abductor", 2, "10-12", 90, ["cable_hip_abduction", "band_hip_abduction"]),
+                exercise("machine_standing_calf_raise", 2, "10-12", 90, ["machine_seated_calf_raise", "machine_smith_calf_raise"])
+            ])
+        ],
+        requiredTrainingMaxExerciseIDs: []
     )
 
     private static let bodybuildingPushPullLegs = WorkoutProgramTemplate(
@@ -197,9 +440,9 @@ enum WorkoutProgramCatalog {
         category: .cablesOnly, level: .beginner, daysPerWeek: 4, defaultProgression: .rirRepRange,
         sessions: [
             .init(dayIndex: 2, name: "Upper A", exercises: [exercise("cable_fly", 3, "8-12"), exercise("seated_cable_row", 3, "8-12"), exercise("cable_lateral_raise", 3, "12-20", 60), exercise("triceps_pressdown", 3, "10-15", 75)]),
-            .init(dayIndex: 3, name: "Lower A", exercises: [exercise("cable_kickback", 4, "10-15", 75), exercise("cable_crunch", 4, "10-15", 60)]),
+            .init(dayIndex: 3, name: "Lower A", exercises: [exercise("cable_squat", 3, "8-12", 150), exercise("cable_pull_through", 3, "10-15", 90), exercise("cable_lunge", 3, "8-12", 120), exercise("cable_kickback", 2, "10-15", 75), exercise("cable_crunch", 3, "10-15", 60)]),
             .init(dayIndex: 5, name: "Upper B", exercises: [exercise("cable_fly", 3, "10-15"), exercise("lat_pulldown", 3, "8-12"), exercise("cable_pullover", 3, "10-15", 75), exercise("rear_delt_fly", 3, "12-20", 60), exercise("overhead_triceps_extension", 3, "10-15", 75)]),
-            .init(dayIndex: 6, name: "Lower B", exercises: [exercise("cable_kickback", 4, "12-20", 75), exercise("cable_crunch", 4, "12-20", 60)])
+            .init(dayIndex: 6, name: "Lower B", exercises: [exercise("cable_squat", 3, "10-15", 150), exercise("cable_romanian_deadlift", 3, "8-12", 120), exercise("cable_lunge", 3, "10-15", 120), exercise("cable_kickback", 2, "12-20", 75), exercise("cable_crunch", 3, "12-20", 60)])
         ], requiredTrainingMaxExerciseIDs: []
     )
 

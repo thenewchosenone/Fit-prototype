@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SwiftData
 import SwiftUI
 import UIKit
@@ -71,6 +72,9 @@ struct LiftRankApp: App {
             guard let token = notification.object as? String else { return }
             Task { await appState.registerPushToken(token) }
         }
+        .onReceive(NotificationCenter.default.publisher(for: ASAuthorizationAppleIDProvider.credentialRevokedNotification)) { _ in
+            Task { await appState.handleAppleCredentialRevoked() }
+        }
         .onChange(of: scenePhase) { _, phase in
             guard phase != .active else { return }
             appState.persistLocalWorkoutSnapshot()
@@ -134,7 +138,7 @@ private struct AccountLoadingView: View {
     var body: some View {
         AppBackground {
             VStack(spacing: 16) {
-                ProgressView().tint(Color.liftBlue)
+                ProgressView().tint(Color.liftAccentText)
                 Text("Restoring your Lift Rivals account…").foregroundStyle(Color.liftMuted)
             }
         }

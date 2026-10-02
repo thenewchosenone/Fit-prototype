@@ -95,9 +95,12 @@ struct WorkoutHistoryCalendar: View {
     }
 
     private var earliestMonth: Date {
-        workouts.map(\.completedAt).min().map {
-            WorkoutHistoryCalendarData.monthStart(for: $0, calendar: calendar)
-        } ?? currentMonth
+        let defaultEarliestMonth = calendar.date(byAdding: .year, value: -2, to: currentMonth) ?? currentMonth
+        guard let earliestWorkout = workouts.map(\.completedAt).min() else {
+            return defaultEarliestMonth
+        }
+        let earliestWorkoutMonth = WorkoutHistoryCalendarData.monthStart(for: earliestWorkout, calendar: calendar)
+        return min(earliestWorkoutMonth, defaultEarliestMonth)
     }
 
     private var latestMonth: Date {
@@ -134,7 +137,7 @@ struct WorkoutHistoryCalendar: View {
                         selectedDate = calendar.startOfDay(for: .now)
                     }
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
                     .frame(minHeight: 44)
                 }
             }
@@ -251,7 +254,7 @@ struct WorkoutHistoryCalendar: View {
                                 Spacer()
                                 Text(MeasurementFormatting.shortDurationText(workout.duration))
                                     .font(.caption.weight(.bold).monospacedDigit())
-                                    .foregroundStyle(Color.liftBlue)
+                                    .foregroundStyle(Color.liftAccentText)
                                 Image(systemName: "chevron.right")
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(Color.liftMuted)

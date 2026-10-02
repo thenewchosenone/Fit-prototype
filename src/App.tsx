@@ -1486,6 +1486,9 @@ function TrackExercise({ prescription, position, total, originalName, onSubstitu
     .sort((a, b) => a.setNumber - b.setNumber);
   const history = exerciseHistory(state, prescription.exerciseId);
   const recommendation = recommendedNextWeight(state, prescription);
+  const specificSubstitutions = prescription.substitutionExerciseIds
+    .map((id) => state.exercises.find((exercise) => exercise.id === id))
+    .filter((exercise): exercise is Exercise => Boolean(exercise));
   const previousForSet = (setNumber: number) =>
     history.find((item) => item.log.setNumber === setNumber)?.log;
   const completeCount = logs.filter((log) => log.isComplete).length;
@@ -1518,6 +1521,22 @@ function TrackExercise({ prescription, position, total, originalName, onSubstitu
         <label><span>Rest after each set</span><select aria-label={`${prescription.exerciseName} rest time`} value={prescription.restSeconds} onChange={(event) => dispatch({ type: "SET_WORKOUT_REST", prescriptionId: prescription.id, seconds: Number(event.target.value) })}>{[30, 45, 60, 90, 120, 180, 240, 300].map((seconds) => <option key={seconds} value={seconds}>{seconds < 60 ? `${seconds} sec` : `${seconds / 60} min`}</option>)}</select></label>
         <Progress value={logs.length ? completeCount / logs.length : 0} />
       </div>
+      {specificSubstitutions.length > 0 && (
+        <div className="specific-substitutions">
+          <span>Specific substitutions</span>
+          <div>
+            {specificSubstitutions.slice(0, 2).map((exercise, index) => (
+              <button
+                key={exercise.id}
+                className="specific-substitution"
+                onClick={() => dispatch({ type: "SUBSTITUTE_WORKOUT_EXERCISE", prescriptionId: prescription.id, exercise })}
+              >
+                Option {index + 1}: {exercise.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {recommendation && (
         <div className="recommendation"><TrendingUp size={17} /><span>Suggested working weight</span><strong>{formatWeight(recommendation)} lb</strong></div>
       )}

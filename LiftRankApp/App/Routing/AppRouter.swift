@@ -6,6 +6,7 @@ enum AppTab: Int, CaseIterable, Hashable {
     case leaderboards
     case track
     case profile
+    case forum
 }
 
 enum AppSheet: Identifiable, Hashable {
