@@ -95,6 +95,16 @@ set birth_date = (current_date - interval '36 years')::date,
     region = 'Private Region'
 where user_id = '10000000-0000-0000-0000-000000000002';
 
+-- This fixture intentionally opts into the public profile/gym audiences so the
+-- visibility assertions remain independent of the safer new-account defaults.
+update public.profile_privacy
+set profile_audience = 'public',
+    age_band_audience = 'public',
+    division_audience = 'public',
+    location_audience = 'friends',
+    gym_audience = 'public'
+where user_id = '10000000-0000-0000-0000-000000000002';
+
 insert into public.gyms (id, name, status) values
   ('20000000-0000-0000-0000-000000000001', 'Gym One', 'active'),
   ('20000000-0000-0000-0000-000000000002', 'Gym Two', 'active'),

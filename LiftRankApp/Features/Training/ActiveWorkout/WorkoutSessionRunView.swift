@@ -52,7 +52,7 @@ struct WorkoutSessionRunView: View {
                                         if isReorderingExercises {
                                             Text("Reorder mode")
                                                 .font(.caption.weight(.bold))
-                                                .foregroundStyle(Color.liftBlue)
+                                                .foregroundStyle(Color.liftAccentText)
                                         }
                                         Text("\(displayState.completedWorkingSets)/\(displayState.plannedWorkingSets) working sets")
                                             .font(.caption.weight(.bold))
@@ -242,7 +242,7 @@ struct WorkoutSessionRunView: View {
                     Text(workout.dayLabel.uppercased())
                         .font(.caption2.weight(.black))
                         .tracking(1.2)
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                     Text(workout.name)
                         .font(.headline.weight(.black))
                         .lineLimit(2)
@@ -254,12 +254,12 @@ struct WorkoutSessionRunView: View {
                     TimelineView(.periodic(from: .now, by: 5)) { context in
                         Text(elapsedText(workout, at: context.date))
                             .font(.subheadline.weight(.black).monospacedDigit())
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                     }
                 } else {
                     Text(elapsedText(workout, at: workout.pausedAt ?? .now))
                         .font(.subheadline.weight(.black).monospacedDigit())
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                 }
 
                 Menu {
@@ -303,7 +303,7 @@ struct WorkoutSessionRunView: View {
             }
 
             ProgressView(value: Double(displayState.completedWorkingSets), total: Double(max(1, displayState.plannedWorkingSets)))
-                .tint(Color.liftBlue)
+                .tint(Color.liftAccentText)
 
             HStack(spacing: 14) {
                 Label("\(displayState.completedExercises)/\(displayState.exercises.count) exercises", systemImage: "dumbbell.fill")
@@ -323,7 +323,7 @@ struct WorkoutSessionRunView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.liftMuted)
             }
-            .tint(Color.liftBlue)
+            .tint(Color.liftAccentText)
             .accessibilityHint("Starts the prescribed rest countdown when a working set is completed")
         }
         .padding(.horizontal, 18)
@@ -369,7 +369,7 @@ struct WorkoutSessionRunView: View {
                         .font(.caption2.weight(.black))
                         .foregroundStyle(Color.liftMuted)
                 }
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
             }
             ExerciseCatalogIcon(exercise: catalogExercise)
                 .frame(width: 48, height: 48)
@@ -422,7 +422,7 @@ struct WorkoutSessionRunView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Color.liftBlue)
+            .foregroundStyle(Color.liftAccentText)
             .accessibilityLabel("Add exercise")
 
             Button {
@@ -674,7 +674,7 @@ private struct ActiveWorkoutSubstitutePickerView: View {
                                             Spacer(minLength: 8)
                                             Image(systemName: alreadyInWorkout ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath")
                                                 .font(.headline.weight(.bold))
-                                                .foregroundStyle(alreadyInWorkout ? Color.liftMuted : Color.liftBlue)
+                                                .foregroundStyle(alreadyInWorkout ? Color.liftMuted : Color.liftAccentText)
                                         }
                                         .padding(14)
                                         .contentShape(Rectangle())
@@ -747,12 +747,12 @@ private struct IncompleteWorkoutFinishPrompt: View {
                         Spacer()
                         Text("\(remainingSets) left")
                             .font(.subheadline.weight(.black))
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                             .monospacedDigit()
                     }
 
                     ProgressView(value: Double(completedSets), total: Double(max(1, plannedSets)))
-                        .tint(Color.liftBlue)
+                        .tint(Color.liftAccentText)
 
                     Text("Completed \(completedSets) of \(plannedSets) working sets")
                         .font(.caption.weight(.semibold))

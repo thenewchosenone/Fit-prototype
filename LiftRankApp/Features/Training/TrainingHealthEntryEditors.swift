@@ -121,7 +121,7 @@ struct StrainEntryEditor: View {
                         dismiss()
                     }
                     .fontWeight(.bold)
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
                 }
             }
         }
@@ -283,7 +283,7 @@ struct InjuryEntryEditor: View {
                                     Text("Resolved").tag(RecoveryStatus.resolved)
                                 }
                                 .pickerStyle(.segmented)
-                                .tint(Color.liftBlue)
+                                .tint(Color.liftAccentText)
                             }
                         }
                         Spacer(minLength: 8)
@@ -305,7 +305,7 @@ struct InjuryEntryEditor: View {
                     }
                     .disabled(!isValid)
                     .fontWeight(.bold)
-                    .foregroundStyle(isValid ? Color.liftBlue : Color.liftMuted)
+                    .foregroundStyle(isValid ? Color.liftAccentText : Color.liftMuted)
                 }
             }
         }

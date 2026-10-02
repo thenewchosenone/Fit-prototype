@@ -9,6 +9,23 @@ import { loadTrackerState, serializeTrackerState, STORAGE_KEY, trackerReducer } 
 import type { TrackerState } from "../src/types";
 
 const fresh = () => structuredClone(seedState);
+const officialGymBrands = [
+  "Crunch Fitness",
+  "24 Hour Fitness",
+  "LA Fitness",
+  "Esporta Fitness",
+  "EOS Fitness",
+  "VASA Fitness",
+  "YouFit",
+  "Anytime Fitness",
+  "Gold's Gym",
+  "Life Time",
+  "Workout Anytime",
+  "Onelife Fitness",
+  "The Edge Fitness Clubs",
+  "Orangetheory",
+  "UFC GYM",
+];
 
 describe("tracker reducer", () => {
   it("joins groups and toggles or switches one vote per user", () => {
@@ -67,6 +84,9 @@ describe("tracker reducer", () => {
     expect(sessions).toHaveLength(36);
     expect(installed.phases.filter((phase) => phase.planId === plan.id)).toHaveLength(3);
     expect(weeks.find((week) => week.weekNumber === 4)?.title).toContain("Deload");
+    expect(installed.prescriptions.find((item) => installed.sessions.some((session) => session.id === item.sessionId && weeks.some((week) => week.id === session.weekId)))?.substitutionExerciseIds).toEqual(
+      workoutProgramTemplates[0].sessions[0].exercises[0].substitutionExerciseIds
+    );
     expect(workoutProgramTemplates[0]).toEqual(templateSnapshot);
   });
 
@@ -346,9 +366,8 @@ describe("platform features", () => {
   });
 
   it("ships a validated open U.S. catalog snapshot with source metadata", () => {
-    const brands = ["Crunch Fitness", "LA Fitness", "EOS Fitness", "YouFit", "Anytime Fitness", "Gold's Gym"];
-    expect(Object.keys(gymCatalog.counts).sort()).toEqual([...brands].sort());
-    expect(gymCatalog.sources.map((source) => source.brand).sort()).toEqual([...brands].sort());
+    expect(Object.keys(gymCatalog.counts).sort()).toEqual([...officialGymBrands].sort());
+    expect(gymCatalog.sources.map((source) => source.brand).sort()).toEqual([...officialGymBrands].sort());
     expect(gymCatalog.gyms.every((gym) => gym.status === "Open" && gym.countryCode === "US")).toBe(true);
     const addressKeys = gymCatalog.gyms.map((gym) => `${gym.brand}|${gym.address}|${gym.city}|${gym.state}|${gym.postalCode}`.toLowerCase().replace(/[^a-z0-9|]/g, ""));
     expect(new Set(addressKeys).size).toBe(addressKeys.length);
@@ -357,9 +376,9 @@ describe("platform features", () => {
 
   it("lazy-loads unique, complete official gym records and keeps legacy metrics scoped", async () => {
     const gyms = await loadGymCatalog();
-    expect(gyms.length).toBeGreaterThan(1400);
+    expect(gyms.length).toBeGreaterThan(5500);
     expect(new Set(gyms.map((gym) => gym.id)).size).toBe(gyms.length);
-    expect(new Set(gyms.map((gym) => gym.brand))).toEqual(new Set(["Crunch Fitness", "LA Fitness", "EOS Fitness", "YouFit", "Anytime Fitness", "Gold's Gym"]));
+    expect(new Set(gyms.map((gym) => gym.brand))).toEqual(new Set(officialGymBrands));
     expect(gyms.every((gym) => gym.brand && gym.address && gym.city && gym.state && gym.postalCode && gym.countryCode === "US" && gym.officialUrl.startsWith("https://"))).toBe(true);
     expect(gyms.find((gym) => gym.id === "gym-south-beach")?.brand).toBe("Crunch Fitness");
     expect(gyms.some((gym) => gym.name === "YouFit Gyms - Weston")).toBe(true);

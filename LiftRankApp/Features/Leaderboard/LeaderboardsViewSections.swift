@@ -184,7 +184,7 @@ extension LeaderboardsView {
     private var leaderboardLoadingState: some View {
         VStack(spacing: 12) {
             ProgressView()
-                .tint(Color.liftLime)
+                .tint(Color.liftAccentText)
             Text("Updating leaderboard")
                 .font(.headline)
             Text("Loading the selected ranking.")

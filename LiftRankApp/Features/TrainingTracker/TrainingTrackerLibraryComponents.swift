@@ -335,7 +335,7 @@ struct ProgramChoiceRow: View {
                 Text(title).font(.headline).foregroundStyle(.white)
                 Spacer()
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isSelected ? Color.liftBlue : Color.liftMuted)
+                    .foregroundStyle(isSelected ? Color.liftAccentText : Color.liftMuted)
             }
             .padding(13)
             .background(isSelected ? Color.liftBlue.opacity(0.18) : Color.black.opacity(0.16))
@@ -444,7 +444,7 @@ struct ProgramAddExercisePickerView: View {
                                 if !selectedExerciseIDs.isEmpty {
                                     Text("\(selectedExerciseIDs.count) selected")
                                         .font(.caption.weight(.black))
-                                        .foregroundStyle(Color.liftBlue)
+                                        .foregroundStyle(Color.liftAccentText)
                                 }
                             }
                             .padding(.horizontal, 4)
@@ -542,7 +542,7 @@ struct ProgramAddExercisePickerView: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 9)
                         .background(selectedEquipment == "All" ? Color.liftCard : Color.liftBlue.opacity(0.18))
-                        .foregroundStyle(selectedEquipment == "All" ? Color.liftMuted : Color.liftBlue)
+                        .foregroundStyle(selectedEquipment == "All" ? Color.liftMuted : Color.liftAccentText)
                         .clipShape(Capsule())
                 }
             }
@@ -579,14 +579,14 @@ struct ProgramAddExercisePickerView: View {
                 if let reason = result.reasonLabel {
                     Text(reason)
                         .font(.caption2.weight(.bold))
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                 }
                 Text("\(exercise.bodyPart) • \(exercise.equipment)")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
                 Text("\(exercise.defaultSets) sets × \(exercise.defaultReps)")
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
             }
             Spacer()
 
@@ -606,7 +606,7 @@ struct ProgramAddExercisePickerView: View {
             } label: {
                 Image(systemName: isExisting || isSelected ? "checkmark.circle.fill" : "plus.circle")
                     .font(.title2.weight(.bold))
-                    .foregroundStyle(isExisting ? Color.liftGreen : isSelected ? Color.liftBlue : Color.liftMuted)
+                    .foregroundStyle(isExisting ? Color.liftGreen : isSelected ? Color.liftAccentText : Color.liftMuted)
                     .frame(width: 44, height: 44)
             }
             .buttonStyle(.plain)
@@ -638,7 +638,7 @@ struct ProgramAddExercisePickerView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Color.liftBlue)
+            .foregroundStyle(Color.liftAccentText)
             .accessibilityLabel("Create custom exercise")
 
             Button {
@@ -669,7 +669,7 @@ struct ProgramAddExercisePickerView: View {
         VStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .font(.title2)
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
             Text("No exercises found")
                 .font(.headline)
             Text("Try another search or clear a filter.")

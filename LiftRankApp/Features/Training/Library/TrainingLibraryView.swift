@@ -13,7 +13,7 @@ extension TrainingTrackerView {
                     }
                 }
                 .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
                 .frame(width: 22)
                 .frame(minHeight: 12)
                 .buttonStyle(.plain)
@@ -40,7 +40,7 @@ extension TrainingTrackerView {
                     if let reason = result.reasonLabel, !librarySearch.isEmpty {
                         Text(reason)
                             .font(.caption2.weight(.bold))
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                     }
                     Text("\(exercise.equipment) • \(exercise.resolvedMuscleProfile.primaryDescription)")
                         .font(.caption)
@@ -87,7 +87,7 @@ extension TrainingTrackerView {
                 } label: {
                     ZStack(alignment: .topTrailing) {
                         Image(systemName: "slider.horizontal.3")
-                            .foregroundStyle(libraryFilters.isEmpty ? Color.liftMuted : Color.liftBlue)
+                            .foregroundStyle(libraryFilters.isEmpty ? Color.liftMuted : Color.liftAccentText)
                             .frame(width: 44, height: 44)
                         if libraryFilters.activeCategoryCount > 0 {
                             Text("\(libraryFilters.activeCategoryCount)")
@@ -108,7 +108,7 @@ extension TrainingTrackerView {
                     showingCreateLibraryExercise = true
                 } label: {
                     Image(systemName: "plus")
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
@@ -136,7 +136,7 @@ extension TrainingTrackerView {
                                     Image(systemName: "xmark")
                                 }
                                 .font(.caption.weight(.bold))
-                                .foregroundStyle(Color.liftBlue)
+                                .foregroundStyle(Color.liftAccentText)
                                 .padding(.horizontal, 11)
                                 .frame(minHeight: 36)
                                 .background(Color.liftBlue.opacity(0.14))
@@ -178,7 +178,7 @@ extension TrainingTrackerView {
                         LazyVStack(alignment: .leading, spacing: 0) {
                             Text(section.letter)
                                 .font(.caption.weight(.black))
-                                .foregroundStyle(Color.liftBlue)
+                                .foregroundStyle(Color.liftAccentText)
                                 .padding(.horizontal, 12)
                                 .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
                                 .background(Color.liftCardRaised.opacity(0.7))

@@ -9,6 +9,8 @@ enum LiftRankBackendEnvironment: String, Equatable {
 
 struct SupabaseConfiguration: Equatable {
     static let authCallbackURL = URL(string: "liftrank://auth-callback")!
+    // Native reset requests use the app callback so the iOS PKCE verifier remains available.
+    static let passwordRecoveryCallbackURL = URL(string: "liftrank://auth-callback?type=recovery")!
     let url: URL
     let publicKey: String
     let environment: LiftRankBackendEnvironment
@@ -58,6 +60,32 @@ struct SupabaseConfiguration: Equatable {
 
 enum SupabaseServiceErrorMapper {
     static func map(_ error: Error) -> LiftRankServiceError {
+        if let authError = error as? AuthError {
+            switch authError {
+            case .sessionMissing:
+                return .sessionExpired
+            case .weakPassword:
+                return .invalidInput("Choose a stronger password and try again.")
+            case .api(let apiMessage, let errorCode, _, _):
+                let code = errorCode.rawValue.lowercased()
+                let apiMessage = apiMessage.lowercased()
+                if ["session_not_found", "session_expired", "refresh_token_not_found", "no_authorization", "invalid_jwt"].contains(code) ||
+                    apiMessage.contains("session") && (apiMessage.contains("expired") || apiMessage.contains("missing")) {
+                    return .sessionExpired
+                }
+                if code == "same_password" || apiMessage.contains("different from the old password") {
+                    return .invalidInput("Choose a different password and try again.")
+                }
+                if code == "reauthentication_needed" || apiMessage.contains("reauthentication") {
+                    return .invalidInput("Request a new reset email and use its link to choose your password.")
+                }
+                if code == "current_password_required" || apiMessage.contains("current password") {
+                    return .invalidInput("Request a new reset email before changing this password.")
+                }
+            default:
+                break
+            }
+        }
         let message = String(describing: error).lowercased()
         if message.contains("invalid login") || message.contains("invalid credentials") { return .invalidCredentials }
         if message.contains("jwt") || (message.contains("session") && message.contains("expired")) { return .sessionExpired }

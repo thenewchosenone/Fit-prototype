@@ -123,7 +123,7 @@ struct WorkoutHistoryCalendar: View {
                         selectedDate = calendar.startOfDay(for: .now)
                     }
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
                     .frame(minHeight: 44)
                 }
             }
@@ -240,7 +240,7 @@ struct WorkoutHistoryCalendar: View {
                                 Spacer()
                                 Text(MeasurementFormatting.shortDurationText(workout.duration))
                                     .font(.caption.weight(.bold).monospacedDigit())
-                                    .foregroundStyle(Color.liftBlue)
+                                    .foregroundStyle(Color.liftAccentText)
                                 Image(systemName: "chevron.right")
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(Color.liftMuted)

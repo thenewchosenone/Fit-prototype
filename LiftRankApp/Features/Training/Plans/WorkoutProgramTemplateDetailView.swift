@@ -156,7 +156,7 @@ struct WorkoutProgramTemplateDetailView: View {
     private var phaseSummary: some View {
         VStack(alignment: .leading, spacing: 9) {
             Text("12-week structure").font(.headline)
-            ForEach(["Weeks 1–3 · Foundation", "Week 4 · Deload", "Weeks 5–7 · Progressive overload", "Week 8 · Deload", "Weeks 9–11 · Intensification", "Week 12 · Recovery and optional performance check"], id: \.self) { title in
+            ForEach(WorkoutProgramCatalog.phaseSummary(for: template), id: \.self) { title in
                 Label(title, systemImage: "checkmark.circle.fill")
                     .font(.subheadline)
                     .foregroundStyle(Color.liftMuted)
@@ -185,7 +185,7 @@ struct WorkoutProgramTemplateDetailView: View {
                     toggleAllSessions(expand: !allExpanded)
                 }
                 .font(.caption.weight(.bold))
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
                 .frame(minHeight: 44)
                 .buttonStyle(.plain)
             }
@@ -236,7 +236,7 @@ struct WorkoutProgramTemplateDetailView: View {
                             .font(.system(size: 9, weight: .black, design: .rounded))
                             .tracking(0.4)
                     }
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
                     .frame(width: 46, height: 42)
                     .background(Color.liftBlue.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -254,7 +254,7 @@ struct WorkoutProgramTemplateDetailView: View {
 
                     Image(systemName: "chevron.down")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(isExpanded ? Color.liftBlue : Color.liftMuted)
+                        .foregroundStyle(isExpanded ? Color.liftAccentText : Color.liftMuted)
                         .rotationEffect(.degrees(isExpanded ? 180 : 0))
                 }
                 .padding(12)
@@ -273,9 +273,9 @@ struct WorkoutProgramTemplateDetailView: View {
                 VStack(spacing: 0) {
                     ForEach(Array(session.exercises.enumerated()), id: \.offset) { exerciseIndex, prescription in
                         let exercise = templateExercise(for: prescription)
-                        HStack(spacing: 11) {
+                        HStack(spacing: 12) {
                             ExerciseCatalogIcon(exercise: exercise)
-                                .frame(width: 36, height: 36)
+                                .frame(width: 40, height: 40)
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(exercise.name)
@@ -292,19 +292,20 @@ struct WorkoutProgramTemplateDetailView: View {
 
                             Text("\(prescription.sets) × \(prescription.reps)")
                                 .font(.caption2.weight(.bold).monospacedDigit())
-                                .foregroundStyle(Color.liftBlue)
+                                .foregroundStyle(Color.liftAccentText)
                                 .padding(.horizontal, 9)
                                 .frame(minHeight: 28)
                                 .background(Color.liftBlue.opacity(0.10))
                                 .clipShape(Capsule())
                         }
                         .padding(.horizontal, 12)
-                        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+                        .padding(.vertical, 7)
+                        .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
 
                         if exerciseIndex < session.exercises.count - 1 {
                             Divider()
                                 .overlay(Color.liftSeparator)
-                                .padding(.leading, 59)
+                                .padding(.leading, 64)
                         }
                     }
                 }
@@ -346,7 +347,7 @@ struct WorkoutProgramTemplateDetailView: View {
             workoutCategory: "Strength",
             defaultSets: prescription.sets,
             defaultReps: prescription.reps,
-            symbolName: "dumbbell.fill",
+            symbolName: "figure.strengthtraining.functional",
             equipment: "Equipment",
             muscleProfile: ExerciseMuscleProfileResolver.profile(
                 name: prescription.exerciseID,
@@ -382,7 +383,7 @@ struct WorkoutProgramTemplateDetailView: View {
     private func metadataChip(_ title: String) -> some View {
         Text(title)
             .font(.caption2.weight(.bold))
-            .foregroundStyle(Color.liftBlue)
+            .foregroundStyle(Color.liftAccentText)
             .padding(.horizontal, 9)
             .padding(.vertical, 6)
             .background(Color.liftBlue.opacity(0.13))

@@ -28,13 +28,23 @@ final class SupabaseAuthenticationService: AuthenticationService {
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
+    func resendConfirmation(email: String) async throws {
+        do {
+            try await client.auth.resend(
+                email: email,
+                type: .signup,
+                emailRedirectTo: SupabaseConfiguration.authCallbackURL
+            )
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
     func signIn(email: String, password: String) async throws -> AccountSession {
         do { return accountSession(try await client.auth.signIn(email: email, password: password)) }
         catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
     func requestPasswordReset(email: String) async throws {
-        do { try await client.auth.resetPasswordForEmail(email) }
+        do { try await client.auth.resetPasswordForEmail(email, redirectTo: SupabaseConfiguration.passwordRecoveryCallbackURL) }
         catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
@@ -307,7 +317,6 @@ final class SupabaseProfileService: ProfileService {
 
     func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile {
         do {
-            _ = try await claimUsername(draft.username)
             let params = SaveProfileParameters(draft: draft)
             try await client.rpc("save_own_profile", params: params).execute()
             try await client.from("profiles")
@@ -330,13 +339,23 @@ final class SupabaseProfileService: ProfileService {
         catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
-    func claimUsername(_ username: String) async throws -> String {
-        let normalized = username.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "@"))
+    func saveTrainingGoals(_ goalIDs: [String]) async throws {
+        do {
+            try await client.rpc("replace_own_training_goals", params: ["goal_ids": goalIDs]).execute()
+        } catch let error as LiftRankServiceError { throw error }
+        catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func changeUsername(currentUsername: String, newUsername: String) async throws -> String {
+        let normalized = newUsername.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "@"))
         guard normalized.range(of: "^[a-z0-9_]{3,24}$", options: .regularExpression) != nil else {
             throw LiftRankServiceError.invalidInput("Use 3–24 lowercase letters, numbers, or underscores.")
         }
         do {
-            let value: String = try await client.rpc("claim_username", params: ["desired_username": normalized]).execute().value
+            let value: String = try await client.rpc(
+                "change_username",
+                params: ["current_username": currentUsername, "desired_username": normalized]
+            ).execute().value
             return value
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }

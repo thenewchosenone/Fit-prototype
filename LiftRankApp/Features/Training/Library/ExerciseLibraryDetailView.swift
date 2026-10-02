@@ -271,7 +271,7 @@ struct ExerciseLibraryDetailView: View {
                             x: .value("Date", entry.workout.completedAt),
                             y: .value(chartMetricTitle(chartMetric), chartValue(entry))
                         )
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                         PointMark(
                             x: .value("Date", entry.workout.completedAt),
                             y: .value(chartMetricTitle(chartMetric), chartValue(entry))
@@ -297,7 +297,7 @@ struct ExerciseLibraryDetailView: View {
                         }
                     }
                     .font(.subheadline.weight(.semibold))
-                    .tint(Color.liftBlue)
+                    .tint(Color.liftAccentText)
                 }
                 .padding(14)
                 .liftSurface()
@@ -334,7 +334,7 @@ struct ExerciseLibraryDetailView: View {
 
     private func compactFact(_ title: String, _ value: String, symbol: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: symbol).foregroundStyle(Color.liftBlue)
+            Image(systemName: symbol).foregroundStyle(Color.liftAccentText)
             Text(title).font(.caption).foregroundStyle(Color.liftMuted)
             Text(value).font(.subheadline.weight(.bold)).lineLimit(2)
         }
@@ -358,7 +358,7 @@ struct ExerciseLibraryDetailView: View {
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                 }
 
                 HStack(spacing: -7) {

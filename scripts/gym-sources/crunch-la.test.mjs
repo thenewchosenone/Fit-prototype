@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  fetchEsportaLocations,
   fetchCrunchLocations,
   fetchLaFitnessLocations,
   parseCrunchLocations,
+  parseEsportaLocations,
   parseLaFitnessLocations,
 } from "./crunch-la.mjs";
 
@@ -160,6 +162,45 @@ test("parseLaFitnessLocations keeps only open US LA Fitness clubs", () => {
   ]);
 });
 
+test("parseEsportaLocations keeps all open U.S. Esporta brand IDs", () => {
+  const result = parseEsportaLocations({ d: [
+    {
+      ClubID: 1205,
+      Description: "MESA- RIO SALADO PKWY/DOBSON",
+      ClubStatus: 1,
+      IsEsporta: true,
+      BrandId: 9,
+      State: "AZ",
+      City: "MESA",
+      Address: "1844 W RIO SALADO PARKWAY<br />MESA,AZ 85201",
+      ClubHomeURL: "clubhome.aspx?clubid=1205&Mesa-Arizona+GYM",
+    },
+    {
+      ClubID: 9999,
+      Description: "FUTURE",
+      ClubStatus: 12,
+      IsEsporta: true,
+      BrandId: 1,
+      State: "FL",
+      City: "MIAMI",
+      Address: "1 MAIN ST<br />MIAMI,FL 33101",
+    },
+  ] });
+
+  assert.deepEqual(result, [{
+    sourceId: "1205",
+    brand: "Esporta Fitness",
+    name: "Esporta Fitness - MESA- RIO SALADO PKWY/DOBSON",
+    address: "1844 W RIO SALADO PARKWAY",
+    city: "MESA",
+    state: "AZ",
+    postalCode: "85201",
+    countryCode: "US",
+    officialUrl: "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1205&Mesa-Arizona+GYM",
+    status: "Open",
+  }]);
+});
+
 test("fetch helpers use the official request shapes", async () => {
   const requests = [];
   const fetchImpl = async (url, init) => {
@@ -172,6 +213,7 @@ test("fetch helpers use the official request shapes", async () => {
 
   await fetchCrunchLocations({ fetchImpl });
   await fetchLaFitnessLocations({ fetchImpl });
+  await fetchEsportaLocations({ fetchImpl });
 
   assert.equal(requests[0].url, "https://www.crunch.com/load-clubs");
   assert.equal(requests[0].init.headers.Accept, "application/json");
@@ -181,4 +223,6 @@ test("fetch helpers use the official request shapes", async () => {
   );
   assert.equal(requests[1].init.method, "POST");
   assert.equal(requests[1].init.body, "{}");
+  assert.equal(requests[2].url, requests[1].url);
+  assert.equal(requests[2].init.method, "POST");
 });

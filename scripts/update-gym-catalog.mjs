@@ -2,29 +2,36 @@ import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { fetchCrunchLocations, fetchLaFitnessLocations, CRUNCH_SOURCE_URL, LA_FITNESS_SOURCE_URL } from "./gym-sources/crunch-la.mjs";
+import { CRUNCH_SOURCE_URL, ESPORTA_SOURCE_URL, LA_FITNESS_SOURCE_URL, fetchCrunchLocations, fetchEsportaLocations, fetchLaFitnessLocations } from "./gym-sources/crunch-la.mjs";
 import { fetchEosLocations, fetchYouFitLocations, EOS_SOURCE_URL, YOUFIT_SOURCE_URL } from "./gym-sources/eos-youfit.mjs";
-import { fetchAnytimeLocations, fetchGoldsLocations, parseAnytimeDirectoryHtml } from "./gym-sources/anytime-golds.mjs";
+import { ANYTIME_SOURCE_URL, fetchAnytimeLocations, fetchGoldsLocations } from "./gym-sources/anytime-golds.mjs";
+import { HOUR_FITNESS_SOURCE_URL, VASA_SOURCE_URL, fetch24HourFitnessLocations, fetchVasaLocations } from "./gym-sources/hour-vasa.mjs";
+import { LIFETIME_SOURCE_URL, fetchLifetimeLocations } from "./gym-sources/lifetime.mjs";
+import { EDGE_SOURCE_URL, ONELIFE_SOURCE_URL, WORKOUT_ANYTIME_SOURCE_URL, fetchEdgeLocations, fetchOnelifeLocations, fetchWorkoutAnytimeLocations } from "./gym-sources/regional.mjs";
+import { ORANGETHEORY_SOURCE_URL, UFC_GYM_SOURCE_URL, fetchOrangetheoryLocations, fetchUfcGymLocations } from "./gym-sources/studios.mjs";
 import { catalogId, normalizedAddressKey, slug, stateName } from "./gym-sources/normalize.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputPath = resolve(root, "src/gymCatalog.json");
 const allowLargeChange = process.argv.includes("--allow-large-change");
 const preserveBlockedSource = process.argv.includes("--preserve-blocked-source");
-const anytimeHtmlFlag = process.argv.indexOf("--anytime-html");
-const anytimeHtmlPath = anytimeHtmlFlag >= 0 ? process.argv[anytimeHtmlFlag + 1] : null;
-if (anytimeHtmlFlag >= 0 && !anytimeHtmlPath) throw new Error("--anytime-html requires a file path");
-const getAnytimeLocations = anytimeHtmlPath
-  ? async () => parseAnytimeDirectoryHtml(await readFile(resolve(anytimeHtmlPath), "utf8"))
-  : fetchAnytimeLocations;
 
 const sourceDefinitions = [
-  { brand: "Crunch Fitness", url: CRUNCH_SOURCE_URL, fetchLocations: fetchCrunchLocations },
-  { brand: "LA Fitness", url: LA_FITNESS_SOURCE_URL, fetchLocations: fetchLaFitnessLocations },
-  { brand: "EOS Fitness", url: EOS_SOURCE_URL, fetchLocations: fetchEosLocations },
-  { brand: "YouFit", url: YOUFIT_SOURCE_URL, fetchLocations: fetchYouFitLocations },
-  { brand: "Anytime Fitness", url: "https://www.anytimefitness.com/locations", fetchLocations: getAnytimeLocations },
-  { brand: "Gold's Gym", url: "https://www.goldsgym.com/locations/", fetchLocations: fetchGoldsLocations }
+  { brand: "Crunch Fitness", url: CRUNCH_SOURCE_URL, minimumCount: 450, fetchLocations: fetchCrunchLocations },
+  { brand: "24 Hour Fitness", url: HOUR_FITNESS_SOURCE_URL, minimumCount: 220, fetchLocations: fetch24HourFitnessLocations },
+  { brand: "LA Fitness", url: LA_FITNESS_SOURCE_URL, minimumCount: 400, fetchLocations: fetchLaFitnessLocations },
+  { brand: "Esporta Fitness", url: ESPORTA_SOURCE_URL, minimumCount: 45, fetchLocations: fetchEsportaLocations },
+  { brand: "EOS Fitness", url: EOS_SOURCE_URL, minimumCount: 140, fetchLocations: fetchEosLocations },
+  { brand: "VASA Fitness", url: VASA_SOURCE_URL, minimumCount: 65, fetchLocations: fetchVasaLocations },
+  { brand: "YouFit", url: YOUFIT_SOURCE_URL, minimumCount: 40, fetchLocations: fetchYouFitLocations },
+  { brand: "Anytime Fitness", url: ANYTIME_SOURCE_URL, minimumCount: 2200, fetchLocations: fetchAnytimeLocations },
+  { brand: "Gold's Gym", url: "https://www.goldsgym.com/locations/", minimumCount: 150, fetchLocations: fetchGoldsLocations },
+  { brand: "Life Time", url: LIFETIME_SOURCE_URL, minimumCount: 190, fetchLocations: fetchLifetimeLocations },
+  { brand: "Workout Anytime", url: WORKOUT_ANYTIME_SOURCE_URL, minimumCount: 175, fetchLocations: fetchWorkoutAnytimeLocations },
+  { brand: "Onelife Fitness", url: ONELIFE_SOURCE_URL, minimumCount: 60, fetchLocations: fetchOnelifeLocations },
+  { brand: "The Edge Fitness Clubs", url: EDGE_SOURCE_URL, minimumCount: 40, fetchLocations: fetchEdgeLocations },
+  { brand: "Orangetheory", url: ORANGETHEORY_SOURCE_URL, minimumCount: 1100, fetchLocations: fetchOrangetheoryLocations },
+  { brand: "UFC GYM", url: UFC_GYM_SOURCE_URL, minimumCount: 50, fetchLocations: fetchUfcGymLocations }
 ];
 
 function normalizeLocation(location) {
@@ -77,6 +84,12 @@ for (const source of sourceDefinitions) {
     console.warn(`${source.brand}: preserving ${previous.length} prior records because refresh failed: ${error.message}`);
   }
   const normalized = locations.map(normalizeLocation);
+  if (normalized.some((location) => location.brand !== source.brand)) {
+    throw new Error(`${source.brand} source returned a record for another brand`);
+  }
+  if (normalized.length < source.minimumCount) {
+    throw new Error(`${source.brand} returned ${normalized.length} locations; expected at least ${source.minimumCount} from its complete official feed`);
+  }
   const previousCount = previousCatalog?.counts?.[source.brand] ?? 0;
   if (!allowLargeChange && previousCount > 0 && normalized.length < previousCount * 0.85) {
     throw new Error(`${source.brand} dropped from ${previousCount} to ${normalized.length}; rerun with --allow-large-change after verification`);

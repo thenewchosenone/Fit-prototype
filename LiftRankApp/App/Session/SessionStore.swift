@@ -61,6 +61,11 @@ final class SessionStore: ObservableObject {
         return signedUp
     }
 
+    func resendConfirmation(email: String) async throws {
+        guard let authenticationService else { throw LiftRankServiceError.configurationMissing }
+        try await authenticationService.resendConfirmation(email: email)
+    }
+
     func hasRestorableSession() async throws -> Bool {
         guard let authenticationService else { throw LiftRankServiceError.configurationMissing }
         return try await authenticationService.restoreSession() != nil

@@ -11,7 +11,7 @@ struct ProgramSessionCard: View {
 
     var body: some View {
         LiftCard {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("\(session.day) · \(session.name)")
@@ -37,9 +37,9 @@ struct ProgramSessionCard: View {
 
                 VStack(spacing: 0) {
                     ForEach(Array(prescriptions.enumerated()), id: \.element.id) { index, prescription in
-                        HStack(spacing: 11) {
+                        HStack(spacing: 12) {
                             ExerciseCatalogIcon(exercise: catalogExercise(for: prescription))
-                                .frame(width: 38, height: 38)
+                                .frame(width: 42, height: 42)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(prescription.exerciseName)
                                     .font(.subheadline.weight(.semibold))
@@ -51,12 +51,13 @@ struct ProgramSessionCard: View {
                             }
                             Spacer()
                         }
-                        .frame(minHeight: 52)
+                        .padding(.vertical, 7)
+                        .frame(minHeight: 66)
 
                         if index < prescriptions.count - 1 {
                             Divider()
                                 .overlay(Color.white.opacity(0.07))
-                                .padding(.leading, 49)
+                                .padding(.leading, 54)
                         }
                     }
                 }
@@ -67,7 +68,7 @@ struct ProgramSessionCard: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
-                    .tint(Color.liftBlue)
+                    .tint(Color.liftAccentText)
 
                     Button(action: onStart) {
                         Label("Start", systemImage: "play.fill")
@@ -75,6 +76,7 @@ struct ProgramSessionCard: View {
                     }
                     .buttonStyle(LiftCompactProminentButtonStyle())
                 }
+                .padding(.top, 2)
             }
         }
     }

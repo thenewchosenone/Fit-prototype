@@ -153,6 +153,10 @@ export function loadTrackerState(storage: Pick<Storage, "getItem"> = localStorag
           restOverrides: parsed.activeWorkout.restOverrides ?? {}
         }
       : null;
+    const prescriptions = (parsed.prescriptions ?? seed.prescriptions).map((prescription) => ({
+      ...prescription,
+      substitutionExerciseIds: prescription.substitutionExerciseIds ?? []
+    }));
     return {
       ...seed,
       ...parsed,
@@ -160,6 +164,7 @@ export function loadTrackerState(storage: Pick<Storage, "getItem"> = localStorag
       // Directory records ship with the app and must not be replaced by an older
       // localStorage snapshot. Membership IDs remain user-owned and are migrated above.
       gyms: seed.gyms,
+      prescriptions,
       // The bundled catalog is application data. Persist only compatible
       // user-created additions instead of allowing an old catalog snapshot
       // to replace newly shipped exercises.
@@ -300,7 +305,8 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
               reps: exerciseTemplate.reps,
               restSeconds: exerciseTemplate.restSeconds,
               order: exerciseOrder,
-              notes: exerciseTemplate.notes ?? ""
+              notes: exerciseTemplate.notes ?? "",
+              substitutionExerciseIds: exerciseTemplate.substitutionExerciseIds
             });
           });
         });
@@ -504,7 +510,8 @@ export function trackerReducer(state: TrackerState, action: TrackerAction): Trac
         reps: action.reps,
         restSeconds: action.restSeconds,
         order: state.prescriptions.filter((item) => item.sessionId === action.sessionId).length,
-        notes: ""
+        notes: "",
+        substitutionExerciseIds: []
       };
       const activeWorkout = state.activeWorkout?.sessionId === action.sessionId
         ? { ...state.activeWorkout, exerciseOrder: [...state.activeWorkout.exerciseOrder, prescription.id] }

@@ -207,7 +207,7 @@ struct ProgramPlanDetailView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "calendar.badge.plus")
                         .font(.headline.weight(.bold))
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                         .frame(width: 38, height: 38)
                         .background(Color.liftBlue.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))

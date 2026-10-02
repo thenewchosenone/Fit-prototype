@@ -41,11 +41,13 @@ final class MockProfileService: ProfileService {
     func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry]) async throws -> [BodyweightEntry] { localEntries }
     func saveBodyweightEntry(_ entry: BodyweightEntry) async throws {}
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {
-        repository.currentProfile = profile
-        if let index = repository.profiles.firstIndex(where: { $0.id == profile.id }) {
-            repository.profiles[index] = profile
+        var saved = profile
+        saved.username = repository.currentProfile.username
+        repository.currentProfile = saved
+        if let index = repository.profiles.firstIndex(where: { $0.id == saved.id }) {
+            repository.profiles[index] = saved
         }
-        return profile
+        return saved
     }
     func authenticatedProfile() async throws -> AuthenticatedProfile {
         let profile = repository.currentProfile
@@ -68,11 +70,10 @@ final class MockProfileService: ProfileService {
     }
     func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile {
         var profile = repository.currentProfile
-        profile.username = draft.username
         profile.displayName = draft.displayName
         profile.bio = draft.bio
         profile.preferredUnit = draft.preferredUnit
-        profile.sexCategory = draft.sexCategory ?? .open
+        profile.sexCategory = draft.sexCategory ?? .male
         profile.heightInches = (draft.heightCentimeters ?? profile.heightInches * 2.54) / 2.54
         profile.bodyweightPounds = draft.bodyweightPounds ?? profile.bodyweightPounds
         profile.city = draft.city
@@ -84,12 +85,19 @@ final class MockProfileService: ProfileService {
         _ = try await updateProfile(profile)
         return try await authenticatedProfile()
     }
-    func claimUsername(_ username: String) async throws -> String {
-        let normalized = username.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "@"))
+    func saveTrainingGoals(_ goalIDs: [String]) async throws {}
+    func changeUsername(currentUsername: String, newUsername: String) async throws -> String {
+        let normalized = newUsername.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "@"))
         guard normalized.range(of: "^[a-z0-9_]{3,24}$", options: .regularExpression) != nil else {
             throw LiftRankServiceError.invalidInput("Use 3–24 lowercase letters, numbers, or underscores.")
         }
+        guard repository.currentProfile.username.caseInsensitiveCompare(currentUsername) == .orderedSame else {
+            throw LiftRankServiceError.sessionExpired
+        }
         repository.currentProfile.username = normalized
+        if let index = repository.profiles.firstIndex(where: { $0.id == repository.currentProfile.id }) {
+            repository.profiles[index].username = normalized
+        }
         return normalized
     }
     func profileCard(userID: UUID) async throws -> PublicProfileCard {

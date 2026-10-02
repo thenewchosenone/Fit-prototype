@@ -56,7 +56,7 @@ struct ActiveWorkoutAddExercisePickerView: View {
                                         if let reason = result.reasonLabel {
                                             Text(reason)
                                                 .font(.caption2.weight(.bold))
-                                                .foregroundStyle(Color.liftBlue)
+                                                .foregroundStyle(Color.liftAccentText)
                                         }
                                         Text("\(exercise.bodyPart) • \(exercise.equipment) • \(exercise.defaultSets) × \(exercise.defaultReps)")
                                             .font(.caption)
@@ -65,7 +65,7 @@ struct ActiveWorkoutAddExercisePickerView: View {
                                     Spacer()
                                     Image(systemName: isExisting || isSelected ? "checkmark.circle.fill" : "circle")
                                         .font(.title3.weight(.bold))
-                                        .foregroundStyle(isExisting ? Color.liftGreen : isSelected ? Color.liftBlue : Color.liftMuted)
+                                        .foregroundStyle(isExisting ? Color.liftGreen : isSelected ? Color.liftAccentText : Color.liftMuted)
                                 }
                                 .padding(.vertical, 10)
                                 .contentShape(Rectangle())
@@ -137,7 +137,7 @@ struct ActiveWorkoutAddExercisePickerView: View {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.bold))
             }
-            .foregroundStyle(Color.liftBlue)
+            .foregroundStyle(Color.liftAccentText)
             .padding(.horizontal, 13)
             .frame(maxWidth: .infinity, minHeight: 44)
             .background(Color.liftBlue.opacity(0.12))
@@ -199,7 +199,7 @@ struct ActiveWorkoutAddExercisePickerView: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 9)
                         .background(selectedEquipment == "All" ? Color.liftCard : Color.liftBlue.opacity(0.18))
-                        .foregroundStyle(selectedEquipment == "All" ? Color.liftMuted : Color.liftBlue)
+                        .foregroundStyle(selectedEquipment == "All" ? Color.liftMuted : Color.liftAccentText)
                         .clipShape(Capsule())
                 }
             }

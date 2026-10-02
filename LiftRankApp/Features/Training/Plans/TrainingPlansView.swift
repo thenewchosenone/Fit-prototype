@@ -48,7 +48,7 @@ struct TrainingPlansView: View {
                         .frame(minHeight: 44)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
             }
 
             VStack(spacing: 0) {
@@ -58,7 +58,7 @@ struct TrainingPlansView: View {
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "folder.fill")
-                                .foregroundStyle(plan.id == appState.selectedWorkoutPlanID ? Color.liftBlue : Color.liftMuted)
+                                .foregroundStyle(plan.id == appState.selectedWorkoutPlanID ? Color.liftAccentText : Color.liftMuted)
                                 .frame(width: 28)
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(plan.name)
@@ -78,7 +78,7 @@ struct TrainingPlansView: View {
                             } else {
                                 Text("Make Active")
                                     .font(.caption.weight(.bold))
-                                    .foregroundStyle(Color.liftBlue)
+                                    .foregroundStyle(Color.liftAccentText)
                             }
                         }
                         .padding(.horizontal, 14)
@@ -117,7 +117,7 @@ struct TrainingPlansView: View {
                 if let latest = appState.latestStrainEntry {
                     HStack(spacing: 10) {
                         Image(systemName: "waveform.path.ecg")
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Latest strain: \(latest.strain)/10")
                                 .font(.subheadline.weight(.bold))
@@ -140,7 +140,7 @@ struct TrainingPlansView: View {
                 } else {
                     HStack(spacing: 10) {
                         Image(systemName: "waveform.path.ecg")
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                         Text("No strain check-ins yet")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Color.liftText)
@@ -199,7 +199,7 @@ struct TrainingPlansView: View {
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "books.vertical.fill")
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                         .frame(width: 30)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Browse Workout Programs")
@@ -213,7 +213,7 @@ struct TrainingPlansView: View {
                     Spacer()
                     Text(isProgramLibraryExpanded ? "Hide" : "Browse")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                     Image(systemName: "chevron.down")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Color.liftMuted)
@@ -251,7 +251,7 @@ struct TrainingPlansView: View {
 
                                     Text(template.defaultProgression.rawValue)
                                         .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(Color.liftBlue)
+                                        .foregroundStyle(Color.liftAccentText)
                                         .lineLimit(1)
                                 }
 
@@ -261,7 +261,7 @@ struct TrainingPlansView: View {
                                     Text("\(template.daysPerWeek) DAYS")
                                         .font(.system(size: 9, weight: .black, design: .rounded))
                                         .tracking(0.4)
-                                        .foregroundStyle(Color.liftBlue)
+                                        .foregroundStyle(Color.liftAccentText)
                                         .padding(.horizontal, 8)
                                         .frame(height: 24)
                                         .background(Color.liftBlue.opacity(0.10))
@@ -309,7 +309,7 @@ struct TrainingPlansView: View {
             Image(systemName: programSymbolName(for: template))
                 .font(.system(size: 20, weight: .semibold))
                 .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
         }
         .frame(width: 46, height: 46)
         .overlay {

@@ -37,6 +37,7 @@ enum WorkoutProgramCategory: String, CaseIterable, Codable, Hashable, Identifiab
 enum WorkoutProgramLevel: String, CaseIterable, Codable, Hashable, Identifiable {
     case beginner = "Beginner"
     case intermediate = "Intermediate"
+    case intermediateAdvanced = "Intermediate–Advanced"
 
     var id: String { rawValue }
 }
@@ -47,6 +48,7 @@ struct WorkoutProgramExerciseTemplate: Codable, Hashable {
     var reps: String
     var restSeconds: Int
     var notes: String = ""
+    var substitutionExerciseIDs: [String] = []
 }
 
 struct WorkoutProgramSessionTemplate: Codable, Hashable {
@@ -119,6 +121,7 @@ struct WorkoutExercisePrescription: Identifiable, Codable, Hashable {
     var restSeconds: Int
     var order: Int
     var notes: String
+    var substitutionExerciseIDs: [String]? = nil
     var muscleProfile: ExerciseMuscleProfile? = nil
     var targetRIR: Int? = nil
     var trainingMaxPercentage: Double? = nil
@@ -143,6 +146,7 @@ struct WorkoutExerciseSnapshot: Identifiable, Codable, Hashable {
     var restSeconds: Int
     var order: Int
     var notes: String
+    var substitutionExerciseIDs: [String]? = nil
     var rankingExerciseID: String?
     var muscleProfile: ExerciseMuscleProfile? = nil
     var targetRIR: Int? = nil

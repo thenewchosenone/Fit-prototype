@@ -2906,6 +2906,25 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
+    func testBlankRestoredAccountDoesNotInheritAchievementUnlocks() {
+        let bootstrapPersistence = InMemoryWorkoutPersistenceStore()
+        _ = DemoRepository(workoutPersistenceStore: bootstrapPersistence)
+        guard var snapshot = bootstrapPersistence.snapshot else {
+            XCTFail("Expected the repository to persist an initial snapshot")
+            return
+        }
+        snapshot.achievementUnlocks = [
+            AchievementUnlock(id: "first-workout", title: "First Workout", unlockedAt: .now)
+        ]
+
+        let repository = DemoRepository(
+            workoutPersistenceStore: InMemoryWorkoutPersistenceStore(snapshot: snapshot)
+        )
+
+        XCTAssertTrue(repository.achievementUnlocks.isEmpty)
+    }
+
+    @MainActor
     func testInitialProductionRefreshPreservesPersistedAchievementUnlocks() async {
         let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
         let unlock = AchievementUnlock(

@@ -98,15 +98,15 @@ extension ProfileView {
                 .padding(.top, 18)
             } label: {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("More athlete details")
+                        Text("Training profile")
                         .font(.headline)
                         .foregroundStyle(Color.liftText)
-                    Text("Rankings, progress, videos, and achievements")
+                        Text("Strength progress, rankings, and achievements")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
             }
-            .tint(Color.liftBlue)
+            .tint(Color.liftAccentText)
         }
         .padding(16)
         .liftSurface()
@@ -145,7 +145,7 @@ extension ProfileView {
                                 .foregroundStyle(Color.liftMuted)
                             Text(canonicalScoreText)
                                 .font(.headline.weight(.bold))
-                                .foregroundStyle(Color.liftBlue)
+                                .foregroundStyle(Color.liftAccentText)
                         }
                     }
                     Divider().overlay(Color.liftSeparator)
@@ -201,7 +201,7 @@ extension ProfileView {
                     HStack(spacing: 12) {
                         Image(systemName: "chart.xyaxis.line")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                             .frame(width: 38, height: 38)
                             .background(Color.liftBlue.opacity(0.14))
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -218,7 +218,7 @@ extension ProfileView {
                                 appState.showingSubmitSheet = true
                             }
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                             .frame(minHeight: LiftDesign.minimumTouchTarget)
                         }
                     }
@@ -226,7 +226,7 @@ extension ProfileView {
                 } else {
                     Chart(chartPoints) { point in
                         LineMark(x: .value("Month", point.label), y: .value("Max", point.value))
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                         PointMark(x: .value("Month", point.label), y: .value("Max", point.value))
                             .foregroundStyle(Color.liftGreen)
                     }
@@ -335,6 +335,47 @@ extension ProfileView {
                 .liftSurface()
             }
         }
+    }
+
+    var trainingHistory: some View {
+        let workouts = appState.completedWorkouts.sorted { $0.completedAt > $1.completedAt }
+        return VStack(alignment: .leading, spacing: 10) {
+            CompactSectionHeader(title: "Training history")
+            if workouts.isEmpty {
+                LiftEmptyState(
+                    title: "No completed workouts yet",
+                    message: isCurrentUser ? "Complete a training session to build your history." : "This athlete has not shared completed workouts.",
+                    symbolName: "calendar"
+                )
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(workouts.prefix(5).enumerated()), id: \.element.id) { index, workout in
+                        HStack(spacing: 12) {
+                            Image(systemName: "calendar.badge.checkmark")
+                                .foregroundStyle(Color.liftAccentText)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(workout.name.isEmpty ? workout.dayLabel : workout.name)
+                                    .font(.subheadline.weight(.semibold))
+                                Text(workout.completedAt.formatted(.dateTime.month(.abbreviated).day().year()))
+                                    .font(.caption)
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                            Spacer()
+                            Text("\(workout.completedWorkingSets.count) sets")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.liftMuted)
+                        }
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 58)
+                        if index < min(4, workouts.count - 1) {
+                            Divider().overlay(Color.liftSeparator).padding(.leading, 48)
+                        }
+                    }
+                }
+                .liftSurface()
+            }
+        }
+        .accessibilityIdentifier("profile.trainingHistory")
     }
 
     var profileDivider: some View {

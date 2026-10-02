@@ -52,6 +52,6 @@ test("serves public information, feedback, and share metadata", async ({ page })
   await page.goto("/#/contact");
   const feedback = page.getByRole("link", { name: /Open GitHub feedback/ });
   await expect(feedback).toHaveAttribute("href", "https://github.com/thenewchosenone/Fit-prototype/issues/new");
-  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", "https://LiftRivals-demo.pages.dev/LiftRivals-demo-card.png");
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", "https://liftrank-demo.pages.dev/liftrank-demo-card.png");
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", /favicon\.svg$/);
 });

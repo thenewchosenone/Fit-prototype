@@ -115,7 +115,8 @@ export const seedState: TrackerState = {
     reps: reps as string,
     restSeconds: restSeconds as number,
     order: order as number,
-    notes: ""
+    notes: "",
+    substitutionExerciseIds: []
   })),
   setLogs: [],
   completedWorkouts: [],

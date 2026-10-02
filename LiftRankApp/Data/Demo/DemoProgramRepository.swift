@@ -132,6 +132,9 @@ extension DemoRepository {
                         exerciseTemplate,
                         sessionID: session.id,
                         order: exerciseIndex,
+                        templateID: template.id,
+                        sessionIndex: sessionIndex,
+                        exerciseIndex: exerciseIndex,
                         week: weekNumber,
                         method: method,
                         trainingMaxKilograms: trainingMaxKilograms
@@ -199,6 +202,9 @@ extension DemoRepository {
                             base,
                             sessionID: session.id,
                             order: workoutPrescriptions[index].order,
+                            templateID: template.id,
+                            sessionIndex: session.order,
+                            exerciseIndex: workoutPrescriptions[index].order,
                             week: week.weekNumber,
                             method: method,
                             trainingMaxKilograms: trainingMaxKilograms
@@ -499,22 +505,38 @@ extension DemoRepository {
         _ template: WorkoutProgramExerciseTemplate,
         sessionID: UUID,
         order: Int,
+        templateID: String,
+        sessionIndex: Int,
+        exerciseIndex: Int,
         week: Int,
         method: WorkoutProgressionMethod,
         trainingMaxKilograms: [String: Double]
     ) -> WorkoutExercisePrescription? {
-        guard let exercise = (MockData.trainingExerciseLibrary + customTrainingExercises).first(where: { $0.id == template.exerciseID }) else {
+        let effectiveTemplate = WorkoutProgramCatalog.effectiveTemplateExercise(
+            template,
+            templateID: templateID,
+            sessionIndex: sessionIndex,
+            exerciseIndex: exerciseIndex,
+            week: week
+        )
+        guard let exercise = (MockData.trainingExerciseLibrary + customTrainingExercises).first(where: { $0.id == effectiveTemplate.exerciseID }) else {
             return nil
         }
-        let setCount = max(1, Int((Double(template.sets) * WorkoutProgramCatalog.volumeMultiplier(for: week)).rounded()))
-        let percentage = method == .percentage ? trainingMaxKilograms[exercise.id].map { _ in WorkoutProgramCatalog.percentage(for: week) } : nil
+        let setCount = WorkoutProgramCatalog.workingSetCount(
+            for: templateID,
+            baseSets: effectiveTemplate.sets,
+            sessionIndex: sessionIndex,
+            exerciseIndex: exerciseIndex,
+            week: week
+        )
+        let percentage = method == .percentage ? trainingMaxKilograms[exercise.id].map { _ in WorkoutProgramCatalog.percentage(for: week, exerciseID: exercise.id) } : nil
         let percentageReps = [6, 6, 5, 5, 5, 4, 3, 5, 3, 2, 1, 5][max(0, min(11, week - 1))]
-        let reps = percentage == nil ? template.reps : "\(percentageReps)"
+        let reps = percentage == nil ? effectiveTemplate.reps : "\(percentageReps)"
         let targetRIR = method == .rirRepRange || (method == .percentage && percentage == nil)
             ? WorkoutProgramCatalog.rirTarget(for: week)
             : nil
         let targetLoad = percentage.flatMap { value in trainingMaxKilograms[exercise.id].map { $0 * value } }
-        var notes = template.notes
+        var notes = effectiveTemplate.notes
         if week == 4 || week == 8 || week == 12 {
             notes = [notes, "Deload week: prioritize recovery and clean technique."].filter { !$0.isEmpty }.joined(separator: " ")
         }
@@ -527,9 +549,10 @@ extension DemoRepository {
             equipment: exercise.equipment,
             sets: setCount,
             reps: reps,
-            restSeconds: template.restSeconds,
+            restSeconds: effectiveTemplate.restSeconds,
             order: order,
             notes: notes,
+            substitutionExerciseIDs: effectiveTemplate.substitutionExerciseIDs,
             muscleProfile: exercise.resolvedMuscleProfile,
             targetRIR: targetRIR,
             trainingMaxPercentage: percentage,

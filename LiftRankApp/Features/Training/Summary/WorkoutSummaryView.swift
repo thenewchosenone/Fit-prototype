@@ -347,7 +347,7 @@ struct WorkoutSummaryView: View {
                         .foregroundStyle(Color.liftMuted)
                 }
             }
-            .tint(Color.liftBlue)
+            .tint(Color.liftAccentText)
 
             ForEach(prCandidates) { candidate in
                 VStack(alignment: .leading, spacing: 10) {
@@ -394,7 +394,7 @@ struct WorkoutSummaryView: View {
                             }
                         }
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                         .padding(.horizontal, 12)
                         .frame(minHeight: 44)
                         .background(Color.liftBlue.opacity(0.10))
@@ -602,7 +602,7 @@ struct WorkoutSummaryView: View {
         VStack(alignment: .leading, spacing: 4) {
             Image(systemName: symbol)
                 .font(.caption.weight(.bold))
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
             Text(title)
                 .font(.caption2)
                 .foregroundStyle(Color.liftMuted)

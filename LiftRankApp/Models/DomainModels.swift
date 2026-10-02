@@ -10,7 +10,6 @@ enum UnitSystem: String, Codable, CaseIterable, Identifiable {
 enum SexCategory: String, Codable, CaseIterable, Identifiable {
     case male = "Male"
     case female = "Female"
-    case open = "Open"
     var id: String { rawValue }
 }
 

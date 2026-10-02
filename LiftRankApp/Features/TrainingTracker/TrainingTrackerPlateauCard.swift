@@ -30,7 +30,7 @@ struct PlateauAlertCard: View {
 
             Button("Review recent sets", action: openDetails)
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
         }
         .padding(14)
         .background(Color.liftGold.opacity(0.08))

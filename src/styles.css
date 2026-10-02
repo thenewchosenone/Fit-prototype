@@ -2410,6 +2410,37 @@ small {
   font-weight: 750;
 }
 
+.specific-substitutions {
+  display: grid;
+  gap: 8px;
+  margin: -2px 20px 16px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.specific-substitutions > div {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.specific-substitution {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  color: #68b4ff;
+  background: var(--field);
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: none;
+}
+
+.specific-substitution:hover,
+.specific-substitution:focus-visible { border-color: #68b4ff; }
+
 .recommendation {
   display: flex;
   align-items: center;

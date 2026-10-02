@@ -173,7 +173,7 @@ run_xcode_test() {
     return 0
   fi
 
-  local command=(xcodebuild -project LiftRank.xcodeproj -scheme LiftRank -configuration Debug -enableCodeCoverage NO test -destination "$destination" "-only-testing:${target}")
+  local command=(xcodebuild -project LiftRank.xcodeproj -scheme LiftRank -configuration Debug -enableCodeCoverage NO -parallel-testing-enabled NO test -destination "$destination" "-only-testing:${target}")
   run_step "$label" "$(printf '%s' "$label" | tr ' ' '_')" "${command[@]}"
 }
 
@@ -262,7 +262,7 @@ else
 fi
 
 if [ "$run_ios" -eq 1 ]; then
-  old_destination="${IOS_OLDEST_SIMULATOR_DESTINATION:-platform=iOS Simulator,name=iPhone 8,OS=latest}"
+  old_destination="${IOS_OLDEST_SIMULATOR_DESTINATION:-platform=iOS Simulator,name=iPhone 17,OS=latest}"
   new_destination="${IOS_LATEST_SIMULATOR_DESTINATION:-platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest}"
 
   run_xcode_test "ios.unit.oldest_ios" "$old_destination" LiftRankTests

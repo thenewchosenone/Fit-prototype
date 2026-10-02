@@ -174,7 +174,7 @@ extension TrainingTrackerView {
                     HStack(spacing: 7) {
                         Image(systemName: "folder.fill")
                             .font(.caption)
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                         Text(selectedPlanName)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(Color.liftText)
@@ -305,7 +305,7 @@ extension TrainingTrackerView {
                 HStack(spacing: 12) {
                     Image(systemName: "books.vertical.fill")
                         .font(.headline)
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                         .frame(width: 44, height: 44)
                         .background(Color.liftBlue.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -324,7 +324,7 @@ extension TrainingTrackerView {
 
                     Image(systemName: "chevron.right")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                 }
                 .padding(12)
                 .frame(minHeight: 72)
@@ -361,7 +361,7 @@ extension TrainingTrackerView {
                         HStack(spacing: 10) {
                             Image(systemName: "calendar.badge.exclamationmark")
                                 .font(.headline.weight(.bold))
-                                .foregroundStyle(Color.liftBlue)
+                                .foregroundStyle(Color.liftAccentText)
                                 .frame(width: 36, height: 36)
                                 .background(Color.liftBlue.opacity(0.12))
                                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
@@ -424,7 +424,7 @@ extension TrainingTrackerView {
                             .frame(minHeight: 44)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
                 }
 
                 VStack(spacing: 0) {
@@ -435,7 +435,7 @@ extension TrainingTrackerView {
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: "folder.fill")
-                                    .foregroundStyle(plan.id == appState.selectedWorkoutPlanID ? Color.liftBlue : Color.liftMuted)
+                                    .foregroundStyle(plan.id == appState.selectedWorkoutPlanID ? Color.liftAccentText : Color.liftMuted)
                                     .frame(width: 28)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(plan.name)
@@ -490,7 +490,7 @@ extension TrainingTrackerView {
             } label: {
                 HStack(spacing: 12) {
                     Image(systemName: "books.vertical.fill")
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                         .frame(width: 30)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Browse Workout Programs")
@@ -504,7 +504,7 @@ extension TrainingTrackerView {
                     Spacer()
                     Text(isProgramLibraryExpanded ? "Hide" : "Browse")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                     Image(systemName: "chevron.down")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Color.liftMuted)
@@ -527,7 +527,7 @@ extension TrainingTrackerView {
                             HStack(spacing: 12) {
                                 Image(systemName: template.category == .powerlifting ? "trophy.fill" : "figure.strengthtraining.traditional")
                                     .font(.subheadline.weight(.bold))
-                                    .foregroundStyle(Color.liftBlue)
+                                    .foregroundStyle(Color.liftAccentText)
                                     .frame(width: 42, height: 42)
                                     .background(Color.liftBlue.opacity(0.12))
                                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -546,7 +546,7 @@ extension TrainingTrackerView {
 
                                     Text(template.defaultProgression.rawValue)
                                         .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(Color.liftBlue)
+                                        .foregroundStyle(Color.liftAccentText)
                                         .lineLimit(1)
                                 }
 
@@ -556,7 +556,7 @@ extension TrainingTrackerView {
                                     Text("\(template.daysPerWeek) DAYS")
                                         .font(.system(size: 9, weight: .black, design: .rounded))
                                         .tracking(0.4)
-                                        .foregroundStyle(Color.liftBlue)
+                                        .foregroundStyle(Color.liftAccentText)
                                         .padding(.horizontal, 8)
                                         .frame(height: 24)
                                         .background(Color.liftBlue.opacity(0.10))

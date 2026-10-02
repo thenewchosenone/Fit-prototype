@@ -120,6 +120,46 @@ private final class TestAnalyticsCaptureService: AnalyticsService {
 
 @MainActor
 final class BackendFoundationTests: XCTestCase {
+    func testBundledCitySearchSupportsRepresentativeCountriesAndRegions() async throws {
+        let service = BundledLocationService()
+        let cases = [
+            (country: "US", region: "Florida", query: "mi", expectedCity: "Miami"),
+            (country: "US", region: "Florida", query: "cut", expectedCity: "Cutler Bay"),
+            (country: "US", region: "Florida", query: "hom", expectedCity: "Homestead"),
+            (country: "CA", region: "Ontario", query: "tor", expectedCity: "Toronto"),
+            (country: "GB", region: "England", query: "lon", expectedCity: "London"),
+            (country: "AU", region: "Victoria", query: "mel", expectedCity: "Melbourne"),
+            (country: "ZA", region: "Gauteng", query: "joh", expectedCity: "Johannesburg")
+        ]
+
+        for testCase in cases {
+            let results = try await service.searchCities(
+                countryCode: testCase.country,
+                region: testCase.region,
+                query: testCase.query,
+                limit: 20
+            )
+
+            XCTAssertLessThanOrEqual(results.count, 20)
+            XCTAssertTrue(results.contains(where: { $0.city == testCase.expectedCity }))
+            XCTAssertTrue(results.allSatisfy {
+                $0.countryCode == testCase.country && $0.region == testCase.region
+            })
+        }
+    }
+
+    func testBundledCitySearchDoesNotLeakAcrossRegions() async throws {
+        let service = BundledLocationService()
+        let results = try await service.searchCities(
+            countryCode: "US",
+            region: "Florida",
+            query: "or",
+            limit: 20
+        )
+
+        XCTAssertEqual(results.map(\.city), ["Orlando"])
+    }
+
     func testPrivacyAudienceMatchesServerContract() throws {
         XCTAssertEqual(PrivacyAudience(rawValue: "public"), .publicProfile)
         XCTAssertEqual(PrivacyAudience(rawValue: "friends"), .friends)
@@ -216,7 +256,7 @@ final class BackendFoundationTests: XCTestCase {
             onboardingCompleted: true,
             preferredUnit: .pounds,
             birthDate: nil,
-            sexCategory: .open,
+            sexCategory: .male,
             heightCentimeters: nil,
             city: nil,
             region: nil,
@@ -253,7 +293,7 @@ final class BackendFoundationTests: XCTestCase {
         let service = TestProfileService(profile: AuthenticatedProfile(
             id: userID, username: "avatar_download_race", displayName: "Avatar Download Race", bio: "",
             avatarPath: avatarPath, onboardingCompleted: true, preferredUnit: .pounds, birthDate: nil,
-            sexCategory: .open, heightCentimeters: nil, city: nil, region: nil, countryCode: "US",
+            sexCategory: .male, heightCentimeters: nil, city: nil, region: nil, countryCode: "US",
             yearsExperience: nil, experienceLevel: .beginner, privacy: ProfilePrivacySettings()
         ))
         let appState = AppState(repository: repository, serviceContainer: AppServiceContainer(
@@ -296,7 +336,7 @@ final class BackendFoundationTests: XCTestCase {
             onboardingCompleted: true,
             preferredUnit: .pounds,
             birthDate: nil,
-            sexCategory: .open,
+            sexCategory: .male,
             heightCentimeters: nil,
             city: nil,
             region: nil,
@@ -347,7 +387,7 @@ final class BackendFoundationTests: XCTestCase {
             onboardingCompleted: true,
             preferredUnit: .pounds,
             birthDate: nil,
-            sexCategory: .open,
+            sexCategory: .male,
             heightCentimeters: nil,
             city: nil,
             region: nil,
@@ -412,7 +452,7 @@ final class BackendFoundationTests: XCTestCase {
             onboardingCompleted: true,
             preferredUnit: .pounds,
             birthDate: nil,
-            sexCategory: .open,
+            sexCategory: .male,
             heightCentimeters: nil,
             city: nil,
             region: nil,
@@ -460,7 +500,7 @@ final class BackendFoundationTests: XCTestCase {
         let service = TestProfileService(profile: AuthenticatedProfile(
             id: userID, username: "avatar_race_lifter", displayName: "Avatar Race Lifter", bio: "",
             avatarPath: nil, onboardingCompleted: true, preferredUnit: .pounds, birthDate: nil,
-            sexCategory: .open, heightCentimeters: nil, city: nil, region: nil, countryCode: "US",
+            sexCategory: .male, heightCentimeters: nil, city: nil, region: nil, countryCode: "US",
             yearsExperience: nil, experienceLevel: .beginner, privacy: ProfilePrivacySettings()
         ))
         service.holdAvatarUpload = true
@@ -493,7 +533,7 @@ final class BackendFoundationTests: XCTestCase {
         let service = TestProfileService(profile: AuthenticatedProfile(
             id: userID, username: "avatar_account_race", displayName: "Avatar Account Race", bio: "",
             avatarPath: nil, onboardingCompleted: true, preferredUnit: .pounds, birthDate: nil,
-            sexCategory: .open, heightCentimeters: nil, city: nil, region: nil, countryCode: "US",
+            sexCategory: .male, heightCentimeters: nil, city: nil, region: nil, countryCode: "US",
             yearsExperience: nil, experienceLevel: .beginner, privacy: ProfilePrivacySettings()
         ))
         service.holdAvatarUpload = true
@@ -536,7 +576,7 @@ final class BackendFoundationTests: XCTestCase {
         let profileService = TestProfileService(profile: AuthenticatedProfile(
             id: newUserID, username: "new_account", displayName: "New Account", bio: "",
             avatarPath: nil, onboardingCompleted: true, preferredUnit: .pounds, birthDate: nil,
-            sexCategory: .open, heightCentimeters: nil, city: nil, region: nil, countryCode: "US",
+            sexCategory: .male, heightCentimeters: nil, city: nil, region: nil, countryCode: "US",
             yearsExperience: nil, experienceLevel: .beginner, privacy: ProfilePrivacySettings()
         ))
         let appState = AppState(repository: repository, serviceContainer: AppServiceContainer(
@@ -723,7 +763,7 @@ final class BackendFoundationTests: XCTestCase {
             onboardingCompleted: true,
             preferredUnit: .pounds,
             birthDate: nil,
-            sexCategory: .open,
+            sexCategory: .male,
             heightCentimeters: nil,
             city: nil,
             region: nil,
@@ -761,7 +801,7 @@ final class BackendFoundationTests: XCTestCase {
         let service = TestProfileService(profile: AuthenticatedProfile(
             id: userID, username: "avatar_retry", displayName: "Avatar Retry", bio: "",
             avatarPath: nil, onboardingCompleted: true, preferredUnit: .pounds, birthDate: nil,
-            sexCategory: .open, heightCentimeters: nil, city: nil, region: nil, countryCode: "US",
+            sexCategory: .male, heightCentimeters: nil, city: nil, region: nil, countryCode: "US",
             yearsExperience: nil, experienceLevel: .beginner, privacy: ProfilePrivacySettings()
         ))
         let appState = AppState(repository: repository, serviceContainer: AppServiceContainer(
@@ -794,7 +834,7 @@ final class BackendFoundationTests: XCTestCase {
             onboardingCompleted: true,
             preferredUnit: .pounds,
             birthDate: Date(timeIntervalSince1970: 700_000_000),
-            sexCategory: .open,
+            sexCategory: .male,
             heightCentimeters: 180,
             city: "Miami",
             region: "Florida",
@@ -827,7 +867,7 @@ final class BackendFoundationTests: XCTestCase {
             onboardingCompleted: true,
             preferredUnit: .kilograms,
             birthDate: Date(timeIntervalSince1970: 700_000_000),
-            sexCategory: .open,
+            sexCategory: .male,
             heightCentimeters: 180,
             bodyweightPounds: 205,
             city: "Austin",
@@ -856,7 +896,8 @@ final class BackendFoundationTests: XCTestCase {
             edited,
             primaryGym: gym,
             privacy: privacy,
-            authenticated: true
+            authenticated: true,
+            allowUsernameChange: true
         )
 
         XCTAssertEqual(saved.id, userID)
@@ -898,7 +939,7 @@ final class BackendFoundationTests: XCTestCase {
             onboardingCompleted: true,
             preferredUnit: .pounds,
             birthDate: nil,
-            sexCategory: .open,
+            sexCategory: .male,
             heightCentimeters: nil,
             bodyweightPounds: 200,
             city: "Miami",
@@ -949,7 +990,7 @@ final class BackendFoundationTests: XCTestCase {
         let service = TestProfileService(profile: AuthenticatedProfile(
             id: userID, username: "bodyweight_sync", displayName: "Bodyweight Sync", bio: "",
             avatarPath: nil, onboardingCompleted: true, preferredUnit: .pounds, birthDate: nil,
-            sexCategory: .open, heightCentimeters: nil, bodyweightPounds: 205,
+            sexCategory: .male, heightCentimeters: nil, bodyweightPounds: 205,
             city: nil, region: nil, countryCode: "US", yearsExperience: nil,
             experienceLevel: .beginner, privacy: ProfilePrivacySettings()
         ))
@@ -981,7 +1022,7 @@ final class BackendFoundationTests: XCTestCase {
         let service = TestProfileService(profile: AuthenticatedProfile(
             id: userID, username: "bodyweight_write", displayName: "Bodyweight Write", bio: "",
             avatarPath: nil, onboardingCompleted: true, preferredUnit: .pounds, birthDate: nil,
-            sexCategory: .open, heightCentimeters: nil, bodyweightPounds: 205,
+            sexCategory: .male, heightCentimeters: nil, bodyweightPounds: 205,
             city: nil, region: nil, countryCode: "US", yearsExperience: nil,
             experienceLevel: .beginner, privacy: ProfilePrivacySettings()
         ))
@@ -1038,7 +1079,7 @@ final class BackendFoundationTests: XCTestCase {
         let service = TestProfileService(profile: AuthenticatedProfile(
             id: userID, username: "bodyweight_race", displayName: "Bodyweight Race", bio: "",
             avatarPath: nil, onboardingCompleted: true, preferredUnit: .pounds, birthDate: nil,
-            sexCategory: .open, heightCentimeters: nil, bodyweightPounds: 200,
+            sexCategory: .male, heightCentimeters: nil, bodyweightPounds: 200,
             city: nil, region: nil, countryCode: "US", yearsExperience: nil,
             experienceLevel: .beginner, privacy: ProfilePrivacySettings()
         ))
@@ -1082,7 +1123,7 @@ final class BackendFoundationTests: XCTestCase {
             onboardingCompleted: true,
             preferredUnit: .kilograms,
             birthDate: nil,
-            sexCategory: .open,
+            sexCategory: .male,
             heightCentimeters: nil,
             bodyweightPounds: 0,
             city: "Miami",
@@ -1169,6 +1210,8 @@ final class BackendFoundationTests: XCTestCase {
         )
 
         XCTAssertEqual(saved.displayName, "Updated Lifter")
+        XCTAssertEqual(saved.username, "remote_lifter")
+        XCTAssertEqual(service.usernameChangeCount, 0)
         XCTAssertEqual(saved.primaryGymID, originalGymID)
         XCTAssertEqual(saved.primaryGymName, originalGymName)
         XCTAssertEqual(saved.city, "Miami")
@@ -1187,7 +1230,7 @@ final class BackendFoundationTests: XCTestCase {
             onboardingCompleted: false,
             preferredUnit: .pounds,
             birthDate: nil,
-            sexCategory: .open,
+            sexCategory: .male,
             heightCentimeters: nil,
             city: nil,
             region: nil,
@@ -1205,13 +1248,14 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(store.currentProfile.bio, loaded.bio)
 
         let cityID = UUID()
+        _ = try await store.changeAuthenticatedUsername("ready_lifter", retainingDemoProfiles: false)
         let saved = try await store.saveAuthenticatedProfile(ProfileDraft(
             username: "ready_lifter",
             displayName: "Ready Lifter",
             bio: "Ready to compete",
             preferredUnit: .kilograms,
             birthDate: nil,
-            sexCategory: .open,
+            sexCategory: .male,
             heightCentimeters: nil,
             cityID: cityID,
             city: "Austin",
@@ -1485,6 +1529,13 @@ final class BackendFoundationTests: XCTestCase {
         ]))
     }
 
+    func testPasswordRecoveryCallbackKeepsRecoveryMarker() {
+        XCTAssertEqual(
+            SupabaseConfiguration.passwordRecoveryCallbackURL.absoluteString,
+            "liftrank://auth-callback?type=recovery"
+        )
+    }
+
     func testSupabaseProfileMapperDoesNotInheritSeededDemoIdentity() {
         let userID = UUID()
         let remote = AuthenticatedProfile(
@@ -1687,7 +1738,7 @@ final class BackendFoundationTests: XCTestCase {
         let session = AccountSession(userID: userID, email: "restore-failure@example.test", expiresAt: .now.addingTimeInterval(3_600))
         let profileService = TestProfileService(profile: AuthenticatedProfile(
             id: userID, username: "restore_failure", displayName: "Restore Failure", bio: "", avatarPath: nil,
-            onboardingCompleted: true, preferredUnit: .pounds, birthDate: nil, sexCategory: .open,
+            onboardingCompleted: true, preferredUnit: .pounds, birthDate: nil, sexCategory: .male,
             heightCentimeters: nil, city: nil, region: nil, countryCode: "US", yearsExperience: nil,
             experienceLevel: .beginner, privacy: ProfilePrivacySettings()
         ))
@@ -1718,7 +1769,7 @@ final class BackendFoundationTests: XCTestCase {
         let profileService = TestProfileService(profile: AuthenticatedProfile(
             id: userID, username: "delayed_restore", displayName: "Delayed Restore", bio: "",
             avatarPath: nil, onboardingCompleted: true, preferredUnit: .pounds,
-            birthDate: nil, sexCategory: .open, heightCentimeters: nil, city: nil,
+            birthDate: nil, sexCategory: .male, heightCentimeters: nil, city: nil,
             region: nil, countryCode: "US", yearsExperience: nil,
             experienceLevel: .beginner, privacy: ProfilePrivacySettings()
         ))
@@ -1860,7 +1911,7 @@ final class BackendFoundationTests: XCTestCase {
             bio: "",
             avatarPath: nil,
             ageBand: nil,
-            sexCategory: .open,
+            sexCategory: .male,
             city: nil,
             region: nil,
             countryCode: nil,
@@ -2130,7 +2181,7 @@ final class BackendFoundationTests: XCTestCase {
     func testUsernameValidationRejectsAtSymbol() async {
         let service = MockProfileService(repository: DemoRepository())
         do {
-            _ = try await service.claimUsername("@Not Valid")
+            _ = try await service.changeUsername(currentUsername: "current", newUsername: "@Not Valid")
             XCTFail("Expected validation failure")
         } catch {
             XCTAssertEqual(error as? LiftRankServiceError, .invalidInput("Use 3–24 lowercase letters, numbers, or underscores."))
@@ -2636,7 +2687,7 @@ final class BackendFoundationTests: XCTestCase {
         let profile = TestProfileService(profile: AuthenticatedProfile(
             id: session.userID, username: "member_test", displayName: "Member Test", bio: "",
             avatarPath: nil, onboardingCompleted: onboardingCompleted, preferredUnit: .pounds,
-            birthDate: nil, sexCategory: .open, heightCentimeters: nil, city: nil, region: nil,
+            birthDate: nil, sexCategory: .male, heightCentimeters: nil, city: nil, region: nil,
             countryCode: nil, yearsExperience: nil, experienceLevel: .beginner,
             privacy: ProfilePrivacySettings()
         ))
@@ -2938,6 +2989,7 @@ private final class TestProfileService: ProfileService {
     var avatarDownload: ProfileAvatarDownload?
     var uploadedAvatarReturnPath: String?
     private(set) var saveProfileCount = 0
+    private(set) var usernameChangeCount = 0
     private(set) var updateProfileCount = 0
     private(set) var uploadedAvatarPaths: [String] = []
     private(set) var downloadedAvatarPaths: [String] = []
@@ -2972,7 +3024,6 @@ private final class TestProfileService: ProfileService {
     func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile {
         saveProfileCount += 1
         lastSavedProfileDraft = draft
-        profile.username = draft.username
         profile.displayName = draft.displayName
         profile.bio = draft.bio
         profile.preferredUnit = draft.preferredUnit
@@ -2994,14 +3045,26 @@ private final class TestProfileService: ProfileService {
         }
         return profile
     }
-    func claimUsername(_ username: String) async throws -> String { username }
+    func changeUsername(currentUsername: String, newUsername: String) async throws -> String {
+        usernameChangeCount += 1
+        guard profile.username.caseInsensitiveCompare(currentUsername) == .orderedSame else {
+            throw LiftRankServiceError.sessionExpired
+        }
+        let normalized = newUsername.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "@"))
+        guard normalized.range(of: "^[a-z0-9_]{3,24}$", options: .regularExpression) != nil else {
+            throw LiftRankServiceError.invalidInput("Use 3–24 lowercase letters, numbers, or underscores.")
+        }
+        profile.username = normalized
+        return normalized
+    }
     func profileCard(userID: UUID) async throws -> PublicProfileCard {
         PublicProfileCard(id: userID, username: profile.username, displayName: profile.displayName, bio: profile.bio, avatarPath: nil, ageBand: nil, sexCategory: profile.sexCategory, city: nil, region: nil, countryCode: nil, primaryGymID: nil, primaryGymName: nil)
     }
     func currentProfile() async throws -> UserProfile { MockData.demoProfile }
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {
         updateProfileCount += 1
-        self.profile.username = profile.username
+        var savedProfile = profile
+        savedProfile.username = self.profile.username
         self.profile.displayName = profile.displayName
         self.profile.avatarPath = profile.avatarPath
         self.profile.preferredUnit = profile.preferredUnit
@@ -3014,7 +3077,7 @@ private final class TestProfileService: ProfileService {
         self.profile.yearsExperience = profile.yearsExperience
         self.profile.experienceLevel = profile.experienceLevel
         self.profile.privacy.bodyweightAudience = profile.hideBodyweight ? .privateProfile : .publicProfile
-        return profile
+        return savedProfile
     }
     func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String {
         uploadedAvatarPaths.append(avatarPath)
@@ -3065,6 +3128,7 @@ private final class TestProfileService: ProfileService {
             profile.bodyweightPounds = actual
         }
     }
+    func saveTrainingGoals(_ goalIDs: [String]) async throws {}
     func releaseBodyweightSave() {
         bodyweightSaveRelease?.resume()
         bodyweightSaveRelease = nil

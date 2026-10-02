@@ -86,7 +86,12 @@ extension AppState {
         }
     }
 
-    func saveEditedProfile(_ profile: UserProfile, primaryGym: Gym?, privacy: ProfilePrivacySettings) async -> Bool {
+    func saveEditedProfile(
+        _ profile: UserProfile,
+        primaryGym: Gym?,
+        privacy: ProfilePrivacySettings,
+        allowUsernameChange: Bool = false
+    ) async -> Bool {
         guard CommunityContentPolicy.allows(profile.username, profile.displayName) else {
             accountMessage = CommunityContentPolicy.rejectionMessage
             Haptics.warning()
@@ -131,7 +136,8 @@ extension AppState {
                 updatedProfile,
                 primaryGym: primaryGym,
                 privacy: privacy,
-                authenticated: isAuthenticated && !isDemoMode
+                authenticated: isAuthenticated && !isDemoMode,
+                allowUsernameChange: allowUsernameChange
             )
             guard currentProfile.id == editingUserID else { throw LiftRankServiceError.sessionExpired }
             setAuthenticatedPrivacy(privacy)

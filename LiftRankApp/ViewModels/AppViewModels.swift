@@ -69,6 +69,9 @@ final class AppState: ObservableObject {
 
     var accountOperationInProgress: Bool { sessionStore.isOperationInProgress }
 
+    var pendingAppleFullName: String? { AppleIdentityStore.pendingFullName }
+    var hasAppleAuthorization: Bool { AppleIdentityStore.hasStoredCredential }
+
     var accountMessage: String? {
         get { sessionStore.message }
         set { sessionStore.message = newValue }
@@ -373,6 +376,12 @@ final class AppState: ObservableObject {
                 return
             }
             accountSession = session
+            if let appleUserIdentifier = AppleIdentityStore.userIdentifier,
+               let credentialState = await AppleIdentityStore.credentialState(for: appleUserIdentifier),
+               [.revoked, .notFound, .transferred].contains(credentialState) {
+                await handleAppleCredentialRevoked()
+                return
+            }
             try await loadAuthenticatedAccount()
         } catch {
             accountMessage = userMessage(error)
@@ -385,6 +394,7 @@ final class AppState: ObservableObject {
 
     func signUp(email: String, password: String) async {
         await performAccountOperation {
+            AppleIdentityStore.clear()
             self.accountSession = try await self.sessionStore.signUp(email: email, password: password)
             if try await self.sessionStore.hasRestorableSession() == false {
                 self.accountMessage = "Check your email to confirm your account, then sign in."
@@ -396,18 +406,58 @@ final class AppState: ObservableObject {
         }
     }
 
+    func resendConfirmationEmail(email: String) async {
+        await performAccountOperation {
+            try await self.sessionStore.resendConfirmation(email: email)
+            self.accountMessage = "A new confirmation email is on the way."
+        }
+    }
+
     func signIn(email: String, password: String) async {
         await performAccountOperation {
+            AppleIdentityStore.clear()
             self.accountSession = try await self.sessionStore.signIn(email: email, password: password)
             try await self.loadAuthenticatedAccount()
         }
     }
 
-    func signInWithApple(identityToken: String, nonce: String) async {
+    func signInWithApple(
+        identityToken: String,
+        nonce: String,
+        appleUserIdentifier: String,
+        fullName: String?
+    ) async {
         await performAccountOperation {
+            guard !appleUserIdentifier.isEmpty else { throw LiftRankServiceError.invalidCredentials }
+            guard AppleIdentityStore.save(userIdentifier: appleUserIdentifier, fullName: fullName) else {
+                throw LiftRankServiceError.server("Lift Rivals could not securely save your Apple authorization. Please try again.")
+            }
             self.accountSession = try await self.sessionStore.signInWithApple(identityToken: identityToken, nonce: nonce)
             try await self.loadAuthenticatedAccount()
         }
+    }
+
+    func consumePendingAppleFullName() {
+        AppleIdentityStore.clearPendingFullName()
+    }
+
+    func handleAppleCredentialRevoked() async {
+        guard AppleIdentityStore.hasStoredCredential else { return }
+        guard isAuthenticated || accountSession != nil else {
+            AppleIdentityStore.clear()
+            return
+        }
+        try? await sessionStore.signOut()
+        AppleIdentityStore.clear()
+        sessionStore.clearRemoteAccountState()
+        accountSocialStore.clear()
+        notificationStore.clear()
+        workoutPRSubmissionStore.clearAccountScopedMedia()
+        postAuthenticationRefreshTask?.cancel()
+        repository.clearLocalUserData()
+        profilePhotoStore.removeNamespace(.authenticated)
+        accountStatus = sessionStore.isAuthenticationConfigured ? .signedOut : .configurationRequired
+        accountMessage = "Your Apple authorization is no longer available. Sign in again to continue."
     }
 
     func requestPasswordReset(email: String) async {
@@ -478,6 +528,7 @@ final class AppState: ObservableObject {
         let wasDemoMode = isDemoMode
         if isAuthenticated, !wasDemoMode { await notificationStore.revokeCurrentDevice() }
         do { try await sessionStore.signOut() } catch { accountMessage = userMessage(error) }
+        AppleIdentityStore.clear()
         if wasDemoMode { installServiceContainer(launchServiceContainer) }
         sessionStore.clearRemoteAccountState()
         accountSocialStore.clear()
@@ -524,14 +575,24 @@ final class AppState: ObservableObject {
             self.profilePhotoStore.removeNamespace(.authenticated)
             self.sessionStore.clearRemoteAccountState()
             self.accountSocialStore.clear()
+            AppleIdentityStore.clear()
             self.accountStatus = self.sessionStore.isAuthenticationConfigured ? .signedOut : .configurationRequired
             self.accountMessage = "Your account has been deleted."
         }
     }
 
-    func saveAuthenticatedProfile(_ draft: ProfileDraft) async throws {
+    func saveAuthenticatedProfile(
+        _ draft: ProfileDraft,
+        allowUsernameChange: Bool = false
+    ) async throws {
         guard CommunityContentPolicy.allows(draft.username, draft.displayName, draft.bio) else {
             throw LiftRankServiceError.invalidInput(CommunityContentPolicy.rejectionMessage)
+        }
+        if allowUsernameChange {
+            _ = try await profileStore.changeAuthenticatedUsername(
+                draft.username,
+                retainingDemoProfiles: sessionStore.usesDemoAuthenticationService
+            )
         }
         var uploadReadyDraft = draft
         uploadReadyDraft.avatarPath = try await uploadProfilePhotoIfNeeded(avatarPath: draft.avatarPath)
@@ -547,6 +608,10 @@ final class AppState: ObservableObject {
             accountStatus = .needsOnboarding
         }
         await refreshRemoteSocialState()
+    }
+
+    func saveTrainingGoals(_ goalIDs: [String]) async throws {
+        try await serviceContainer.profile.saveTrainingGoals(goalIDs)
     }
 
     func searchCities(countryCode: String, region: String, query: String, limit: Int = 8) async -> [LocationCitySuggestion] {
@@ -627,6 +692,7 @@ final class AppState: ObservableObject {
         }
         authenticatedPrivacy = profile.privacy
         if profile.onboardingCompleted {
+            AppleIdentityStore.clearPendingFullName()
             try await refreshLegalAcceptanceStatus()
             if accountStatus == .authenticated {
                 await track(.weeklyReturn)

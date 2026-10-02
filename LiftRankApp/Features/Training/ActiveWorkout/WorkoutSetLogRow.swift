@@ -148,7 +148,7 @@ struct WorkoutSetLogRow: View {
                 } label: {
                     Text(previousSummary)
                         .font(.caption.weight(.bold).monospacedDigit())
-                        .foregroundStyle(previousLog == nil ? Color.liftMuted : Color.liftBlue)
+                        .foregroundStyle(previousLog == nil ? Color.liftMuted : Color.liftAccentText)
                         .frame(maxWidth: .infinity)
                         .frame(height: 38)
                         .background(Color.black.opacity(0.16))
@@ -179,7 +179,7 @@ struct WorkoutSetLogRow: View {
                 } label: {
                     Image(systemName: draft.isComplete ? "checkmark" : "circle")
                         .font(.subheadline.weight(.black))
-                        .foregroundStyle(draft.isComplete ? Color.liftOnAccent : Color.liftBlue)
+                        .foregroundStyle(draft.isComplete ? Color.liftOnAccent : Color.liftAccentText)
                         .frame(width: 38, height: 38)
                         .background(draft.isComplete ? Color.liftGreen : Color.liftBlue.opacity(0.12))
                         .clipShape(Circle())

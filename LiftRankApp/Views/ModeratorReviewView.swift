@@ -65,7 +65,7 @@ struct ModeratorReviewView: View {
                     VStack(spacing: 8) {
                         Image(systemName: "play.rectangle.fill")
                             .font(.largeTitle)
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                         Text("Video playback preview")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -95,7 +95,7 @@ struct ModeratorReviewView: View {
                         appState.updateVerification(lift, status: .videoSubmitted, note: "More evidence requested: \(selectedReason)")
                     }
                     .buttonStyle(.bordered)
-                    .tint(Color.liftBlue)
+                    .tint(Color.liftAccentText)
                 }
             }
         }

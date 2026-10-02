@@ -1,5 +1,7 @@
 # Lift Rivals website/app handoff
 
+> Current scope (September 6, 2026): the React client in `src/` is the public browser-local demo. It does not implement shared-account synchronization with the native app. The historical parity and production-acceptance sections below describe the target/hosted contract and must not be used as release evidence for this checkout.
+
 ## Synchronization completion plan
 
 | Phase | Outcome | Status | Exit check |
@@ -22,13 +24,13 @@ Every shared-data defect must be fixed at the common contract/service boundary w
 
 ## Current implementation status
 
-- The website reads authenticated profile, submission, workout, and public-record data from Supabase.
-- The website now gives the current profile bodyweight precedence over historical bodyweight records.
+- The current React client in `src/` is browser-local and does not read authenticated profile, submission, workout, or public-record data from Supabase.
+- The demo keeps current profile bodyweight ahead of historical bodyweight records inside its local state.
 - The Swift iOS app in `LiftRankApp/` has Supabase services for authenticated profiles, privacy, bodyweight history, workout plans and completed workouts, gym memberships, lift submissions, public rankings, verification, and media.
 - iOS onboarding now captures and saves bio, years training, validated bodyweight, location, privacy, primary gym, and optional starting lifts. Starting lifts are private self-reported actual 1RMs and use retry-safe onboarding markers so a failed retry does not duplicate them.
-- The complete iOS unit test target is green (273 tests) and covers canonical leaderboard authority, profile parity, workout synchronization, Friends-only visibility, guarded submission removal, retry-safe onboarding lift creation, and bodyweight write-failure consistency.
+- The complete iOS unit test target is green (274 tests) and covers canonical leaderboard authority, profile parity, workout synchronization, Friends-only visibility, guarded submission removal, retry-safe onboarding lift creation, and bodyweight write-failure consistency.
 - The complete database migration and policy suite passes against two fresh databases, including the coordinated-removal finalizer and concurrent gym-membership limits.
-- Website validation is green for 15 pages, 8 performance budgets, and 40 parity contracts, including shared removal, protected-record classification, owner-scoped submission history, conservative privacy fallback, current-bodyweight authority, explicit bodyweight-history failure states, self-reported status mapping, approved lift-video privacy, account-action safeguards, and canonical gym-region mapping.
+- Browser-demo validation is covered by the current unit, browser, demo, release-route, and performance gates; those checks do not prove native or shared-account parity.
 - Production migration `202608090001_atomic_bodyweight_checkins.sql` is deployed. It grants authenticated owner access required by the existing bodyweight RLS policy and adds one atomic check-in function that updates history and current private bodyweight together. The iOS app applies authenticated bodyweight changes locally only after that shared save succeeds; the website distinguishes unavailable history from a confirmed empty history.
 - Production migration `202607240001_canonical_locations.sql` is deployed with the GeoNames `cities1000` catalog: 237 countries, 3,593 regions, and 147,501 cities. The fresh account now stores canonical Miami city ID `023be35b-7bbe-4948-bcef-db0538242a60` while retaining Miami/Florida/US display text.
 - The production `profile-avatars` bucket and all four owner-scoped policies match `202607240002_profile_avatars.sql`; its previously missing migration-ledger entry is reconciled. The bucket remains private, JPEG-only, and limited to 5 MB.

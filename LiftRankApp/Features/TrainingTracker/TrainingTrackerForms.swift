@@ -97,7 +97,7 @@ struct BodyweightEntryEditor: View {
                         dismiss()
                     }
                     .fontWeight(.bold)
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
                 }
             }
         }

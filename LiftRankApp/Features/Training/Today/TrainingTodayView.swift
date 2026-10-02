@@ -90,7 +90,7 @@ struct TrainingTodayView: View {
                         .frame(minHeight: LiftDesign.minimumTouchTarget)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
                 .frame(maxWidth: .infinity, alignment: .center)
             }
 
@@ -136,7 +136,7 @@ struct TrainingTodayView: View {
                     HStack(spacing: 12) {
                         Image(systemName: "waveform.path.ecg")
                             .font(.caption.weight(.black))
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                             .frame(width: 28, height: 28)
                             .background(Color.liftBlue.opacity(0.14))
                             .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
@@ -163,7 +163,7 @@ struct TrainingTodayView: View {
                         }
                         Spacer()
                         Image(systemName: "square.and.pencil")
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                     }
                     .padding(11)
                 }
@@ -177,7 +177,7 @@ struct TrainingTodayView: View {
                         HStack(spacing: 12) {
                             Image(systemName: "plus.circle")
                                 .font(.caption.weight(.black))
-                                .foregroundStyle(Color.liftBlue)
+                                .foregroundStyle(Color.liftAccentText)
                                 .frame(width: 28, height: 28)
                                 .background(Color.liftBlue.opacity(0.14))
                                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
@@ -192,7 +192,7 @@ struct TrainingTodayView: View {
                             }
                             Spacer()
                             Image(systemName: "plus")
-                                .foregroundStyle(Color.liftBlue)
+                                .foregroundStyle(Color.liftAccentText)
                         }
                         .padding(11)
                         .background(Color.liftCard)
@@ -262,7 +262,7 @@ struct TrainingTodayView: View {
                             .tracking(0.6)
                         Image(systemName: "info.circle")
                     }
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(Color.liftBlue.opacity(0.12))
@@ -498,7 +498,7 @@ struct TodayWorkoutLaunchCard: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "figure.strengthtraining.traditional")
                     .font(.headline.weight(.bold))
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
                     .frame(width: 44, height: 44)
                     .background(Color.liftBlue.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -507,7 +507,7 @@ struct TodayWorkoutLaunchCard: View {
                     Text("TODAY'S WORKOUT")
                         .font(.caption2.weight(.black))
                         .tracking(0.9)
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                     Text(planName)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.liftMuted)
@@ -585,7 +585,7 @@ struct ActiveWorkoutResumeCard: View {
                     Spacer()
                     Image(systemName: "arrow.right.circle.fill")
                         .font(.title2)
-                        .foregroundStyle(Color.liftBlue)
+                        .foregroundStyle(Color.liftAccentText)
                 }
 
                 HStack {

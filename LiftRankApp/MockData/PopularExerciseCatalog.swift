@@ -376,7 +376,7 @@ enum PopularExerciseCatalog {
             workoutCategory: seed.category,
             defaultSets: 3,
             defaultReps: seed.reps,
-            symbolName: symbol(for: seed.bodyPart),
+            symbolName: symbol(for: seed.id, bodyPart: seed.bodyPart),
             equipment: equipment
         )
         exercise.defaultRestSeconds = restSeconds(for: seed.reps)
@@ -390,11 +390,15 @@ enum PopularExerciseCatalog {
         return 90
     }
 
-    private static func symbol(for bodyPart: String) -> String {
+    private static func symbol(for id: String, bodyPart: String) -> String {
+        let exerciseID = id.lowercased()
         let value = bodyPart.lowercased()
         if value.contains("core") || value.contains("oblique") { return "figure.core.training" }
         if value.contains("quad") || value.contains("hamstring") || value.contains("glute") || value.contains("calf") || value.contains("leg") { return "figure.strengthtraining.functional" }
-        if value.contains("chest") || value.contains("shoulder") || value.contains("tricep") { return "figure.strengthtraining.traditional" }
+        if exerciseID.contains("pulldown") || exerciseID.contains("pull_up") { return "arrow.down.to.line.compact" }
+        if exerciseID.contains("row") { return "arrow.left.arrow.right" }
+        if exerciseID.contains("fly") || exerciseID.contains("crossover") { return "arrow.left.and.right" }
+        if value.contains("chest") || value.contains("shoulder") || value.contains("tricep") || value.contains("bicep") { return "figure.strengthtraining.traditional" }
         return "dumbbell.fill"
     }
 }

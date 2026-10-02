@@ -152,7 +152,7 @@ extension LeaderboardsView {
                         if activeFilterCount > 0 { Text("\(activeFilterCount)") }
                     }
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
                     .frame(minWidth: 44, minHeight: 44)
                     .padding(.horizontal, 4)
                     .liftSurface(radius: 10, raised: true)
@@ -193,7 +193,7 @@ extension LeaderboardsView {
             VStack(alignment: .leading, spacing: 12) {
                 Image(systemName: "list.number")
                     .font(.largeTitle)
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
                 Text("No ranked lifters")
                     .font(.headline)
                 Text(hasSearch
@@ -210,7 +210,7 @@ extension LeaderboardsView {
                             Haptics.light()
                         }
                         .buttonStyle(.bordered)
-                        .tint(Color.liftBlue)
+                        .tint(Color.liftAccentText)
                     }
 
                     if hasFilters {

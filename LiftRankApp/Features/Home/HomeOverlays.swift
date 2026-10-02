@@ -144,13 +144,13 @@ struct RecentPRDetailView: View {
                 Spacer()
                 Image(systemName: "link.circle.fill")
                     .font(.title3)
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
             }
 
             HStack(spacing: 12) {
                 Text(context.set.isWarmup ? "W" : "\(context.set.setNumber)")
                     .font(.caption.weight(.black).monospacedDigit())
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
                     .frame(width: 34, height: 34)
                     .background(Color.liftBlue.opacity(0.12))
                     .clipShape(Circle())
@@ -171,7 +171,7 @@ struct RecentPRDetailView: View {
                     if let rpe = context.set.rpe {
                         Text("RPE \(rpe)")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                     }
                 }
             }
@@ -365,12 +365,12 @@ struct HomeNotificationCenterView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Text(LiftTimeFormatter.relativeNoSeconds(from: notification.createdAt))
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Color.liftBlue)
+                    .foregroundStyle(Color.liftAccentText)
             }
 
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.bold))
-                .foregroundStyle(Color.liftBlue)
+                .foregroundStyle(Color.liftAccentText)
                 .frame(maxHeight: .infinity)
         }
         .padding(14)

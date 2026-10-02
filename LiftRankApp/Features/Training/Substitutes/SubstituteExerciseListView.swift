@@ -12,7 +12,7 @@ struct SubstituteExerciseListView: View {
                         Text("Alternatives to")
                             .font(.caption.weight(.black))
                             .tracking(1)
-                            .foregroundStyle(Color.liftBlue)
+                            .foregroundStyle(Color.liftAccentText)
                         Text(sourceExercise.name)
                             .font(.title2.weight(.black))
                         Text("Choose an exercise to review its muscles, technique, history, and records.")

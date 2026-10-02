@@ -6,6 +6,7 @@ protocol AuthenticationService {
     var isDemoMode: Bool { get }
     func restoreSession() async throws -> AccountSession?
     func signUp(email: String, password: String) async throws -> AccountSession
+    func resendConfirmation(email: String) async throws
     func signIn(email: String, password: String) async throws -> AccountSession
     func requestPasswordReset(email: String) async throws
     func handleAuthCallback(_ url: URL) async throws -> AccountSession
@@ -23,7 +24,8 @@ protocol ProfileService {
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile
     func authenticatedProfile() async throws -> AuthenticatedProfile
     func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile
-    func claimUsername(_ username: String) async throws -> String
+    func saveTrainingGoals(_ goalIDs: [String]) async throws
+    func changeUsername(currentUsername: String, newUsername: String) async throws -> String
     func profileCard(userID: UUID) async throws -> PublicProfileCard
     func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String
     func downloadProfileAvatar(avatarPath: String) async throws -> ProfileAvatarDownload?
@@ -69,6 +71,81 @@ protocol SocialService {
     func block(userID: UUID) async throws
     func unblock(userID: UUID) async throws
     func blocks() async throws -> [UserBlockRecord]
+}
+
+struct ForumCommunity: Identifiable, Codable, Equatable, Sendable {
+    let id: UUID
+    let slug: String
+    let name: String
+    let summary: String
+    let details: String
+    let category: String
+    let visibility: String
+    let accentHex: String
+}
+
+struct ForumPost: Identifiable, Codable, Equatable, Sendable {
+    let id: UUID
+    let communityID: UUID?
+    let gymID: UUID?
+    let authorID: UUID
+    let kind: String
+    let title: String
+    let body: String
+    let tag: String?
+    let liftID: UUID?
+    let isPinned: Bool
+    let isLocked: Bool
+    let createdAt: Date
+}
+
+struct ForumComment: Identifiable, Codable, Equatable, Sendable {
+    let id: UUID
+    let postID: UUID
+    let authorID: UUID
+    let parentCommentID: UUID?
+    let body: String
+    let createdAt: Date
+}
+
+struct ForumThread: Equatable, Sendable {
+    let post: ForumPost
+    let comments: [ForumComment]
+}
+
+struct ForumPostDraft: Sendable {
+    let communityID: UUID
+    let kind: String
+    let title: String
+    let body: String
+    let tag: String?
+    let liftID: UUID?
+}
+
+struct ForumReport: Identifiable, Codable, Equatable, Sendable {
+    let id: UUID
+    let communityID: UUID?
+    let targetType: String
+    let targetID: UUID
+    let reason: String
+    let note: String
+    let createdAt: Date
+}
+
+@MainActor
+protocol ForumService {
+    func communities() async throws -> [ForumCommunity]
+    func posts(communityID: UUID?, limit: Int) async throws -> [ForumPost]
+    func thread(postID: UUID) async throws -> ForumThread?
+    func join(communityID: UUID, requestNote: String) async throws -> String
+    func leave(communityID: UUID) async throws
+    func createPost(_ draft: ForumPostDraft) async throws -> ForumPost
+    func createComment(postID: UUID, body: String, parentCommentID: UUID?) async throws -> ForumComment
+    func vote(postID: UUID, value: Int?) async throws
+    func watch(postID: UUID, watched: Bool) async throws
+    func report(targetType: String, targetID: UUID, communityID: UUID?, reason: String, note: String) async throws
+    func reports() async throws -> [ForumReport]
+    func moderate(postID: UUID, action: String, reason: String) async throws
 }
 
 @MainActor
@@ -137,6 +214,7 @@ protocol AccountDeletionService {
 // Additive defaults keep lightweight previews and focused test doubles source
 // compatible while production implementations override every launch method.
 extension AuthenticationService {
+    func resendConfirmation(email: String) async throws { throw LiftRankServiceError.configurationMissing }
     func handleAuthCallback(_ url: URL) async throws -> AccountSession { throw LiftRankServiceError.configurationMissing }
     func updatePassword(_ password: String) async throws { throw LiftRankServiceError.configurationMissing }
     func signInWithApple(identityToken: String, nonce: String) async throws -> AccountSession { throw LiftRankServiceError.configurationMissing }

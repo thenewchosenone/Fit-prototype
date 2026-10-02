@@ -67,7 +67,7 @@ struct CompletedWorkoutDetailView: View {
                                             if let rpe = set.rpe {
                                                 Text("@ \(rpe)")
                                                     .font(.caption.weight(.bold))
-                                                    .foregroundStyle(Color.liftBlue)
+                                                    .foregroundStyle(Color.liftAccentText)
                                             }
                                         }
                                         .font(.subheadline)

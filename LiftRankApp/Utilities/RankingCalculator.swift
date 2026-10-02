@@ -16,11 +16,6 @@ enum RankingCalculator {
                 "bench": [0.3, 0.5, 0.75, 1, 1.25, 1.5],
                 "deadlift": [0.75, 1, 1.5, 2, 2.5, 3]
             ],
-            .open: [
-                "squat": [0.625, 0.875, 1.25, 1.75, 2.25, 2.75],
-                "bench": [0.4, 0.625, 0.875, 1.25, 1.5, 1.75],
-                "deadlift": [0.875, 1.125, 1.625, 2.125, 2.625, 3.125]
-            ]
         ]
         let rankedTiers = StrengthTier.allCases.filter { $0 != .unranked }
         return thresholds.flatMap { sexCategory, exercises in

@@ -96,6 +96,7 @@ export interface ExercisePrescription {
   restSeconds: number;
   order: number;
   notes: string;
+  substitutionExerciseIds: string[];
 }
 
 export interface WorkoutSetLog {
