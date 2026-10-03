@@ -1,0 +1,5 @@
+ M LiftRank.xcodeproj/project.pbxproj
+ M LiftRankApp/Services/SupabaseServiceSupport.swift
+ M LiftRankApp/Views/MainTabView.swift
+ M supabase/functions/delete-account/index.ts
+?? release-evidence/mandatory-refresh-20260905/

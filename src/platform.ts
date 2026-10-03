@@ -1,4 +1,5 @@
 import type {
+  Exercise,
   Gym,
   LeaderboardEntry,
   LeaderboardScope,
@@ -9,6 +10,21 @@ import type {
   UserProfile,
   VerificationLevel
 } from "./types";
+
+export function primaryMuscleForExercise(exercise: Pick<Exercise, "name" | "bodyPart">): string {
+  const name = exercise.name.toLowerCase();
+  if (exercise.bodyPart === "Arms") {
+    if (/tricep|skull crusher|close-grip/.test(name)) return "Triceps";
+    if (/forearm|wrist|grip/.test(name)) return "Forearms";
+    if (/curl/.test(name)) return "Biceps";
+  }
+  return exercise.bodyPart;
+}
+
+export function secondaryMusclesForExercise(exercise: Pick<Exercise, "name" | "bodyPart" | "secondaryMuscles">): string[] {
+  const primary = primaryMuscleForExercise(exercise).toLowerCase();
+  return [...new Set(exercise.secondaryMuscles)].filter((muscle) => muscle.toLowerCase() !== primary);
+}
 
 export type ComputedLeaderboardFilters = {
   rankingType: RankingType;
@@ -32,6 +48,16 @@ export function poundsToKilograms(value: number): number {
 
 export function kilogramsToPounds(value: number): number {
   return value * 2.2046226218;
+}
+
+export function dotsScore(totalPounds: number, bodyweightPounds: number, sex: SexCategory): number {
+  if (totalPounds <= 0 || bodyweightPounds <= 0) return 0;
+  const x = poundsToKilograms(bodyweightPounds);
+  const coefficients = sex === "Female"
+    ? [-57.96288, 13.6175032, -0.1126655495, 0.0005158568, -0.0000010706]
+    : [-307.75076, 24.0900756, -0.1918759221, 0.0007391293, -0.000001093];
+  const denominator = coefficients.reduce((sum, coefficient, index) => sum + coefficient * x ** index, 0);
+  return denominator > 0 ? Math.round((500 / denominator) * poundsToKilograms(totalPounds)) : 0;
 }
 
 export function weightClassFor(bodyweightPounds: number, sex: SexCategory): string {

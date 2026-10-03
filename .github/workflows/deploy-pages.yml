@@ -1,4 +1,4 @@
-name: Deploy LiftRank web
+name: Deploy Lift Rivals web
 
 on:
   push:
