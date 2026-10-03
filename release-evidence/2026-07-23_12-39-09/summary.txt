@@ -1,0 +1,3 @@
+step|status|log
+required_scheme|pass|/Users/robertjeanty/Documents/GitHub/Fit-prototype/release-evidence/2026-07-23_12-39-09/required-scheme.log
+publish_readiness.services|pass|/Users/robertjeanty/Documents/GitHub/Fit-prototype/release-evidence/2026-07-23_12-39-09/ios-services-readiness.log
