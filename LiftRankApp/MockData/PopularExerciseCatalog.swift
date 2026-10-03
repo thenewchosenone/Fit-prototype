@@ -219,7 +219,7 @@ enum PopularExerciseCatalog {
         ("barbell_hex_bar_deadlift", "Hex Bar Deadlift", "Full Body", "Pull", "3-6"),
         ("barbell_good_morning", "Good Morning", "Hamstrings/Back", "Legs", "6-10"),
         ("barbell_stiff_leg_deadlift", "Barbell Stiff-Leg Deadlift", "Hamstrings", "Legs", "6-10"),
-        ("barbell_row", "Barbell Row", "Back", "Pull", "6-10"),
+        ("barbell_row", "Bent-Over Barbell Row", "Back", "Pull", "6-10"),
         ("barbell_pendlay_row", "Pendlay Row", "Upper Back", "Pull", "5-8"),
         ("barbell_t_bar_row", "Landmine T-Bar Row", "Back", "Pull", "8-12"),
         ("barbell_landmine_press", "Landmine Press", "Shoulders", "Push", "8-12"),
@@ -333,6 +333,7 @@ enum PopularExerciseCatalog {
     ]
 
     private static let aliasesByID: [String: [String]] = [
+        "barbell_row": ["Barbell Row", "Bent Over Barbell Row", "Bent-Over Row"],
         "machine_iso_lateral_underhand_row": ["Hammer Strength D.Y. Row", "Hammer D.Y. Row", "Dorian Yates Row", "DY Row"],
         "machine_plate_loaded_horizontal_bench_press": ["Hammer Strength Horizontal Bench Press", "Hammer Horizontal Bench Press"],
         "machine_high_incline_chest_press": ["Hammer Strength Super Incline Press", "Hammer Super Incline"],
@@ -394,11 +395,15 @@ enum PopularExerciseCatalog {
         let exerciseID = id.lowercased()
         let value = bodyPart.lowercased()
         if value.contains("core") || value.contains("oblique") { return "figure.core.training" }
+        if exerciseID == "machine_back_extension" { return "figure.flexibility" }
+        if exerciseID == "band_face_pull" { return "arrow.left.and.right" }
+        if exerciseID == "band_lat_pulldown" { return "figure.climbing" }
+        if exerciseID.contains("leg_press") || exerciseID.contains("leg_extension") || exerciseID.contains("leg_curl") { return "figure.strengthtraining.functional" }
         if exerciseID.contains("pull_up") || exerciseID.contains("chin_up") || exerciseID.contains("muscle_up") { return "figure.climbing" }
         if exerciseID.contains("pulldown") || exerciseID.contains("pull_over") { return "arrow.down.to.line.compact" }
-        if exerciseID.contains("chest_supported") || exerciseID.contains("seal_row") || exerciseID.contains("renegade_row") { return "figure.rower" }
-        if exerciseID.contains("row") { return "arrow.left.arrow.right" }
-        if exerciseID.contains("leg_press") || exerciseID.contains("leg_extension") || exerciseID.contains("leg_curl") { return "arrow.up.and.down" }
+        if exerciseID == "barbell_row" || exerciseID.contains("chest_supported") || exerciseID.contains("seal_row") || exerciseID.contains("renegade_row") { return "figure.rower" }
+        if exerciseID.contains("cable_row") || exerciseID.contains("seated_row") { return "arrow.left.arrow.right" }
+        if exerciseID.contains("row") { return "figure.rower" }
         if exerciseID.contains("fly") || exerciseID.contains("crossover") || exerciseID.contains("lateral_raise") || exerciseID.contains("rear_delt") { return "arrow.left.and.right" }
         if exerciseID.contains("crunch") || exerciseID.contains("wood_chop") || exerciseID.contains("pallof") { return "arrow.down.to.line.compact" }
         if value.contains("quad") || value.contains("hamstring") || value.contains("glute") || value.contains("calf") || value.contains("leg") { return "figure.strengthtraining.functional" }

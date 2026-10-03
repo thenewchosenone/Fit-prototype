@@ -49,6 +49,8 @@ struct SubmitLiftView: View {
     @State private var plateLoadingWasEdited = false
     @State private var isSyncingPlateLoading = false
     @State private var isPlateLoadingExpanded = false
+    @State private var isEstimateExpanded = false
+    @State private var isMoreDetailsExpanded = false
     @State private var activeSelector: SubmitLiftSelector?
     @State private var isRefreshingGyms = false
 
@@ -71,6 +73,17 @@ struct SubmitLiftView: View {
         appState.gyms.first { $0.id == gymID }
     }
 
+    private var gymOptions: [Gym] {
+        let city = appState.currentProfile.city.trimmingCharacters(in: .whitespacesAndNewlines)
+        let state = appState.currentProfile.state.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !city.isEmpty, !state.isEmpty else { return appState.gyms }
+        let localGyms = appState.gyms.filter {
+            $0.city.localizedCaseInsensitiveCompare(city) == .orderedSame &&
+            $0.state.localizedCaseInsensitiveCompare(state) == .orderedSame
+        }
+        return localGyms.isEmpty ? appState.gyms : localGyms
+    }
+
     private var selectedMovement: CompetitiveMovement? { CompetitiveMovement.resolve(exerciseID: exercise.id) }
 
     var body: some View {
@@ -79,10 +92,9 @@ struct SubmitLiftView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         liftDetailsCard
-                        estimateCard
                         trainingContextCard
                         videoCard
-                        plateCard
+                        moreDetailsCard
                     }
                     .padding(.horizontal, LiftDesign.screenHorizontalPadding)
                     .padding(.top, 8)
@@ -258,26 +270,49 @@ struct SubmitLiftView: View {
 
     private var estimateCard: some View {
         LiftCard(padding: 12, radius: 16) {
-            HStack(spacing: 12) {
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(Color.liftGreen)
-                    .frame(width: 34, height: 34)
-                    .background(Color.liftGreen.opacity(0.14))
-                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Estimated max")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftTextSecondary)
-                    Text("\(RankingCalculator.format(estimate)) \(unit.shortLabel)")
-                        .font(.system(.title3, design: .rounded).weight(.black))
-                    Text("\(MeasurementFormatting.recordedLiftSetTextWithX(weight: weight, unit: unit, repetitions: repetitions)) one-rep max")
-                        .font(.caption2)
-                        .foregroundStyle(Color.liftTextSecondary)
-                        .lineLimit(1)
+            DisclosureGroup(isExpanded: $isEstimateExpanded) {
+                HStack(spacing: 12) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(Color.liftGreen)
+                        .frame(width: 34, height: 34)
+                        .background(Color.liftGreen.opacity(0.14))
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Estimated max")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.liftTextSecondary)
+                        Text("\(RankingCalculator.format(estimate)) \(unit.shortLabel)")
+                            .font(.system(.title3, design: .rounded).weight(.black))
+                        Text("\(MeasurementFormatting.recordedLiftSetTextWithX(weight: weight, unit: unit, repetitions: repetitions)) one-rep max")
+                            .font(.caption2)
+                            .foregroundStyle(Color.liftTextSecondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+                .padding(.top, 10)
+            } label: {
+                Label("Estimated max", systemImage: "chart.line.uptrend.xyaxis")
+                    .font(.subheadline.weight(.bold))
             }
+            .tint(Color.liftAccentText)
+        }
+    }
+
+    private var moreDetailsCard: some View {
+        LiftCard(padding: 12, radius: 16) {
+            DisclosureGroup(isExpanded: $isMoreDetailsExpanded) {
+                VStack(alignment: .leading, spacing: 12) {
+                    estimateCard
+                    plateCard
+                }
+                .padding(.top, 8)
+            } label: {
+                Label("More details", systemImage: "slider.horizontal.3")
+                    .font(.subheadline.weight(.bold))
+            }
+            .tint(Color.liftAccentText)
         }
     }
 
@@ -393,7 +428,7 @@ struct SubmitLiftView: View {
                 title: "No gym",
                 subtitle: "Submit without a gym affiliation",
                 symbol: "figure.strengthtraining.traditional"
-            )] + appState.gyms.map { gym in
+            )] + gymOptions.map { gym in
                 let location = [gym.city, gym.state].filter { !$0.isEmpty }.joined(separator: ", ")
                 let membership = appState.isGymJoined(gym) ? "Joined" : "Tap to join"
                 return LeaderboardOption(

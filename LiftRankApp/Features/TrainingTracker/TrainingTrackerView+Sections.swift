@@ -165,9 +165,18 @@ extension TrainingTrackerView {
                     .font(.title3.weight(.black))
 
                 Menu {
-                    Picker("Plan", selection: $appState.selectedWorkoutPlanID) {
-                        ForEach(appState.workoutPlans) { plan in
-                            Text(plan.name).tag(plan.id)
+                    if appState.workoutPlans.isEmpty {
+                        Button {
+                            isProgramLibraryExpanded = true
+                            withAnimation(.snappy) { segment = .plans }
+                        } label: {
+                            Label("Browse workout programs", systemImage: "books.vertical.fill")
+                        }
+                    } else {
+                        Picker("Plan", selection: $appState.selectedWorkoutPlanID) {
+                            ForEach(appState.workoutPlans) { plan in
+                                Text(plan.name).tag(plan.id)
+                            }
                         }
                     }
                 } label: {
@@ -189,7 +198,7 @@ extension TrainingTrackerView {
                     .clipShape(Capsule())
                     .overlay { Capsule().stroke(Color.white.opacity(0.07), lineWidth: 1) }
                 }
-                .accessibilityLabel("Active plan, \(selectedPlanName)")
+                .accessibilityLabel(appState.selectedWorkoutPlan == nil ? "No workout plan selected; browse workout programs" : "Active plan, \(selectedPlanName)")
 
                 Spacer(minLength: 0)
 
@@ -248,6 +257,21 @@ extension TrainingTrackerView {
             .padding(.horizontal, 16)
             .padding(.top, 8)
             .padding(.bottom, 6)
+
+            if appState.selectedWorkoutPlan == nil {
+                HStack(spacing: 8) {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundStyle(Color.liftAccentText)
+                    Text("Choose a program to schedule workouts, or start an empty workout to train freestyle.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("No workout plan selected. Choose a program to schedule workouts, or start an empty workout to train freestyle.")
+            }
 
             HStack(spacing: 0) {
                 ForEach(TrackerSegment.allCases, id: \.self) { option in

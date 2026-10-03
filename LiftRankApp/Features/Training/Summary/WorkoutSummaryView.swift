@@ -53,6 +53,26 @@ struct WorkoutSummaryView: View {
         max(appState.competitiveStatistics.currentStreak, 0) + 1
     }
 
+    private var volumePRDetails: (current: Double, previous: Double, unit: UnitSystem)? {
+        let currentUnit = appState.activeWorkout?.unit ?? appState.currentProfile.preferredUnit
+        let currentKilograms = MeasurementFormatting.normalizeToKilograms(summary.totalVolume, unit: currentUnit)
+        let previousKilograms = appState.completedWorkouts
+                .filter { $0.id != summary.id }
+                .map({ MeasurementFormatting.normalizeToKilograms($0.totalVolume, unit: $0.unit) })
+                .max()
+        guard currentKilograms > 0,
+              let previousKilograms,
+              currentKilograms > previousKilograms else {
+            return nil
+        }
+        let displayUnit = appState.currentProfile.preferredUnit
+        return (
+            MeasurementFormatting.convert(currentKilograms, from: .kilograms, to: displayUnit),
+            MeasurementFormatting.convert(previousKilograms, from: .kilograms, to: displayUnit),
+            displayUnit
+        )
+    }
+
     private func newlyUnlockedAchievements(
         workingSets: [WorkoutSetLog],
         activeDuration: TimeInterval
@@ -148,32 +168,30 @@ struct WorkoutSummaryView: View {
                             summaryMetric("Lifetime workouts", "\(projectedWorkoutCount)", "calendar")
                         }
 
-                        if let best = summary.bestSet {
-                            let trackingKind = trackingKind(for: best)
-                            HStack(spacing: 12) {
-                                Image(systemName: "trophy.fill")
-                                    .font(.title2)
-                                    .foregroundStyle(Color.liftGold)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text("Best set")
-                                        .font(.caption.weight(.bold))
-                                        .foregroundStyle(Color.liftMuted)
-                                    Text(MeasurementFormatting.workoutSetText(set: best, trackingKind: trackingKind))
-                                        .font(.headline.weight(.black))
-                                }
-                                Spacer()
-                            }
-                            .padding(14)
-                            .background(Color.liftGold.opacity(0.09))
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        }
-
                         if let previous = previousComparableWorkout {
                             comparisonSection(previous)
                         }
 
                         if !prCandidates.isEmpty {
                             prSubmissionSection
+                        }
+
+                        if let volumePRDetails {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Label("New volume PR", systemImage: "chart.bar.fill")
+                                    .font(.headline.weight(.bold))
+                                    .foregroundStyle(Color.liftGreen)
+                                Text("You moved \(MeasurementFormatting.formatRecordedWeight(volumePRDetails.current, unit: volumePRDetails.unit)) total volume — \(MeasurementFormatting.formatRecordedWeight(volumePRDetails.current - volumePRDetails.previous, unit: volumePRDetails.unit)) more than your previous best.")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                            .padding(14)
+                            .background(Color.liftGreen.opacity(0.10))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(Color.liftGreen.opacity(0.28), lineWidth: 1)
+                            }
                         }
 
                         if !advancedStrengthLifts.isEmpty {

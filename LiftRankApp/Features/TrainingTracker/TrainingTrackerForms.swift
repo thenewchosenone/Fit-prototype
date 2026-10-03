@@ -62,9 +62,10 @@ struct BodyweightEntryEditor: View {
                     )
 
                     OptionalNumericInputField(
-                        title: "Actual bodyweight",
+                        title: "Actual bodyweight (required)",
                         value: displayedBodyweight,
-                        unit: appState.currentProfile.preferredUnit.shortLabel
+                        unit: appState.currentProfile.preferredUnit.shortLabel,
+                        placeholder: "Enter weight"
                     )
 
                     VStack(alignment: .leading, spacing: 7) {
@@ -98,6 +99,7 @@ struct BodyweightEntryEditor: View {
                     }
                     .fontWeight(.bold)
                     .foregroundStyle(Color.liftAccentText)
+                    .disabled((draft.actual ?? 0) <= 0)
                 }
             }
         }

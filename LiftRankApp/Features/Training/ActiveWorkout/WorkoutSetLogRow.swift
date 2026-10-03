@@ -241,7 +241,7 @@ struct WorkoutSetLogRow: View {
                         } label: {
                             Text("\(value)")
                                 .font(.caption.weight(.black).monospacedDigit())
-                                .foregroundStyle(draft.rpe == value ? Color.liftOnAccent : rpeTint(value))
+                                .foregroundStyle(draft.rpe == value ? Color.liftOnAccent : Color.liftText)
                                 .frame(width: 30, height: 28)
                                 .background(draft.rpe == value ? rpeTint(value) : rpeTint(value).opacity(0.12))
                                 .clipShape(Circle())

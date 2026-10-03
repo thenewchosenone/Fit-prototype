@@ -1352,6 +1352,27 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertFalse(store.isOperationInProgress)
     }
 
+    func testCurrentLegalDocumentsCoverImplementedDataAndTrainingRisk() {
+        let documents = Dictionary(uniqueKeysWithValues: LegalDocument.current.map { document in
+            (document.kind, document.sections.map(\.body).joined(separator: " ").lowercased())
+        })
+
+        XCTAssertEqual(Set(documents.keys), Set(LegalDocumentKind.allCases))
+        let privacy = documents[.privacy] ?? ""
+        XCTAssertTrue(privacy.contains("email"))
+        XCTAssertTrue(privacy.contains("workout"))
+        XCTAssertTrue(privacy.contains("photo") || privacy.contains("video"))
+        XCTAssertTrue(privacy.contains("location") || privacy.contains("city"))
+
+        let terms = documents[.terms] ?? ""
+        XCTAssertTrue(terms.contains("community"))
+        XCTAssertTrue(terms.contains("ranking"))
+
+        let disclaimer = documents[.fitnessDisclaimer] ?? ""
+        XCTAssertTrue(disclaimer.contains("injury"))
+        XCTAssertTrue(disclaimer.contains("medical"))
+    }
+
     func testSessionStoreClearsRemoteAccountStateWithoutChangingRoute() {
         let store = SessionStore(status: .authenticated)
         store.updateOutstandingLegalDocuments(LegalDocument.current)

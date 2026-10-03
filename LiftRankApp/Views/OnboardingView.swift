@@ -69,7 +69,11 @@ struct OnboardingView: View {
         let region = selectedRegionName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !city.isEmpty, !region.isEmpty else { return [] }
 
-        return appState.gyms
+        return Self.gymsMatchingLocation(appState.gyms, city: city, region: region)
+    }
+
+    static func gymsMatchingLocation(_ gyms: [Gym], city: String, region: String) -> [Gym] {
+        gyms
             .filter {
                 $0.city.localizedCaseInsensitiveCompare(city) == .orderedSame &&
                 $0.state.localizedCaseInsensitiveCompare(region) == .orderedSame

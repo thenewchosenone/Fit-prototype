@@ -34,7 +34,7 @@ extension TrainingTrackerView {
     }
 
     var selectedPlanName: String {
-        appState.selectedWorkoutPlan?.name ?? "Workout Plan"
+        appState.selectedWorkoutPlan?.name ?? "No plan selected"
     }
 
     var selectedProgramSettings: WorkoutPlanProgressionSettings? {

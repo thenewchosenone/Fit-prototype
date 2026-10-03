@@ -311,6 +311,34 @@ final class MockNotificationService: NotificationService {
     func revokeDevice(deviceID: String) async throws {}
 }
 
+#if DEBUG
+@MainActor
+final class MockForumService: ForumService {
+    private let demoCommunities = [
+        ForumCommunity(id: UUID(uuidString: "00000000-0000-0000-0000-000000000201")!, slug: "strength", name: "Strength Training", summary: "Build strength together.", details: "Discuss programming, technique, and progress.", category: "Training", visibility: "public", accentHex: "8B5CF6"),
+        ForumCommunity(id: UUID(uuidString: "00000000-0000-0000-0000-000000000202")!, slug: "powerlifting", name: "Powerlifting", summary: "Train the competition lifts.", details: "Share meet prep and powerlifting advice.", category: "Training", visibility: "public", accentHex: "F59E0B"),
+        ForumCommunity(id: UUID(uuidString: "00000000-0000-0000-0000-000000000203")!, slug: "nutrition", name: "Nutrition", summary: "Fuel your training.", details: "Talk meals, recovery, and sustainable habits.", category: "Lifestyle", visibility: "public", accentHex: "22C55E")
+    ]
+
+    func communities() async throws -> [ForumCommunity] { demoCommunities }
+    func posts(communityID: UUID?, limit: Int) async throws -> [ForumPost] { [] }
+    func thread(postID: UUID) async throws -> ForumThread? { nil }
+    func join(communityID: UUID, requestNote: String) async throws -> String { "demo-membership" }
+    func leave(communityID: UUID) async throws {}
+    func createPost(_ draft: ForumPostDraft) async throws -> ForumPost {
+        throw LiftRankServiceError.invalidInput("Posting is unavailable in the simulator demo.")
+    }
+    func createComment(postID: UUID, body: String, parentCommentID: UUID?) async throws -> ForumComment {
+        throw LiftRankServiceError.invalidInput("Commenting is unavailable in the simulator demo.")
+    }
+    func vote(postID: UUID, value: Int?) async throws {}
+    func watch(postID: UUID, watched: Bool) async throws {}
+    func report(targetType: String, targetID: UUID, communityID: UUID?, reason: String, note: String) async throws {}
+    func reports() async throws -> [ForumReport] { [] }
+    func moderate(postID: UUID, action: String, reason: String) async throws {}
+}
+#endif
+
 @MainActor
 final class MockWorkoutSyncService: WorkoutSyncService {
     private var planDocuments: [WorkoutPlanDocument] = []

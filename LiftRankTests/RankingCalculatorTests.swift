@@ -1803,6 +1803,47 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(calendar.component(.weekday, from: augustFirst), 7)
     }
 
+    func testWorkoutHistoryCalendarIncludesEveryDayOfOctober2026() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/New_York"))
+        calendar.firstWeekday = 1
+        let october = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: 15)))
+
+        let days = WorkoutHistoryCalendarData.days(in: october, workouts: [], calendar: calendar)
+        let datedDays = days.compactMap(\.date)
+
+        XCTAssertEqual(datedDays.count, 31)
+        XCTAssertEqual(datedDays.first.map { calendar.component(.day, from: $0) }, 1)
+        XCTAssertEqual(datedDays.last.map { calendar.component(.day, from: $0) }, 31)
+        XCTAssertTrue(datedDays.allSatisfy { calendar.component(.month, from: $0) == 10 })
+    }
+
+    @MainActor
+    func testWorkoutHistoryPresentationBrowsesOneYearBackAndTwoYearsForward() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/New_York"))
+        let referenceDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: 15)))
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let store = TrainingProgressStore(repository: repository, calendar: calendar)
+
+        let presentation = store.workoutHistoryPresentation(
+            displayedMonth: referenceDate,
+            selectedDate: nil,
+            referenceDate: referenceDate
+        )
+        let oneYearBack = try XCTUnwrap(calendar.date(byAdding: .year, value: -1, to: referenceDate))
+        let twoYearsForward = try XCTUnwrap(calendar.date(byAdding: .year, value: 2, to: referenceDate))
+        let backDays = WorkoutHistoryCalendarData.days(in: oneYearBack, workouts: [], calendar: calendar).compactMap(\.date)
+        let forwardDays = WorkoutHistoryCalendarData.days(in: twoYearsForward, workouts: [], calendar: calendar).compactMap(\.date)
+
+        XCTAssertLessThanOrEqual(presentation.firstBrowsableMonth, WorkoutHistoryCalendarData.monthStart(for: oneYearBack, calendar: calendar))
+        XCTAssertGreaterThanOrEqual(presentation.lastBrowsableMonth, WorkoutHistoryCalendarData.monthStart(for: twoYearsForward, calendar: calendar))
+        XCTAssertEqual(backDays.first.map { calendar.component(.day, from: $0) }, 1)
+        XCTAssertEqual(forwardDays.first.map { calendar.component(.day, from: $0) }, 1)
+        XCTAssertTrue(backDays.allSatisfy { calendar.component(.year, from: $0) == 2025 })
+        XCTAssertTrue(forwardDays.allSatisfy { calendar.component(.year, from: $0) == 2028 })
+    }
+
     func testWorkoutHistoryWeekdaySymbolsFollowCalendarWeekStart() {
         var sundayStart = Calendar(identifier: .gregorian)
         sundayStart.firstWeekday = 1
@@ -4979,7 +5020,7 @@ final class RankingCalculatorTests: XCTestCase {
         let templates = WorkoutProgramCatalog.templates
         let catalogIDs = Set(MockData.trainingExerciseLibrary.map(\.id))
 
-        XCTAssertEqual(templates.count, 7)
+        XCTAssertEqual(templates.count, 9)
         for template in templates {
             XCTAssertEqual(template.sessions.count, template.daysPerWeek, template.name)
             XCTAssertFalse(template.sessions.flatMap(\.exercises).isEmpty, template.name)
@@ -4988,6 +5029,48 @@ final class RankingCalculatorTests: XCTestCase {
                 "\(template.name) references an exercise missing from the bundled catalog."
             )
         }
+    }
+
+    func testBundledProgramsMatchTheirTrainingIntent() throws {
+        let templates = WorkoutProgramCatalog.templates
+        let powerlifting = templates.filter { $0.category == .powerlifting }
+        XCTAssertEqual(powerlifting.count, 2)
+        for template in powerlifting {
+            XCTAssertTrue(template.name.localizedCaseInsensitiveContains("powerlifting"), template.name)
+            let exerciseIDs = Set(template.sessions.flatMap(\.exercises).map(\.exerciseID))
+            XCTAssertTrue(["back_squat", "barbell_bench_press", "conventional_deadlift"].allSatisfy(exerciseIDs.contains), template.name)
+            XCTAssertTrue([.fixed, .percentage].contains(template.defaultProgression), template.name)
+        }
+
+        let intermediatePowerlifting = try XCTUnwrap(powerlifting.first { $0.id == "intermediate_powerlifting_12" })
+        XCTAssertEqual(intermediatePowerlifting.defaultProgression, .percentage)
+        XCTAssertEqual(Set(intermediatePowerlifting.requiredTrainingMaxExerciseIDs), Set(["back_squat", "barbell_bench_press", "conventional_deadlift"]))
+
+        for template in templates where template.category == .bodybuilding {
+            XCTAssertTrue(template.name.localizedCaseInsensitiveContains("bodybuilding"), template.name)
+            XCTAssertTrue([.rirRepRange, .fixed].contains(template.defaultProgression), template.name)
+        }
+    }
+
+    func testAchievementCatalogHasExpandedGamificationMilestones() {
+        XCTAssertGreaterThanOrEqual(MockData.achievements.count, 190)
+        XCTAssertEqual(Set(MockData.achievements.map(\.title)).count, MockData.achievements.count)
+    }
+
+    func testOnboardingGymPickerScopesLargeDirectoryToSelectedLocation() {
+        let gyms = (0..<998).map { index in
+            Gym(
+                id: UUID(),
+                name: "Gym \(index)",
+                city: index == 997 ? "Miami" : "Orlando",
+                state: index == 997 ? "Florida" : "Florida",
+                memberCount: 0,
+                verifiedLiftCount: 0
+            )
+        } + [Gym(id: UUID(), name: "Alpha Miami", city: "Miami", state: "Florida", memberCount: 0, verifiedLiftCount: 0)]
+
+        let matches = OnboardingView.gymsMatchingLocation(gyms, city: "miami", region: "FLORIDA")
+        XCTAssertEqual(matches.map(\.name), ["Alpha Miami", "Gym 997"])
     }
 
     func testBundledExercisesHaveDetailedMuscleProfiles() {

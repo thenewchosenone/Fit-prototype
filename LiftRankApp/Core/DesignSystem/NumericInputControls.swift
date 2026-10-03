@@ -119,14 +119,16 @@ struct OptionalNumericInputField: View {
     let title: String
     @Binding var value: Double?
     var unit: String?
+    var placeholder: String = "Optional"
     var presentation: NumericInputPresentation = .inset
     @State private var text: String
     @FocusState private var isFocused: Bool
 
-    init(title: String, value: Binding<Double?>, unit: String? = nil, presentation: NumericInputPresentation = .inset) {
+    init(title: String, value: Binding<Double?>, unit: String? = nil, placeholder: String = "Optional", presentation: NumericInputPresentation = .inset) {
         self.title = title
         self._value = value
         self.unit = unit
+        self.placeholder = placeholder
         self.presentation = presentation
         self._text = State(initialValue: value.wrappedValue.map(Self.format) ?? "")
     }
@@ -150,7 +152,7 @@ struct OptionalNumericInputField: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color.liftMuted)
             HStack {
-                TextField("Optional", text: $text)
+                TextField(placeholder, text: $text)
                     .focused($isFocused)
                     .keyboardType(keyboard)
                     .textFieldStyle(.plain)

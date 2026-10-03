@@ -158,6 +158,7 @@ extension DemoRepository {
         let maxSquat = strengthMaxes["squat"] ?? 0
         let maxDeadlift = strengthMaxes["deadlift"] ?? 0
         let powerliftingTotal = maxBench + maxSquat + maxDeadlift
+        let distinctExerciseCount = Set(completedWorkouts.flatMap { $0.exercises.map(\.exerciseID) }).count
         var titles: [String] = []
         func add(_ title: String, when condition: Bool) { if condition { titles.append(title) } }
         add("First Workout", when: stats.totalWorkouts >= 1)
@@ -230,6 +231,48 @@ extension DemoRepository {
         add("2x Bodyweight Squat", when: maxSquat >= bodyweightKilograms * 2)
         add("2x Bodyweight Deadlift", when: maxDeadlift >= bodyweightKilograms * 2)
         add("2.5x Bodyweight Deadlift", when: maxDeadlift >= bodyweightKilograms * 2.5)
+        for milestone in [15, 40, 60, 150, 250, 400, 750] {
+            add("\(milestone.formatted()) Workouts", when: stats.totalWorkouts >= milestone)
+        }
+        for milestone in [25, 50, 100, 250, 500] {
+            add("\(milestone.formatted()) Lifts Logged", when: userLifts.count >= milestone)
+        }
+        for milestone in [2, 15, 40, 75, 150, 250, 500, 1_000, 2_000, 5_000] {
+            add("\(milestone.formatted()) PRs", when: stats.prCount >= milestone)
+        }
+        for milestone in [2_000, 7_500, 20_000, 75_000, 250_000, 500_000] {
+            add("\(milestone.formatted()) Reps", when: stats.totalWorkingSetRepetitions >= milestone)
+        }
+        for milestone in [1, 5, 25, 75, 750, 1_500, 2_500] {
+            add("\(milestone.formatted()) Training Hours", when: stats.totalActiveTrainingTime >= Double(milestone) * 60 * 60)
+        }
+        for milestone in [155, 205, 275, 365, 455, 550] {
+            add("\(milestone) Bench", when: maxBench >= RankingCalculator.poundsToKilograms(Double(milestone)))
+        }
+        for milestone in [275, 365, 455, 550, 650, 750] {
+            add("\(milestone) Squat", when: maxSquat >= RankingCalculator.poundsToKilograms(Double(milestone)))
+        }
+        for milestone in [365, 455, 550, 650, 750, 800] {
+            add("\(milestone) Deadlift", when: maxDeadlift >= RankingCalculator.poundsToKilograms(Double(milestone)))
+        }
+        for milestone in [600, 900, 1_100, 1_400, 1_700, 1_800] {
+            add("\(milestone.formatted()) lb Total", when: powerliftingTotal >= RankingCalculator.poundsToKilograms(Double(milestone)))
+        }
+        add("1.25x Bodyweight Bench", when: maxBench >= bodyweightKilograms * 1.25)
+        add("2x Bodyweight Bench", when: maxBench >= bodyweightKilograms * 2)
+        add("2x Bodyweight Deadlift", when: maxDeadlift >= bodyweightKilograms * 2)
+        add("2.5x Bodyweight Squat", when: maxSquat >= bodyweightKilograms * 2.5)
+        add("3x Bodyweight Deadlift", when: maxDeadlift >= bodyweightKilograms * 3)
+        for milestone in [10, 25, 50, 100] {
+            add("\(milestone) Exercises Explored", when: distinctExerciseCount >= milestone)
+        }
+        for milestone in [1, 2, 3] {
+            add("\(milestone) Gyms Joined", when: joinedGymIDs.count >= milestone)
+        }
+        for milestone in [1, 3, 5] {
+            add("\(milestone) Programs Started", when: workoutPlans.count >= milestone)
+        }
+
         let strengthTier = RankingCalculator.strengthTierSummary(
             performances: RankingCalculator.strengthPerformances(from: completedWorkouts),
             bodyweightKilograms: bodyweightKilograms,
@@ -247,6 +290,9 @@ extension DemoRepository {
         add("18 Bodyweight Logs", when: actualBodyweightEntryCount >= 18)
         add("26 Bodyweight Logs", when: actualBodyweightEntryCount >= 26)
         add("52 Bodyweight Logs", when: actualBodyweightEntryCount >= 52)
+        for milestone in [2, 8, 24, 104, 208] {
+            add("\(milestone) Bodyweight Logs", when: actualBodyweightEntryCount >= milestone)
+        }
         add("3-Day Workout Streak", when: stats.currentStreak >= 3)
         add("7-Day Workout Streak", when: stats.currentStreak >= 7)
         add("14-Day Workout Streak", when: stats.currentStreak >= 14)
@@ -255,6 +301,9 @@ extension DemoRepository {
         add("90-Day Workout Streak", when: stats.currentStreak >= 90)
         add("180-Day Workout Streak", when: stats.currentStreak >= 180)
         add("365-Day Workout Streak", when: stats.currentStreak >= 365)
+        for milestone in [5, 10, 21, 45, 120, 240] {
+            add("\(milestone)-Day Workout Streak", when: stats.currentStreak >= milestone)
+        }
         add("10,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 10_000)
         add("50,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 50_000)
         add("100,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 100_000)
@@ -263,12 +312,23 @@ extension DemoRepository {
         add("1,000,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 1_000_000)
         add("2,500,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 2_500_000)
         add("5,000,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 5_000_000)
+        for milestone in [25_000, 75_000, 150_000, 750_000, 1_500_000, 10_000_000] {
+            add("\(milestone.formatted()) kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= Double(milestone))
+        }
         add("Global Top 100", when: stats.highestGlobalTotalRank.map { $0 <= 100 } == true)
         add("Global Top 50", when: stats.highestGlobalTotalRank.map { $0 <= 50 } == true)
         add("Global Top 10", when: stats.highestGlobalTotalRank.map { $0 <= 10 } == true)
         add("Gym Top 10", when: stats.highestGymTotalRank.map { $0 <= 10 } == true)
         add("Gym Record Holder", when: stats.highestGymTotalRank == 1)
         add("Global Number One", when: stats.highestGlobalTotalRank == 1)
+        add("Global Top 250", when: stats.highestGlobalTotalRank.map { $0 <= 250 } == true)
+        add("Global Top 25", when: stats.highestGlobalTotalRank.map { $0 <= 25 } == true)
+        add("Global Top 5", when: stats.highestGlobalTotalRank.map { $0 <= 5 } == true)
+        add("10 Days at Number One", when: stats.daysAtNumberOne >= 10)
+        add("30 Days at Number One", when: stats.daysAtNumberOne >= 30)
+        add("100 Days at Number One", when: stats.daysAtNumberOne >= 100)
+        add("4 Weeks at Number One", when: stats.weeksAtNumberOne >= 4)
+        add("12 Weeks at Number One", when: stats.weeksAtNumberOne >= 12)
         add("90-Day Improvement Leader", when: stats.biggestRealDailyRankingJump >= 25)
         add("Profile Complete", when: isProfileComplete())
         return titles

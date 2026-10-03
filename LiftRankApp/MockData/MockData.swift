@@ -173,7 +173,7 @@ enum MockData {
         TrainingExerciseCatalogItem(id: "back_squat", name: "Back Squat", bodyPart: "Quads", workoutCategory: "Legs", defaultSets: 3, defaultReps: "5-8", symbolName: "figure.strengthtraining.functional", equipment: "Barbell", rankingExerciseID: "squat"),
         TrainingExerciseCatalogItem(id: "conventional_deadlift", name: "Conventional Deadlift", bodyPart: "Hamstrings/Back", workoutCategory: "Pull/Legs", defaultSets: 3, defaultReps: "3-5", symbolName: "figure.strengthtraining.functional", equipment: "Barbell", rankingExerciseID: "deadlift"),
         TrainingExerciseCatalogItem(id: "sumo_deadlift", name: "Sumo Deadlift", bodyPart: "Glutes/Adductors", workoutCategory: "Pull/Legs", defaultSets: 3, defaultReps: "3-5", symbolName: "figure.strengthtraining.functional", equipment: "Barbell", rankingExerciseID: "deadlift"),
-        TrainingExerciseCatalogItem(id: "barbell_overhead_press", name: "Barbell Overhead Press", bodyPart: "Shoulders", workoutCategory: "Push", defaultSets: 3, defaultReps: "5-8", symbolName: "arrow.up.circle.fill", equipment: "Barbell", rankingExerciseID: "press"),
+        TrainingExerciseCatalogItem(id: "barbell_overhead_press", name: "Barbell Overhead Press", bodyPart: "Shoulders", workoutCategory: "Push", defaultSets: 3, defaultReps: "5-8", symbolName: "figure.strengthtraining.traditional", equipment: "Barbell", rankingExerciseID: "press"),
         TrainingExerciseCatalogItem(id: "hack_squat", name: "Hack Squat", bodyPart: "Quads", workoutCategory: "Legs", defaultSets: 3, defaultReps: "8-10", symbolName: "figure.strengthtraining.functional", equipment: "Machine"),
         TrainingExerciseCatalogItem(id: "leg_press", name: "Leg Press", bodyPart: "Quads", workoutCategory: "Legs", defaultSets: 3, defaultReps: "10-12", symbolName: "arrow.up.and.down", equipment: "Machine"),
         TrainingExerciseCatalogItem(id: "leg_extension", name: "Leg Extension", bodyPart: "Quads", workoutCategory: "Legs", defaultSets: 2, defaultReps: "12-15", symbolName: "arrow.up.and.down", equipment: "Machine"),
@@ -254,7 +254,8 @@ enum MockData {
         hideLiftVideos: false
     )
 
-    static let achievements: [Achievement] = [
+    static let achievements: [Achievement] = (
+        [
         ("First Workout", "Finish your first workout.", "figure.strengthtraining.traditional"),
         ("2 Workouts", "Complete 2 workouts.", "calendar.badge.plus"),
         ("3 Workouts", "Build your first training rhythm.", "calendar.badge.checkmark"),
@@ -361,6 +362,76 @@ enum MockData {
         ("Global Number One", "Reach number one globally.", "1.circle.fill"),
         ("90-Day Improvement Leader", "Lead improvement over a 90-day window.", "arrow.up.right.circle.fill"),
         ("Profile Complete", "Complete your profile details.", "person.crop.circle.fill.badge.checkmark")
-    ].map { Achievement(id: UUID(), title: $0.0, description: $0.1, symbolName: $0.2) }
+        ] + additionalAchievementDefinitions
+    ).map { Achievement(id: UUID(), title: $0.0, description: $0.1, symbolName: $0.2) }
+
+    private static let additionalAchievementDefinitions: [(String, String, String)] = {
+        var definitions: [(String, String, String)] = []
+        func add(_ title: String, _ description: String, _ symbol: String) {
+            definitions.append((title, description, symbol))
+        }
+        for milestone in [15, 40, 60, 150, 250, 400, 750] {
+            add("\(milestone.formatted()) Workouts", "Complete \(milestone.formatted()) workouts.", "calendar.badge.checkmark")
+        }
+        for milestone in [25, 50, 100, 250, 500] {
+            add("\(milestone.formatted()) Lifts Logged", "Log \(milestone.formatted()) ranked lifts.", "bolt.circle.fill")
+        }
+        for milestone in [2, 15, 40, 75, 150, 250, 500, 1_000, 2_000, 5_000] {
+            add("\(milestone.formatted()) PRs", "Set \(milestone.formatted()) personal records.", "sparkles")
+        }
+        for milestone in [2_000, 7_500, 20_000, 75_000, 250_000, 500_000] {
+            add("\(milestone.formatted()) Reps", "Complete \(milestone.formatted()) working-set reps.", "repeat.1.circle.fill")
+        }
+        for milestone in [1, 5, 25, 75, 750, 1_500, 2_500] {
+            add("\(milestone.formatted()) Training Hours", "Accumulate \(milestone.formatted()) hours of training time.", "clock.badge.checkmark")
+        }
+        for (milestone, symbol) in [(155, "figure.strengthtraining.traditional"), (205, "dumbbell.fill"), (275, "medal.fill"), (365, "shield.lefthalf.filled"), (455, "shield.fill"), (550, "trophy.fill")] {
+            add("\(milestone) Bench", "Bench press \(milestone) lb.", symbol)
+        }
+        for (milestone, symbol) in [(275, "figure.strengthtraining.functional"), (365, "medal.fill"), (455, "trophy.fill"), (550, "shield.fill"), (650, "mountain.2.circle.fill"), (750, "crown.fill")] {
+            add("\(milestone) Squat", "Squat \(milestone) lb.", symbol)
+        }
+        for (milestone, symbol) in [(365, "arrow.up.circle.fill"), (455, "trophy.fill"), (550, "mountain.2.fill"), (650, "mountain.2.circle"), (750, "crown.fill"), (800, "laurel.leading")] {
+            add("\(milestone) Deadlift", "Deadlift \(milestone) lb.", symbol)
+        }
+        for milestone in [600, 900, 1_100, 1_400, 1_700, 1_800] {
+            add("\(milestone.formatted()) lb Total", "Build a \(milestone.formatted()) lb bench, squat, and deadlift total.", "chart.line.uptrend.xyaxis")
+        }
+        for (title, description) in [
+            ("1.25x Bodyweight Bench", "Bench press one and a quarter times your bodyweight."),
+            ("2x Bodyweight Bench", "Bench press twice your bodyweight."),
+            ("2.5x Bodyweight Squat", "Squat two and a half times your bodyweight."),
+            ("3x Bodyweight Deadlift", "Deadlift three times your bodyweight.")
+        ] { add(title, description, "person.crop.circle.badge.plus") }
+        for milestone in [2, 8, 24, 104, 208] {
+            add("\(milestone) Bodyweight Logs", "Log \(milestone) bodyweight entries.", "calendar.circle.fill")
+        }
+        for milestone in [5, 10, 21, 45, 120, 240] {
+            add("\(milestone)-Day Workout Streak", "Train \(milestone) days in a row.", "flame.fill")
+        }
+        for milestone in [25_000, 75_000, 150_000, 750_000, 1_500_000, 10_000_000] {
+            add("\(milestone.formatted()) kg Lifted Volume", "Move \(milestone.formatted()) kg of lifted working-set volume.", "gauge.with.dots.needle.67percent")
+        }
+        for milestone in [10, 25, 50, 100] {
+            add("\(milestone) Exercises Explored", "Train \(milestone) different exercises.", "square.grid.2x2.fill")
+        }
+        for milestone in [1, 2, 3] {
+            add("\(milestone) Gyms Joined", "Join \(milestone) training \(milestone == 1 ? "community" : "communities").", "building.2.fill")
+        }
+        for milestone in [1, 3, 5] {
+            add("\(milestone) Programs Started", "Start \(milestone) structured training \(milestone == 1 ? "program" : "programs").", "books.vertical.fill")
+        }
+        for (title, description, symbol) in [
+            ("Global Top 250", "Reach the global top 250.", "list.number"),
+            ("Global Top 25", "Reach the global top 25.", "25.circle.fill"),
+            ("Global Top 5", "Reach the global top 5.", "5.circle.fill"),
+            ("10 Days at Number One", "Finish number one globally on ten days.", "1.circle.fill"),
+            ("30 Days at Number One", "Finish number one globally on thirty days.", "1.circle.fill"),
+            ("100 Days at Number One", "Finish number one globally on one hundred days.", "1.circle.fill"),
+            ("4 Weeks at Number One", "Finish number one globally for four weeks.", "crown.fill"),
+            ("12 Weeks at Number One", "Finish number one globally for twelve weeks.", "crown.fill")
+        ] { add(title, description, symbol) }
+        return definitions
+    }()
 
 }

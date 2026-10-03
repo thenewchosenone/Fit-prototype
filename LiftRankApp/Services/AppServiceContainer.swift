@@ -162,6 +162,7 @@ struct AppServiceContainer {
             exercises: MockExerciseCatalogService()
             , lifts: MockLiftService(repository: repository), leaderboards: MockLeaderboardService(repository: repository),
             social: MockSocialService(repository: repository),
+            forum: MockForumService(),
             verification: MockVerificationService(repository: repository), media: MockMediaUploadService(), notifications: MockNotificationService(repository: repository),
             workoutSync: MockWorkoutSyncService(), analytics: MockAnalyticsService(), legalAcceptances: MockLegalAcceptanceService(), accountDeletion: MockAccountDeletionService()
         )

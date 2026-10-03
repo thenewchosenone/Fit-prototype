@@ -996,10 +996,12 @@ struct GymDirectoryView: View {
                             Image(systemName: "building.2.crop.circle")
                                 .font(.system(size: 42, weight: .semibold))
                                 .foregroundStyle(Color.liftAccentText)
-                            Text(query.isEmpty ? "No gyms available yet" : "No matching gyms")
+                            Text(query.isEmpty
+                                 ? (appState.accountMessage == nil ? "No gyms available yet" : "Gym directory unavailable")
+                                 : "No matching gyms")
                                 .font(.headline)
                             Text(query.isEmpty
-                                 ? "Refresh the directory or request a gym to be added."
+                                 ? (appState.accountMessage ?? "Refresh the directory or request a gym to be added.")
                                  : "Try a gym name, city, or state.")
                                 .font(.subheadline)
                                 .foregroundStyle(Color.liftMuted)

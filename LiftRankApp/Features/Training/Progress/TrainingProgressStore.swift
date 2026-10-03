@@ -340,11 +340,13 @@ final class TrainingProgressStore {
         }
 
         let index = workoutHistoryIndex()
+        let earliestBrowsableMonth = calendar.date(byAdding: .year, value: -120, to: currentMonth) ?? currentMonth
+        let latestBrowsableMonth = calendar.date(byAdding: .year, value: 120, to: currentMonth) ?? currentMonth
         let presentation = WorkoutHistoryCalendarPresentation(
             workoutCount: index.workouts.count,
             currentMonth: currentMonth,
-            firstBrowsableMonth: min(index.earliestMonth ?? currentMonth, currentMonth),
-            lastBrowsableMonth: max(index.latestMonth ?? currentMonth, currentMonth),
+            firstBrowsableMonth: earliestBrowsableMonth,
+            lastBrowsableMonth: latestBrowsableMonth,
             calendarDays: WorkoutHistoryCalendarData.days(
                 in: displayedMonth,
                 workoutCountsByDay: index.workoutCountsByDay,
