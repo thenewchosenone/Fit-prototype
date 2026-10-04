@@ -190,7 +190,8 @@ final class ActiveWorkoutStore {
         planID: UUID?,
         gymID: UUID?,
         bodyweight: Double?,
-        unit: UnitSystem
+        unit: UnitSystem,
+        historyDate: Date? = nil
     ) -> ActiveWorkoutState? {
         guard workout == nil else { return nil }
         return repository.startWorkout(
@@ -199,6 +200,7 @@ final class ActiveWorkoutStore {
             gymID: gymID,
             bodyweight: bodyweight,
             unit: unit,
+            historyDate: historyDate,
             at: now()
         )
     }
@@ -208,7 +210,8 @@ final class ActiveWorkoutStore {
         name: String = "Freestyle Workout",
         gymID: UUID?,
         bodyweight: Double?,
-        unit: UnitSystem
+        unit: UnitSystem,
+        historyDate: Date? = nil
     ) -> ActiveWorkoutState? {
         guard workout == nil else { return nil }
         return repository.startFreestyleWorkout(
@@ -216,6 +219,7 @@ final class ActiveWorkoutStore {
             gymID: gymID,
             bodyweight: bodyweight,
             unit: unit,
+            historyDate: historyDate,
             at: now()
         )
     }

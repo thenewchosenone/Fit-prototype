@@ -431,7 +431,7 @@ struct StreakDetailView: View {
                         Text("CONSISTENCY")
                             .font(.caption2.weight(.black))
                             .tracking(1.3)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(Color.liftOrange)
                         Text("Workout streak")
                             .font(.title2.weight(.black))
                     }
@@ -450,12 +450,12 @@ struct StreakDetailView: View {
 
                 ZStack {
                     Circle()
-                        .fill(Color.orange.opacity(0.12))
+                        .fill(Color.liftOrange.opacity(0.12))
                         .frame(width: 150, height: 150)
                     Image(systemName: "flame.fill")
                         .font(.system(size: 72, weight: .bold))
                         .foregroundStyle(
-                            LinearGradient(colors: [.yellow, .orange, .red], startPoint: .top, endPoint: .bottom)
+                                LinearGradient(colors: [Color.liftGold, Color.liftOrange, Color.liftRed], startPoint: .top, endPoint: .bottom)
                         )
                     Text("\(streakDays)")
                         .font(.system(size: 36, weight: .black, design: .rounded))

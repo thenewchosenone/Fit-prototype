@@ -249,7 +249,7 @@ struct OnboardingView: View {
             HStack(spacing: 7) {
                 ForEach(0..<5, id: \.self) { index in
                     Capsule()
-                        .fill(index <= step ? Color.liftBlue : Color.white.opacity(0.10))
+                        .fill(index <= step ? Color.liftBlue : Color.liftOverlay)
                         .frame(height: 5)
                 }
             }
@@ -328,7 +328,7 @@ struct OnboardingView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                .stroke(Color.liftOverlay, lineWidth: 1)
         }
     }
 
@@ -365,7 +365,7 @@ struct OnboardingView: View {
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                .stroke(Color.liftOverlay, lineWidth: 1)
         }
         .sheet(isPresented: $showingBodyweightPicker) {
             NavigationStack {
@@ -444,7 +444,7 @@ struct OnboardingView: View {
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                .stroke(Color.liftOverlay, lineWidth: 1)
         }
         .sheet(isPresented: $showingHeightPicker) {
             NavigationStack {
@@ -524,7 +524,7 @@ struct OnboardingView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .stroke(goals.contains(option.id) ? Color.liftBlue.opacity(0.75) : Color.white.opacity(0.06), lineWidth: 1)
+                                .stroke(goals.contains(option.id) ? Color.liftBlue.opacity(0.75) : Color.liftOverlay, lineWidth: 1)
                         }
                     }
                     .buttonStyle(.plain)
@@ -851,7 +851,7 @@ struct OnboardingView: View {
             .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 15, style: .continuous)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    .stroke(Color.liftOverlay, lineWidth: 1)
             }
 
             if selectedRegion != nil, !citySuggestions.isEmpty {
@@ -881,7 +881,7 @@ struct OnboardingView: View {
                         .buttonStyle(.plain)
 
                         if suggestion != citySuggestions.last {
-                            Divider().overlay(Color.white.opacity(0.06))
+                            Divider().overlay(Color.liftOverlay)
                         }
                     }
                 }
@@ -1032,7 +1032,7 @@ struct OnboardingView: View {
                 VStack(spacing: 14) {
                     ZStack {
                         Circle()
-                            .stroke(Color.white.opacity(0.08), lineWidth: 14)
+                            .stroke(Color.liftOverlay, lineWidth: 14)
                         Circle()
                             .trim(from: 0, to: min(1, appState.overallScore / 100))
                             .stroke(
@@ -1226,7 +1226,7 @@ struct OnboardingView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                .stroke(Color.liftOverlay, lineWidth: 1)
         }
     }
 
@@ -1440,7 +1440,7 @@ struct OnboardingView: View {
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                .stroke(Color.liftOverlay, lineWidth: 1)
         }
         .accessibilityLabel(title)
     }
@@ -1482,7 +1482,7 @@ struct OnboardingView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(text.wrappedValue.isEmpty ? Color.white.opacity(0.06) : tint.opacity(0.65), lineWidth: 1)
+                .stroke(text.wrappedValue.isEmpty ? Color.liftOverlay : tint.opacity(0.65), lineWidth: 1)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title) one-rep max")
@@ -1505,7 +1505,7 @@ struct OnboardingView: View {
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                .stroke(Color.liftOverlay, lineWidth: 1)
         }
         .simultaneousGesture(TapGesture().onEnded { dismissKeyboard() })
     }

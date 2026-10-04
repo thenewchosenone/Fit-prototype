@@ -28,6 +28,17 @@ struct PrescriptionTrackView: View {
                                 ?? appState.activeWorkoutExerciseProgress(for: exercise)
                             let restMetric = "\(exercise.restSeconds)s"
                             let volumeMetric = "\(Int(completedVolume(in: completedLogs))) \(appState.activeWorkout?.unit.shortLabel ?? "lb")"
+                            let activeUnit = appState.activeWorkout?.unit ?? appState.currentProfile.preferredUnit
+                            let targetLoad = exercise.targetLoadKilograms.map {
+                                MeasurementFormatting.formatDisplayedWeight($0, unit: activeUnit)
+                            }
+                            let targetDetails = [
+                                exercise.targetRIR.map { "\($0) reps in reserve" },
+                                exercise.trainingMaxPercentage.map { "\(Int(($0 * 100).rounded()))% of training max" },
+                                targetLoad
+                            ].compactMap { $0 }.joined(separator: " · ")
+                            let targetSummary = "Target: \(progress.plannedWorkingSets) × \(exercise.targetReps)" +
+                                (targetDetails.isEmpty ? "" : " · \(targetDetails)")
                             let previousMetric = previousLogs[1].map {
                                 "Last \($0.reps ?? 0) × \(RankingCalculator.format($0.weight ?? 0))"
                             }
@@ -37,7 +48,7 @@ struct PrescriptionTrackView: View {
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(exercise.exerciseName)
                                             .font(.title3.weight(.black))
-                                        Text("Target: \(progress.plannedWorkingSets) × \(exercise.targetReps)")
+                                        Text(targetSummary)
                                             .font(.caption)
                                             .foregroundStyle(Color.liftMuted)
                                     }
@@ -60,7 +71,7 @@ struct PrescriptionTrackView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                                    .stroke(Color.liftOverlay, lineWidth: 1)
                             }
                             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                             .onTapGesture {
@@ -254,7 +265,7 @@ struct PrescriptionTrackView: View {
             .foregroundStyle(Color.liftMuted)
             .padding(.horizontal, 9)
             .padding(.vertical, 7)
-            .background(Color.black.opacity(0.16))
+            .background(Color.liftScrim)
             .clipShape(Capsule())
     }
 

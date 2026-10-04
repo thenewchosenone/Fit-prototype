@@ -82,7 +82,7 @@ struct ActiveWorkoutAddExercisePickerView: View {
                                 .accessibilityAddTraits(.isButton)
                                 .accessibilityLabel(isExisting ? "\(exercise.name), already in workout" : isSelected ? "\(exercise.name), selected" : exercise.name)
 
-                                Divider().overlay(Color.white.opacity(0.06))
+                                Divider().overlay(Color.liftOverlay)
                             }
                         }
                         .padding(.horizontal, 16)

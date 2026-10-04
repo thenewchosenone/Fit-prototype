@@ -174,6 +174,14 @@ private enum ForumSort: String, CaseIterable, Identifiable {
     }
 }
 
+private enum ForumFeed: String, CaseIterable, Identifiable {
+    case all = "All"
+    case forYou = "For You"
+    case following = "Following"
+
+    var id: String { rawValue }
+}
+
 private struct ForumView: View {
     @EnvironmentObject private var appState: AppState
     @State private var groups: [ForumCommunity] = []
@@ -181,8 +189,9 @@ private struct ForumView: View {
     @State private var selectedGroupID: UUID?
     @State private var joinedGroupIDs: Set<UUID> = []
     @State private var showingComposer = false
-    @State private var showingModeration = false
     @State private var sort: ForumSort = .top
+    @State private var feed: ForumFeed = .all
+    @State private var searchText = ""
     @State private var isFollowing = false
     @State private var isLoading = true
     @State private var message: String?
@@ -192,11 +201,17 @@ private struct ForumView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     forumHeader
+                    forumFeedPicker
                     forumGroupPicker
                     forumSortBar
                     if isLoading { ProgressView().frame(maxWidth: .infinity).padding(40) }
                     else if let message { LiftEmptyState(title: "Forum unavailable", message: message) }
-                    else if posts.isEmpty { LiftEmptyState(title: "No discussions yet", message: "Start the first useful conversation for this training group.") }
+                    else if feedPosts.isEmpty {
+                        LiftEmptyState(
+                            title: feed == .following ? "No followed discussions" : "No discussions yet",
+                            message: feed == .following ? "Join a community to build your Following feed." : "Start the first useful conversation for this training group."
+                        )
+                    }
                     else {
                         ForEach(sortedPosts) { post in
                             ForumPostCard(post: post, community: selectedGroup).environmentObject(appState)
@@ -208,6 +223,7 @@ private struct ForumView: View {
         }
         .navigationTitle(selectedGroup?.name ?? "Forum")
         .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $searchText, prompt: "Search discussions and communities")
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Button { showingComposer = true } label: {
                 Label("New discussion", systemImage: "square.and.pencil")
@@ -220,12 +236,7 @@ private struct ForumView: View {
             .background(Color.liftBackground)
         }
         .sheet(isPresented: $showingComposer) { ForumComposerView(groups: groups, selectedGroupID: selectedGroupID) { await loadPosts() }.environmentObject(appState) }
-        .sheet(isPresented: $showingModeration) { ForumModerationView().environmentObject(appState) }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button { showingModeration = true } label: { Image(systemName: "ellipsis") }
-                    .accessibilityLabel("Forum options")
-            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showingComposer = true } label: { Image(systemName: "plus") }
                     .accessibilityLabel("New discussion")
@@ -252,16 +263,18 @@ private struct ForumView: View {
                         .foregroundStyle(Color.liftTextSecondary)
                 }
                 Spacer()
-                Button {
-                    if let group = selectedGroup { Task { await toggleMembership(group) } }
-                } label: {
-                    Text(selectedGroup == nil || joinedGroupIDs.contains(selectedGroup!.id) ? "Joined" : "Join")
-                        .font(.subheadline.weight(.bold))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 9)
-                        .background(Color.liftSurfaceElevated, in: Capsule())
+                if let selectedGroup {
+                    Button {
+                        Task { await toggleMembership(selectedGroup) }
+                    } label: {
+                        Text(joinedGroupIDs.contains(selectedGroup.id) ? "Joined" : "Join")
+                            .font(.subheadline.weight(.bold))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 9)
+                            .background(Color.liftSurfaceElevated, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
@@ -291,11 +304,28 @@ private struct ForumView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 forumChip(title: "All communities", id: nil)
-                ForEach(groups) { group in forumChip(title: group.name, id: group.id) }
+                ForEach(filteredGroups) { group in forumChip(title: group.name, id: group.id) }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
+        .background(Color.liftBackground)
+    }
+
+    private var forumFeedPicker: some View {
+        HStack(spacing: 6) {
+            ForEach(ForumFeed.allCases) { option in
+                Button(option.rawValue) { feed = option }
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(feed == option ? Color.liftOnAccent : Color.liftMuted)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .background(feed == option ? Color.liftLime : Color.clear, in: Capsule())
+            }
+        }
+        .padding(6)
+        .background(Color.liftSurfaceElevated, in: Capsule())
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .background(Color.liftBackground)
     }
 
@@ -321,16 +351,54 @@ private struct ForumView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 11)
-        .background(Color.black.opacity(0.16))
+        .background(Color.liftScrim)
     }
 
     private var selectedGroup: ForumCommunity? { groups.first { $0.id == selectedGroupID } }
 
     private var sortedPosts: [ForumPost] {
+        let source = filteredPosts
         switch sort {
-        case .top: return posts.sorted { lhs, rhs in lhs.isPinned != rhs.isPinned ? lhs.isPinned : lhs.createdAt > rhs.createdAt }
-        case .new: return posts.sorted { $0.createdAt > $1.createdAt }
-        case .discussed: return posts.sorted { $0.title.count > $1.title.count }
+        case .top: return source.sorted { lhs, rhs in lhs.isPinned != rhs.isPinned ? lhs.isPinned : lhs.createdAt > rhs.createdAt }
+        case .new: return source.sorted { $0.createdAt > $1.createdAt }
+        case .discussed: return source.sorted { $0.title.count > $1.title.count }
+        }
+    }
+
+    private var filteredGroups: [ForumCommunity] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return groups }
+        return groups.filter { group in
+            group.name.localizedCaseInsensitiveContains(query) ||
+            group.summary.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    private var filteredPosts: [ForumPost] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return feedPosts }
+        return feedPosts.filter { post in
+            post.title.localizedCaseInsensitiveContains(query) ||
+            post.body.localizedCaseInsensitiveContains(query) ||
+            (groups.first { $0.id == post.communityID }?.name.localizedCaseInsensitiveContains(query) ?? false)
+        }
+    }
+
+    private var feedPosts: [ForumPost] {
+        switch feed {
+        case .all:
+            return posts
+        case .forYou:
+            let followed = posts.filter { post in
+                guard let communityID = post.communityID else { return false }
+                return joinedGroupIDs.contains(communityID)
+            }
+            return followed.isEmpty ? posts : followed
+        case .following:
+            return posts.filter { post in
+                guard let communityID = post.communityID else { return false }
+                return joinedGroupIDs.contains(communityID)
+            }
         }
     }
 
@@ -343,13 +411,13 @@ private struct ForumView: View {
     }
 
     private func load() async {
-        do { groups = try await appState.serviceContainer.forum.communities(); await loadPosts() }
+        do { groups = try await appState.forumStore.communities(); await loadPosts() }
         catch { message = error.localizedDescription; isLoading = false }
     }
 
     private func loadPosts() async {
         do {
-            let remotePosts = try await appState.serviceContainer.forum.posts(communityID: selectedGroupID, limit: 50)
+            let remotePosts = try await appState.forumStore.posts(communityID: selectedGroupID, limit: 50)
 #if DEBUG
             posts = remotePosts + ForumDemoContent.posts(for: groups, communityID: selectedGroupID)
 #else
@@ -362,8 +430,8 @@ private struct ForumView: View {
 
     private func toggleMembership(_ group: ForumCommunity) async {
         do {
-            if joinedGroupIDs.contains(group.id) { try await appState.serviceContainer.forum.leave(communityID: group.id); joinedGroupIDs.remove(group.id) }
-            else { _ = try await appState.serviceContainer.forum.join(communityID: group.id, requestNote: ""); joinedGroupIDs.insert(group.id) }
+            if joinedGroupIDs.contains(group.id) { try await appState.forumStore.leave(communityID: group.id); joinedGroupIDs.remove(group.id) }
+            else { _ = try await appState.forumStore.join(communityID: group.id, requestNote: ""); joinedGroupIDs.insert(group.id) }
         } catch { message = error.localizedDescription }
     }
 }
@@ -458,7 +526,7 @@ private struct ForumComposerView: View {
                     TextField("Title", text: $title)
                     TextField("Share the training context", text: $draftBody, axis: .vertical).lineLimit(5...12)
                 }
-                if let error { Text(error).foregroundStyle(.red) }
+                if let error { Text(error).foregroundStyle(Color.liftRed) }
             }
             .navigationTitle("New discussion")
             .toolbar {
@@ -472,7 +540,7 @@ private struct ForumComposerView: View {
     private func publish() async {
         guard let groupID else { return }
         do {
-            _ = try await appState.serviceContainer.forum.createPost(ForumPostDraft(communityID: groupID, kind: "Discussion", title: title, body: draftBody, tag: nil, liftID: nil))
+            _ = try await appState.forumStore.createPost(ForumPostDraft(communityID: groupID, kind: "Discussion", title: title, body: draftBody, tag: nil, liftID: nil))
             await didPublish()
             dismiss()
         } catch let publishError { error = publishError.localizedDescription }
@@ -582,8 +650,11 @@ private struct ForumThreadView: View {
     let post: ForumPost
     @State private var thread: ForumThread?
     @State private var reply = ""
+    @State private var replyingTo: UUID?
     @State private var error: String?
     @State private var isWatching = false
+    @State private var voteValue: Int?
+    @State private var showingReportReasons = false
 
     var body: some View {
         AppBackground {
@@ -601,8 +672,12 @@ private struct ForumThreadView: View {
                                         .foregroundStyle(Color.liftMuted)
                                 }
                                 Spacer()
-                                Image(systemName: "ellipsis")
-                                    .foregroundStyle(Color.liftMuted)
+                                Menu {
+                                    Button("Report discussion", role: .destructive) { showingReportReasons = true }
+                                } label: {
+                                    Image(systemName: "ellipsis")
+                                        .foregroundStyle(Color.liftMuted)
+                                }
                             }
                             Text(thread.post.title)
                                 .font(.title2.weight(.black))
@@ -610,11 +685,14 @@ private struct ForumThreadView: View {
                                 .font(.body)
                                 .foregroundStyle(Color.liftTextSecondary)
                             HStack(spacing: 9) {
-                                threadAction(icon: "arrow.up", label: "36")
+                                Button { Task { await toggleVote() } } label: {
+                                    threadAction(icon: voteValue == 1 ? "arrow.up.circle.fill" : "arrow.up", label: "36")
+                                }
+                                .buttonStyle(.plain)
                                 threadAction(icon: "bubble.left", label: "\(thread.comments.count)")
                                 Spacer()
                                 threadAction(icon: "arrowshape.turn.up.right", label: "")
-                                Button { isWatching.toggle() } label: {
+                                Button { Task { await toggleWatch() } } label: {
                                     Image(systemName: isWatching ? "bell.fill" : "bell")
                                 }
                                 .foregroundStyle(Color.liftMuted)
@@ -639,14 +717,14 @@ private struct ForumThreadView: View {
                                 .foregroundStyle(Color.liftMuted)
                                 .padding(.horizontal, 16)
                         } else {
-                            ForEach(thread.comments) { comment in
-                                forumComment(comment)
+                            ForEach(displayComments(from: thread.comments), id: \.comment.id) { row in
+                                forumComment(row.comment, depth: row.depth)
                             }
                         }
                     } else {
                         ProgressView().frame(maxWidth: .infinity).padding(40)
                     }
-                    if let error { Text(error).font(.caption).foregroundStyle(.red) }
+                    if let error { Text(error).font(.caption).foregroundStyle(Color.liftRed) }
                 }
                 .padding(16)
                 .padding(.bottom, 78)
@@ -654,18 +732,37 @@ private struct ForumThreadView: View {
         }
         .navigationTitle("Discussion")
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("Why are you reporting this discussion?", isPresented: $showingReportReasons, titleVisibility: .visible) {
+            Button("Spam or promotion", role: .destructive) { Task { await report(reason: "spam") } }
+            Button("Harassment or abuse", role: .destructive) { Task { await report(reason: "harassment") } }
+            Button("Off-topic or misleading", role: .destructive) { Task { await report(reason: "off_topic") } }
+            Button("Cancel", role: .cancel) {}
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if thread != nil {
-                HStack(alignment: .bottom, spacing: 8) {
-                    TextField("Write a reply…", text: $reply, axis: .vertical)
-                        .lineLimit(1...4)
-                        .textFieldStyle(.roundedBorder)
-                    Button { Task { await submitReply() } } label: {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.title2)
+                VStack(alignment: .leading, spacing: 6) {
+                    if let replyingTo,
+                       let parent = thread?.comments.first(where: { $0.id == replyingTo }) {
+                        HStack(spacing: 6) {
+                            Text("Replying to \(parent.authorID == appState.currentProfile.id ? appState.currentProfile.username : "community member")")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.liftMuted)
+                            Spacer()
+                            Button("Cancel") { self.replyingTo = nil }
+                                .font(.caption.weight(.semibold))
+                        }
                     }
-                    .disabled(reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .tint(Color.liftAccentText)
+                    HStack(alignment: .bottom, spacing: 8) {
+                        TextField(replyingTo == nil ? "Write a comment…" : "Write a reply…", text: $reply, axis: .vertical)
+                            .lineLimit(1...4)
+                            .textFieldStyle(.roundedBorder)
+                        Button { Task { await submitReply() } } label: {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.title2)
+                        }
+                        .disabled(reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .tint(Color.liftAccentText)
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
@@ -696,7 +793,7 @@ private struct ForumThreadView: View {
         .background(Color.liftSurfaceSecondary.opacity(0.7), in: Capsule())
     }
 
-    private func forumComment(_ comment: ForumComment) -> some View {
+    private func forumComment(_ comment: ForumComment, depth: Int) -> some View {
         HStack(alignment: .top, spacing: 10) {
             forumAvatar
             VStack(alignment: .leading, spacing: 8) {
@@ -715,14 +812,20 @@ private struct ForumThreadView: View {
                 Text(comment.body)
                     .font(.body)
                 HStack(spacing: 18) {
-                    Label("Reply", systemImage: "arrowshape.turn.up.left")
+                    Button {
+                        replyingTo = comment.id
+                    } label: {
+                        Label("Reply", systemImage: "arrowshape.turn.up.left")
+                    }
+                    .buttonStyle(.plain)
                     Label("12", systemImage: "arrow.up")
                 }
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color.liftMuted)
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.leading, CGFloat(min(depth, 5) * 28 + 16))
+        .padding(.trailing, 16)
         .padding(.vertical, 14)
         .overlay(alignment: .leading) {
             Rectangle()
@@ -732,9 +835,27 @@ private struct ForumThreadView: View {
         }
     }
 
+    private func displayComments(from comments: [ForumComment]) -> [(comment: ForumComment, depth: Int)] {
+        var rows: [(comment: ForumComment, depth: Int)] = []
+        let byParent = Dictionary(grouping: comments, by: \.parentCommentID)
+        let commentIDs = Set(comments.map(\.id))
+
+        func append(_ comment: ForumComment, depth: Int) {
+            rows.append((comment, depth))
+            for child in byParent[comment.id, default: []].sorted(by: { $0.createdAt < $1.createdAt }) {
+                append(child, depth: depth + 1)
+            }
+        }
+
+        for comment in comments.filter({ $0.parentCommentID == nil || !commentIDs.contains($0.parentCommentID!) }).sorted(by: { $0.createdAt < $1.createdAt }) {
+            append(comment, depth: 0)
+        }
+        return rows
+    }
+
     private func load() async {
         do {
-            thread = try await appState.serviceContainer.forum.thread(postID: post.id)
+            thread = try await appState.forumStore.thread(postID: post.id)
 #if DEBUG
             if thread == nil, post.tag == "demo" { thread = ForumDemoContent.thread(for: post) }
 #endif
@@ -748,59 +869,49 @@ private struct ForumThreadView: View {
         }
     }
 
+    private func toggleVote() async {
+        let nextValue: Int? = voteValue == 1 ? nil : 1
+        do {
+            try await appState.forumStore.vote(postID: post.id, value: nextValue)
+            voteValue = nextValue
+        } catch let voteError { error = voteError.localizedDescription }
+    }
+
+    private func toggleWatch() async {
+        let nextValue = !isWatching
+        do {
+            try await appState.forumStore.watch(postID: post.id, watched: nextValue)
+            isWatching = nextValue
+        } catch let watchError { error = watchError.localizedDescription }
+    }
+
+    private func report(reason: String) async {
+        do {
+            try await appState.forumStore.report(targetType: "post", targetID: post.id, communityID: post.communityID, reason: reason, note: "")
+            error = "Thanks. This discussion was reported for moderator review."
+        } catch let reportError { error = reportError.localizedDescription }
+    }
+
     private func submitReply() async {
         let trimmedReply = reply.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedReply.isEmpty else { return }
 #if DEBUG
         if post.tag == "demo", var thread {
-            let comment = ForumComment(id: UUID(), postID: post.id, authorID: appState.currentProfile.id, parentCommentID: nil, body: trimmedReply, createdAt: Date())
+            let comment = ForumComment(id: UUID(), postID: post.id, authorID: appState.currentProfile.id, parentCommentID: replyingTo, body: trimmedReply, createdAt: Date())
             thread = ForumThread(post: thread.post, comments: thread.comments + [comment])
             self.thread = thread
             reply = ""
+            replyingTo = nil
             return
         }
 #endif
         do {
-            _ = try await appState.serviceContainer.forum.createComment(postID: post.id, body: trimmedReply, parentCommentID: nil)
+            _ = try await appState.forumStore.createComment(postID: post.id, body: trimmedReply, parentCommentID: replyingTo)
             reply = ""
+            replyingTo = nil
             await load()
         } catch let submitError { error = submitError.localizedDescription }
     }
-}
-
-private struct ForumModerationView: View {
-    @EnvironmentObject private var appState: AppState
-    @Environment(\.dismiss) private var dismiss
-    @State private var reports: [ForumReport] = []
-    @State private var error: String?
-
-    var body: some View {
-        NavigationStack {
-            List {
-                if let error { Text(error).foregroundStyle(.red) }
-                ForEach(reports) { report in
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Reported \(report.targetType)").font(.headline)
-                        Text(report.reason).font(.caption.weight(.bold)).foregroundStyle(Color.liftAccentText)
-                        if !report.note.isEmpty { Text(report.note).font(.subheadline).foregroundStyle(Color.liftTextSecondary) }
-                        if report.targetType == "post" {
-                            HStack {
-                                Button("Remove") { Task { await moderate(report, action: "Removed") } }
-                                Button("Lock") { Task { await moderate(report, action: "Locked") } }
-                            }.buttonStyle(.bordered)
-                        }
-                    }.padding(.vertical, 6)
-                }
-                if reports.isEmpty && error == nil { Text("No open reports.").foregroundStyle(Color.liftTextSecondary) }
-            }
-            .navigationTitle("Moderation")
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
-            .task { await load() }
-        }
-    }
-
-    private func load() async { do { reports = try await appState.serviceContainer.forum.reports() } catch let loadError { error = loadError.localizedDescription } }
-    private func moderate(_ report: ForumReport, action: String) async { do { try await appState.serviceContainer.forum.moderate(postID: report.targetID, action: action, reason: report.note); await load() } catch let moderationError { error = moderationError.localizedDescription } }
 }
 
 private enum MeRecentVolumeSelection: String, CaseIterable {
@@ -1356,7 +1467,7 @@ private struct MeTrainingInsightsView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                            .stroke(Color.liftOverlay, lineWidth: 1)
                     }
                 }
 
@@ -2002,7 +2113,7 @@ private struct RivalTierShareCard: View {
                             .foregroundStyle(Color.liftGold)
                     }
                     .padding(16)
-                    .background(Color.white.opacity(0.07))
+                    .background(Color.liftOverlay)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
             }
@@ -2220,7 +2331,7 @@ struct AuthenticationView: View {
                     }
 
                     if AppState.allowsDemoMode {
-                        Divider().overlay(Color.white.opacity(0.08))
+                        Divider().overlay(Color.liftOverlay)
                         Button {
                             Task { await appState.enterDemoMode() }
                         } label: {
@@ -2507,116 +2618,5 @@ private enum AppleNonce {
 
     static func sha256(_ value: String) -> String {
         SHA256.hash(data: Data(value.utf8)).map { String(format: "%02x", $0) }.joined()
-    }
-}
-
-struct ReportLiftView: View {
-    @EnvironmentObject private var appState: AppState
-    @Environment(\.dismiss) private var dismiss
-    let lift: LiftSubmission
-    @State private var reason = LiftReportReason.harassment
-    @State private var note = ""
-    @State private var isSubmitting = false
-    @State private var errorMessage: String?
-
-    var body: some View {
-        NavigationStack {
-            AppBackground {
-                Form {
-                    Picker("Reason", selection: $reason) {
-                        ForEach(LiftReportReason.allCases) { option in
-                            Text(option.rawValue).tag(option)
-                        }
-                    }
-                    TextField("Optional note", text: $note, axis: .vertical)
-                        .lineLimit(3...5)
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(.caption)
-                            .foregroundStyle(Color.liftRed)
-                    }
-                    Button(isSubmitting ? "Submitting…" : "Submit Report") {
-                        isSubmitting = true
-                        errorMessage = nil
-                        Task {
-                            if await appState.competitionStore.report(lift, reason: reason, note: note) {
-                                Haptics.warning()
-                                dismiss()
-                            } else {
-                                errorMessage = "The report could not be submitted. Try again."
-                                isSubmitting = false
-                            }
-                        }
-                    }
-                    .accessibilityIdentifier("report.submit")
-                    .disabled(isSubmitting)
-                }
-                .scrollContentBackground(.hidden)
-            }
-            .navigationTitle("Report Lift")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-        }
-    }
-}
-
-struct ReportProfileView: View {
-    @EnvironmentObject private var appState: AppState
-    @Environment(\.dismiss) private var dismiss
-    let profile: UserProfile
-    @State private var reason = ProfileReportReason.harassment
-    @State private var note = ""
-    @State private var isSubmitting = false
-    @State private var errorMessage: String?
-
-    var body: some View {
-        NavigationStack {
-            AppBackground {
-                Form {
-                    Section {
-                        Text("Report @\(profile.username) for content or behavior that violates the Lift Rivals community standards.")
-                            .font(.subheadline)
-                            .foregroundStyle(Color.liftMuted)
-                    }
-                    Picker("Reason", selection: $reason) {
-                        ForEach(ProfileReportReason.allCases) { option in
-                            Text(option.rawValue).tag(option)
-                        }
-                    }
-                    TextField("Optional details", text: $note, axis: .vertical)
-                        .lineLimit(3...5)
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(.caption)
-                            .foregroundStyle(Color.liftRed)
-                    }
-                    Button(isSubmitting ? "Submitting..." : "Submit Report") {
-                        isSubmitting = true
-                        errorMessage = nil
-                        Task {
-                            if await appState.reportProfile(profile.id, reason: reason, note: note) {
-                                Haptics.warning()
-                                dismiss()
-                            } else {
-                                errorMessage = "The report could not be submitted. Try again."
-                                isSubmitting = false
-                            }
-                        }
-                    }
-                    .accessibilityIdentifier("profileReport.submit")
-                    .disabled(isSubmitting)
-                }
-                .scrollContentBackground(.hidden)
-            }
-            .navigationTitle("Report Athlete")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-        }
     }
 }

@@ -121,7 +121,7 @@ extension TrainingTrackerView {
             .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                    .stroke(Color.liftOverlay, lineWidth: 1)
             }
 
             if !libraryFilters.isEmpty {
@@ -188,7 +188,7 @@ extension TrainingTrackerView {
                                 libraryRow(result)
                                 if index < section.results.count - 1 {
                                     Divider()
-                                        .overlay(Color.white.opacity(0.07))
+                                        .overlay(Color.liftOverlay)
                                         .padding(.leading, 68)
                                 }
                             }
@@ -197,7 +197,7 @@ extension TrainingTrackerView {
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                                .stroke(Color.liftOverlay, lineWidth: 1)
                         }
                     }
                 }

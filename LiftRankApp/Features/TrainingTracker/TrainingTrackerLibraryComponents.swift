@@ -130,7 +130,7 @@ struct ExerciseLibraryFilterSheet: View {
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(selected ? Color.liftBlue.opacity(0.65) : Color.white.opacity(0.06), lineWidth: 1)
+                    .stroke(selected ? Color.liftBlue.opacity(0.65) : Color.liftOverlay, lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
@@ -338,7 +338,7 @@ struct ProgramChoiceRow: View {
                     .foregroundStyle(isSelected ? Color.liftAccentText : Color.liftMuted)
             }
             .padding(13)
-            .background(isSelected ? Color.liftBlue.opacity(0.18) : Color.black.opacity(0.16))
+            .background(isSelected ? Color.liftBlue.opacity(0.18) : Color.liftScrim)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -373,7 +373,7 @@ struct ProgramChoiceChip: View {
                 .foregroundStyle(isSelected ? .white : Color.liftMuted)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .padding(.horizontal, 12)
-                .background(isSelected ? Color.liftBlue : Color.black.opacity(0.18))
+                .background(isSelected ? Color.liftBlue : Color.liftScrim)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -519,7 +519,7 @@ struct ProgramAddExercisePickerView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                .stroke(Color.liftOverlay, lineWidth: 1)
         }
     }
 
@@ -618,7 +618,7 @@ struct ProgramAddExercisePickerView: View {
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(isSelected ? Color.liftBlue.opacity(0.45) : Color.white.opacity(0.05), lineWidth: 1)
+                .stroke(isSelected ? Color.liftBlue.opacity(0.45) : Color.liftOverlay.opacity(0.75), lineWidth: 1)
         }
         .opacity(isExisting ? 0.62 : 1)
     }

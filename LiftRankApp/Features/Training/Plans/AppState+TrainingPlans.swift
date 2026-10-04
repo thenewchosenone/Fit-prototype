@@ -38,6 +38,13 @@ extension AppState {
         )
     }
 
+    func weeklyWorkingSetsByMuscle(
+        referenceDate: Date = .now,
+        weekCount: Int = 4
+    ) -> [(weekStart: Date, counts: [ExerciseMuscleRegion: Int])] {
+        trainingProgressStore.weeklyWorkingSetsByMuscle(referenceDate: referenceDate, weekCount: weekCount)
+    }
+
     var trainingHistoryWorkouts: [CompletedWorkout] {
         trainingProgressStore.trainingHistoryWorkouts
     }

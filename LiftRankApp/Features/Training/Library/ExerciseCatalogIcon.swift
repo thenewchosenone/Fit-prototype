@@ -18,18 +18,10 @@ struct ExerciseCatalogIcon: View {
                 )
                 .overlay {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.white.opacity(0.055), lineWidth: 1)
+                        .stroke(Color.liftOverlay.opacity(0.7), lineWidth: 1)
                 }
 
-            Image(systemName: exercise.symbolName)
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Color(red: 0.89, green: 1.0, blue: 0.38), Color.liftBlue],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+            movementIcon
         }
         .frame(width: 54, height: 54)
         .accessibilityElement(children: .ignore)
@@ -40,5 +32,29 @@ struct ExerciseCatalogIcon: View {
         let profile = exercise.resolvedMuscleProfile
         let secondary = profile.secondary.isEmpty ? "" : "; assisting \(profile.secondaryDescription)"
         return "\(exercise.name); primary muscles \(profile.primaryDescription)\(secondary)"
+    }
+
+    @ViewBuilder
+    private var movementIcon: some View {
+        let name = exercise.name.lowercased()
+        let gradient = LinearGradient(
+            colors: [Color(red: 0.89, green: 1.0, blue: 0.38), Color.liftBlue],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        if name.contains("overhead press") || name.contains("shoulder press") || name.contains("push press") {
+            ZStack {
+                Image(systemName: "figure.stand")
+                    .font(.system(size: 25, weight: .semibold))
+                Image(systemName: "dumbbell.fill")
+                    .font(.system(size: 18, weight: .bold))
+                    .offset(y: -13)
+            }
+            .foregroundStyle(gradient)
+        } else {
+            Image(systemName: exercise.symbolName)
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(gradient)
+        }
     }
 }

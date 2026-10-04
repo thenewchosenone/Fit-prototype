@@ -42,7 +42,7 @@ struct ExerciseMuscleMap: View {
                     )
                     .overlay {
                         cardShape
-                            .stroke(Color.white.opacity(displayStyle == .hero ? 0.08 : 0.055), lineWidth: 1)
+                            .stroke(Color.liftOverlay.opacity(displayStyle == .hero ? 1 : 0.7), lineWidth: 1)
                     }
 
                 VStack(spacing: showsLabels ? 5 : 0) {

@@ -10,7 +10,8 @@ enum MockData {
         Exercise(id: "squat", name: "Back squat", symbolName: "figure.strengthtraining.functional", isPowerlift: true),
         Exercise(id: "deadlift", name: "Conventional deadlift", symbolName: "figure.strengthtraining.functional", isPowerlift: true),
         Exercise(id: "sumo_deadlift", name: "Sumo deadlift", symbolName: "figure.strengthtraining.functional", isPowerlift: false),
-        Exercise(id: "press", name: "Overhead press", symbolName: "arrow.up.circle", isPowerlift: false)
+        Exercise(id: "press", name: "Overhead press", symbolName: "figure.strengthtraining.traditional", isPowerlift: false),
+        Exercise(id: "dumbbell_bench_press", name: "Dumbbell bench press", symbolName: "figure.strengthtraining.traditional", isPowerlift: false)
     ]
 
     static var trainingExerciseLibrary: [TrainingExerciseCatalogItem] {
@@ -22,6 +23,9 @@ enum MockData {
             enriched.movementType = movementType(for: enriched)
             enriched.trackingType = trackingType(for: enriched)
             enriched.difficulty = difficulty(for: item)
+            if enriched.id == "dumbbell_bench_press" {
+                enriched.rankingExerciseID = "dumbbell_bench_press"
+            }
             return enriched
         }
     }
@@ -173,7 +177,7 @@ enum MockData {
         TrainingExerciseCatalogItem(id: "back_squat", name: "Back Squat", bodyPart: "Quads", workoutCategory: "Legs", defaultSets: 3, defaultReps: "5-8", symbolName: "figure.strengthtraining.functional", equipment: "Barbell", rankingExerciseID: "squat"),
         TrainingExerciseCatalogItem(id: "conventional_deadlift", name: "Conventional Deadlift", bodyPart: "Hamstrings/Back", workoutCategory: "Pull/Legs", defaultSets: 3, defaultReps: "3-5", symbolName: "figure.strengthtraining.functional", equipment: "Barbell", rankingExerciseID: "deadlift"),
         TrainingExerciseCatalogItem(id: "sumo_deadlift", name: "Sumo Deadlift", bodyPart: "Glutes/Adductors", workoutCategory: "Pull/Legs", defaultSets: 3, defaultReps: "3-5", symbolName: "figure.strengthtraining.functional", equipment: "Barbell", rankingExerciseID: "deadlift"),
-        TrainingExerciseCatalogItem(id: "barbell_overhead_press", name: "Barbell Overhead Press", bodyPart: "Shoulders", workoutCategory: "Push", defaultSets: 3, defaultReps: "5-8", symbolName: "figure.strengthtraining.traditional", equipment: "Barbell", rankingExerciseID: "press"),
+        TrainingExerciseCatalogItem(id: "barbell_overhead_press", name: "Barbell Overhead Press", bodyPart: "Shoulders", workoutCategory: "Push", defaultSets: 3, defaultReps: "5-8", symbolName: "arrow.up.circle", equipment: "Barbell", rankingExerciseID: "press"),
         TrainingExerciseCatalogItem(id: "hack_squat", name: "Hack Squat", bodyPart: "Quads", workoutCategory: "Legs", defaultSets: 3, defaultReps: "8-10", symbolName: "figure.strengthtraining.functional", equipment: "Machine"),
         TrainingExerciseCatalogItem(id: "leg_press", name: "Leg Press", bodyPart: "Quads", workoutCategory: "Legs", defaultSets: 3, defaultReps: "10-12", symbolName: "arrow.up.and.down", equipment: "Machine"),
         TrainingExerciseCatalogItem(id: "leg_extension", name: "Leg Extension", bodyPart: "Quads", workoutCategory: "Legs", defaultSets: 2, defaultReps: "12-15", symbolName: "arrow.up.and.down", equipment: "Machine"),

@@ -173,6 +173,8 @@ final class ExerciseLibraryStore {
         return repository.customTrainingExercises
     }
 
+    var customExercisesRevision: Int { repository.customTrainingExercisesRevision }
+
     var exercises: [TrainingExerciseCatalogItem] {
         resetAccountScopedExercisesIfNeeded()
         let revision = repository.customTrainingExercisesRevision

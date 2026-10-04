@@ -9,7 +9,7 @@ struct WorkoutSummaryView: View {
     let didExplainAutomaticSubmission: Bool
     let onAutomaticSubmissionChanged: (Bool) -> Void
     let onExplanationShown: () -> Void
-    let onComplete: (Int, String, [UUID: URL], Bool) -> Void
+    let onComplete: (Int, String, [UUID: URL], Bool) -> Bool
     @State private var effort = 3
     @State private var notes = ""
     @State private var automaticSubmissionEnabled: Bool
@@ -18,6 +18,11 @@ struct WorkoutSummaryView: View {
     @State private var loadingVideoSetIDs: Set<UUID> = []
     @State private var videoError: String?
     @State private var showingAutomaticSubmissionExplanation = false
+    @State private var hasSavedWorkout = false
+    @State private var completionHighlights: [String] = []
+    @State private var showsAllAchievements = false
+    @State private var finishedDuration: TimeInterval?
+    @State private var finishedUnit: UnitSystem?
 
     init(
         summary: WorkoutSummary,
@@ -26,7 +31,7 @@ struct WorkoutSummaryView: View {
         didExplainAutomaticSubmission: Bool,
         onAutomaticSubmissionChanged: @escaping (Bool) -> Void,
         onExplanationShown: @escaping () -> Void,
-        onComplete: @escaping (Int, String, [UUID: URL], Bool) -> Void
+        onComplete: @escaping (Int, String, [UUID: URL], Bool) -> Bool
     ) {
         self.summary = summary
         self.prCandidates = prCandidates
@@ -41,6 +46,14 @@ struct WorkoutSummaryView: View {
         appState.activeWorkout?.elapsedDuration() ?? 0
     }
 
+    private var plannedSessionProgress: (plannedSets: Int, isComplete: Bool)? {
+        guard let sessionID = appState.activeWorkout?.sourceSessionID,
+              let session = appState.workoutSessions.first(where: { $0.id == sessionID }) else { return nil }
+        let plannedSets = appState.prescriptions(for: session).reduce(0) { $0 + $1.sets }
+        guard plannedSets > 0 else { return nil }
+        return (plannedSets, summary.totalSets >= plannedSets)
+    }
+
     private var previousComparableWorkout: CompletedWorkout? {
         appState.previousComparableWorkout(for: summary)
     }
@@ -50,7 +63,23 @@ struct WorkoutSummaryView: View {
     }
 
     private var projectedStreak: Int {
-        max(appState.competitiveStatistics.currentStreak, 0) + 1
+        Self.projectedWorkoutStreak(
+            currentStreak: appState.competitiveStatistics.currentStreak,
+            completedWorkouts: appState.completedWorkouts,
+            completingAt: .now
+        )
+    }
+
+    static func projectedWorkoutStreak(
+        currentStreak: Int,
+        completedWorkouts: [CompletedWorkout],
+        completingAt: Date,
+        calendar: Calendar = .current
+    ) -> Int {
+        let alreadyTrainedToday = completedWorkouts.contains {
+            !$0.completedWorkingSets.isEmpty && calendar.isDate($0.completedAt, inSameDayAs: completingAt)
+        }
+        return alreadyTrainedToday ? currentStreak : max(currentStreak, 0) + 1
     }
 
     private var volumePRDetails: (current: Double, previous: Double, unit: UnitSystem)? {
@@ -127,6 +156,7 @@ struct WorkoutSummaryView: View {
 
     var body: some View {
         let activeDuration = activeDuration
+        let summaryUnit = appState.activeWorkout?.unit ?? appState.currentProfile.preferredUnit
         let workingSets = currentWorkoutWorkingSets
         let projectedStrengthTierSummary = projectedStrengthTierSummary(workingSets: workingSets)
         let advancedStrengthLifts = projectedStrengthTierSummary.advancedLifts(
@@ -139,7 +169,10 @@ struct WorkoutSummaryView: View {
 
         NavigationStack {
             AppBackground {
-                ScrollView {
+                if hasSavedWorkout {
+                    savedWorkoutContent
+                } else {
+                    ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         VStack(spacing: 10) {
                             Image(systemName: "checkmark")
@@ -148,11 +181,22 @@ struct WorkoutSummaryView: View {
                                 .frame(width: 72, height: 72)
                                 .background(Color.liftGreen)
                                 .clipShape(Circle())
-                            Text("Workout complete")
+                            Text("Review workout")
                                 .font(.largeTitle.weight(.black))
                             Text(summary.workoutName)
                                 .font(.headline)
                                 .foregroundStyle(Color.liftMuted)
+                            if let plannedSessionProgress {
+                                Label(
+                                    plannedSessionProgress.isComplete ? "Will complete planned session" : "Will save shortened session",
+                                    systemImage: plannedSessionProgress.isComplete ? "checkmark.circle.fill" : "minus.circle.fill"
+                                )
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(plannedSessionProgress.isComplete ? Color.liftGreen : Color.liftGold)
+                                Text("\(summary.totalSets) of \(plannedSessionProgress.plannedSets) planned working sets logged")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.liftMuted)
+                            }
                         }
                         .frame(maxWidth: .infinity)
 
@@ -269,19 +313,32 @@ struct WorkoutSummaryView: View {
                         }
 
                         PrimaryButton(title: "Save & finish", symbolName: "checkmark.circle.fill") {
-                            onComplete(effort, notes, videoURLsBySetID, false)
+                            var highlights = prCandidates.prefix(2).map { candidate in
+                                "New \(candidate.exerciseName) PR: \(MeasurementFormatting.recordedLiftSetText(weight: candidate.weight, unit: candidate.unit, repetitions: candidate.repetitions))"
+                            }
+                            if volumePRDetails != nil {
+                                highlights.append("New workout volume PR")
+                            }
+                            highlights.append(contentsOf: newlyUnlockedAchievements.prefix(2).map { "Achievement: \($0.title)" })
+                            if onComplete(effort, notes, videoURLsBySetID, false) {
+                                completionHighlights = Array(highlights.prefix(3))
+                                finishedDuration = activeDuration
+                                finishedUnit = summaryUnit
+                                hasSavedWorkout = true
+                            }
                         }
                         .accessibilityIdentifier("workout.finish.save")
                     }
                     .padding(18)
                 }
                 .scrollIndicators(.hidden)
+                }
             }
-            .navigationTitle("Summary")
+            .navigationTitle(hasSavedWorkout ? "Workout saved" : "Summary")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Back") { dismiss() }
+                    Button(hasSavedWorkout ? "Done" : "Back") { dismiss() }
                 }
             }
             .onAppear {
@@ -290,7 +347,7 @@ struct WorkoutSummaryView: View {
                     showingAutomaticSubmissionExplanation = true
                 }
             }
-            .alert("Submit video-backed PRs automatically?", isPresented: $showingAutomaticSubmissionExplanation) {
+            .alert("Share eligible PRs automatically?", isPresented: $showingAutomaticSubmissionExplanation) {
                 Button("Enable") {
                     automaticSubmissionEnabled = true
                     onAutomaticSubmissionChanged(true)
@@ -300,9 +357,96 @@ struct WorkoutSummaryView: View {
                     onAutomaticSubmissionChanged(false)
                 }
             } message: {
-                Text("When enabled, only canonical lift PRs with an attached video are posted publicly as Video-backed. PRs without video stay private.")
+                Text("When enabled, eligible PRs are posted publicly as self-reported without a video, or video-backed when you attach one.")
             }
         }
+    }
+
+    private var savedWorkoutContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+            VStack(spacing: 10) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 34, weight: .black))
+                    .foregroundStyle(Color.liftOnAccent)
+                    .frame(width: 72, height: 72)
+                    .background(Color.liftGreen)
+                    .clipShape(Circle())
+                Text("Workout saved")
+                    .font(.largeTitle.weight(.black))
+                Text(summary.workoutName)
+                    .font(.headline)
+                    .foregroundStyle(Color.liftMuted)
+            }
+            .frame(maxWidth: .infinity)
+
+            HStack(spacing: 10) {
+                summaryMetric("Sets", "\(summary.totalSets)", "checkmark.circle.fill")
+                summaryMetric("Volume", MeasurementFormatting.formatRecordedWeight(summary.totalVolume, unit: finishedUnit ?? appState.currentProfile.preferredUnit), "scalemass.fill")
+                summaryMetric("Duration", durationText(finishedDuration ?? activeDuration), "timer")
+            }
+
+            if completionHighlights.isEmpty {
+                Text("Session saved. Keep building toward your next milestone.")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.liftMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(Color.liftCard)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Workout highlights")
+                        .font(.headline.weight(.bold))
+                    ForEach(completionHighlights, id: \.self) { highlight in
+                        Label(highlight, systemImage: "trophy.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.liftGold)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(14)
+                .background(Color.liftGold.opacity(0.09))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+
+            Button {
+                showsAllAchievements.toggle()
+            } label: {
+                Label(
+                    showsAllAchievements ? "Hide all achievements" : "View all achievements",
+                    systemImage: showsAllAchievements ? "chevron.up" : "chevron.down"
+                )
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(Color.liftAccentText)
+                .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("workout.finish.saved.achievements")
+
+            if showsAllAchievements {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("All achievements")
+                        .font(.headline.weight(.bold))
+                    ForEach(appState.achievements) { achievement in
+                        let isUnlocked = appState.achievementUnlocks.contains { $0.title == achievement.title }
+                        Label(achievement.title, systemImage: isUnlocked ? achievement.symbolName : "lock.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(isUnlocked ? Color.liftGold : Color.liftMuted)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(14)
+                .background(Color.liftCard)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+
+            PrimaryButton(title: "Done", symbolName: "checkmark") { dismiss() }
+                .accessibilityIdentifier("workout.finish.saved.done")
+            }
+            .padding(18)
+        }
+        .scrollIndicators(.hidden)
     }
 
     private func rivalTierProgressSection(
@@ -341,7 +485,7 @@ struct WorkoutSummaryView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Personal records")
                         .font(.title3.weight(.black))
-                    Text("Attach video now if you want an eligible PR to be submitted.")
+                    Text("Enable automatic sharing to publish these PRs; attach video to mark one video-backed.")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
@@ -358,9 +502,9 @@ struct WorkoutSummaryView: View {
                 }
             )) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Automatically submit video-backed PRs")
+                    Text("Automatically share eligible PRs")
                         .font(.subheadline.weight(.bold))
-                    Text("Public • Video-backed • next daily ranking update")
+                    Text("Public • Self-reported or video-backed • next daily ranking update")
                         .font(.caption2)
                         .foregroundStyle(Color.liftMuted)
                 }
@@ -420,12 +564,12 @@ struct WorkoutSummaryView: View {
                     }
                 }
                 .padding(12)
-                .background(Color.black.opacity(0.16))
+                .background(Color.liftScrim)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
 
             if !automaticSubmissionEnabled {
-                Label("These PRs will remain private even if a video is attached.", systemImage: "lock.fill")
+                Label("These PRs remain private until you enable automatic sharing.", systemImage: "lock.fill")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.liftMuted)
             }

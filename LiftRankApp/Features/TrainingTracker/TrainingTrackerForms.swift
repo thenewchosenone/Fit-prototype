@@ -16,7 +16,7 @@ struct CreateWorkoutPlanView: View {
                             TextField("Plan name", text: $planName)
                                 .textFieldStyle(.plain)
                                 .padding(12)
-                                .background(Color.black.opacity(0.18))
+                                .background(Color.liftScrim)
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                         }
                     }

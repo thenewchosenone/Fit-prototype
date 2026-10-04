@@ -167,6 +167,7 @@ struct ActiveWorkoutState: Identifiable, Codable, Hashable {
     var name: String
     var dayLabel: String
     var startedAt: Date
+    var historyDate: Date? = nil
     var pausedAt: Date?
     var accumulatedPausedTime: TimeInterval
     var gymID: UUID?
@@ -328,6 +329,7 @@ struct WorkoutPreferences: Codable, Hashable {
     var automaticallySubmitVideoBackedPRs = false
     var didExplainAutomaticPRs = false
     var defaultRestTimerEnabled = true
+    var weeklyTrainingDayGoal: Int? = nil
 }
 
 struct WorkoutPersistenceSnapshot: Codable, Hashable {

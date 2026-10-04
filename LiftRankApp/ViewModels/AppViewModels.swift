@@ -46,6 +46,7 @@ final class AppState: ObservableObject {
     let competitionStore: CompetitionStore
     let notificationStore: NotificationStore
     let analyticsStore: AnalyticsStore
+    let forumStore: ForumStore
     let features: FeatureAvailability
     private var cachedCompetitiveStatistics: CompetitiveStatistics?
     private var cachedCompetitiveStatisticsSignature: CompetitiveStatisticsSignature?
@@ -147,6 +148,7 @@ final class AppState: ObservableObject {
             notificationService: resolvedServiceContainer.notifications
         )
         self.analyticsStore = AnalyticsStore(service: resolvedServiceContainer.analytics)
+        self.forumStore = ForumStore(service: resolvedServiceContainer.forum)
         self.serviceContainer = resolvedServiceContainer
         self.exerciseLibraryStore.prewarmBundledExercises()
         self.repository.objectWillChange
@@ -334,10 +336,82 @@ final class AppState: ObservableObject {
                 currentUserLift.caption = "Current athlete media fixture"
                 repository.lifts = [athleteLift, currentUserLift]
             }
+            if ProcessInfo.processInfo.arguments.contains("-uiTestingFocusedWorkoutSet") {
+                let workoutID = UUID(uuidString: "D0000000-0000-0000-0000-000000000001")!
+                let exerciseID = UUID(uuidString: "D0000000-0000-0000-0000-000000000002")!
+                let exercise = WorkoutExerciseSnapshot(
+                    id: exerciseID,
+                    sourcePrescriptionID: nil,
+                    exerciseID: "barbell_bench_press",
+                    exerciseName: "Barbell Bench Press",
+                    bodyPart: "Chest",
+                    equipment: "Barbell",
+                    targetSets: 12,
+                    targetReps: "5",
+                    restSeconds: 180,
+                    order: 0,
+                    notes: ""
+                )
+                let sets = (1...12).map { setNumber in
+                    WorkoutSetLog(
+                        id: UUID(uuidString: "D0000000-0000-0000-0000-\(String(format: "%012d", setNumber + 2))")!,
+                        prescriptionID: exerciseID,
+                        performedAt: .now,
+                        setNumber: setNumber,
+                        weight: 225,
+                        reps: 5,
+                        rpe: 8,
+                        isWarmup: false,
+                        isComplete: true,
+                        workoutID: workoutID,
+                        recordedUnit: .pounds
+                    )
+                }
+                repository.completedWorkouts = [CompletedWorkout(
+                    id: workoutID,
+                    source: .freestyle,
+                    sourceSessionID: nil,
+                    sourcePlanID: nil,
+                    name: "Set-focus test workout",
+                    dayLabel: "Today",
+                    startedAt: .now.addingTimeInterval(-3_600),
+                    completedAt: .now,
+                    duration: 3_600,
+                    effort: 3,
+                    notes: "",
+                    gymID: nil,
+                    bodyweight: currentProfile.bodyweightPounds,
+                    unit: .pounds,
+                    exercises: [exercise],
+                    sets: sets,
+                    linkedSubmissionIDs: []
+                )]
+            }
             if ProcessInfo.processInfo.arguments.contains("-uiTestingNoActiveWorkout") {
                 repository.discardActiveWorkout()
             }
-            if ProcessInfo.processInfo.arguments.contains("-uiTestingActiveWorkout") {
+            if ProcessInfo.processInfo.arguments.contains("-uiTestingPlannedActiveWorkout") {
+                repository.discardActiveWorkout()
+                if let session = repository.workoutSessions.first(where: { session in
+                    repository.workoutPrescriptions.contains { $0.sessionID == session.id }
+                }) {
+                    let startedWorkout = repository.startWorkout(
+                        session: session,
+                        planID: repository.workoutWeeks.first { $0.id == session.weekID }?.planID,
+                        gymID: nil,
+                        bodyweight: currentProfile.bodyweightPounds,
+                        unit: currentProfile.preferredUnit
+                    )
+                    if let startedWorkout,
+                       let firstLog = repository.workoutSetLogs.first(where: { $0.workoutID == startedWorkout.id }) {
+                        var log = firstLog
+                        log.weight = 225
+                        log.reps = 5
+                        repository.updateWorkoutSetLog(log)
+                        _ = repository.applyWorkoutSetCompletion(logID: log.id, isComplete: true, source: .manual)
+                    }
+                }
+            } else if ProcessInfo.processInfo.arguments.contains("-uiTestingActiveWorkout") {
                 repository.discardActiveWorkout()
                 _ = repository.startFreestyleWorkout(
                     name: "Upper Strength",
@@ -513,6 +587,10 @@ final class AppState: ObservableObject {
             activeWorkoutStore.synchronizeAccountScope()
             await synchronizeCompletedWorkoutHistory()
             await synchronizeWorkoutPlans()
+            if let demoPlanID = repository.seedDemoProgramHistoryIfNeeded() {
+                selectedWorkoutPlanID = demoPlanID
+            }
+            repository.seedDemoLeaderboardDataIfNeeded()
             accountStatus = .demo
         } catch {
             accountMessage = userMessage(error)
@@ -542,6 +620,7 @@ final class AppState: ObservableObject {
 
     private func installServiceContainer(_ container: AppServiceContainer) {
         serviceContainer = container
+        forumStore.updateService(container.forum)
         sessionStore.updateServices(
             authenticationService: container.authentication,
             legalAcceptanceService: container.legalAcceptances,
@@ -909,7 +988,6 @@ final class AppState: ObservableObject {
     var canJoinAnotherGym: Bool { profileStore.canJoinAnotherGym(maximumMemberships: Self.maximumJoinedGyms) }
     var lifts: [LiftSubmission] { competitionStore.lifts }
     var pendingReviewLifts: [LiftSubmission] { competitionStore.pendingReviewLifts }
-    var challenges: [Challenge] { repository.challenges }
     var achievements: [Achievement] {
         achievementCatalog
     }
@@ -1121,10 +1199,6 @@ final class AppState: ObservableObject {
 
     var selectedWorkoutPlan: WorkoutPlan? {
         programStore.plan(id: selectedWorkoutPlanID)
-    }
-
-    var selectedPlanWorkoutEntries: [WorkoutExerciseEntry] {
-        repository.workoutEntries.filter { $0.planID == selectedWorkoutPlanID }
     }
 
     var selectedPlanPhases: [WorkoutPhase] {

@@ -1,6 +1,91 @@
 import Foundation
 
 extension DemoRepository {
+    private static let demoProgramHistoryMarker = "[demo:program-history-v2]"
+    private static let previousDemoProgramHistoryMarker = "[demo:program-history-v1]"
+
+    /// Seeds one complete 12-week program for simulator demonstrations. The
+    /// marker keeps this idempotent and makes the history easy to replace.
+    @discardableResult
+    func seedDemoProgramHistoryIfNeeded(referenceDate: Date = .now) -> UUID? {
+        let previousSeed = completedWorkouts.filter { $0.notes.contains(Self.previousDemoProgramHistoryMarker) }
+        if !previousSeed.isEmpty {
+            let oldPlanIDs = Set(previousSeed.compactMap(\.sourcePlanID))
+            completedWorkouts.removeAll { $0.notes.contains(Self.previousDemoProgramHistoryMarker) }
+            workoutPlans.removeAll { oldPlanIDs.contains($0.id) }
+            workoutPhases.removeAll { oldPlanIDs.contains($0.planID) }
+            let oldWeekIDs = Set(workoutWeeks.filter { oldPlanIDs.contains($0.planID) }.map(\.id))
+            workoutWeeks.removeAll { oldWeekIDs.contains($0.id) }
+            let oldSessionIDs = Set(workoutSessions.filter { oldWeekIDs.contains($0.weekID) }.map(\.id))
+            workoutSessions.removeAll { oldSessionIDs.contains($0.id) }
+            let oldPrescriptionIDs = Set(workoutPrescriptions.filter { oldSessionIDs.contains($0.sessionID) }.map(\.id))
+            workoutPrescriptions.removeAll { oldSessionIDs.contains($0.sessionID) }
+            workoutSetLogs.removeAll { oldPrescriptionIDs.contains($0.prescriptionID) }
+            workoutEntries.removeAll { oldPlanIDs.contains($0.planID) }
+            workoutPlanProgressionSettings.removeAll { oldPlanIDs.contains($0.planID) }
+        }
+        guard !completedWorkouts.contains(where: { $0.notes.contains(Self.demoProgramHistoryMarker) }) else {
+            return completedWorkouts.first(where: { $0.notes.contains(Self.demoProgramHistoryMarker) })?.sourcePlanID
+        }
+        guard let template = WorkoutProgramCatalog.templates.first else { return nil }
+
+        let calendar = Calendar.current
+        let startDate = calendar.date(byAdding: .weekOfYear, value: -12, to: calendar.startOfDay(for: referenceDate)) ?? referenceDate
+        let scheduledWeekdays = template.sessions.map(\.dayIndex)
+        let plan = startWorkoutProgram(
+            template: template,
+            startDate: startDate,
+            scheduledWeekdays: scheduledWeekdays,
+            method: template.defaultProgression,
+            preferredUnit: .pounds,
+            trainingMaxKilograms: [:]
+        )
+
+        let weeks = workoutWeeks.filter { $0.planID == plan.id }.sorted { $0.weekNumber < $1.weekNumber }
+        for week in weeks {
+            let weekStart = calendar.date(byAdding: .weekOfYear, value: week.weekNumber - 1, to: startDate) ?? startDate
+            for session in workoutSessions.filter({ $0.weekID == week.id }).sorted(by: { $0.order < $1.order }) {
+                let sessionDate = calendar.date(byAdding: .day, value: session.order * 2, to: weekStart) ?? weekStart
+                let startedAt = calendar.date(bySettingHour: 16 + ((week.weekNumber + session.order) % 4), minute: 10 + (session.order * 11), second: 0, of: sessionDate) ?? sessionDate
+                let completedAt = startedAt.addingTimeInterval(TimeInterval((38 + session.order * 9 + (week.weekNumber % 3) * 5) * 60))
+                let prescriptions = workoutPrescriptions.filter { $0.sessionID == session.id }.sorted { $0.order < $1.order }
+                let exercises = prescriptions.map(exerciseSnapshot)
+                let sets = exercises.flatMap { exercise in
+                    let range = exercise.targetReps.split(separator: "-").compactMap { Int($0) }
+                    let minimumReps = range.first ?? 8
+                    let maximumReps = range.last ?? minimumReps
+                    let variation = (week.weekNumber + session.order + exercise.order) % max(1, maximumReps - minimumReps + 1)
+                    let reps = minimumReps + variation
+                    let completedSetCount = (week.weekNumber == 4 || week.weekNumber == 8 || week.weekNumber == 12)
+                        ? max(1, exercise.targetSets - 1) : exercise.targetSets
+                    let effort = min(9, 6 + ((week.weekNumber + exercise.order + session.order) % 4))
+                    let loadVariation = Double(((week.weekNumber * 3 + session.order * 2 + exercise.order) % 5) - 2) * 2.5
+                    let weight = max(25, 70 + Double(week.weekNumber * 2 + exercise.order * 7) + loadVariation)
+                    return (1...max(1, completedSetCount)).map { setNumber in
+                        WorkoutSetLog(
+                            id: UUID(), prescriptionID: exercise.id, performedAt: completedAt,
+                            setNumber: setNumber, weight: weight, reps: reps, rpe: effort, isWarmup: false, isComplete: true,
+                            workoutID: nil, recordedUnit: .pounds
+                        )
+                    }
+                }
+                completedWorkouts.append(
+                    CompletedWorkout(
+                        id: UUID(), source: .planned, sourceSessionID: session.id, sourcePlanID: plan.id,
+                        name: session.name, dayLabel: session.day, startedAt: startedAt, completedAt: completedAt,
+                        duration: completedAt.timeIntervalSince(startedAt), effort: 3,
+                        notes: Self.demoProgramHistoryMarker, gymID: nil, bodyweight: 180, unit: .pounds,
+                        exercises: exercises, sets: sets, linkedSubmissionIDs: []
+                    )
+                )
+            }
+        }
+        completedWorkouts.sort { $0.completedAt > $1.completedAt }
+        refreshAchievementUnlocks()
+        persistWorkoutSnapshot()
+        return plan.id
+    }
+
     func clearAccountScopedWorkoutHistory() {
         workoutFeedback.removeAll()
         workoutEntries.removeAll()

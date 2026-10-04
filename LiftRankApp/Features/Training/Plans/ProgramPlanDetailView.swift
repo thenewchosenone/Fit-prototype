@@ -101,7 +101,7 @@ struct ProgramPlanDetailView: View {
                             TextField("Workout name", text: $newSessionName)
                                 .textFieldStyle(.plain)
                                 .padding(12)
-                                .background(Color.black.opacity(0.18))
+                                .background(Color.liftScrim)
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                             Picker("Day", selection: $newSessionDay) {
                                 ForEach(days, id: \.self) { day in
@@ -190,7 +190,7 @@ struct ProgramPlanDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                .stroke(Color.liftOverlay, lineWidth: 1)
         }
     }
 
@@ -282,18 +282,104 @@ struct ProgramPlanDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             if let selectedWeek {
                 let presentation = appState.programWeekPresentation(for: selectedWeek)
+                let sessions = presentation.sessions
+                let plannedSessions = sessions.filter { session in
+                    !(presentation.prescriptionsBySessionID[session.id] ?? []).isEmpty
+                }
+                let completedSessions = plannedSessions.filter { session in
+                    let prescriptions = presentation.prescriptionsBySessionID[session.id] ?? []
+                    return prescriptions.allSatisfy {
+                        presentation.completedPrescriptionIDs.contains($0.id)
+                    }
+                }
+                let nextSession = plannedSessions.first { session in
+                    let prescriptions = presentation.prescriptionsBySessionID[session.id] ?? []
+                    return !prescriptions.allSatisfy {
+                        presentation.completedPrescriptionIDs.contains($0.id)
+                    }
+                }
+                let plannedPlanSessions = appState.selectedPlanWeeks
+                    .flatMap(appState.sessions(for:))
+                    .filter { !appState.prescriptions(for: $0).isEmpty }
+                let planIsComplete = !plannedPlanSessions.isEmpty && plannedPlanSessions.allSatisfy(sessionIsComplete)
+                let nextIncompleteWeek = appState.selectedPlanWeeks.first { week in
+                    appState.sessions(for: week).contains {
+                        !appState.prescriptions(for: $0).isEmpty && !sessionIsComplete($0)
+                    }
+                }
+                let progression = appState.workoutPlanProgressionSettings.first {
+                    $0.planID == appState.selectedWorkoutPlanID
+                }?.method
                 LiftCard {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("\(selectedWeek.title) Overview")
-                            .font(.headline)
-                        Text("\(presentation.sessions.count) workout days")
+                        Text("Current week · \(selectedWeek.title)")
+                            .font(.headline.weight(.bold))
+                        if !plannedSessions.isEmpty {
+                            Text("\(completedSessions.count) of \(plannedSessions.count) workouts have every exercise logged")
+                                .foregroundStyle(Color.liftMuted)
+                        } else {
+                            Text("No workouts with exercises are planned for this week yet.")
+                                .foregroundStyle(Color.liftMuted)
+                        }
+                        Text("\(presentation.completedSetCount) of \(presentation.plannedSetCount) planned sets logged")
+                            .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                         ProgressView(value: presentation.completion)
                             .tint(Color.liftGreen)
+                        if let nextSession {
+                            Button {
+                                selectedSessionToRun = nextSession
+                            } label: {
+                                Label("Start next workout: \(nextSession.name)", systemImage: "play.circle.fill")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Color.liftAccentText)
+                        } else if planIsComplete {
+                            Label("Program complete", systemImage: "checkmark.seal.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.liftGreen)
+                            Button {
+                                let nextWeek = appState.addWeekToSelectedPlan()
+                                selectedWeekID = nextWeek.id
+                                detailTab = "Weeks"
+                            } label: {
+                                Label("Add next week", systemImage: "calendar.badge.plus")
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Color.liftAccentText)
+                        } else if let nextIncompleteWeek, nextIncompleteWeek.id != selectedWeek.id {
+                            Button {
+                                selectedWeekID = nextIncompleteWeek.id
+                                detailTab = "Weeks"
+                            } label: {
+                                Label("Review unfinished week: \(nextIncompleteWeek.title)", systemImage: "arrow.uturn.backward.circle")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(Color.liftAccentText)
+                        } else if !plannedSessions.isEmpty {
+                            Label("Every workout this week has exercises logged", systemImage: "checkmark.circle.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.liftGreen)
+                        }
+                        if let progression {
+                            Label("Progression: \(progression.rawValue)", systemImage: "chart.line.uptrend.xyaxis")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                        }
                     }
                 }
             }
         }
+    }
+
+    private func sessionIsComplete(_ session: WorkoutSession) -> Bool {
+        let prescriptionCount = appState.prescriptions(for: session).count
+        return prescriptionCount > 0 && appState.completedPrescriptionCount(for: session) >= prescriptionCount
     }
 
     private var notes: some View {

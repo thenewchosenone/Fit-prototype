@@ -2,9 +2,9 @@ import SwiftUI
 
 enum ProfileSection: String, CaseIterable, Identifiable {
     case overview = "Overview"
-    case prVideos = "PR videos"
-    case training = "Training"
-    case history = "History"
+    case prVideos = "Videos"
+    case training = "Training profile"
+    case history = "Workout history"
     case submissions = "Submissions"
 
     var id: String {
@@ -57,7 +57,11 @@ extension ProfileView {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                     header
+                    Text("Jump to")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.liftMuted)
                     ProfileSectionNavigation(selection: $selectedProfileSection) { section in
+                        if section == .training { showingAthleteDetails = true }
                         withAnimation(.easeInOut) { proxy.scrollTo(section.id, anchor: .top) }
                     }
                     .padding(.vertical, 2)
@@ -126,7 +130,7 @@ extension ProfileView {
         .task(id: profile.id) {
             await refreshProfileData(force: false)
         }
-        .onChange(of: appState.repository.liftsRevision) { _, _ in
+        .onChange(of: appState.competitionStore.liftsRevision) { _, _ in
             Task { await refreshVisibleProfileLifts() }
         }
         .alert(submissionPendingDeletion?.requiresCoordinatedRemoval == true ? "Remove protected submission?" : "Permanently delete submission?", isPresented: Binding(

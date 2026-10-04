@@ -7,7 +7,7 @@ protocol WorkoutPRLiftSubmitting: AnyObject {
         exercise: Exercise,
         workout: CompletedWorkout,
         profile: UserProfile,
-        videoURL: URL
+        videoURL: URL?
     ) async -> LiftSubmission?
 }
 
@@ -55,6 +55,11 @@ final class WorkoutPRSubmissionStore {
         repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
+    func setWeeklyTrainingDayGoal(_ goal: Int?) {
+        repository.workoutPreferences.weeklyTrainingDayGoal = goal.map { min(max($0, 1), 7) }
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
+    }
+
     func markAutomaticSubmissionExplanationShown() {
         repository.workoutPreferences.didExplainAutomaticPRs = true
         repository.persistWorkoutSnapshotWithoutBlockingUI()
@@ -81,8 +86,7 @@ final class WorkoutPRSubmissionStore {
     ) async {
         guard preferences.automaticallySubmitVideoBackedPRs else { return }
         for candidate in candidates(for: workout, existingLifts: existingLifts) {
-            guard let videoURL = videoURLsBySetID[candidate.setID] else { continue }
-            await submit(candidate, workout: workout, videoURL: videoURL)
+            await submit(candidate, workout: workout, videoURL: videoURLsBySetID[candidate.setID])
         }
     }
 
@@ -108,10 +112,23 @@ final class WorkoutPRSubmissionStore {
     private func submit(
         _ candidate: WorkoutPRCandidate,
         workout: CompletedWorkout,
-        videoURL: URL
+        videoURL: URL?
     ) async {
         resetAccountScopedQueueIfNeeded()
         let userID = repository.currentProfile.id
+        if videoURL == nil {
+            guard let rankingExercise = exercise(candidate.rankingExerciseID) else { return }
+            if let submission = await liftSubmitter.submitWorkoutPR(
+                candidate: candidate,
+                exercise: rankingExercise,
+                workout: workout,
+                profile: repository.currentProfile,
+                videoURL: nil
+            ) {
+                repository.linkSubmission(submission.id, to: workout.id)
+            }
+            return
+        }
         if pendingSubmissions.contains(where: {
             $0.candidate.setID == candidate.setID &&
                 ($0.state == .submitted || $0.state == .uploading)
@@ -123,7 +140,7 @@ final class WorkoutPRSubmissionStore {
             PendingWorkoutPRSubmission(
                 id: makeID(),
                 candidate: candidate,
-                localVideoURL: videoURL,
+                localVideoURL: videoURL!,
                 state: .pending,
                 attemptCount: 0,
                 lastError: nil,
@@ -160,7 +177,9 @@ final class WorkoutPRSubmissionStore {
             pending.submissionID = submission.id
             pending.lastError = nil
             repository.linkSubmission(submission.id, to: workout.id)
-            videoStore.remove(videoURL)
+            if let videoURL {
+                videoStore.remove(videoURL)
+            }
         } else {
             pending.state = .failed
             pending.lastError = "Upload could not be completed. It will remain available to retry."

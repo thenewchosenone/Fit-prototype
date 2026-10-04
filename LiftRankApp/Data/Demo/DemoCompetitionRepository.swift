@@ -1,6 +1,82 @@
 import Foundation
 
 extension DemoRepository {
+    func seedDemoLeaderboardDataIfNeeded() {
+        let marker = "[demo:leaderboard-100-v1]"
+        guard !lifts.contains(where: { $0.caption == marker }) else { return }
+
+        let gymID = UUID(uuidString: "D0000000-0000-0000-0000-000000000100")!
+        if !gyms.contains(where: { $0.id == gymID }) {
+            gyms.append(Gym(
+                id: gymID,
+                name: "Lift Rivals Demo Gym",
+                city: "Miami",
+                state: "Florida",
+                memberCount: 100,
+                verifiedLiftCount: 100
+            ))
+        }
+
+        let demoProfiles = (0..<25).map { index -> UserProfile in
+            var profile = MockData.demoProfile
+            profile.id = UUID(uuidString: String(format: "D0000000-0000-0000-0000-%012d", index + 1))!
+            profile.username = "demo_lifter_\(index + 1)"
+            profile.displayName = "Demo Lifter \(index + 1)"
+            profile.ageGroup = "25-34"
+            profile.heightInches = 68
+            profile.bodyweightPounds = 160 + Double(index % 10)
+            profile.city = "Miami"
+            profile.state = "Florida"
+            profile.primaryGymID = gymID
+            profile.primaryGymName = "Lift Rivals Demo Gym"
+            profile.yearsExperience = 2 + index % 8
+            profile.experienceLevel = index % 3 == 0 ? .advanced : .intermediate
+            return profile
+        }
+        let existingIDs = Set(profiles.map(\.id))
+        profiles.append(contentsOf: demoProfiles.filter { !existingIDs.contains($0.id) })
+
+        let movements: [(id: String, name: String, movement: CompetitiveMovement, baseWeight: Double)] = [
+            ("squat", "Back squat", .backSquat, 315),
+            ("bench", "Barbell bench press", .barbellBenchPress, 225),
+            ("deadlift", "Conventional deadlift", .conventionalDeadlift, 365),
+            ("overhead_press", "Overhead press", .standingBarbellOverheadPress, 135)
+        ]
+        for (index, profile) in demoProfiles.enumerated() {
+            let bodyweight = profile.bodyweightPounds
+            for (movementIndex, movement) in movements.enumerated() {
+                let weight = movement.baseWeight + Double(index * (movementIndex + 1) * 5)
+                lifts.append(LiftSubmission(
+                    id: UUID(uuidString: String(format: "D1000000-0000-0000-0000-%012d", index * 4 + movementIndex + 1))!,
+                    userID: profile.id,
+                    exerciseID: movement.id,
+                    exerciseName: movement.name,
+                    weight: weight,
+                    unit: .pounds,
+                    normalizedWeightKilograms: RankingCalculator.poundsToKilograms(weight),
+                    repetitions: 1,
+                    isActualOneRepMax: true,
+                    estimatedOneRepMax: weight,
+                    bodyweightAtLift: bodyweight,
+                    bodyweightMultiple: weight / bodyweight,
+                    equipmentType: .raw,
+                    variation: "Demo",
+                    gymID: gymID,
+                    performedAt: Calendar.current.date(byAdding: .day, value: -(index + movementIndex), to: .now) ?? .now,
+                    remoteVideoURL: URL(string: "https://example.test/demo-lift-\(index + 1)-\(movementIndex + 1).mp4"),
+                    caption: movementIndex == 0 ? marker : "[demo:leaderboard-100-v1]",
+                    verificationStatus: .videoVerified,
+                    visibility: .publicLift,
+                    createdAt: .now,
+                    updatedAt: .now,
+                    competitiveMovement: movement.movement,
+                    evidenceStatus: .videoBacked,
+                    moderationStatus: .clear
+                ))
+            }
+        }
+    }
+
     func addLift(_ lift: LiftSubmission, refreshAchievements: Bool = true) {
         var eligibleLift = lift
         if eligibleLift.leaderboardEligibleAt == .distantPast {

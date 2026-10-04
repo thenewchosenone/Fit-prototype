@@ -64,6 +64,8 @@ final class CompetitionStore: ObservableObject {
     private var cachedPlaybackURLs: [UUID: (url: URL, expiresAt: Date)] = [:]
     private let uploadProgressStep = 0.025
 
+    var liftsRevision: Int { repository.liftsRevision }
+
     init(
         repository: any CompetitionRepository,
         liftService: (any LiftService)? = nil,
@@ -948,7 +950,7 @@ extension CompetitionStore: WorkoutPRLiftSubmitting {
         exercise: Exercise,
         workout: CompletedWorkout,
         profile: UserProfile,
-        videoURL: URL
+        videoURL: URL?
     ) async -> LiftSubmission? {
         let bodyweight = workout.bodyweight ?? profile.bodyweightPounds
         let bodyweightPounds = workout.unit == .kilograms
@@ -967,7 +969,7 @@ extension CompetitionStore: WorkoutPRLiftSubmitting {
             visibility: .publicLift,
             videoURL: videoURL,
             caption: "PR from \(workout.name): \(candidate.exerciseName) \(MeasurementFormatting.recordedLiftSetText(weight: candidate.weight, unit: candidate.unit, repetitions: candidate.repetitions))",
-            requestVerification: true
+            requestVerification: videoURL != nil
         )
     }
 }

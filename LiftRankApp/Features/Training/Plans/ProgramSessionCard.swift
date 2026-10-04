@@ -17,7 +17,7 @@ struct ProgramSessionCard: View {
                         Text("\(session.day) · \(session.name)")
                             .font(.headline)
                             .fixedSize(horizontal: false, vertical: true)
-                        Text("\(prescriptions.count) exercises - \(completedPrescriptionCount) complete")
+                        Text("\(completedPrescriptionCount) of \(prescriptions.count) exercises logged")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                     }
@@ -56,7 +56,7 @@ struct ProgramSessionCard: View {
 
                         if index < prescriptions.count - 1 {
                             Divider()
-                                .overlay(Color.white.opacity(0.07))
+                                .overlay(Color.liftOverlay)
                                 .padding(.leading, 54)
                         }
                     }

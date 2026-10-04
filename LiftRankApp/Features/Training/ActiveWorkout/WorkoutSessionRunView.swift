@@ -29,6 +29,7 @@ struct WorkoutSessionRunView: View {
     @State private var isReorderingExercises = false
     @State private var dismissAfterSummary = false
     @State private var showSummaryAfterSheetDismiss = false
+    @State private var summaryForReview: WorkoutSummary?
     @State private var catalogByID: [String: TrainingExerciseCatalogItem] = [:]
 
     private var workout: ActiveWorkoutState? { appState.activeWorkout }
@@ -136,7 +137,7 @@ struct WorkoutSessionRunView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
-            .task(id: appState.repository.customTrainingExercisesRevision) {
+            .task(id: appState.exerciseLibraryStore.customExercisesRevision) {
                 catalogByID = Dictionary(
                     uniqueKeysWithValues: appState.trainingExerciseLibrary.map { ($0.id, $0) }
                 )
@@ -144,16 +145,21 @@ struct WorkoutSessionRunView: View {
             .sheet(item: $presentedSheet, onDismiss: {
                 if showSummaryAfterSheetDismiss {
                     showSummaryAfterSheetDismiss = false
+                    summaryForReview = appState.activeWorkoutSummary()
                     presentedSheet = .summary
                     return
                 }
-                guard dismissAfterSummary else { return }
+                guard dismissAfterSummary else {
+                    summaryForReview = nil
+                    return
+                }
                 dismissAfterSummary = false
+                summaryForReview = nil
                 dismiss()
             }) { sheet in
                 switch sheet {
                 case .summary:
-                    if let summary = appState.activeWorkoutSummary() {
+                    if let summary = summaryForReview {
                         WorkoutSummaryView(
                             summary: summary,
                             prCandidates: appState.activeWorkoutPRCandidates(),
@@ -162,12 +168,12 @@ struct WorkoutSessionRunView: View {
                             onAutomaticSubmissionChanged: appState.setAutomaticVideoPRSubmission,
                             onExplanationShown: appState.markAutomaticVideoPRExplanationShown
                         ) { effort, notes, videos, _ in
-                            guard let completed = appState.finishActiveWorkout(effort: effort, notes: notes) else { return }
+                            guard let completed = appState.finishActiveWorkout(effort: effort, notes: notes) else { return false }
                             dismissAfterSummary = true
-                            presentedSheet = nil
                             Task {
                                 await appState.submitVideoBackedPRs(for: completed, videoURLsBySetID: videos)
                             }
+                            return true
                         }
                         .environmentObject(appState)
                     }
@@ -329,7 +335,7 @@ struct WorkoutSessionRunView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .background(Color.liftCardRaised)
-        .overlay(alignment: .bottom) { Divider().overlay(Color.white.opacity(0.06)) }
+        .overlay(alignment: .bottom) { Divider().overlay(Color.liftOverlay) }
     }
 
     private var emptyCard: some View {
@@ -407,7 +413,7 @@ struct WorkoutSessionRunView: View {
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(progress.isComplete ? Color.liftGreen.opacity(0.28) : Color.white.opacity(0.06), lineWidth: 1)
+                .stroke(progress.isComplete ? Color.liftGreen.opacity(0.28) : Color.liftOverlay, lineWidth: 1)
         }
         .contentShape(Rectangle())
     }
@@ -435,6 +441,7 @@ struct WorkoutSessionRunView: View {
                         plannedSets: plannedSets
                     )
                 case .ready:
+                    summaryForReview = appState.activeWorkoutSummary()
                     presentedSheet = .summary
                 }
             } label: {

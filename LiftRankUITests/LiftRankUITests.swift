@@ -124,7 +124,7 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(review.waitForExistence(timeout: 5))
         review.tap()
 
-        XCTAssertTrue(app.staticTexts["Workout complete"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Review workout"].waitForExistence(timeout: 5))
         if app.alerts.firstMatch.waitForExistence(timeout: 1) {
             app.alerts.firstMatch.buttons["Keep Private"].tap()
         }
@@ -138,9 +138,65 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(save.waitForExistence(timeout: 5))
         save.tap()
 
+        XCTAssertTrue(app.staticTexts["Workout saved"].exists)
+        let achievements = app.buttons["workout.finish.saved.achievements"]
+        XCTAssertTrue(achievements.waitForExistence(timeout: 5))
+        achievements.tap()
+        XCTAssertTrue(app.staticTexts["All achievements"].waitForExistence(timeout: 5))
+        achievements.tap()
+        let done = app.buttons["workout.finish.saved.done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        done.tap()
+
         XCTAssertTrue(tab("home", in: app).waitForExistence(timeout: 5))
         XCTAssertTrue(finish.waitForNonExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Workout complete"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Review workout"].waitForNonExistence(timeout: 5))
+    }
+
+    func testShortenedPlannedWorkoutSummaryShowsPlanCoverage() {
+        let app = launchDemo(arguments: ["-uiTestingPlannedActiveWorkout"])
+        let resume = app.buttons["home.activeWorkout.resume"]
+        XCTAssertTrue(resume.waitForExistence(timeout: 8))
+        resume.tap()
+
+        let finish = app.buttons["Finish workout"]
+        XCTAssertTrue(finish.waitForExistence(timeout: 5))
+        finish.tap()
+        let review = app.buttons["workout.finish.reviewIncomplete"]
+        XCTAssertTrue(review.waitForExistence(timeout: 5))
+        review.tap()
+
+        XCTAssertTrue(app.staticTexts["Review workout"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Will save shortened session"].exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'planned working sets logged'"))
+            .firstMatch.exists)
+    }
+
+    func testExerciseTrendCanFocusExactSourceSetInWorkoutDetail() {
+        let app = launchDemo(arguments: ["-uiTestingFocusedWorkoutSet"])
+        let track = tab("track", in: app)
+        XCTAssertTrue(track.waitForExistence(timeout: 8))
+        track.tap()
+
+        let focusedSet = app.descendants(matching: .any)["workout.detail.focusedSet"]
+        XCTAssertTrue(focusedSet.waitForExistence(timeout: 8))
+        let focusedSetLabel = app.staticTexts["Set 12"]
+        XCTAssertTrue(focusedSetLabel.exists)
+        XCTAssertTrue(focusedSetLabel.isHittable)
+
+        app.buttons["Done"].tap()
+        app.buttons["tracker.segment.progress"].tap()
+        let categories = app.segmentedControls["tracker.progress.category"]
+        XCTAssertTrue(categories.waitForExistence(timeout: 5))
+        categories.buttons["Strength"].tap()
+        let exercisePicker = app.descendants(matching: .any)["tracker.progress.exercisePicker"]
+        XCTAssertTrue(exercisePicker.waitForExistence(timeout: 5))
+        exercisePicker.tap()
+        app.collectionViews.buttons["Barbell Bench Press"].tap()
+
+        XCTAssertTrue(app.staticTexts["CURRENT EST. 1RM"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Log this exercise in another workout to see an estimated 1RM trend."].exists)
+        XCTAssertFalse(app.staticTexts["INCREASE"].exists)
     }
 
     func testTrackerTodayPrioritizesActiveWorkout() {
@@ -150,6 +206,22 @@ final class LiftRankUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["ACTIVE WORKOUT"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["NEXT WORKOUT"].exists)
+    }
+
+    func testWeeklyTrainingDayGoalCanBeSetOnHomeAndShownInTracker() {
+        let app = launchDemo()
+        let goalMenu = app.buttons["weeklyTrainingGoal.menu"]
+        XCTAssertTrue(goalMenu.waitForExistence(timeout: 8))
+        goalMenu.tap()
+        app.buttons["3 days per week"].tap()
+
+        let homeGoal = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'of 3 training days'")).firstMatch
+        XCTAssertTrue(homeGoal.waitForExistence(timeout: 5))
+        tab("track", in: app).tap()
+        app.buttons["tracker.segment.progress"].tap()
+
+        let trackerGoal = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'of 3 training days'")).firstMatch
+        XCTAssertTrue(trackerGoal.waitForExistence(timeout: 5))
     }
 
     func testSetEntryMovesAcrossRowsAndDismissesKeyboardAfterFinalWeight() {
@@ -166,6 +238,11 @@ final class LiftRankUITests: XCTestCase {
         let firstReps = app.textFields["workout.set.1.reps"]
         let firstWeight = app.textFields["workout.set.1.weight"]
         XCTAssertTrue(firstReps.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons.matching(NSPredicate(
+            format: "label == %@ OR label BEGINSWITH %@",
+            "No previous set values",
+            "Use previous workout values:"
+        )).firstMatch.waitForExistence(timeout: 5))
         firstReps.tap()
         firstReps.typeText("8")
         XCTAssertTrue(keyboardAction.waitForExistence(timeout: 3))
@@ -243,6 +320,25 @@ final class LiftRankUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Active plan")).firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Workout program library")).firstMatch.waitForExistence(timeout: 5))
+
+        let planOptions = app.buttons["Plan detail options"]
+        XCTAssertTrue(planOptions.waitForExistence(timeout: 5))
+        planOptions.tap()
+        app.buttons["Plan Overview"].tap()
+        XCTAssertTrue(app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "workouts have every exercise logged")
+        ).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "planned sets logged")
+        ).firstMatch.exists)
+        XCTAssertTrue(app.buttons.matching(
+            NSPredicate(
+                format: "label BEGINSWITH %@ OR label BEGINSWITH %@ OR label BEGINSWITH %@",
+                "Start next workout:",
+                "Review unfinished week:",
+                "Add next week"
+            )
+        ).firstMatch.exists)
     }
 
     func testTrackerPlansOpenPerformance() {
@@ -290,7 +386,7 @@ final class LiftRankUITests: XCTestCase {
         measure(metrics: [XCTClockMetric()], options: options) {
             let today = app.buttons["tracker.segment.today"]
             today.tap()
-            XCTAssertTrue(app.staticTexts["Ready to train?"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts["Today's training"].waitForExistence(timeout: 5))
             let progress = app.buttons["tracker.segment.progress"]
             XCTAssertTrue(progress.waitForExistence(timeout: 5))
 
@@ -298,6 +394,15 @@ final class LiftRankUITests: XCTestCase {
             progress.tap()
             XCTAssertTrue(app.staticTexts["Workout calendar"].waitForExistence(timeout: 5))
             stopMeasuring()
+
+            let categories = app.segmentedControls["tracker.progress.category"]
+            XCTAssertTrue(categories.exists)
+            categories.buttons["Strength"].tap()
+            XCTAssertTrue(app.staticTexts["Strength"].exists)
+            categories.buttons["Muscle"].tap()
+            XCTAssertTrue(app.staticTexts["Four-week working sets by muscle"].exists)
+            categories.buttons["Consistency"].tap()
+            XCTAssertTrue(app.staticTexts["Program consistency"].exists)
         }
     }
 

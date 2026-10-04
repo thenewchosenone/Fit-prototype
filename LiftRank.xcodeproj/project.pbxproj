@@ -120,6 +120,8 @@
 		100000000000000000000154 /* Features/TrainingTracker/TrainingTrackerLibraryComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000298 /* Features/TrainingTracker/TrainingTrackerLibraryComponents.swift */; };
 		100000000000000000000155 /* Features/Profile/ProfileLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000299 /* Features/Profile/ProfileLogic.swift */; };
 		100000000000000000000156 /* Features/Leaderboard/LeaderboardsLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000300 /* Features/Leaderboard/LeaderboardsLogic.swift */; };
+		100000000000000000000161 /* Features/Community/ForumStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000304 /* Features/Community/ForumStore.swift */; };
+		100000000000000000000162 /* Features/Community/ReportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000305 /* Features/Community/ReportViews.swift */; };
 		100000000000000000000157 /* Features/Training/Library/ExerciseCatalogIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000301 /* Features/Training/Library/ExerciseCatalogIcon.swift */; };
 		100000000000000000000158 /* Features/Training/Library/ExerciseLibraryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000302 /* Features/Training/Library/ExerciseLibraryDetailView.swift */; };
 		100000000000000000000159 /* Features/Training/Library/ExerciseMuscleMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000303 /* Features/Training/Library/ExerciseMuscleMapView.swift */; };
@@ -288,6 +290,8 @@
 		200000000000000000000301 /* Features/Training/Library/ExerciseCatalogIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Library/ExerciseCatalogIcon.swift; sourceTree = "<group>"; };
 		200000000000000000000302 /* Features/Training/Library/ExerciseLibraryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Library/ExerciseLibraryDetailView.swift; sourceTree = "<group>"; };
 		200000000000000000000303 /* Features/Training/Library/ExerciseMuscleMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Library/ExerciseMuscleMapView.swift; sourceTree = "<group>"; };
+		200000000000000000000304 /* Features/Community/ForumStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/ForumStore.swift; sourceTree = "<group>"; };
+		200000000000000000000305 /* Features/Community/ReportViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/ReportViews.swift; sourceTree = "<group>"; };
 		200000000000000000000311 /* WorkoutPresentationFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPresentationFormattingTests.swift; sourceTree = "<group>"; };
 		200000000000000000000312 /* Core/DesignSystem/MeasurementFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DesignSystem/MeasurementFormatting.swift; sourceTree = "<group>"; };
 		200000000000000000000313 /* Core/DesignSystem/RankingFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DesignSystem/RankingFormatting.swift; sourceTree = "<group>"; };
@@ -402,6 +406,8 @@
 				200000000000000000000301 /* Features/Training/Library/ExerciseCatalogIcon.swift */,
 				200000000000000000000302 /* Features/Training/Library/ExerciseLibraryDetailView.swift */,
 				200000000000000000000303 /* Features/Training/Library/ExerciseMuscleMapView.swift */,
+				200000000000000000000304 /* Features/Community/ForumStore.swift */,
+				200000000000000000000305 /* Features/Community/ReportViews.swift */,
 				200000000000000000000045 /* Features/Training/Summary/WorkoutSummaryView.swift */,
 				200000000000000000000046 /* Features/Training/CompletedWorkout/CompletedWorkoutDetailView.swift */,
 				200000000000000000000047 /* Features/Training/ActiveWorkout/ActiveWorkoutAddExercisePickerView.swift */,
@@ -700,6 +706,8 @@
 				100000000000000000000157 /* Features/Training/Library/ExerciseCatalogIcon.swift in Sources */,
 				100000000000000000000158 /* Features/Training/Library/ExerciseLibraryDetailView.swift in Sources */,
 				100000000000000000000159 /* Features/Training/Library/ExerciseMuscleMapView.swift in Sources */,
+				100000000000000000000161 /* Features/Community/ForumStore.swift in Sources */,
+				100000000000000000000162 /* Features/Community/ReportViews.swift in Sources */,
 				100000000000000000000042 /* Features/Training/Summary/WorkoutSummaryView.swift in Sources */,
 				100000000000000000000043 /* Features/Training/CompletedWorkout/CompletedWorkoutDetailView.swift in Sources */,
 				100000000000000000000044 /* Features/Training/ActiveWorkout/ActiveWorkoutAddExercisePickerView.swift in Sources */,
@@ -922,7 +930,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = LiftRankApp/LiftRankDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 32TGWTQNP8;
 				ENABLE_PREVIEWS = YES;
@@ -955,7 +963,7 @@
 				CODE_SIGN_ENTITLEMENTS = LiftRankApp/LiftRank.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 32TGWTQNP8;
 				ENABLE_CODE_COVERAGE = NO;

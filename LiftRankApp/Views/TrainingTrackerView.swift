@@ -13,6 +13,9 @@ struct TrainingTrackerView: View {
     @State var selectedSessionToRun: WorkoutSession?
     @State var pendingSessionToStart: WorkoutSession?
     @State var pendingFreestyleStart = false
+    @State var pendingWorkoutHistoryDate: Date?
+    @State var workoutDateToLog = Date.now
+    @State var showingWorkoutDatePicker = false
     @State var showingActiveWorkout = false
     @State var showingWorkoutConflict = false
     @State var showingCreatePlan = false
@@ -29,9 +32,14 @@ struct TrainingTrackerView: View {
     @State var showingProgressionEditor = false
     @State var selectedBodyweightEntry: BodyweightEntry?
     @State var selectedCompletedWorkout: CompletedWorkout?
+    @State var focusedWorkoutSetID: UUID?
+    @State var didOpenUITestFocusedWorkoutSet = false
     @State var workoutHistoryMonth = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
     @State var selectedWorkoutHistoryDate: Date?
     @State var selectedProgressExerciseID: String?
+    @State var selectedProgressCategory: TrackerProgressCategory = .consistency
+    @State var selectedExerciseWeightTrendDate: Date?
+    @State var selectedExerciseStrengthTrendDate: Date?
     @State var selectedPlateauInsight: PlateauInsight?
     @State var selectedVolumeWeek: VolumeWeekSelection = .thisWeek
     @AppStorage("liftrank.dismissedPlateauInsights") var dismissedPlateauInsightIDs = ""

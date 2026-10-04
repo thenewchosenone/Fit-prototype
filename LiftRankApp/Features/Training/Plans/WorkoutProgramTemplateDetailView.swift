@@ -143,7 +143,7 @@ struct WorkoutProgramTemplateDetailView: View {
                         .multilineTextAlignment(.trailing)
                         .frame(width: 88)
                         .padding(9)
-                        .background(Color.black.opacity(0.18))
+                        .background(Color.liftScrim)
                         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                     Text(appState.currentProfile.preferredUnit.shortLabel)
                         .font(.caption)
@@ -217,7 +217,7 @@ struct WorkoutProgramTemplateDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                .stroke(Color.liftOverlay.opacity(0.75), lineWidth: 1)
         }
     }
 
@@ -317,7 +317,7 @@ struct WorkoutProgramTemplateDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(isExpanded ? Color.liftBlue.opacity(0.28) : Color.white.opacity(0.06), lineWidth: 1)
+                .stroke(isExpanded ? Color.liftBlue.opacity(0.28) : Color.liftOverlay, lineWidth: 1)
         }
     }
 
@@ -449,7 +449,7 @@ struct WorkoutProgramProgressionEditorView: View {
                                             .multilineTextAlignment(.trailing)
                                             .frame(width: 88)
                                             .padding(9)
-                                            .background(Color.black.opacity(0.18))
+                                            .background(Color.liftScrim)
                                             .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                                         }
                                     }

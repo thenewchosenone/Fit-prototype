@@ -146,7 +146,7 @@ struct LeaderboardMetricStrip: View {
 
     private var divider: some View {
         Rectangle()
-            .fill(Color.white.opacity(0.08))
+            .fill(Color.liftOverlay)
             .frame(width: 1, height: 38)
     }
 }
@@ -180,7 +180,7 @@ struct LeaderboardTabBar: View {
             .padding(.horizontal, 16)
         }
         .overlay(alignment: .bottom) {
-            Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1)
+            Rectangle().fill(Color.liftOverlay).frame(height: 1)
         }
     }
 }
@@ -234,7 +234,7 @@ struct LeaderboardTableHeader: View {
         .padding(.vertical, 9)
         .background(Color.liftBackground.opacity(0.97))
         .overlay(alignment: .bottom) {
-            Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
+            Rectangle().fill(Color.liftOverlay).frame(height: 1)
         }
         .accessibilityLabel("\(resultCount) ranked \(resultCount == 1 ? "lifter" : "lifters")")
     }
@@ -495,7 +495,7 @@ struct LeaderboardOptionSheet: View {
                                 .buttonStyle(.plain)
                                 .accessibilityIdentifier("option.\(option.id)")
                                 .accessibilityAddTraits(option.id == selectedID ? .isSelected : [])
-                                Divider().overlay(Color.white.opacity(0.07)).padding(.leading, 56)
+                                Divider().overlay(Color.liftOverlay).padding(.leading, 56)
                             }
                         }
                         .padding(.bottom, 12)

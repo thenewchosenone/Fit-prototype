@@ -91,7 +91,7 @@ struct TrainingPlansView: View {
 
                     if index < appState.workoutPlans.count - 1 {
                         Divider()
-                            .overlay(Color.white.opacity(0.07))
+                            .overlay(Color.liftOverlay)
                             .padding(.leading, 54)
                     }
                 }
@@ -100,7 +100,7 @@ struct TrainingPlansView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    .stroke(Color.liftOverlay, lineWidth: 1)
             }
         }
     }
@@ -277,7 +277,7 @@ struct TrainingPlansView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                                    .stroke(Color.liftOverlay, lineWidth: 1)
                             }
                             .contentShape(Rectangle())
                         }

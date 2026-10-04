@@ -127,7 +127,7 @@ private struct ProfileVideoThumbnail: View {
                     .font(.title2)
                     .foregroundStyle(Color.liftMuted)
             }
-            Color.black.opacity(0.18)
+            Color.liftScrim
             Image(systemName: "play.fill")
                 .font(.headline.weight(.bold))
                 .foregroundStyle(.white)

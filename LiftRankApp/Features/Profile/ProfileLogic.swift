@@ -50,9 +50,9 @@ extension ProfileView {
                     }
                     .buttonStyle(.plain)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(profile.displayName)
+                        Text(profile.displayName.isEmpty ? "Your profile" : profile.displayName)
                             .font(.title3.weight(.bold))
-                        Text("@\(profile.username)")
+                        Text(profile.username.isEmpty ? "Add a username" : "@\(profile.username)")
                             .font(.subheadline)
                             .foregroundStyle(Color.liftMuted)
                     }
@@ -83,6 +83,14 @@ extension ProfileView {
                 Text("\(profile.yearsExperience) \(profile.yearsExperience == 1 ? "year" : "years") training")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
+                if isCurrentUser && (profile.displayName.isEmpty || profile.username.isEmpty) {
+                    Button("Complete profile") {
+                        appState.showingEditProfile = true
+                    }
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.liftAccentText)
+                    .frame(minHeight: LiftDesign.minimumTouchTarget, alignment: .leading)
+                }
             }
         }
     }
@@ -127,43 +135,56 @@ extension ProfileView {
         )
         return VStack(alignment: .leading, spacing: 10) {
             CompactSectionHeader(title: "Strength")
-            LiftCard {
-                VStack(spacing: 12) {
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("THREE-LIFT TOTAL")
-                                .font(.caption2.weight(.bold))
-                                .tracking(0.8)
-                                .foregroundStyle(Color.liftMuted)
-                            Text(profileTotalText)
-                                .font(.title2.weight(.bold))
+            if totalPounds <= 0 {
+                LiftEmptyState(
+                    title: "No ranked lifts yet",
+                    message: isCurrentUser
+                        ? "Submit an eligible bench press, squat, or deadlift to build your strength total."
+                        : "This athlete has no eligible three-lift total yet.",
+                    symbolName: "dumbbell.fill",
+                    actionTitle: isCurrentUser ? "Submit lift" : nil,
+                    action: isCurrentUser ? { appState.showingSubmitSheet = true } : nil,
+                    compact: true
+                )
+            } else {
+                LiftCard {
+                    VStack(spacing: 12) {
+                        HStack(alignment: .firstTextBaseline) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("THREE-LIFT TOTAL")
+                                    .font(.caption2.weight(.bold))
+                                    .tracking(0.8)
+                                    .foregroundStyle(Color.liftMuted)
+                                Text(profileTotalText)
+                                    .font(.title2.weight(.bold))
+                            }
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 3) {
+                                Text("SCORE")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(Color.liftMuted)
+                                Text(canonicalScoreText)
+                                    .font(.headline.weight(.bold))
+                                    .foregroundStyle(Color.liftAccentText)
+                            }
                         }
-                        Spacer()
-                        VStack(alignment: .trailing, spacing: 3) {
-                            Text("SCORE")
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(Color.liftMuted)
-                            Text(canonicalScoreText)
-                                .font(.headline.weight(.bold))
-                                .foregroundStyle(Color.liftAccentText)
+                        Divider().overlay(Color.liftSeparator)
+                        HStack(spacing: 0) {
+                            strengthMetric("Bench", liftValue("bench", presentation: presentation))
+                            profileDivider
+                            strengthMetric("Squat", liftValue("squat", presentation: presentation))
+                            profileDivider
+                            strengthMetric("Deadlift", liftValue("deadlift", presentation: presentation))
                         }
-                    }
-                    Divider().overlay(Color.liftSeparator)
-                    HStack(spacing: 0) {
-                        strengthMetric("Bench", liftValue("bench", presentation: presentation))
-                        profileDivider
-                        strengthMetric("Squat", liftValue("squat", presentation: presentation))
-                        profileDivider
-                        strengthMetric("Deadlift", liftValue("deadlift", presentation: presentation))
-                    }
-                    Divider().overlay(Color.liftSeparator)
-                    HStack {
-                        Text("Relative total")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
-                        Spacer()
-                        Text(profile.hideBodyweight ? "Hidden" : relativeTotalText)
-                            .font(.subheadline.weight(.semibold))
+                        Divider().overlay(Color.liftSeparator)
+                        HStack {
+                            Text("Relative total")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                            Spacer()
+                            Text(profile.hideBodyweight ? "Hidden" : relativeTotalText)
+                                .font(.subheadline.weight(.semibold))
+                        }
                     }
                 }
             }
@@ -338,13 +359,15 @@ extension ProfileView {
     }
 
     var trainingHistory: some View {
-        let workouts = appState.completedWorkouts.sorted { $0.completedAt > $1.completedAt }
+        let workouts = isCurrentUser
+            ? appState.completedWorkouts.sorted { $0.completedAt > $1.completedAt }
+            : []
         return VStack(alignment: .leading, spacing: 10) {
             CompactSectionHeader(title: "Training history")
             if workouts.isEmpty {
                 LiftEmptyState(
                     title: "No completed workouts yet",
-                    message: isCurrentUser ? "Complete a training session to build your history." : "This athlete has not shared completed workouts.",
+                    message: isCurrentUser ? "Complete a training session to build your history." : "Workout history is not shown on public profiles.",
                     symbolName: "calendar"
                 )
             } else {

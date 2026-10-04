@@ -18,6 +18,7 @@ protocol ActiveWorkoutRepository: AnyObject {
         gymID: UUID?,
         bodyweight: Double?,
         unit: UnitSystem,
+        historyDate: Date?,
         at startedAt: Date
     ) -> ActiveWorkoutState?
 
@@ -27,6 +28,7 @@ protocol ActiveWorkoutRepository: AnyObject {
         gymID: UUID?,
         bodyweight: Double?,
         unit: UnitSystem,
+        historyDate: Date?,
         at startedAt: Date
     ) -> ActiveWorkoutState?
 

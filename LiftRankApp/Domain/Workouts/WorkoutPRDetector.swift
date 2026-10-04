@@ -128,12 +128,14 @@ enum WorkoutProgressPresentation {
         preferredUnit: UnitSystem
     ) -> [ExerciseProgressPoint] {
         completedWorkouts.flatMap { workout -> [ExerciseProgressPoint] in
-            let matchingIDs = Set(workout.exercises.compactMap { exercise -> UUID? in
+            let targetRepsByPrescriptionID = Dictionary(uniqueKeysWithValues: workout.exercises.compactMap { exercise -> (UUID, String)? in
                 guard exercise.exerciseID == exerciseID else { return nil }
                 let rawTrackingType = exercise.trackingType ??
                     MockData.trainingExerciseLibrary.first { $0.id == exercise.exerciseID }?.trackingType
-                return ExerciseTrackingKind(rawTrackingType ?? "Weight + Reps") == .weightReps ? exercise.id : nil
+                guard ExerciseTrackingKind(rawTrackingType ?? "Weight + Reps") == .weightReps else { return nil }
+                return (exercise.id, exercise.targetReps)
             })
+            let matchingIDs = Set(targetRepsByPrescriptionID.keys)
             return workout.sets.compactMap { set in
                 guard matchingIDs.contains(set.prescriptionID),
                       set.isComplete,
@@ -146,7 +148,9 @@ enum WorkoutProgressPresentation {
                     date: workout.completedAt,
                     weight: MeasurementFormatting.convert(weight, from: set.recordedUnit, to: preferredUnit),
                     reps: reps,
-                    unit: preferredUnit
+                    unit: preferredUnit,
+                    workoutID: workout.id,
+                    targetReps: targetRepsByPrescriptionID[set.prescriptionID]
                 )
             }
         }

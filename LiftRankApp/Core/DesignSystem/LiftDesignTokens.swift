@@ -97,6 +97,14 @@ extension Color {
         light: UIColor.black.withAlphaComponent(0.09),
         dark: UIColor(red: 1, green: 1, blue: 1, alpha: 0.12)
     )
+    static let liftOverlay = semantic(
+        light: UIColor.black.withAlphaComponent(0.06),
+        dark: UIColor.white.withAlphaComponent(0.08)
+    )
+    static let liftScrim = semantic(
+        light: UIColor.black.withAlphaComponent(0.18),
+        dark: UIColor.black.withAlphaComponent(0.34)
+    )
     static let liftField = semantic(
         light: UIColor(red: 0.94, green: 0.948, blue: 0.965, alpha: 1),
         dark: UIColor(red: 0x14 / 255, green: 0x16 / 255, blue: 0x1B / 255, alpha: 1)

@@ -4,8 +4,14 @@ struct CompletedWorkoutDetailView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     let workout: CompletedWorkout
+    @Binding var focusedSetID: UUID?
     @State private var showingDeleteConfirmation = false
     @State private var editingWorkout: CompletedWorkout?
+
+    init(workout: CompletedWorkout, focusedSetID: Binding<UUID?> = .constant(nil)) {
+        self.workout = workout
+        self._focusedSetID = focusedSetID
+    }
 
     var body: some View {
         let presentation = appState.completedWorkoutPresentation(for: workout)
@@ -15,96 +21,118 @@ struct CompletedWorkoutDetailView: View {
         let trackingKinds = presentation.trackingKinds
         return NavigationStack {
             AppBackground {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(displayedWorkout.name)
-                                .font(.title2.weight(.black))
-                            Text(LiftTimeFormatter.shortDateTime(displayedWorkout.completedAt))
-                                .font(.subheadline)
-                                .foregroundStyle(Color.liftMuted)
-                            HStack(spacing: 8) {
-                                detailMetric("Duration", MeasurementFormatting.shortDurationText(displayedWorkout.duration), "timer")
-                                detailMetric("Sets", "\(displayedWorkout.completedWorkingSets.count)", "checkmark.circle")
-                                detailMetric("Volume", MeasurementFormatting.formatRecordedWeight(displayedWorkout.totalVolume, unit: displayedWorkout.unit), "scalemass")
+                ScrollViewReader { scrollProxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(displayedWorkout.name)
+                                    .font(.title2.weight(.black))
+                                Text(LiftTimeFormatter.shortDateTime(displayedWorkout.completedAt))
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.liftMuted)
+                                HStack(spacing: 8) {
+                                    detailMetric("Duration", MeasurementFormatting.shortDurationText(displayedWorkout.duration), "timer")
+                                    detailMetric("Sets", "\(displayedWorkout.completedWorkingSets.count)", "checkmark.circle")
+                                    detailMetric("Volume", MeasurementFormatting.formatRecordedWeight(displayedWorkout.totalVolume, unit: displayedWorkout.unit), "scalemass")
+                                }
                             }
-                        }
-                        .padding(14)
-                        .liftSurface()
+                            .padding(14)
+                            .liftSurface()
 
-                        ForEach(exercises) { exercise in
-                            let trackingKind = trackingKinds[exercise.exerciseID] ?? .weightReps
-                            let sets = completedSetsByExercise[exercise.id] ?? []
-                            if !sets.isEmpty {
-                                let muscleProfile = exercise.muscleProfile ?? ExerciseMuscleProfileResolver.profile(
-                                    name: exercise.exerciseName,
-                                    bodyPart: exercise.bodyPart
-                                )
-                                VStack(alignment: .leading, spacing: 10) {
-                                    HStack(spacing: 10) {
-                                        ExerciseMuscleMap(
-                                            profile: muscleProfile,
-                                            displayStyle: .compact
-                                        )
-                                            .frame(width: 46, height: 46)
-                                            .accessibilityHidden(true)
-                                        VStack(alignment: .leading, spacing: 3) {
-                                            Text(exercise.exerciseName)
-                                                .font(.headline.weight(.bold))
-                                            Text(muscleProfile.primaryDescription)
-                                                .font(.caption)
-                                                .foregroundStyle(Color.liftMuted)
-                                        }
-                                        Spacer()
-                                    }
-                                    ForEach(sets) { set in
-                                        HStack {
-                                            Text(set.isWarmup ? "Warmup \(set.setNumber)" : "Set \(set.setNumber)")
-                                                .foregroundStyle(set.isWarmup ? Color.liftGold : Color.liftMuted)
+                            ForEach(exercises) { exercise in
+                                let trackingKind = trackingKinds[exercise.exerciseID] ?? .weightReps
+                                let sets = completedSetsByExercise[exercise.id] ?? []
+                                if !sets.isEmpty {
+                                    let muscleProfile = exercise.muscleProfile ?? ExerciseMuscleProfileResolver.profile(
+                                        name: exercise.exerciseName,
+                                        bodyPart: exercise.bodyPart
+                                    )
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        HStack(spacing: 10) {
+                                            ExerciseMuscleMap(
+                                                profile: muscleProfile,
+                                                displayStyle: .compact
+                                            )
+                                                .frame(width: 46, height: 46)
+                                                .accessibilityHidden(true)
+                                            VStack(alignment: .leading, spacing: 3) {
+                                                Text(exercise.exerciseName)
+                                                    .font(.headline.weight(.bold))
+                                                Text(muscleProfile.primaryDescription)
+                                                    .font(.caption)
+                                                    .foregroundStyle(Color.liftMuted)
+                                            }
                                             Spacer()
-                                            Text(MeasurementFormatting.workoutSetText(set: set, trackingKind: trackingKind))
-                                                .font(.subheadline.weight(.bold).monospacedDigit())
-                                            if let rpe = set.rpe {
-                                                Text("@ \(rpe)")
-                                                    .font(.caption.weight(.bold))
-                                                    .foregroundStyle(Color.liftAccentText)
+                                        }
+                                        ForEach(sets) { set in
+                                            HStack {
+                                                Text(set.isWarmup ? "Warmup \(set.setNumber)" : "Set \(set.setNumber)")
+                                                    .foregroundStyle(set.isWarmup ? Color.liftGold : Color.liftMuted)
+                                                Spacer()
+                                                Text(MeasurementFormatting.workoutSetText(set: set, trackingKind: trackingKind))
+                                                    .font(.subheadline.weight(.bold).monospacedDigit())
+                                                if let rpe = set.rpe {
+                                                    Text("@ \(rpe)")
+                                                        .font(.caption.weight(.bold))
+                                                        .foregroundStyle(Color.liftAccentText)
+                                                }
+                                            }
+                                            .font(.subheadline)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 5)
+                                            .background(set.id == focusedSetID ? Color.liftGreen.opacity(0.18) : .clear)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                            .id(set.id)
+                                            .accessibilityIdentifier(
+                                                set.id == focusedSetID
+                                                    ? "workout.detail.focusedSet"
+                                                    : "workout.detail.set.\(set.id.uuidString)"
+                                            )
+                                            if set.id != sets.last?.id {
+                                                Divider().overlay(Color.liftOverlay)
                                             }
                                         }
-                                        .font(.subheadline)
-                                        if set.id != sets.last?.id {
-                                            Divider().overlay(Color.white.opacity(0.06))
-                                        }
                                     }
+                                    .padding(14)
+                                    .liftSurface()
+                                }
+                            }
+
+                            if !displayedWorkout.notes.isEmpty {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("Notes")
+                                        .font(.headline.weight(.bold))
+                                    Text(displayedWorkout.notes)
+                                        .font(.subheadline)
+                                        .foregroundStyle(Color.liftMuted)
                                 }
                                 .padding(14)
                                 .liftSurface()
                             }
-                        }
 
-                        if !displayedWorkout.notes.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Notes")
-                                    .font(.headline.weight(.bold))
-                                Text(displayedWorkout.notes)
-                                    .font(.subheadline)
+                            if !displayedWorkout.linkedSubmissionIDs.isEmpty {
+                                Label("\(displayedWorkout.linkedSubmissionIDs.count) public lift submission linked. Deleting this history entry will not delete it.", systemImage: "link")
+                                    .font(.caption.weight(.semibold))
                                     .foregroundStyle(Color.liftMuted)
+                                    .padding(14)
+                                    .liftSurface()
                             }
-                            .padding(14)
-                            .liftSurface()
                         }
-
-                        if !displayedWorkout.linkedSubmissionIDs.isEmpty {
-                            Label("\(displayedWorkout.linkedSubmissionIDs.count) public lift submission linked. Deleting this history entry will not delete it.", systemImage: "link")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(Color.liftMuted)
-                                .padding(14)
-                                .liftSurface()
-                        }
-
+                        .padding(16)
                     }
-                    .padding(16)
+                    .scrollIndicators(.hidden)
+                    .task(id: focusedSetID) {
+                        guard let focusedSetID else { return }
+                        do {
+                            try await Task.sleep(for: .milliseconds(250))
+                        } catch {
+                            return
+                        }
+                        withAnimation(.snappy) {
+                            scrollProxy.scrollTo(focusedSetID, anchor: .center)
+                        }
+                    }
                 }
-                .scrollIndicators(.hidden)
             }
             .navigationTitle("Workout details")
             .navigationBarTitleDisplayMode(.inline)

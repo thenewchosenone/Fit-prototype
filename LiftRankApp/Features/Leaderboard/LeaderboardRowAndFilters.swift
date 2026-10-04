@@ -117,7 +117,7 @@ struct LeaderboardFiltersView: View {
             return location == "Location missing" ? nil : location
         }
         let gymLocations = appState.gyms.map { "\($0.city), \($0.state)" }
-        return Array(Set(profileLocations + gymLocations)).sorted().prefix(14).map { $0 }
+        return Array(Set(profileLocations + gymLocations)).sorted()
     }
 
     private var resultCount: Int {

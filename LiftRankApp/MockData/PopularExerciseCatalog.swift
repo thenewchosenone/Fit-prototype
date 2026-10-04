@@ -41,17 +41,23 @@ enum PopularExerciseCatalog {
         ("machine_plate_loaded_chest_press", "Plate-Loaded Chest Press", "Chest", "Push", "6-10"),
         ("machine_incline_chest_press", "Incline Chest Press Machine", "Upper Chest", "Push", "8-12"),
         ("machine_decline_chest_press", "Decline Chest Press Machine", "Chest", "Push", "8-12"),
+        ("machine_iso_lateral_incline_press", "Iso-Lateral Incline Press", "Upper Chest", "Push", "8-12"),
+        ("machine_iso_lateral_decline_press", "Iso-Lateral Decline Press", "Chest", "Push", "8-12"),
+        ("machine_iso_lateral_shoulder_press", "Iso-Lateral Shoulder Press", "Shoulders", "Push", "8-12"),
         ("machine_iso_lateral_chest_press", "Iso-Lateral Chest Press", "Chest", "Push", "8-12"),
         ("machine_assisted_dip", "Assisted Dip Machine", "Chest/Triceps", "Push", "8-12"),
         ("machine_assisted_pull_up", "Assisted Pull-Up Machine", "Lats", "Pull", "6-10"),
         ("machine_high_row", "High Row Machine", "Upper Back", "Pull", "8-12"),
         ("machine_low_row", "Low Row Machine", "Back", "Pull", "8-12"),
+        ("machine_iso_lateral_high_row", "Iso-Lateral High Row", "Upper Back", "Pull", "8-12"),
+        ("machine_iso_lateral_low_row", "Iso-Lateral Low Row", "Back", "Pull", "8-12"),
         ("machine_iso_lateral_row", "Iso-Lateral Row", "Back", "Pull", "8-12"),
         ("machine_t_bar_row", "T-Bar Row Machine", "Back", "Pull", "6-10"),
         ("machine_pullover", "Pullover Machine", "Lats", "Pull", "8-12"),
         ("machine_wide_grip_pulldown", "Wide-Grip Pulldown Machine", "Lats", "Pull", "8-12"),
         ("machine_neutral_grip_pulldown", "Neutral-Grip Pulldown Machine", "Lats", "Pull", "8-12"),
         ("machine_reverse_grip_pulldown", "Reverse-Grip Pulldown Machine", "Lats/Biceps", "Pull", "8-12"),
+        ("machine_iso_lateral_front_pulldown", "Iso-Lateral Front Pulldown", "Lats", "Pull", "8-12"),
         ("machine_lateral_raise", "Lateral Raise Machine", "Shoulders", "Push", "10-15"),
         ("machine_reverse_pec_deck", "Reverse Pec Deck", "Rear Delts", "Pull", "10-15"),
         ("machine_seated_biceps_curl", "Seated Biceps Curl Machine", "Biceps", "Arms", "8-12"),
@@ -351,12 +357,18 @@ enum PopularExerciseCatalog {
         "machine_ground_base_squat": ["Hammer Strength Ground Base Multi-Squat", "Hammer Multi Squat"],
         "machine_ground_base_rotational_twist": ["Hammer Strength Combo Twist", "Hammer Combo Twist"],
         "machine_plate_loaded_chest_press": ["Hammer Strength Bench Press", "Hammer Iso-Lateral Bench Press"],
-        "machine_incline_chest_press": ["Hammer Strength Incline Press", "Hammer Iso-Lateral Incline Press"],
-        "machine_decline_chest_press": ["Hammer Strength Decline Press", "Hammer Iso-Lateral Decline Press"],
+        "machine_incline_chest_press": ["Hammer Strength Incline Press"],
+        "machine_decline_chest_press": ["Hammer Strength Decline Press"],
+        "machine_iso_lateral_incline_press": ["Hammer Strength Iso-Lateral Incline Press", "Hammer Iso-Lateral Incline Press"],
+        "machine_iso_lateral_decline_press": ["Hammer Strength Iso-Lateral Decline Press", "Hammer Iso-Lateral Decline Press"],
+        "machine_iso_lateral_shoulder_press": ["Hammer Strength Iso-Lateral Shoulder Press", "Hammer Iso-Lateral Shoulder Press"],
         "machine_iso_lateral_chest_press": ["Hammer Strength Iso-Lateral Chest Press", "Hammer Iso Chest Press"],
-        "machine_high_row": ["Hammer Strength High Row", "Hammer Iso-Lateral High Row"],
-        "machine_low_row": ["Hammer Strength Low Row", "Hammer Iso-Lateral Low Row"],
+        "machine_high_row": ["Hammer Strength High Row"],
+        "machine_low_row": ["Hammer Strength Low Row"],
+        "machine_iso_lateral_high_row": ["Hammer Strength Iso-Lateral High Row", "Hammer Iso-Lateral High Row"],
+        "machine_iso_lateral_low_row": ["Hammer Strength Iso-Lateral Low Row", "Hammer Iso-Lateral Low Row"],
         "machine_iso_lateral_row": ["Hammer Strength Iso-Lateral Row", "Hammer Strength Row"],
+        "machine_iso_lateral_front_pulldown": ["Hammer Strength Iso-Lateral Front Pulldown", "Hammer Iso-Lateral Front Pulldown"],
         "machine_pullover": ["Hammer Strength Pullover", "Hammer Pullover"],
         "machine_wide_grip_pulldown": ["Hammer Strength Wide Pulldown", "Hammer Wide Pulldown"],
         "machine_lateral_raise": ["Hammer Strength Lateral Raise"],
@@ -398,13 +410,22 @@ enum PopularExerciseCatalog {
         if exerciseID == "machine_back_extension" { return "figure.flexibility" }
         if exerciseID == "band_face_pull" { return "arrow.left.and.right" }
         if exerciseID == "band_lat_pulldown" { return "figure.climbing" }
-        if exerciseID.contains("leg_press") || exerciseID.contains("leg_extension") || exerciseID.contains("leg_curl") { return "figure.strengthtraining.functional" }
+        if exerciseID == "machine_front_lat_pulldown" { return "figure.climbing" }
+        if exerciseID.contains("face_pull") { return "figure.arms.open" }
+        if exerciseID.contains("external_rotation") || exerciseID.contains("internal_rotation") { return "arrow.triangle.2.circlepath" }
+        if exerciseID.contains("front_raise") { return "arrow.up" }
+        if exerciseID.contains("overhead_press") || exerciseID.contains("shoulder_press") || exerciseID.contains("push_press") { return "arrow.up.circle" }
+        if exerciseID.contains("calf_raise") { return "arrow.up" }
+        if exerciseID.contains("leg_press") { return "figure.seated.side" }
+        if exerciseID.contains("leg_extension") || exerciseID.contains("leg_curl") { return "figure.strengthtraining.functional" }
         if exerciseID.contains("pull_up") || exerciseID.contains("chin_up") || exerciseID.contains("muscle_up") { return "figure.climbing" }
         if exerciseID.contains("pulldown") || exerciseID.contains("pull_over") { return "arrow.down.to.line.compact" }
         if exerciseID == "barbell_row" || exerciseID.contains("chest_supported") || exerciseID.contains("seal_row") || exerciseID.contains("renegade_row") { return "figure.rower" }
         if exerciseID.contains("cable_row") || exerciseID.contains("seated_row") { return "arrow.left.arrow.right" }
         if exerciseID.contains("row") { return "figure.rower" }
-        if exerciseID.contains("fly") || exerciseID.contains("crossover") || exerciseID.contains("lateral_raise") || exerciseID.contains("rear_delt") { return "arrow.left.and.right" }
+        if exerciseID.contains("fly") || exerciseID.contains("lateral_raise") || exerciseID.contains("rear_delt") { return "figure.arms.open" }
+        if exerciseID.contains("crossover") { return "arrow.left.and.right" }
+        if exerciseID.contains("crunch") { return "figure.core.training" }
         if exerciseID.contains("crunch") || exerciseID.contains("wood_chop") || exerciseID.contains("pallof") { return "arrow.down.to.line.compact" }
         if value.contains("quad") || value.contains("hamstring") || value.contains("glute") || value.contains("calf") || value.contains("leg") { return "figure.strengthtraining.functional" }
         if value.contains("chest") || value.contains("shoulder") || value.contains("tricep") || value.contains("bicep") { return "figure.strengthtraining.traditional" }

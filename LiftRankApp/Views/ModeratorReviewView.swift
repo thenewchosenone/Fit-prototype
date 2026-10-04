@@ -77,7 +77,7 @@ struct ModeratorReviewView: View {
                 TextField("Moderator note", text: $note, axis: .vertical)
                     .lineLimit(2...4)
                     .padding(12)
-                    .background(Color.black.opacity(0.18))
+                    .background(Color.liftScrim)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 HStack {
                     Button("Approve") {

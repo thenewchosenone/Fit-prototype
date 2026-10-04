@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum SettingsSection: String, Hashable {
     case units
@@ -16,12 +17,15 @@ struct SettingsView: View {
     @State private var hideExactAge = false
     @State private var hideLocation = false
     @State private var hideLiftVideos = false
-    @State private var allowComments = true
-    @State private var notificationPreferences = true
     @State private var privacy = ProfilePrivacySettings()
     @AppStorage("liftrank.appearance") private var appearance = LiftAppearance.system.rawValue
     @State private var settingsInfo: SettingsInfoPage?
     @State private var confirmingDeletion = false
+    @State private var confirmingDemoReset = false
+    @State private var isSavingSettings = false
+    @State private var settingsSaveError: String?
+    @State private var failedSettingsUpdate: (profile: UserProfile, privacy: ProfilePrivacySettings)?
+    @Environment(\.openURL) private var openURL
 
     init(initialSection: SettingsSection? = nil) {
         self.initialSection = initialSection
@@ -40,15 +44,24 @@ struct SettingsView: View {
                     .id(SettingsSection.units)
                     Section("Privacy") {
                         Toggle("Private profile", isOn: $privateProfile)
+                        Text("Limits who can view your profile. The field settings below still control what viewers can see.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
                         Toggle("Hide bodyweight", isOn: $hideBodyweight)
-                        Toggle("Hide exact age", isOn: $hideExactAge)
+                        Toggle("Hide age band", isOn: $hideExactAge)
                         Toggle("Hide location", isOn: $hideLocation)
                         Toggle("Hide approved lift videos", isOn: $hideLiftVideos)
-                        Toggle("Allow comments", isOn: $allowComments)
                     }
                     .id(SettingsSection.privacy)
                     Section("Notifications") {
-                        Toggle("Notification preferences", isOn: $notificationPreferences)
+                        Button("Manage notification permissions") {
+                            if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                                openURL(settingsURL)
+                            }
+                        }
+                        Text("Choose whether Lift Rivals can send notifications in iOS Settings.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
                     }
                     .id(SettingsSection.notifications)
                     Section("Workout Tracking") {
@@ -88,7 +101,7 @@ struct SettingsView: View {
                     Section("Developer") {
                         if appState.isDemoMode {
                             Button("Reset Demo Data", role: .destructive) {
-                                appState.resetDemoData()
+                                confirmingDemoReset = true
                             }
                         } else {
                             Text("Authenticated profile, social, and workout backup data are synchronized through Supabase. Local data is used for offline access.")
@@ -125,6 +138,15 @@ struct SettingsView: View {
                         }
                     }
                     }
+                    .alert("Couldn’t save settings", isPresented: Binding(
+                        get: { settingsSaveError != nil },
+                        set: { if !$0 { settingsSaveError = nil } }
+                    )) {
+                        Button("Retry") { retrySettingsSave() }
+                        Button("Cancel", role: .cancel) { failedSettingsUpdate = nil }
+                    } message: {
+                        Text(settingsSaveError ?? "Try again.")
+                    }
                     .onAppear {
                         guard let initialSection else { return }
                         Task { @MainActor in
@@ -148,17 +170,16 @@ struct SettingsView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        let update = profileSettingsUpdate()
-                        let hasChanges = update.profile != appState.currentProfile
-                            || update.privacy != appState.authenticatedPrivacy
-                        appState.showingSettings = false
-                        guard hasChanges else { return }
-                        Task {
-                            try? await Task.sleep(for: .milliseconds(350))
-                            await persistProfileSettings(profile: update.profile, privacy: update.privacy)
+                    Button {
+                        saveSettingsAndClose()
+                    } label: {
+                        if isSavingSettings {
+                            ProgressView().accessibilityLabel("Saving settings")
+                        } else {
+                            Text("Done")
                         }
                     }
+                    .disabled(isSavingSettings)
                 }
             }
             .sheet(item: $settingsInfo) { page in
@@ -179,6 +200,12 @@ struct SettingsView: View {
                     ? "For security, the server requires a recently authenticated session. Your account data, workout backup, and local training data will be removed. After deletion, also remove Lift Rivals from Settings > your name > Sign in with Apple to revoke Apple authorization. This cannot be undone."
                     : "For security, the server requires a recently authenticated session. Your account data, workout backup, and local training data will be removed. This cannot be undone.")
             }
+            .confirmationDialog("Reset demo data?", isPresented: $confirmingDemoReset, titleVisibility: .visible) {
+                Button("Reset Demo Data", role: .destructive) { appState.resetDemoData() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This clears the demo profile, workouts, and other local demo progress.")
+            }
         }
         .preferredColorScheme(LiftAppearance(rawValue: appearance)?.colorScheme)
     }
@@ -196,26 +223,45 @@ struct SettingsView: View {
         updatedPrivacy.ageBandAudience = resolvedAudience(current: privacy.ageBandAudience, hidden: hideExactAge)
         updatedPrivacy.locationAudience = resolvedAudience(current: privacy.locationAudience, hidden: hideLocation)
         updatedPrivacy.showLiftVideos = !hideLiftVideos
-        if privateProfile {
-            profile.hideExactAge = true
-            profile.hideBodyweight = true
-            profile.hideCity = true
-            profile.hideGym = true
-            updatedPrivacy.ageBandAudience = .privateProfile
-            updatedPrivacy.bodyweightAudience = .privateProfile
-            updatedPrivacy.locationAudience = .privateProfile
-            updatedPrivacy.gymAudience = .privateProfile
-            updatedPrivacy.friendListAudience = .privateProfile
-        }
         return (profile, updatedPrivacy)
     }
 
+    private func saveSettingsAndClose() {
+        let update = profileSettingsUpdate()
+        let hasChanges = update.profile != appState.currentProfile
+            || update.privacy != appState.authenticatedPrivacy
+        guard hasChanges else {
+            appState.showingSettings = false
+            return
+        }
+        failedSettingsUpdate = update
+        Task { await persistProfileSettings(profile: update.profile, privacy: update.privacy) }
+    }
+
+    private func retrySettingsSave() {
+        guard let update = failedSettingsUpdate else { return }
+        Task { await persistProfileSettings(profile: update.profile, privacy: update.privacy) }
+    }
+
+    @MainActor
     private func persistProfileSettings(profile: UserProfile, privacy: ProfilePrivacySettings) async {
+        guard !isSavingSettings else { return }
+        isSavingSettings = true
+        defer { isSavingSettings = false }
+        let saved: Bool
         if appState.isAuthenticated && !appState.isDemoMode {
-            _ = await appState.saveEditedProfile(profile, primaryGym: nil, privacy: privacy)
+            saved = await appState.saveEditedProfile(profile, primaryGym: nil, privacy: privacy)
         } else {
             appState.updateProfile(profile)
             appState.setAuthenticatedPrivacy(privacy)
+            saved = true
+        }
+        if saved {
+            failedSettingsUpdate = nil
+            settingsSaveError = nil
+            appState.showingSettings = false
+        } else {
+            settingsSaveError = appState.accountMessage ?? "Your settings weren’t saved. Try again."
         }
     }
 
@@ -248,7 +294,7 @@ enum SettingsInfoPage: String, Identifiable {
             return [
                 ("Lift Rivals", "Lift Rivals is a competitive strength platform for tracking workouts, recording true one-rep PRs, and comparing eligible lifts."),
                 ("Evidence labels", "Video-backed means a lift has attached video evidence. It does not mean Lift Rivals approved the athlete’s technique."),
-                ("Feedback", "Report bugs, confusing flows, and missing gym or exercise data through the feedback link in Settings.")
+                ("Support", "For help, bugs, or missing gym and exercise data, use the Support link in Settings.")
             ]
         case .privacy: return documentSections(.privacy)
         case .terms: return documentSections(.terms)

@@ -51,7 +51,7 @@ enum WorkoutHistoryCalendarData {
         let leadingCount = (weekday - calendar.firstWeekday + 7) % 7
 
         var result = (0..<leadingCount).map {
-            WorkoutHistoryCalendarDay(id: $0, date: nil, workoutCount: 0)
+            WorkoutHistoryCalendarDay(id: 7 + $0, date: nil, workoutCount: 0)
         }
         let monthComponents = calendar.dateComponents([.year, .month], from: monthStart)
         for day in dayRange {
@@ -63,7 +63,7 @@ enum WorkoutHistoryCalendarData {
             )) else { continue }
             result.append(
                 WorkoutHistoryCalendarDay(
-                    id: result.count,
+                    id: 7 + result.count,
                     date: date,
                     workoutCount: workoutCountsByDay[calendar.startOfDay(for: date), default: 0]
                 )
@@ -71,7 +71,7 @@ enum WorkoutHistoryCalendarData {
         }
         let trailingCount = (7 - (result.count % 7)) % 7
         for _ in 0..<trailingCount {
-            result.append(WorkoutHistoryCalendarDay(id: result.count, date: nil, workoutCount: 0))
+            result.append(WorkoutHistoryCalendarDay(id: 7 + result.count, date: nil, workoutCount: 0))
         }
         return result
     }
@@ -100,6 +100,7 @@ struct WorkoutHistoryCalendar: View {
     @Binding var displayedMonth: Date
     @Binding var selectedDate: Date?
     let onSelectWorkout: (CompletedWorkout) -> Void
+    let onLogWorkout: (Date) -> Void
 
     private let calendar = Calendar.current
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
@@ -153,7 +154,7 @@ struct WorkoutHistoryCalendar: View {
                 }
             }
 
-            Divider().overlay(Color.white.opacity(0.07))
+            Divider().overlay(Color.liftOverlay)
 
             selectedDayHistory(presentation.selectedWorkouts)
         }
@@ -162,7 +163,7 @@ struct WorkoutHistoryCalendar: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                .stroke(Color.liftOverlay, lineWidth: 1)
         }
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
@@ -205,12 +206,7 @@ struct WorkoutHistoryCalendar: View {
 
     @ViewBuilder
     private func selectedDayHistory(_ selectedWorkouts: [CompletedWorkout]) -> some View {
-        if presentation.workoutCount == 0 {
-            Text("Finish a workout to begin your training history.")
-                .font(.caption)
-                .foregroundStyle(Color.liftMuted)
-                .padding(.vertical, 4)
-        } else if let selectedDate {
+        if let selectedDate {
             VStack(alignment: .leading, spacing: 0) {
                 Text(LiftTimeFormatter.shortDateNoTime(selectedDate))
                     .font(.caption.weight(.bold))
@@ -221,7 +217,7 @@ struct WorkoutHistoryCalendar: View {
                     Text("No completed workouts")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
-                        .padding(.vertical, 8)
+                        .padding(.top, 8)
                 } else {
                     ForEach(Array(selectedWorkouts.enumerated()), id: \.element.id) { index, workout in
                         Button {
@@ -252,10 +248,22 @@ struct WorkoutHistoryCalendar: View {
                         .accessibilityHint("Opens completed workout details")
 
                         if index < selectedWorkouts.count - 1 {
-                            Divider().overlay(Color.white.opacity(0.06))
+                            Divider().overlay(Color.liftOverlay)
                         }
                     }
                 }
+
+                Button {
+                    onLogWorkout(selectedDate)
+                } label: {
+                    Label("Log workout for this day", systemImage: "plus.circle.fill")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Color.liftAccentText)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .disabled(calendar.startOfDay(for: selectedDate) > calendar.startOfDay(for: .now))
+                .opacity(calendar.startOfDay(for: selectedDate) > calendar.startOfDay(for: .now) ? 0.45 : 1)
             }
         } else {
             Text("Select a date to review past workouts.")

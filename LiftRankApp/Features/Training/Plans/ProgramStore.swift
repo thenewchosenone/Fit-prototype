@@ -10,24 +10,123 @@ struct ProgramWeekPresentation {
     let sessions: [WorkoutSession]
     let prescriptionsBySessionID: [UUID: [WorkoutExercisePrescription]]
     let completedPrescriptionIDs: Set<UUID>
+    let completedSetCount: Int
+    let rirObservations: [(target: Int, estimated: Int)]
     let catalogByID: [String: TrainingExerciseCatalogItem]
     let completion: Double
+
+    var plannedPrescriptionCount: Int {
+        prescriptionsBySessionID.values.reduce(0) { $0 + $1.count }
+    }
+
+    var completedPrescriptionCount: Int {
+        prescriptionsBySessionID.values
+            .flatMap { $0.map(\.id) }
+            .filter(completedPrescriptionIDs.contains)
+            .count
+    }
+
+    var plannedSetCount: Int {
+        prescriptionsBySessionID.values.flatMap { $0 }.reduce(0) { $0 + $1.sets }
+    }
+
+    var rirSummary: (target: Double, estimated: Double, setCount: Int)? {
+        guard !rirObservations.isEmpty else { return nil }
+        let count = Double(rirObservations.count)
+        return (
+            Double(rirObservations.reduce(0) { $0 + $1.target }) / count,
+            Double(rirObservations.reduce(0) { $0 + $1.estimated }) / count,
+            rirObservations.count
+        )
+    }
+
+    var completedSessionCount: Int {
+        sessions.filter { session in
+            guard let prescriptions = prescriptionsBySessionID[session.id],
+                  !prescriptions.isEmpty else { return false }
+            return prescriptions.allSatisfy { completedPrescriptionIDs.contains($0.id) }
+        }.count
+    }
 
     init(
         sessions: [WorkoutSession],
         prescriptions: [WorkoutExercisePrescription],
         workoutSetLogs: [WorkoutSetLog],
+        completedWorkouts: [CompletedWorkout],
         catalog: [TrainingExerciseCatalogItem]
     ) {
         self.sessions = sessions
         prescriptionsBySessionID = Dictionary(grouping: prescriptions, by: \.sessionID)
             .mapValues { $0.sorted { $0.order < $1.order } }
-        let completedPrescriptionIDs = Set(workoutSetLogs.lazy.filter {
-            $0.isComplete && !$0.isWarmup
-        }.map(\.prescriptionID))
-        self.completedPrescriptionIDs = completedPrescriptionIDs
-        catalogByID = Dictionary(uniqueKeysWithValues: catalog.map { ($0.id, $0) })
         let plannedPrescriptionIDs = Set(prescriptions.map(\.id))
+        var completedPrescriptionIDs = Set(workoutSetLogs.lazy.filter {
+            $0.isComplete && !$0.isWarmup && plannedPrescriptionIDs.contains($0.prescriptionID)
+        }.map(\.prescriptionID))
+        let sessionIDs = Set(sessions.map(\.id))
+        for workout in completedWorkouts where workout.sourceSessionID.map(sessionIDs.contains) == true {
+            let completedExerciseIDs = Set(workout.completedWorkingSets.map(\.prescriptionID))
+            completedPrescriptionIDs.formUnion(
+                workout.exercises.compactMap { exercise in
+                    guard completedExerciseIDs.contains(exercise.id),
+                          let sourcePrescriptionID = exercise.sourcePrescriptionID,
+                          plannedPrescriptionIDs.contains(sourcePrescriptionID) else {
+                        return nil
+                    }
+                    return sourcePrescriptionID
+                }
+            )
+        }
+        self.completedPrescriptionIDs = completedPrescriptionIDs
+        var completedSetNumbersByPrescriptionID: [UUID: Set<Int>] = [:]
+        for log in workoutSetLogs where log.isComplete && !log.isWarmup && plannedPrescriptionIDs.contains(log.prescriptionID) {
+            completedSetNumbersByPrescriptionID[log.prescriptionID, default: []].insert(log.setNumber)
+        }
+        for workout in completedWorkouts where workout.sourceSessionID.map(sessionIDs.contains) == true {
+            let prescriptionIDByExerciseID = Dictionary(uniqueKeysWithValues: workout.exercises.compactMap { exercise in
+                exercise.sourcePrescriptionID.map { (exercise.id, $0) }
+            })
+            for log in workout.completedWorkingSets {
+                guard let prescriptionID = prescriptionIDByExerciseID[log.prescriptionID],
+                      plannedPrescriptionIDs.contains(prescriptionID) else { continue }
+                completedSetNumbersByPrescriptionID[prescriptionID, default: []].insert(log.setNumber)
+            }
+        }
+        self.completedSetCount = prescriptions.reduce(0) { total, prescription in
+            let logged = completedSetNumbersByPrescriptionID[prescription.id]?.count ?? 0
+            return total + min(prescription.sets, logged)
+        }
+        var rirPairByPrescriptionAndSet: [UUID: [Int: (performedAt: Date, target: Int, estimated: Int)]] = [:]
+        func includeRPE(_ log: WorkoutSetLog, for prescriptionID: UUID, targetRIR: Int?) {
+            guard let targetRIR, let rpe = log.rpe, (1...10).contains(rpe) else { return }
+            if let previous = rirPairByPrescriptionAndSet[prescriptionID]?[log.setNumber],
+               previous.performedAt >= log.performedAt {
+                return
+            }
+            rirPairByPrescriptionAndSet[prescriptionID, default: [:]][log.setNumber] = (
+                log.performedAt,
+                targetRIR,
+                10 - rpe
+            )
+        }
+        for workout in completedWorkouts where workout.sourceSessionID.map(sessionIDs.contains) == true {
+            let exerciseByID = Dictionary(uniqueKeysWithValues: workout.exercises.map { ($0.id, $0) })
+            for log in workout.completedWorkingSets {
+                guard let exercise = exerciseByID[log.prescriptionID],
+                      let prescriptionID = exercise.sourcePrescriptionID,
+                      plannedPrescriptionIDs.contains(prescriptionID) else { continue }
+                includeRPE(log, for: prescriptionID, targetRIR: exercise.targetRIR)
+            }
+        }
+        let targetRIRByPrescriptionID = Dictionary(uniqueKeysWithValues: prescriptions.map { ($0.id, $0.targetRIR) })
+        for log in workoutSetLogs where log.isComplete && !log.isWarmup && plannedPrescriptionIDs.contains(log.prescriptionID) {
+            includeRPE(
+                log,
+                for: log.prescriptionID,
+                targetRIR: targetRIRByPrescriptionID[log.prescriptionID] ?? nil
+            )
+        }
+        self.rirObservations = rirPairByPrescriptionAndSet.values.flatMap { $0.values.map { (target: $0.target, estimated: $0.estimated) } }
+        catalogByID = Dictionary(uniqueKeysWithValues: catalog.map { ($0.id, $0) })
         completion = plannedPrescriptionIDs.isEmpty
             ? 0
             : Double(plannedPrescriptionIDs.intersection(completedPrescriptionIDs).count) /
@@ -99,6 +198,8 @@ final class ProgramStore {
         for week: WorkoutWeek,
         workoutSetLogs: [WorkoutSetLog],
         workoutSetLogsRevision: Int,
+        completedWorkouts: [CompletedWorkout],
+        completedWorkoutsRevision: Int,
         catalog: [TrainingExerciseCatalogItem],
         accountID: UUID,
         customTrainingExercisesRevision: Int
@@ -108,6 +209,7 @@ final class ProgramStore {
             accountID: accountID,
             programDataRevision: repository.programDataRevision,
             workoutSetLogsRevision: workoutSetLogsRevision,
+            completedWorkoutsRevision: completedWorkoutsRevision,
             customTrainingExercisesRevision: customTrainingExercisesRevision
         )
         if let cachedWeekPresentation,
@@ -121,6 +223,7 @@ final class ProgramStore {
             sessions: sessions,
             prescriptions: sessions.flatMap { programGraph.prescriptionsBySessionID[$0.id] ?? [] },
             workoutSetLogs: workoutSetLogs,
+            completedWorkouts: completedWorkouts,
             catalog: catalog
         )
         cachedWeekPresentationSignature = signature
@@ -342,5 +445,6 @@ private struct ProgramWeekPresentationSignature: Equatable {
     let accountID: UUID
     let programDataRevision: Int
     let workoutSetLogsRevision: Int
+    let completedWorkoutsRevision: Int
     let customTrainingExercisesRevision: Int
 }

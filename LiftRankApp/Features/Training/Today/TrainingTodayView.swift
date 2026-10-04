@@ -489,7 +489,25 @@ struct TodayWorkoutLaunchCard: View {
     let planName: String
     let week: WorkoutWeek
     let session: WorkoutSession
+    let eyebrow: String
+    let actionTitle: String
     let onStart: () -> Void
+
+    init(
+        planName: String,
+        week: WorkoutWeek,
+        session: WorkoutSession,
+        eyebrow: String = "TODAY'S WORKOUT",
+        actionTitle: String = "Start Workout",
+        onStart: @escaping () -> Void
+    ) {
+        self.planName = planName
+        self.week = week
+        self.session = session
+        self.eyebrow = eyebrow
+        self.actionTitle = actionTitle
+        self.onStart = onStart
+    }
 
     var body: some View {
         let prescriptions = appState.prescriptions(for: session)
@@ -504,7 +522,7 @@ struct TodayWorkoutLaunchCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("TODAY'S WORKOUT")
+                    Text(eyebrow)
                         .font(.caption2.weight(.black))
                         .tracking(0.9)
                         .foregroundStyle(Color.liftAccentText)
@@ -532,7 +550,7 @@ struct TodayWorkoutLaunchCard: View {
 
             Button(action: onStart) {
                 HStack {
-                    Text("Start Workout")
+                    Text(actionTitle)
                         .font(.subheadline.weight(.bold))
                     Spacer()
                     Image(systemName: "arrow.right")
@@ -552,7 +570,7 @@ struct TodayWorkoutLaunchCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                .stroke(Color.liftOverlay, lineWidth: 1)
         }
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }

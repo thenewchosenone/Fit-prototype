@@ -63,9 +63,21 @@ extension TrainingTrackerView {
                 }
             }
             .sheet(item: $selectedCompletedWorkout) { workout in
-                CompletedWorkoutDetailView(workout: workout)
+                CompletedWorkoutDetailView(workout: workout, focusedSetID: $focusedWorkoutSetID)
                     .environmentObject(appState)
                     .presentationDetents([.large])
+            }
+            .sheet(isPresented: $showingWorkoutDatePicker) {
+                HistoryWorkoutPickerView(date: workoutDateToLog) { session in
+                    showingWorkoutDatePicker = false
+                    requestStart(session, historyDate: workoutDateToLog)
+                } onFreestyle: {
+                    showingWorkoutDatePicker = false
+                    startFreestyleWorkout(for: workoutDateToLog)
+                }
+                .environmentObject(appState)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
             .sheet(item: $selectedPlateauInsight) { insight in
                 PlateauInsightDetailView(insight: insight)
@@ -82,6 +94,14 @@ extension TrainingTrackerView {
             .onAppear {
                 syncSelectedWeek()
                 applyRequestedSegment()
+                if !didOpenUITestFocusedWorkoutSet,
+                   ProcessInfo.processInfo.arguments.contains("-uiTestingFocusedWorkoutSet"),
+                   let workout = appState.trainingHistoryWorkouts.first,
+                   let set = workout.completedWorkingSets.last {
+                    focusedWorkoutSetID = set.id
+                    selectedCompletedWorkout = workout
+                    didOpenUITestFocusedWorkoutSet = true
+                }
             }
             .onChange(of: appState.selectedWorkoutPlanID) {
                 syncSelectedWeek()
@@ -105,9 +125,9 @@ extension TrainingTrackerView {
                     appState.discardActiveWorkout()
                     SystemWorkoutRestNotificationScheduler.shared.cancel()
                     if let pendingSessionToStart {
-                        _ = appState.startWorkout(pendingSessionToStart)
+                        _ = appState.startWorkout(pendingSessionToStart, historyDate: pendingWorkoutHistoryDate)
                     } else if pendingFreestyleStart {
-                        _ = appState.startFreestyleWorkoutInstance()
+                        _ = appState.startFreestyleWorkoutInstance(historyDate: pendingWorkoutHistoryDate)
                     }
                     clearPendingStart()
                     showingActiveWorkout = true
@@ -196,7 +216,7 @@ extension TrainingTrackerView {
                     .frame(height: 40)
                     .background(Color.liftCard)
                     .clipShape(Capsule())
-                    .overlay { Capsule().stroke(Color.white.opacity(0.07), lineWidth: 1) }
+                    .overlay { Capsule().stroke(Color.liftOverlay, lineWidth: 1) }
                 }
                 .accessibilityLabel(appState.selectedWorkoutPlan == nil ? "No workout plan selected; browse workout programs" : "Active plan, \(selectedPlanName)")
 
@@ -244,7 +264,7 @@ extension TrainingTrackerView {
                         .frame(width: 44, height: 44)
                         .background(Color.liftCard)
                         .clipShape(Circle())
-                        .overlay { Circle().stroke(Color.white.opacity(0.07), lineWidth: 1) }
+                        .overlay { Circle().stroke(Color.liftOverlay, lineWidth: 1) }
                 }
                 .accessibilityLabel("Plan options")
 
@@ -301,7 +321,7 @@ extension TrainingTrackerView {
             .padding(.horizontal, 12)
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(Color.white.opacity(0.07))
+                    .fill(Color.liftOverlay)
                     .frame(height: 1)
             }
         }
@@ -313,14 +333,24 @@ extension TrainingTrackerView {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Ready to train?")
+                    Text("Today's training")
                         .font(.title3.weight(.black))
-                    Text("Log every set and keep your ranking current.")
+                    Text("Your workout plan, today's session, and recovery.")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
                 Spacer()
             }
+
+            if let insight = visiblePlateauInsights.first {
+                PlateauAlertCard(insight: insight) {
+                    selectedPlateauInsight = insight
+                } dismiss: {
+                    dismissPlateauInsight(insight)
+                }
+            }
+
+            todayWorkoutStatusSection
 
             Button {
                 isProgramLibraryExpanded = true
@@ -359,56 +389,6 @@ extension TrainingTrackerView {
             .accessibilityLabel("Browse \(appState.workoutProgramTemplates.count) workout programs")
             .accessibilityHint("Opens the workout program catalog")
 
-            if let insight = visiblePlateauInsights.first {
-                PlateauAlertCard(insight: insight) {
-                    selectedPlateauInsight = insight
-                } dismiss: {
-                    dismissPlateauInsight(insight)
-                }
-            }
-
-            if let active = appState.activeWorkout {
-                ActiveWorkoutResumeCard(workout: active) {
-                    showingActiveWorkout = true
-                }
-                .environmentObject(appState)
-            }
-
-            if let week = selectedWeek, let session = primaryScheduledSession {
-                TodayWorkoutLaunchCard(planName: selectedPlanName, week: week, session: session) {
-                    requestStart(session)
-                }
-                .environmentObject(appState)
-            } else {
-                LiftCard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 10) {
-                            Image(systemName: "calendar.badge.exclamationmark")
-                                .font(.headline.weight(.bold))
-                                .foregroundStyle(Color.liftAccentText)
-                                .frame(width: 36, height: 36)
-                                .background(Color.liftBlue.opacity(0.12))
-                                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("No scheduled workout")
-                                    .font(.headline.weight(.bold))
-                                Text("Add a workout day to this plan or train freestyle.")
-                                    .font(.caption)
-                                    .foregroundStyle(Color.liftMuted)
-                            }
-                        }
-
-                        Button {
-                            withAnimation(.snappy) { segment = .plans }
-                        } label: {
-                            Label("Add workout day", systemImage: "calendar.badge.plus")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(LiftCompactProminentButtonStyle())
-                    }
-                }
-            }
-
             Button {
                 startFreestyleWorkout()
             } label: {
@@ -416,6 +396,113 @@ extension TrainingTrackerView {
             }
             .buttonStyle(LiftSecondaryButtonStyle())
 
+        }
+    }
+
+    @ViewBuilder
+    private var todayWorkoutStatusSection: some View {
+        if let active = appState.activeWorkout {
+            ActiveWorkoutResumeCard(workout: active) {
+                showingActiveWorkout = true
+            }
+            .environmentObject(appState)
+        } else if appState.selectedWorkoutPlan == nil {
+            TrackerMessageCard(
+                title: "Choose a workout plan",
+                message: "Select a program to see scheduled training here, or start an empty workout."
+            )
+        } else if selectedProgramIsComplete {
+            LiftCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Program complete", systemImage: "checkmark.seal.fill")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(Color.liftGreen)
+                    Text("You completed every workout in \(selectedPlanName). Review your progress or choose another program.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                    Button {
+                        isProgramLibraryExpanded = true
+                        withAnimation(.snappy) { segment = .plans }
+                    } label: {
+                        Label("Choose another program", systemImage: "books.vertical")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(LiftCompactProminentButtonStyle())
+                }
+            }
+        } else if appState.selectedPlanWeeks.flatMap(appState.sessions(for:)).isEmpty {
+            LiftCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("No workouts in this plan yet")
+                        .font(.headline.weight(.bold))
+                    Text("Add a workout day in Plans, or start an empty workout.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                    Button {
+                        withAnimation(.snappy) { segment = .plans }
+                    } label: {
+                        Label("Add workout day", systemImage: "calendar.badge.plus")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(LiftCompactProminentButtonStyle())
+                }
+            }
+        } else if let todayWorkout = todayScheduledWorkout,
+                  !isWorkoutSessionComplete(todayWorkout.session) {
+            TodayWorkoutLaunchCard(
+                planName: selectedPlanName,
+                week: todayWorkout.week,
+                session: todayWorkout.session
+            ) {
+                requestStart(todayWorkout.session)
+            }
+            .environmentObject(appState)
+        } else if let missedWorkout = missedScheduledWorkout {
+            TodayWorkoutLaunchCard(
+                planName: selectedPlanName,
+                week: missedWorkout.week,
+                session: missedWorkout.session,
+                eyebrow: "MISSED WORKOUT",
+                actionTitle: "Log missed workout"
+            ) {
+                requestStart(missedWorkout.session, historyDate: missedWorkout.date)
+            }
+            .environmentObject(appState)
+        } else if let todayWorkout = todayScheduledWorkout {
+            TrackerMessageCard(
+                title: "Today's workout is complete",
+                message: "You logged \(todayWorkout.session.name). Take the rest of today to recover."
+            )
+        } else if currentProgramWeekIsComplete {
+            TrackerMessageCard(
+                title: "Week complete",
+                message: nextScheduledWorkout.map {
+                    "You finished this week's sessions. Next up: \($0.session.name) on \(LiftTimeFormatter.shortDateNoTime($0.date))."
+                } ?? "You finished this week's scheduled sessions. Check back when the next program week begins."
+            )
+        } else if let nextWorkout = nextScheduledWorkout {
+            LiftCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Rest day", systemImage: "bed.double.fill")
+                        .font(.headline.weight(.bold))
+                    Text("Next up: \(nextWorkout.session.name) · \(LiftTimeFormatter.shortDateNoTime(nextWorkout.date))")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                    Button {
+                        selectedWeekID = nextWorkout.week.id
+                        withAnimation(.snappy) { segment = .plans }
+                    } label: {
+                        Label("View next workout", systemImage: "calendar")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(LiftSecondaryButtonStyle())
+                }
+            }
+        } else {
+            TrackerMessageCard(
+                title: "Rest day",
+                message: "No workout is scheduled today. Use the time to recover or start an empty workout."
+            )
         }
     }
 
@@ -437,8 +524,13 @@ extension TrainingTrackerView {
 
             if appState.workoutPlans.count > 1 {
                 HStack {
-                    Text("My Plans")
-                        .font(.headline)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("My Plans")
+                            .font(.headline)
+                        Text("Choose which plan is active; edit its weeks and workouts below.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                    }
                     Spacer()
                     Button {
                         showingCreatePlan = true
@@ -483,7 +575,7 @@ extension TrainingTrackerView {
 
                         if index < appState.workoutPlans.count - 1 {
                             Divider()
-                                .overlay(Color.white.opacity(0.07))
+                                .overlay(Color.liftOverlay)
                                 .padding(.leading, 54)
                         }
                     }
@@ -492,7 +584,7 @@ extension TrainingTrackerView {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                        .stroke(Color.liftOverlay, lineWidth: 1)
                 }
             }
 
@@ -596,7 +688,7 @@ extension TrainingTrackerView {
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                                    .stroke(Color.liftOverlay, lineWidth: 1)
                             }
                             .contentShape(Rectangle())
                         }
@@ -616,35 +708,98 @@ extension TrainingTrackerView {
         selectedWeekID = appState.currentSelectedProgramWeek?.id ?? appState.selectedPlanWeeks.first?.id
     }
 
-    private func startFreestyleWorkout() {
+    func startFreestyleWorkout(for historyDate: Date? = nil) {
         if appState.activeWorkout != nil {
             pendingSessionToStart = nil
             pendingFreestyleStart = true
+            pendingWorkoutHistoryDate = historyDate
             showingWorkoutConflict = true
             return
         }
-        guard appState.startFreestyleWorkoutInstance() else { return }
+        guard appState.startFreestyleWorkoutInstance(historyDate: historyDate) else { return }
         showingActiveWorkout = true
     }
 
-    private func requestStart(_ session: WorkoutSession) {
+    func requestStart(_ session: WorkoutSession, historyDate: Date? = nil) {
         if appState.activeWorkout != nil {
             pendingSessionToStart = session
             pendingFreestyleStart = false
+            pendingWorkoutHistoryDate = historyDate
             showingWorkoutConflict = true
             return
         }
-        guard appState.startWorkout(session) else { return }
+        guard appState.startWorkout(session, historyDate: historyDate) else { return }
         showingActiveWorkout = true
     }
 
     private func clearPendingStart() {
         pendingSessionToStart = nil
         pendingFreestyleStart = false
+        pendingWorkoutHistoryDate = nil
     }
 
     private func applyRequestedSegment() {
         guard let requested = TrackerSegment(rawValue: appState.requestedTrackerSegment) else { return }
         segment = requested
+    }
+}
+
+private struct HistoryWorkoutPickerView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+
+    let date: Date
+    let onSelectSession: (WorkoutSession) -> Void
+    let onFreestyle: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Button(action: onFreestyle) {
+                        Label("Freestyle workout", systemImage: "plus.circle.fill")
+                            .foregroundStyle(Color.liftAccentText)
+                    }
+                } header: {
+                    Text("Log for \(LiftTimeFormatter.shortDateNoTime(date))")
+                }
+
+                Section("\(appState.selectedWorkoutPlan?.name ?? "Selected plan") workouts") {
+                    let weeks = appState.selectedPlanWeeks
+                    if weeks.isEmpty {
+                        Text("Select a workout plan to add one of its sessions.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.liftMuted)
+                    } else {
+                        ForEach(weeks) { week in
+                            ForEach(appState.sessions(for: week)) { session in
+                                Button {
+                                    onSelectSession(session)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text("\(session.day) · \(session.name)")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(Color.liftText)
+                                        Text("Week \(week.weekNumber) · \(appState.prescriptions(for: session).count) exercises")
+                                            .font(.caption)
+                                            .foregroundStyle(Color.liftMuted)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Add missed workout")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
     }
 }

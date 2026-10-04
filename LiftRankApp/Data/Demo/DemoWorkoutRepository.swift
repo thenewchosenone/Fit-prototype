@@ -7,6 +7,7 @@ extension DemoRepository {
         gymID: UUID?,
         bodyweight: Double?,
         unit: UnitSystem,
+        historyDate: Date? = nil,
         at startedAt: Date = .now
     ) -> ActiveWorkoutState? {
         guard activeWorkout == nil else { return nil }
@@ -23,6 +24,7 @@ extension DemoRepository {
             name: session.name,
             dayLabel: session.day,
             startedAt: startedAt,
+            historyDate: historyDate.map { Calendar.current.startOfDay(for: $0) },
             pausedAt: nil,
             accumulatedPausedTime: 0,
             gymID: gymID,
@@ -45,6 +47,7 @@ extension DemoRepository {
         gymID: UUID?,
         bodyweight: Double?,
         unit: UnitSystem,
+        historyDate: Date? = nil,
         at startedAt: Date = .now
     ) -> ActiveWorkoutState? {
         guard activeWorkout == nil else { return nil }
@@ -55,8 +58,9 @@ extension DemoRepository {
             sourcePlanID: nil,
             sourceWeekID: nil,
             name: name,
-            dayLabel: startedAt.formatted(.dateTime.weekday(.wide)),
+            dayLabel: (historyDate ?? startedAt).formatted(.dateTime.weekday(.wide)),
             startedAt: startedAt,
+            historyDate: historyDate.map { Calendar.current.startOfDay(for: $0) },
             pausedAt: nil,
             accumulatedPausedTime: 0,
             gymID: gymID,
@@ -281,7 +285,21 @@ extension DemoRepository {
         guard let workout = activeWorkout else { return nil }
         let logs = workoutSetLogs.filter { $0.workoutID == workout.id }
         guard logs.contains(where: { $0.isComplete && !$0.isWarmup }) else { return nil }
-        let safeCompletedAt = max(completedAt, workout.startedAt)
+        let elapsedDuration = workout.elapsedDuration(at: completedAt)
+        let historyCompletedAt: Date? = workout.historyDate.flatMap { historyDate in
+            let time = Calendar.current.dateComponents([.hour, .minute, .second], from: completedAt)
+            return Calendar.current.date(bySettingHour: time.hour ?? 12, minute: time.minute ?? 0, second: time.second ?? 0, of: historyDate)
+        }
+        let safeCompletedAt = historyCompletedAt ?? max(completedAt, workout.startedAt)
+        let effectiveStartedAt = historyCompletedAt.map { $0.addingTimeInterval(-elapsedDuration) } ?? workout.startedAt
+        let effectiveLogs = logs.map { log -> WorkoutSetLog in
+            guard historyCompletedAt != nil else { return log }
+            var adjusted = log
+            adjusted.performedAt = effectiveStartedAt.addingTimeInterval(
+                min(max(log.performedAt.timeIntervalSince(workout.startedAt), 0), elapsedDuration)
+            )
+            return adjusted
+        }
         let completed = CompletedWorkout(
             id: workout.id,
             source: workout.source,
@@ -289,16 +307,16 @@ extension DemoRepository {
             sourcePlanID: workout.sourcePlanID,
             name: workout.name,
             dayLabel: workout.dayLabel,
-            startedAt: workout.startedAt,
+            startedAt: effectiveStartedAt,
             completedAt: safeCompletedAt,
-            duration: workout.elapsedDuration(at: safeCompletedAt),
+            duration: elapsedDuration,
             effort: min(max(effort, 1), 5),
             notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
             gymID: workout.gymID,
             bodyweight: workout.bodyweight,
             unit: workout.unit,
             exercises: workout.exercises,
-            sets: logs,
+            sets: effectiveLogs,
             linkedSubmissionIDs: []
         )
         deletedCompletedWorkoutIDs.remove(completed.id)

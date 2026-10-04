@@ -573,6 +573,8 @@ extension HomeView {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Open weekly training progress, \(summary.completedWorkoutCount) of \(summary.plannedWorkoutCount) workouts, \(summary.completedSetCount) completed working sets")
+
+            WeeklyTrainingDayGoalCard(summary: summary)
         }
     }
 
@@ -636,6 +638,66 @@ extension HomeView {
         guard summary.plannedWorkoutCount > 0 else { return .liftMuted }
         if summary.completedWorkoutCount >= summary.plannedWorkoutCount { return .liftGreen }
         return summary.completedWorkoutCount > 0 ? .liftBlue : .liftMuted
+    }
+}
+
+struct WeeklyTrainingDayGoalCard: View {
+    @EnvironmentObject private var appState: AppState
+    let summary: HomeWeeklySummary
+
+    private var goal: Int? { appState.workoutPreferences.weeklyTrainingDayGoal }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                Text("Weekly training-day goal")
+                    .font(.subheadline.weight(.bold))
+                Spacer()
+                Menu {
+                    ForEach(1...7, id: \.self) { days in
+                        Button("\(days) day\(days == 1 ? "" : "s") per week") {
+                            appState.setWeeklyTrainingDayGoal(days)
+                        }
+                    }
+                    if goal != nil {
+                        Button("Turn off goal", role: .destructive) {
+                            appState.setWeeklyTrainingDayGoal(nil)
+                        }
+                    }
+                } label: {
+                    Label(goal.map { "\($0) days" } ?? "Set goal", systemImage: "chevron.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.liftAccentText)
+                }
+                .accessibilityIdentifier("weeklyTrainingGoal.menu")
+            }
+
+            if let goal {
+                let completedDays = summary.completedTrainingDayCount
+                Text("\(completedDays) of \(goal) training days")
+                    .font(.title3.weight(.black).monospacedDigit())
+                ProgressView(value: Double(min(completedDays, goal)), total: Double(goal))
+                    .tint(Color.liftGreen)
+                    .accessibilityLabel("Weekly training-day goal progress")
+                    .accessibilityValue("\(min(completedDays, goal)) of \(goal) days")
+                Text(completedDays >= goal
+                     ? "Goal reached — enjoy your planned rest days."
+                     : "Next milestone: \(goal) training days • \(goal - completedDays) to go.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+            } else {
+                Text("Choose a weekly goal to track how many days you train. Rest days are okay.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+            }
+
+            Text("Each calendar day counts once, even if you log more than one workout.")
+                .font(.caption2)
+                .foregroundStyle(Color.liftMuted)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .homePanelStyle()
     }
 }
 

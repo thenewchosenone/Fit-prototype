@@ -23,6 +23,8 @@ extension AppState {
             for: week,
             workoutSetLogs: repository.workoutSetLogs,
             workoutSetLogsRevision: repository.workoutSetLogsRevision,
+            completedWorkouts: repository.completedWorkouts,
+            completedWorkoutsRevision: repository.completedWorkoutsRevision,
             catalog: trainingExerciseLibrary,
             accountID: currentProfile.id,
             customTrainingExercisesRevision: repository.customTrainingExercisesRevision
@@ -50,7 +52,7 @@ extension AppState {
     }
 
     @discardableResult
-    func startWorkout(_ session: WorkoutSession) -> Bool {
+    func startWorkout(_ session: WorkoutSession, historyDate: Date? = nil) -> Bool {
         let isFirstWorkout = completedWorkouts.isEmpty
         let week = workoutWeeks.first { $0.id == session.weekID }
         let unit = currentProfile.preferredUnit
@@ -62,7 +64,8 @@ extension AppState {
             planID: week?.planID,
             gymID: currentProfile.primaryGymID,
             bodyweight: bodyweight,
-            unit: unit
+            unit: unit,
+            historyDate: historyDate
         ) != nil
         if started {
             Haptics.success()
@@ -72,7 +75,7 @@ extension AppState {
     }
 
     @discardableResult
-    func startFreestyleWorkoutInstance() -> Bool {
+    func startFreestyleWorkoutInstance(historyDate: Date? = nil) -> Bool {
         let isFirstWorkout = completedWorkouts.isEmpty
         let unit = currentProfile.preferredUnit
         let bodyweight = unit == .kilograms
@@ -81,7 +84,8 @@ extension AppState {
         let started = activeWorkoutStore.startFreestyle(
             gymID: currentProfile.primaryGymID,
             bodyweight: bodyweight,
-            unit: unit
+            unit: unit,
+            historyDate: historyDate
         ) != nil
         if started {
             Haptics.success()
@@ -213,6 +217,10 @@ extension AppState {
 
     func setAutomaticVideoPRSubmission(_ enabled: Bool) {
         workoutPRSubmissionStore.setAutomaticSubmissionEnabled(enabled)
+    }
+
+    func setWeeklyTrainingDayGoal(_ goal: Int?) {
+        workoutPRSubmissionStore.setWeeklyTrainingDayGoal(goal)
     }
 
     func setDefaultRestTimerEnabled(_ enabled: Bool) {
