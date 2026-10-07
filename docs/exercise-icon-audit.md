@@ -56,7 +56,7 @@ Date: 2026-10-03. Scope: current working-tree iOS source and supplied phone scre
 | figure.strengthtraining.functional | 88 |
 | figure.rower | 31 |
 | dumbbell.fill | 31 |
-| figure.core.training | 24 |
+| figure.core.training | 25 |
 | figure.arms.open | 13 |
 | arrow.down.to.line.compact | 11 |
 | composite: standing figure + overhead dumbbell | 11 |
@@ -67,7 +67,6 @@ Date: 2026-10-03. Scope: current working-tree iOS source and supplied phone scre
 | arrow.up.and.down | 2 |
 | arrow.triangle.2.circlepath | 2 |
 | arrow.left.arrow.right | 1 |
-| figure.hang | 1 |
 | figure.flexibility | 1 |
 
 ## Complete training inventory
@@ -342,7 +341,7 @@ Replace equipment-only fallback with a movement silhouette: neck motion, shrug, 
 | Tibialis Raise Machine | `machine_tibialis_raise` | expanded | `dumbbell.fill` |
 | Turkish Get-Up | `kettlebell_turkish_get_up` | expanded | `dumbbell.fill` |
 
-### figure.core.training — 24 exercises
+### figure.core.training — 25 exercises
 
 Replace blanket core mapping with named movement. It currently overrides non-core movements when core appears as a secondary body part. Distinguish anti-rotation press, crunch, plank, rollout, carry, bench press and renegade row.
 
@@ -361,6 +360,7 @@ Replace blanket core mapping with named movement. It currently overrides non-cor
 | Dumbbell Side Bend | `dumbbell_side_bend` | expanded | `figure.core.training` |
 | Ground-Base Rotational Twist | `machine_ground_base_rotational_twist` | expanded | `figure.core.training` |
 | Hollow Hold | `bodyweight_hollow_hold` | expanded | `figure.core.training` |
+| Hanging Leg Raise | `hanging_leg_raise` | core | `figure.core.training` |
 | Kettlebell Russian Twist | `kettlebell_russian_twist` | expanded | `figure.core.training` |
 | Kettlebell Suitcase Carry | `kettlebell_suitcase_carry` | expanded | `figure.core.training` |
 | Kettlebell Windmill | `kettlebell_windmill` | expanded | `figure.core.training` |
@@ -514,14 +514,6 @@ Replace bidirectional arrows with a seated cable row silhouette.
 | --- | --- | --- | --- |
 | Seated Cable Row | `seated_cable_row` | core | `arrow.left.arrow.right` |
 
-### figure.hang — 1 exercises
-
-Review hanging leg raise at rendered size: hanging alone does not communicate raising the legs. Show elevated legs.
-
-| Exercise | Stable ID | Source | Stored symbol |
-| --- | --- | --- | --- |
-| Hanging Leg Raise | `hanging_leg_raise` | core | `figure.hang` |
-
 ### figure.flexibility — 1 exercises
 
 Show a supported hip hinge/back extension, not a generic flexibility pose.
@@ -542,4 +534,3 @@ These use raw SF Symbols in ranking/submission pickers and bypass ExerciseCatalo
 | Sumo deadlift | `sumo_deadlift` | `figure.strengthtraining.functional` |
 | Overhead press | `press` | `figure.strengthtraining.traditional` |
 | Dumbbell bench press | `dumbbell_bench_press` | `figure.strengthtraining.traditional` |
-

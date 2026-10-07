@@ -55,13 +55,15 @@ struct LeaderboardOption: Identifiable {
     let title: String
     var subtitle: String?
     var symbol: String?
+    var exerciseCatalogID: String?
     fileprivate let searchableText: String
 
-    init(id: String, title: String, subtitle: String? = nil, symbol: String? = nil) {
+    init(id: String, title: String, subtitle: String? = nil, symbol: String? = nil, exerciseCatalogID: String? = nil) {
         self.id = id
         self.title = title
         self.subtitle = subtitle
         self.symbol = symbol
+        self.exerciseCatalogID = exerciseCatalogID
         self.searchableText = LeaderboardOptionSearch.normalizedText(
             [title, subtitle].compactMap { $0 }.joined(separator: " ")
         )
@@ -470,7 +472,12 @@ struct LeaderboardOptionSheet: View {
                                     }
                                 } label: {
                                     HStack(spacing: 12) {
-                                        if let symbol = option.symbol {
+                                        if let exerciseCatalogID = option.exerciseCatalogID,
+                                           let exercise = MockData.trainingExerciseLibrary.first(where: { $0.id == exerciseCatalogID }) {
+                                            ExerciseCatalogIcon(exercise: exercise)
+                                                .scaleEffect(0.72)
+                                                .frame(width: 40, height: 40)
+                                        } else if let symbol = option.symbol {
                                             Image(systemName: symbol)
                                                 .foregroundStyle(Color.liftAccentText)
                                                 .frame(width: 24)

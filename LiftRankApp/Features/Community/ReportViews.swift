@@ -8,6 +8,7 @@ struct ReportLiftView: View {
     @State private var note = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+    @State private var reportSubmitted = false
 
     var body: some View {
         NavigationStack {
@@ -31,7 +32,7 @@ struct ReportLiftView: View {
                         Task {
                             if await appState.competitionStore.report(lift, reason: reason, note: note) {
                                 Haptics.warning()
-                                dismiss()
+                                reportSubmitted = true
                             } else {
                                 errorMessage = "The report could not be submitted. Try again."
                                 isSubmitting = false
@@ -49,6 +50,11 @@ struct ReportLiftView: View {
                     Button("Cancel") { dismiss() }
                 }
             }
+            .alert("Report submitted", isPresented: $reportSubmitted) {
+                Button("Done") { dismiss() }
+            } message: {
+                Text("Thanks. The report was sent for review.")
+            }
         }
     }
 }
@@ -61,6 +67,7 @@ struct ReportProfileView: View {
     @State private var note = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+    @State private var reportSubmitted = false
 
     var body: some View {
         NavigationStack {
@@ -89,7 +96,7 @@ struct ReportProfileView: View {
                         Task {
                             if await appState.reportProfile(profile.id, reason: reason, note: note) {
                                 Haptics.warning()
-                                dismiss()
+                                reportSubmitted = true
                             } else {
                                 errorMessage = "The report could not be submitted. Try again."
                                 isSubmitting = false
@@ -106,6 +113,11 @@ struct ReportProfileView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
+            }
+            .alert("Report submitted", isPresented: $reportSubmitted) {
+                Button("Done") { dismiss() }
+            } message: {
+                Text("Thanks. The report was sent for review.")
             }
         }
     }

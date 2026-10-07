@@ -187,13 +187,16 @@ final class UnavailableLaunchService: LiftService, LeaderboardService, SocialSer
     func unblock(userID: UUID) async throws { throw error }
     func blocks() async throws -> [UserBlockRecord] { throw error }
     func communities() async throws -> [ForumCommunity] { throw error }
-    func posts(communityID: UUID?, limit: Int) async throws -> [ForumPost] { throw error }
+    func joinedCommunityIDs() async throws -> [UUID] { throw error }
+    func communityMembershipStatuses() async throws -> [UUID: String] { throw error }
+    func posts(communityID: UUID?, limit: Int, offset: Int) async throws -> [ForumPost] { throw error }
     func thread(postID: UUID) async throws -> ForumThread? { throw error }
     func join(communityID: UUID, requestNote: String) async throws -> String { throw error }
     func leave(communityID: UUID) async throws { throw error }
     func createPost(_ draft: ForumPostDraft) async throws -> ForumPost { throw error }
     func createComment(postID: UUID, body: String, parentCommentID: UUID?) async throws -> ForumComment { throw error }
     func vote(postID: UUID, value: Int?) async throws { throw error }
+    func vote(commentID: UUID, value: Int?) async throws { throw error }
     func watch(postID: UUID, watched: Bool) async throws { throw error }
     func report(targetType: String, targetID: UUID, communityID: UUID?, reason: String, note: String) async throws { throw error }
     func reports() async throws -> [ForumReport] { throw error }

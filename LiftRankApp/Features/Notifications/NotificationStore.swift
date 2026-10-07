@@ -141,6 +141,9 @@ final class NotificationStore: ObservableObject {
             return .gym(destination.gymID ?? destination.targetID)
         case .workoutTracker:
             return .tracker(destination.trackerStartsOnProgress ? .progress : .today)
+        case .forumPost:
+            guard let targetID = destination.targetID else { return .home }
+            return .forumPost(targetID, commentID: destination.commentID)
         }
     }
 

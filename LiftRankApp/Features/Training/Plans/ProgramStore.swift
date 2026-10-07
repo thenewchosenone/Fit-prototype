@@ -190,6 +190,36 @@ final class ProgramStore {
         graph().sessionsByWeekID[week.id] ?? []
     }
 
+    func queueEnabled(planID: UUID) -> Bool {
+        plan(id: planID)?.queueEnabled == true
+    }
+
+    func queuedSessions(planID: UUID) -> [WorkoutSession] {
+        guard let plan = plan(id: planID) else { return [] }
+        let sessionsByID = Dictionary(uniqueKeysWithValues: weeks(planID: planID).flatMap { sessions(week: $0) }.map { ($0.id, $0) })
+        return plan.queuedSessionIDs.compactMap { sessionsByID[$0] }
+    }
+
+    @discardableResult
+    func setQueue(planID: UUID, enabled: Bool, sessionIDs: [UUID]? = nil) -> Bool {
+        let current = plan(id: planID)?.queuedSessionIDs ?? []
+        let resolved = sessionIDs ?? (current.isEmpty ? weeks(planID: planID).flatMap { sessions(week: $0) }.map(\.id) : current)
+        return repository.updateWorkoutQueue(planID: planID, enabled: enabled, sessionIDs: resolved)
+    }
+
+    @discardableResult
+    func reorderQueue(planID: UUID, sessionIDs: [UUID]) -> Bool {
+        guard let plan = plan(id: planID), plan.queueEnabled else { return false }
+        return repository.updateWorkoutQueue(planID: planID, enabled: true, sessionIDs: sessionIDs)
+    }
+
+    func nextQueuedSession(planID: UUID, completedWorkouts: [CompletedWorkout]) -> WorkoutSession? {
+        let completedSessionIDs = Set(completedWorkouts.compactMap(\.sourceSessionID))
+        return queuedSessions(planID: planID).first { session in
+            session.outcome == nil && !completedSessionIDs.contains(session.id) && !prescriptions(session: session).isEmpty
+        }
+    }
+
     func prescriptions(session: WorkoutSession) -> [WorkoutExercisePrescription] {
         graph().prescriptionsBySessionID[session.id] ?? []
     }
@@ -259,6 +289,40 @@ final class ProgramStore {
     }
 
     @discardableResult
+    func saveWorkoutAsRoutine(_ workout: CompletedWorkout, name: String? = nil) -> WorkoutPlan? {
+        let trimmedName = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let routineName = trimmedName.isEmpty ? "\(workout.name) Routine" : trimmedName
+        guard let plan = createPlan(name: routineName),
+              let week = weeks(planID: plan.id).first,
+              let originalSession = sessions(week: week).first else { return nil }
+        repository.deleteWorkoutSession(originalSession)
+        let session = repository.addWorkoutSession(weekID: week.id, day: workout.dayLabel, name: workout.name)
+        for (index, exercise) in workout.exercises.enumerated() {
+            _ = repository.addWorkoutPrescription(
+                WorkoutExercisePrescription(
+                    id: makeID(),
+                    sessionID: session.id,
+                    exerciseID: exercise.exerciseID,
+                    exerciseName: exercise.exerciseName,
+                    bodyPart: exercise.bodyPart,
+                    equipment: exercise.equipment,
+                    sets: max(1, exercise.targetSets),
+                    reps: exercise.targetReps,
+                    restSeconds: exercise.restSeconds,
+                    order: index,
+                    notes: exercise.notes,
+                    substitutionExerciseIDs: exercise.substitutionExerciseIDs,
+                    muscleProfile: exercise.muscleProfile,
+                    targetRIR: exercise.targetRIR,
+                    trainingMaxPercentage: exercise.trainingMaxPercentage,
+                    targetLoadKilograms: exercise.targetLoadKilograms
+                )
+            )
+        }
+        return plan
+    }
+
+    @discardableResult
     func renamePlan(id: UUID, to name: String) -> Bool {
         guard var plan = plan(id: id) else { return false }
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -320,6 +384,10 @@ final class ProgramStore {
 
     func cancelSession(_ session: WorkoutSession) {
         repository.cancelWorkoutSession(session)
+    }
+
+    func setSessionOutcome(_ session: WorkoutSession, outcome: WorkoutSessionOutcome?) {
+        repository.setWorkoutSessionOutcome(session, outcome: outcome)
     }
 
     func addExercises(_ exercises: [TrainingExerciseCatalogItem], to session: WorkoutSession) {

@@ -34,10 +34,6 @@ extension AppState {
         get { router.sheet == .editProfile }
         set { router.setSheet(.editProfile, isPresented: newValue) }
     }
-    var showingModeratorReview: Bool {
-        get { router.sheet == .moderatorReview }
-        set { router.setSheet(.moderatorReview, isPresented: newValue) }
-    }
     var showingSettings: Bool {
         get { if case .settings = router.sheet { return true }; return false }
         set {
@@ -48,16 +44,9 @@ extension AppState {
             }
         }
     }
-    func openSettings(_ section: SettingsSection? = nil) {
-        router.sheet = .settings(section)
-    }
     var showingRequestGym: Bool {
         get { router.sheet == .requestGym }
         set { router.setSheet(.requestGym, isPresented: newValue) }
-    }
-    var showingAuthentication: Bool {
-        get { router.cover == .authentication }
-        set { router.setCover(.authentication, isPresented: newValue) }
     }
     var selectedProfile: UserProfile? {
         get { if case .profile(let value) = router.sheet { return value }; return nil }

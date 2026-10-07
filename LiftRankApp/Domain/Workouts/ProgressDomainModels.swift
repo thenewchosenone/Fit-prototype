@@ -108,13 +108,3 @@ struct ExerciseRecords: Hashable {
     var heaviestWeightKilograms: Double?
     var mostRepetitions: Int?
 }
-
-struct WorkoutCompletionInsights: Hashable {
-    var volumeDelta: Double
-    var volumeDeltaPercent: Double?
-    var setDelta: Int
-    var durationDelta: TimeInterval
-    var improvedExerciseNames: [String]
-    var projectedStatistics: CompetitiveStatistics
-    var newlyUnlockedAchievements: [AchievementUnlock]
-}

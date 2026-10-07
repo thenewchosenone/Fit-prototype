@@ -26,7 +26,7 @@ extension LeaderboardsView {
     }
 
     var currentUserEntry: LeaderboardEntry? {
-        allEntries.first {
+        visibleEntries.first {
             LeaderboardIdentityPresentation.isCurrentUser(
                 entryProfileID: $0.profile.id,
                 activeProfileID: appState.currentProfile.id
@@ -113,7 +113,7 @@ extension LeaderboardsView {
 
     var valueColumnTitle: String {
         switch appState.leaderboardFilters.rankingType {
-        case .absolute: return appState.leaderboardFilters.exerciseID == nil ? "PR" : "PR"
+        case .absolute: return appState.leaderboardFilters.exerciseID == nil ? "Best" : "PR"
         case .poundForPound: return "P4P"
         case .total: return "Total"
         case .relativeTotal: return "Relative"
@@ -200,7 +200,7 @@ extension LeaderboardsView {
                      ? "No lifters match this search. Try another name, gym, city, or exercise."
                      : hasFilters
                         ? "No lifters match the active filters. Broaden or reset them to continue."
-                        : "No eligible lifts have reached this leaderboard yet.")
+                        : leaderboardEvidenceMessage ?? "No eligible lifts have reached this leaderboard yet.")
                     .font(.subheadline)
                     .foregroundStyle(Color.liftMuted)
                 HStack {
@@ -230,6 +230,16 @@ extension LeaderboardsView {
         }
     }
 
+    var leaderboardEvidenceMessage: String? {
+        if appState.verifiedOnly {
+            return "Only lifts with attached video evidence are ranked here."
+        }
+        if appState.leaderboardFilters.verificationLevel == .selfReported {
+            return "Eligible public lifts without video evidence appear here. Adding a video moves a lift to Video-backed."
+        }
+        return nil
+    }
+
     func resetFilters() {
         appState.leaderboardFilters = LeaderboardFilters(exerciseID: nil)
         appState.verifiedOnly = true
@@ -243,6 +253,8 @@ extension LeaderboardsView {
             return gym.name
         }
         if appState.leaderboardFilters.city == appState.currentProfile.city { return "My city" }
+        if let state = appState.leaderboardFilters.state, !state.isEmpty { return "My state" }
+        if let country = appState.leaderboardFilters.country, !country.isEmpty { return "My country" }
         if let bodyweightClass,
            appState.leaderboardFilters.weightClassID == bodyweightClass.id { return "My class" }
         return isGlobalScope ? "Global" : "Custom"
@@ -263,10 +275,12 @@ extension LeaderboardsView {
             let broadScopes: [LeaderboardOption] = [
                 .init(id: "global", title: "Global", subtitle: "All ranked lifters", symbol: "globe"),
                 .init(id: "city", title: "My city", subtitle: "\(appState.currentProfile.city), \(appState.currentProfile.state)", symbol: "mappin.and.ellipse"),
+                .init(id: "state", title: "My state", subtitle: appState.currentProfile.state, symbol: "map"),
+                .init(id: "country", title: "My country", subtitle: appState.currentProfile.countryCode ?? "", symbol: "globe.americas.fill"),
                 .init(id: "class", title: "My weight class", subtitle: bodyweightClass.map { RankingFormatting.weightClassDisplayName($0, preferredUnit: appState.currentProfile.preferredUnit) }, symbol: "person.crop.rectangle.stack")
             ]
             let gymScopes = appState.gyms.map { gym in
-                LeaderboardOption(
+                return LeaderboardOption(
                     id: "gym:\(gym.id.uuidString)",
                     title: gym.name,
                     subtitle: [gym.city, gym.state].filter { !$0.isEmpty }.joined(separator: ", "),
@@ -275,8 +289,16 @@ extension LeaderboardsView {
             }
             return broadScopes + gymScopes
         case .exercise:
-            return [.init(id: "all", title: "All exercises", symbol: "dumbbell.fill")] + MockData.exercises.map {
-                .init(id: $0.id, title: $0.name, symbol: $0.symbolName)
+            return [.init(id: "all", title: "All exercises", symbol: "dumbbell.fill")] + MockData.exercises.map { exercise in
+                let catalogExercise = MockData.trainingExerciseLibrary.first {
+                    $0.rankingExerciseID == exercise.id || $0.id == exercise.id
+                }
+                return LeaderboardOption(
+                    id: exercise.id,
+                    title: exercise.name,
+                    symbol: catalogExercise?.symbolName ?? exercise.symbolName,
+                    exerciseCatalogID: catalogExercise?.id
+                )
             }
         case .repetitions:
             return [
@@ -311,6 +333,8 @@ extension LeaderboardsView {
         case .scope:
             if let gymID = appState.leaderboardFilters.gymID { return "gym:\(gymID.uuidString)" }
             if appState.leaderboardFilters.city == appState.currentProfile.city { return "city" }
+            if appState.leaderboardFilters.state == appState.currentProfile.state { return "state" }
+            if appState.leaderboardFilters.country == appState.currentProfile.countryCode { return "country" }
             if let bodyweightClass,
                appState.leaderboardFilters.weightClassID == bodyweightClass.id { return "class" }
             return "global"
@@ -340,6 +364,12 @@ extension LeaderboardsView {
                 appState.leaderboardFilters.cityID = appState.currentProfile.cityID
                 appState.leaderboardFilters.city = appState.currentProfile.city
                 appState.leaderboardFilters.state = appState.currentProfile.state
+                appState.leaderboardFilters.country = appState.currentProfile.countryCode
+            } else if optionID == "state" {
+                appState.leaderboardFilters.state = appState.currentProfile.state
+                appState.leaderboardFilters.country = appState.currentProfile.countryCode
+            } else if optionID == "country" {
+                appState.leaderboardFilters.country = appState.currentProfile.countryCode
             } else if optionID == "class" {
                 appState.leaderboardFilters.sexCategory = appState.currentProfile.sexCategory
                 appState.leaderboardFilters.weightClassID = bodyweightClass?.id
@@ -375,11 +405,14 @@ extension LeaderboardsView {
     func focusCurrentUserIfNeeded(using proxy: ScrollViewProxy) {
         guard let requestID = appState.leaderboardFocusRequestID,
               requestID != handledFocusRequestID,
-              visibleEntries.contains(where: { $0.profile.id == appState.currentProfile.id }) else {
+              let userIndex = visibleEntries.firstIndex(where: { $0.profile.id == appState.currentProfile.id }) else {
             return
         }
 
         handledFocusRequestID = requestID
+        // The list is paged in groups of 100. Expand it before scrolling so
+        // Jump to my rank also works when the athlete is outside the first page.
+        leaderboardPage = max(leaderboardPage, userIndex / 100 + 1)
         DispatchQueue.main.async {
             withAnimation(.easeInOut(duration: 0.35)) {
                 proxy.scrollTo(appState.currentProfile.id, anchor: .center)

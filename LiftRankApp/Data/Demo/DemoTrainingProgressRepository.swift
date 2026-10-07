@@ -18,33 +18,4 @@ extension DemoRepository {
         scheduleWorkoutSnapshotPersistence()
     }
 
-    func updateStrainEntry(_ entry: StrainEntry) {
-        if let index = strainEntries.firstIndex(where: { $0.id == entry.id }) {
-            strainEntries[index] = entry
-        } else {
-            strainEntries.append(entry)
-        }
-        strainEntries.sort { $0.occurredAt > $1.occurredAt }
-        scheduleWorkoutSnapshotPersistence()
-    }
-
-    func deleteStrainEntry(_ entryID: UUID) {
-        strainEntries.removeAll { $0.id == entryID }
-        scheduleWorkoutSnapshotPersistence()
-    }
-
-    func updateInjuryEntry(_ entry: InjuryEntry) {
-        if let index = injuryEntries.firstIndex(where: { $0.id == entry.id }) {
-            injuryEntries[index] = entry
-        } else {
-            injuryEntries.append(entry)
-        }
-        injuryEntries.sort { $0.occurredAt > $1.occurredAt }
-        scheduleWorkoutSnapshotPersistence()
-    }
-
-    func deleteInjuryEntry(_ entryID: UUID) {
-        injuryEntries.removeAll { $0.id == entryID }
-        scheduleWorkoutSnapshotPersistence()
-    }
 }

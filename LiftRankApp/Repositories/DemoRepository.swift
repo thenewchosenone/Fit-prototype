@@ -11,7 +11,6 @@ final class DemoRepository: ObservableObject {
     @Published var gyms: [Gym]
     @Published var joinedGymIDs: Set<UUID>
     @Published var lifts: [LiftSubmission] { didSet { liftsRevision &+= 1 } }
-    @Published var challenges: [Challenge]
     @Published var achievements: [Achievement]
     @Published var notifications: [NotificationItem] { didSet { notificationsRevision &+= 1 } }
     @Published var workoutPlans: [WorkoutPlan] { didSet { programDataRevision &+= 1 } }
@@ -65,7 +64,6 @@ final class DemoRepository: ObservableObject {
         gyms = []
         joinedGymIDs = []
         lifts = []
-        challenges = []
         achievements = MockData.achievements
         workoutPlans = []
         workoutPhases = []
@@ -105,7 +103,6 @@ final class DemoRepository: ObservableObject {
         gyms = []
         joinedGymIDs = []
         lifts = []
-        challenges = []
         achievements = MockData.achievements
         workoutPlans = []
         workoutPhases = []
@@ -144,7 +141,6 @@ final class DemoRepository: ObservableObject {
         gyms.removeAll()
         joinedGymIDs.removeAll()
         lifts.removeAll()
-        challenges.removeAll()
         notifications.removeAll()
         activeWorkout = nil
         completedWorkouts.removeAll()

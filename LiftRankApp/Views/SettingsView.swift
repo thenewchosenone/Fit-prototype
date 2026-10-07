@@ -3,8 +3,13 @@ import UIKit
 
 enum SettingsSection: String, Hashable {
     case units
+    case account
     case privacy
     case notifications
+    case training
+    case legal
+    case appearance
+    case developer
 }
 
 struct SettingsView: View {
@@ -16,10 +21,14 @@ struct SettingsView: View {
     @State private var hideBodyweight = false
     @State private var hideExactAge = false
     @State private var hideLocation = false
+    @State private var hideGym = false
     @State private var hideLiftVideos = false
+    @State private var divisionAudience = PrivacyAudience.publicProfile
+    @State private var friendListAudience = PrivacyAudience.friends
     @State private var privacy = ProfilePrivacySettings()
     @AppStorage("liftrank.appearance") private var appearance = LiftAppearance.system.rawValue
     @State private var settingsInfo: SettingsInfoPage?
+    @State private var showingPublicPreview = false
     @State private var confirmingDeletion = false
     @State private var confirmingDemoReset = false
     @State private var isSavingSettings = false
@@ -42,15 +51,57 @@ struct SettingsView: View {
                         }
                     }
                     .id(SettingsSection.units)
+                    Section("Account") {
+                        Button("Sign Out", role: .destructive) {
+                            dismiss()
+                            Task { await appState.signOutAccount() }
+                        }
+                        .disabled(appState.accountOperationInProgress)
+                        if appState.isAuthenticated && !appState.isDemoMode {
+                            Button("Delete Account", role: .destructive) {
+                                appState.accountMessage = nil
+                                confirmingDeletion = true
+                            }
+                            .disabled(appState.accountOperationInProgress)
+                        }
+                    }
+                    .id(SettingsSection.account)
                     Section("Privacy") {
                         Toggle("Private profile", isOn: $privateProfile)
-                        Text("Limits who can view your profile. The field settings below still control what viewers can see.")
+                        Text(privateProfile
+                             ? "Private profile overrides every field below. Turning it off restores each saved field setting."
+                             : "Your profile is public; each field below controls what other athletes can see.")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
-                        Toggle("Hide bodyweight", isOn: $hideBodyweight)
-                        Toggle("Hide age band", isOn: $hideExactAge)
-                        Toggle("Hide location", isOn: $hideLocation)
-                        Toggle("Hide approved lift videos", isOn: $hideLiftVideos)
+                        Toggle("Hide bodyweight from public", isOn: $hideBodyweight)
+                        Toggle("Hide age band from public", isOn: $hideExactAge)
+                        Toggle("Hide location from public", isOn: $hideLocation)
+                        Toggle("Hide gym from public", isOn: $hideGym)
+                        Toggle("Hide approved lift videos from public", isOn: $hideLiftVideos)
+                        Picker("Division visibility", selection: $divisionAudience) {
+                            ForEach(PrivacyAudience.allCases) { audience in
+                                Text(audience.label).tag(audience)
+                            }
+                        }
+                        Picker("Friend list visibility", selection: $friendListAudience) {
+                            ForEach(PrivacyAudience.allCases) { audience in
+                                Text(audience.label).tag(audience)
+                            }
+                        }
+                        Text("These controls affect what appears on your public profile and leaderboards; they do not delete your training records.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                        Text("Achievements and unlocked badges stay private on public profiles.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                        Button {
+                            showingPublicPreview = true
+                        } label: {
+                            Label("Preview public profile", systemImage: "person.text.rectangle")
+                        }
+                        Text("Review what another athlete can see with the current privacy settings.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
                     }
                     .id(SettingsSection.privacy)
                     Section("Notifications") {
@@ -64,7 +115,7 @@ struct SettingsView: View {
                             .foregroundStyle(Color.liftMuted)
                     }
                     .id(SettingsSection.notifications)
-                    Section("Workout Tracking") {
+                    Section("Training") {
                         Toggle("Automatically submit video-backed PRs", isOn: Binding(
                             get: { appState.workoutPreferences.automaticallySubmitVideoBackedPRs },
                             set: { appState.setAutomaticVideoPRSubmission($0) }
@@ -78,19 +129,21 @@ struct SettingsView: View {
                                 Task { await appState.retryFailedWorkoutPRSubmissions() }
                             }
                         }
-                        Text("Only eligible canonical lift PRs with an attached video can be posted. The setting is off by default; all other workout records stay private.")
+                        Text("With automatic sharing enabled, eligible PRs can appear publicly as self-reported without video or as video-backed when you attach one. Ordinary workout logs and private PRs stay private.")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                     }
+                    .id(SettingsSection.training)
                     Section("Legal and Safety") {
                         Button("About Lift Rivals") { settingsInfo = .about }
                         Button("Privacy notice") { settingsInfo = .privacy }
                         Button("Terms of use") { settingsInfo = .terms }
                         Button("Fitness disclaimer") { settingsInfo = .fitnessDisclaimer }
-                        Link("Support", destination: URL(string: "https://liftrivals.com/support")!)
+                        Link("Support", destination: URL(string: "https://liftrivals.com/support/")!)
                         LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Prototype")
                         LabeledContent("Build", value: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Local")
                     }
+                    .id(SettingsSection.legal)
                     Section("Appearance") {
                         Picker("Appearance", selection: $appearance) {
                             ForEach(LiftAppearance.allCases) { option in
@@ -98,6 +151,7 @@ struct SettingsView: View {
                             }
                         }
                     }
+                    .id(SettingsSection.appearance)
                     Section("Developer") {
                         if appState.isDemoMode {
                             Button("Reset Demo Data", role: .destructive) {
@@ -108,6 +162,7 @@ struct SettingsView: View {
                                 .font(.caption)
                         }
                     }
+                    .id(SettingsSection.developer)
                     if appState.accountOperationInProgress || appState.accountMessage != nil {
                         Section {
                             if appState.accountOperationInProgress {
@@ -121,20 +176,6 @@ struct SettingsView: View {
                                     .font(.subheadline)
                                     .foregroundStyle(Color.liftRed)
                             }
-                        }
-                    }
-                    Section {
-                        Button("Sign Out", role: .destructive) {
-                            dismiss()
-                            Task { await appState.signOutAccount() }
-                        }
-                        .disabled(appState.accountOperationInProgress)
-                        if appState.isAuthenticated && !appState.isDemoMode {
-                            Button("Delete Account", role: .destructive) {
-                                appState.accountMessage = nil
-                                confirmingDeletion = true
-                            }
-                            .disabled(appState.accountOperationInProgress)
                         }
                     }
                     }
@@ -166,7 +207,10 @@ struct SettingsView: View {
                 hideBodyweight = privacy.bodyweightAudience == .privateProfile
                 hideExactAge = privacy.ageBandAudience == .privateProfile
                 hideLocation = privacy.locationAudience == .privateProfile
+                hideGym = privacy.gymAudience == .privateProfile
                 hideLiftVideos = !privacy.showLiftVideos
+                divisionAudience = privacy.divisionAudience
+                friendListAudience = privacy.friendListAudience
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -186,6 +230,12 @@ struct SettingsView: View {
                 SettingsInfoView(page: page)
                     .presentationDetents([.medium, .large])
             }
+            .sheet(isPresented: $showingPublicPreview) {
+                NavigationStack {
+                    ProfileView(profile: profileSettingsUpdate().profile, surface: .public, viewerID: UUID())
+                }
+                .environmentObject(appState)
+            }
             .alert("Permanently delete your Lift Rivals account?", isPresented: $confirmingDeletion) {
                 Button(appState.accountOperationInProgress ? "Deleting..." : "Delete Account and Local Data", role: .destructive) {
                     Task {
@@ -204,7 +254,7 @@ struct SettingsView: View {
                 Button("Reset Demo Data", role: .destructive) { appState.resetDemoData() }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This clears the demo profile, workouts, and other local demo progress.")
+                Text("This clears the demo profile, workouts, bodyweight history, plans, awards, and other local demo progress. It does not affect production accounts.")
             }
         }
         .preferredColorScheme(LiftAppearance(rawValue: appearance)?.colorScheme)
@@ -217,11 +267,16 @@ struct SettingsView: View {
         profile.hideBodyweight = hideBodyweight
         profile.hideExactAge = hideExactAge
         profile.hideCity = hideLocation
+        profile.hideGym = hideGym
         profile.hideLiftVideos = hideLiftVideos
         updatedPrivacy.profileAudience = resolvedAudience(current: privacy.profileAudience, hidden: privateProfile)
+        profile.profileAudience = updatedPrivacy.profileAudience
         updatedPrivacy.bodyweightAudience = resolvedAudience(current: privacy.bodyweightAudience, hidden: hideBodyweight)
         updatedPrivacy.ageBandAudience = resolvedAudience(current: privacy.ageBandAudience, hidden: hideExactAge)
         updatedPrivacy.locationAudience = resolvedAudience(current: privacy.locationAudience, hidden: hideLocation)
+        updatedPrivacy.gymAudience = resolvedAudience(current: privacy.gymAudience, hidden: hideGym)
+        updatedPrivacy.divisionAudience = divisionAudience
+        updatedPrivacy.friendListAudience = friendListAudience
         updatedPrivacy.showLiftVideos = !hideLiftVideos
         return (profile, updatedPrivacy)
     }
@@ -294,7 +349,7 @@ enum SettingsInfoPage: String, Identifiable {
             return [
                 ("Lift Rivals", "Lift Rivals is a competitive strength platform for tracking workouts, recording true one-rep PRs, and comparing eligible lifts."),
                 ("Evidence labels", "Video-backed means a lift has attached video evidence. It does not mean Lift Rivals approved the athlete’s technique."),
-                ("Support", "For help, bugs, or missing gym and exercise data, use the Support link in Settings.")
+                ("Support", "For help, bugs, or missing gym and exercise data, open Support in Settings or email support@liftrivals.com. Never send your password, verification code, or payment information.")
             ]
         case .privacy: return documentSections(.privacy)
         case .terms: return documentSections(.terms)

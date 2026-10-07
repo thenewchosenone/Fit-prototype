@@ -3,6 +3,31 @@ import CryptoKit
 import Security
 import SwiftUI
 
+private func liftSymbol(for exerciseName: String) -> String {
+    let normalized = exerciseName.lowercased()
+    if normalized.contains("squat") { return "figure.strengthtraining.functional" }
+    if normalized.contains("bench") { return "figure.strengthtraining.traditional" }
+    if normalized.contains("deadlift") { return "figure.strengthtraining.functional" }
+    if normalized.contains("row") { return "figure.rower" }
+    if normalized.contains("pulldown") || normalized.contains("pull-down") || normalized.contains("pullover") { return "figure.climbing" }
+    if normalized.contains("curl") { return "figure.stand" }
+    if normalized.contains("fly") || normalized.contains("rear delt") { return "figure.stand" }
+    if normalized.contains("lateral raise") || normalized.contains("front raise") { return "figure.stand" }
+    if normalized.contains("lunge") || normalized.contains("step-up") || normalized.contains("step up") { return "figure.walk" }
+    if normalized.contains("calf raise") { return normalized.contains("seated") ? "figure.seated.side" : "figure.stand" }
+    if normalized.contains("leg press") { return "figure.seated.side" }
+    if normalized.contains("hip thrust") || normalized.contains("glute bridge") { return "figure.strengthtraining.functional" }
+    if normalized.contains("shrug") { return "figure.stand" }
+    if normalized.contains("overhead press") || normalized.contains("shoulder press") || normalized.contains("push press") || normalized.contains("arnold press") || normalized.contains("military press") {
+        return "figure.stand"
+    }
+    if normalized.contains("push-up") || normalized.contains("push up") || normalized.contains("dip") {
+        return "figure.strengthtraining.functional"
+    }
+    if normalized.contains("press") { return "figure.strengthtraining.traditional" }
+    return "chart.line.uptrend.xyaxis"
+}
+
 private enum MeRoute: Hashable {
     case publicProfile
     case awards
@@ -92,7 +117,7 @@ struct MainTabView: View {
         .navigationDestination(for: MeRoute.self) { route in
             switch route {
             case .publicProfile:
-                ProfileView(profile: appState.currentProfile, isCurrentUser: true)
+                ProfileView(profile: appState.currentProfile, surface: .public, viewerID: UUID())
             case .awards:
                 AwardsView()
             case .gyms:
@@ -182,19 +207,43 @@ private enum ForumFeed: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+private enum ForumCommentSort: String, CaseIterable, Identifiable {
+    case best, new
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .best: return "Best"
+        case .new: return "New"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .best: return "arrow.up"
+        case .new: return "sparkles"
+        }
+    }
+}
+
 private struct ForumView: View {
     @EnvironmentObject private var appState: AppState
     @State private var groups: [ForumCommunity] = []
     @State private var posts: [ForumPost] = []
     @State private var selectedGroupID: UUID?
     @State private var joinedGroupIDs: Set<UUID> = []
+    @State private var membershipStatuses: [UUID: String] = [:]
     @State private var showingComposer = false
     @State private var sort: ForumSort = .top
     @State private var feed: ForumFeed = .all
     @State private var searchText = ""
-    @State private var isFollowing = false
     @State private var isLoading = true
+    @State private var isLoadingMore = false
+    @State private var hasMorePosts = false
+    @State private var remotePostOffset = 0
     @State private var message: String?
+    @State private var requestedPost: ForumPost?
+    @State private var requestedCommentID: UUID?
+    @State private var showingCommunityDirectory = false
 
     var body: some View {
         AppBackground {
@@ -208,13 +257,30 @@ private struct ForumView: View {
                     else if let message { LiftEmptyState(title: "Forum unavailable", message: message) }
                     else if feedPosts.isEmpty {
                         LiftEmptyState(
-                            title: feed == .following ? "No followed discussions" : "No discussions yet",
-                            message: feed == .following ? "Join a community to build your Following feed." : "Start the first useful conversation for this training group."
+                            title: emptyFeedTitle,
+                            message: emptyFeedMessage
                         )
                     }
                     else {
                         ForEach(sortedPosts) { post in
                             ForumPostCard(post: post, community: selectedGroup).environmentObject(appState)
+                        }
+                        if hasMorePosts {
+                            Button {
+                                Task { await loadMorePosts() }
+                            } label: {
+                                if isLoadingMore {
+                                    ProgressView().frame(maxWidth: .infinity)
+                                } else {
+                                    Text("Load more discussions")
+                                        .font(.subheadline.weight(.bold))
+                                        .frame(maxWidth: .infinity)
+                                }
+                            }
+                            .buttonStyle(LiftCompactProminentButtonStyle())
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .disabled(isLoadingMore)
                         }
                     }
                 }
@@ -236,11 +302,34 @@ private struct ForumView: View {
             .background(Color.liftBackground)
         }
         .sheet(isPresented: $showingComposer) { ForumComposerView(groups: groups, selectedGroupID: selectedGroupID) { await loadPosts() }.environmentObject(appState) }
+        .sheet(isPresented: $showingCommunityDirectory) {
+                ForumCommunityDirectoryView(
+                    groups: groups,
+                    joinedGroupIDs: $joinedGroupIDs,
+                    membershipStatuses: $membershipStatuses,
+                    selectedGroupID: $selectedGroupID,
+                onMembershipChanged: { group in await toggleMembership(group) },
+                onCommunitySelected: {
+                    showingCommunityDirectory = false
+                    Task { await loadPosts() }
+                }
+            )
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showingComposer = true } label: { Image(systemName: "plus") }
                     .accessibilityLabel("New discussion")
             }
+        }
+        .sheet(item: $requestedPost) { post in
+            NavigationStack {
+                ForumThreadView(post: post, highlightedCommentID: requestedCommentID)
+                    .environmentObject(appState)
+            }
+        }
+        .onChange(of: appState.router.forumPostToOpen) { _, postID in
+            guard postID != nil else { return }
+            Task { await openRequestedPostIfNeeded() }
         }
         .task { await load() }
     }
@@ -258,7 +347,7 @@ private struct ForumView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(selectedGroup?.name ?? "Training discussions")
                         .font(.title2.weight(.black))
-                    Text("community • \(posts.count) discussions")
+                    Text(selectedGroup == nil ? "\(posts.count) discussions" : "community • \(posts.count) discussions")
                         .font(.subheadline)
                         .foregroundStyle(Color.liftTextSecondary)
                 }
@@ -287,28 +376,34 @@ private struct ForumView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
 
-            HStack(spacing: 18) {
-                Label("About", systemImage: "info.circle")
-                Label("Rules", systemImage: "list.bullet")
-                Spacer()
-            }
-            .font(.caption.weight(.bold))
-            .foregroundStyle(Color.liftAccentText)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 14)
         }
         .background(Color.liftSurfaceBackground)
     }
 
     private var forumGroupPicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                forumChip(title: "All communities", id: nil)
-                ForEach(filteredGroups) { group in forumChip(title: group.name, id: group.id) }
+        VStack(alignment: .leading, spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    forumChip(title: "All communities", id: nil)
+                    ForEach(filteredGroups) { group in forumChip(title: group.name, id: group.id) }
+                }
+                .padding(.horizontal, 16)
             }
+            Button {
+                showingCommunityDirectory = true
+            } label: {
+                Label("Browse communities", systemImage: "square.grid.2x2")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.liftAccentText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 40)
+                    .background(Color.liftSurfaceElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
         }
+        .padding(.vertical, 12)
         .background(Color.liftBackground)
     }
 
@@ -356,12 +451,31 @@ private struct ForumView: View {
 
     private var selectedGroup: ForumCommunity? { groups.first { $0.id == selectedGroupID } }
 
+    private var emptyFeedTitle: String {
+        switch feed {
+        case .all: return "No discussions yet"
+        case .forYou: return "Your feed is empty"
+        case .following: return "No followed communities yet"
+        }
+    }
+
+    private var emptyFeedMessage: String {
+        switch feed {
+        case .all:
+            return "Start the first useful conversation for this training group."
+        case .forYou:
+            return "Join communities to personalize this feed, or browse pinned recommendations."
+        case .following:
+            return "Join a community to see its discussions here."
+        }
+    }
+
     private var sortedPosts: [ForumPost] {
         let source = filteredPosts
         switch sort {
-        case .top: return source.sorted { lhs, rhs in lhs.isPinned != rhs.isPinned ? lhs.isPinned : lhs.createdAt > rhs.createdAt }
+        case .top: return source.sorted { lhs, rhs in lhs.isPinned != rhs.isPinned ? lhs.isPinned : lhs.voteCount != rhs.voteCount ? lhs.voteCount > rhs.voteCount : lhs.createdAt > rhs.createdAt }
         case .new: return source.sorted { $0.createdAt > $1.createdAt }
-        case .discussed: return source.sorted { $0.title.count > $1.title.count }
+        case .discussed: return source.sorted { lhs, rhs in lhs.commentCount != rhs.commentCount ? lhs.commentCount > rhs.commentCount : lhs.createdAt > rhs.createdAt }
         }
     }
 
@@ -389,11 +503,10 @@ private struct ForumView: View {
         case .all:
             return posts
         case .forYou:
-            let followed = posts.filter { post in
+            return posts.filter { post in
                 guard let communityID = post.communityID else { return false }
-                return joinedGroupIDs.contains(communityID)
+                return joinedGroupIDs.contains(communityID) || post.isPinned
             }
-            return followed.isEmpty ? posts : followed
         case .following:
             return posts.filter { post in
                 guard let communityID = post.communityID else { return false }
@@ -411,13 +524,45 @@ private struct ForumView: View {
     }
 
     private func load() async {
-        do { groups = try await appState.forumStore.communities(); await loadPosts() }
+        do {
+            groups = try await appState.forumStore.communities()
+            if let statuses = try? await appState.forumStore.communityMembershipStatuses() {
+                membershipStatuses = statuses
+            }
+            if let memberships = try? await appState.forumStore.joinedCommunityIDs() {
+                joinedGroupIDs = Set(memberships)
+            }
+            await loadPosts()
+            await openRequestedPostIfNeeded()
+        }
         catch { message = error.localizedDescription; isLoading = false }
+    }
+
+    private func openRequestedPostIfNeeded() async {
+        guard let postID = appState.router.forumPostToOpen else { return }
+        let commentID = appState.router.forumCommentToOpen
+        defer {
+            appState.router.forumPostToOpen = nil
+            appState.router.forumCommentToOpen = nil
+        }
+        if let post = posts.first(where: { $0.id == postID }) {
+            requestedCommentID = commentID
+            requestedPost = post
+            return
+        }
+        if let thread = try? await appState.forumStore.thread(postID: postID) {
+            requestedCommentID = commentID
+            requestedPost = thread.post
+        } else {
+            message = "This discussion is no longer available or you do not have access to it."
+        }
     }
 
     private func loadPosts() async {
         do {
-            let remotePosts = try await appState.forumStore.posts(communityID: selectedGroupID, limit: 50)
+            let remotePosts = try await appState.forumStore.posts(communityID: selectedGroupID, limit: 50, offset: 0)
+            remotePostOffset = remotePosts.count
+            hasMorePosts = remotePosts.count == 50
 #if DEBUG
             posts = remotePosts + ForumDemoContent.posts(for: groups, communityID: selectedGroupID)
 #else
@@ -428,11 +573,139 @@ private struct ForumView: View {
         catch { message = error.localizedDescription; isLoading = false }
     }
 
+    private func loadMorePosts() async {
+        guard hasMorePosts, !isLoadingMore else { return }
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+        do {
+            let remotePosts = try await appState.forumStore.posts(communityID: selectedGroupID, limit: 50, offset: remotePostOffset)
+            posts.append(contentsOf: remotePosts)
+            remotePostOffset += remotePosts.count
+            hasMorePosts = remotePosts.count == 50
+        } catch { message = error.localizedDescription }
+    }
+
     private func toggleMembership(_ group: ForumCommunity) async {
         do {
-            if joinedGroupIDs.contains(group.id) { try await appState.forumStore.leave(communityID: group.id); joinedGroupIDs.remove(group.id) }
-            else { _ = try await appState.forumStore.join(communityID: group.id, requestNote: ""); joinedGroupIDs.insert(group.id) }
+            if joinedGroupIDs.contains(group.id) {
+                try await appState.forumStore.leave(communityID: group.id)
+                joinedGroupIDs.remove(group.id)
+                membershipStatuses[group.id] = "Left"
+            } else {
+                let status = try await appState.forumStore.join(communityID: group.id, requestNote: "")
+                membershipStatuses[group.id] = status
+                if status == "Joined" || status == "Muted" {
+                    joinedGroupIDs.insert(group.id)
+                }
+            }
         } catch { message = error.localizedDescription }
+    }
+}
+
+private struct ForumCommunityDirectoryView: View {
+    let groups: [ForumCommunity]
+    @Binding var joinedGroupIDs: Set<UUID>
+    @Binding var membershipStatuses: [UUID: String]
+    @Binding var selectedGroupID: UUID?
+    let onMembershipChanged: (ForumCommunity) async -> Void
+    let onCommunitySelected: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            AppBackground {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        directoryIntro
+                        ForEach(groups) { group in
+                            communityRow(group)
+                        }
+                    }
+                    .padding(16)
+                    .padding(.bottom, 24)
+                }
+            }
+            .navigationTitle("Communities")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private var directoryIntro: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Find your training rooms")
+                .font(.title3.weight(.black))
+            Text("Browse every discussion community, read its focus, and choose which ones appear in Following.")
+                .font(.subheadline)
+                .foregroundStyle(Color.liftTextSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .liftSurface(radius: 16)
+    }
+
+    private func communityRow(_ group: ForumCommunity) -> some View {
+        let isJoined = joinedGroupIDs.contains(group.id)
+        let membershipStatus = membershipStatuses[group.id]
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                Circle()
+                    .fill(Color.liftLime.opacity(0.18))
+                    .frame(width: 42, height: 42)
+                    .overlay {
+                        Image(systemName: "figure.strengthtraining.traditional")
+                            .foregroundStyle(Color.liftAccentText)
+                    }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(group.name)
+                        .font(.headline.weight(.bold))
+                    Text(group.category)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.liftAccentText)
+                    Text(group.summary)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.liftTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 4)
+            }
+
+            if !group.details.isEmpty {
+                Text(group.details)
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+                    .lineLimit(3)
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    selectedGroupID = group.id
+                    onCommunitySelected()
+                } label: {
+                    Text("View discussions")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity, minHeight: 38)
+                }
+                .buttonStyle(LiftCompactProminentButtonStyle())
+
+                Button {
+                    Task { await onMembershipChanged(group) }
+                } label: {
+                    Text(isJoined ? (membershipStatus == "Muted" ? "Muted" : "Joined") : (membershipStatus == "Pending" ? "Pending" : "Join"))
+                        .font(.subheadline.weight(.bold))
+                        .frame(minWidth: 70, minHeight: 38)
+                }
+                .buttonStyle(.bordered)
+                .tint(isJoined ? Color.liftMuted : Color.liftAccentText)
+                .disabled(membershipStatus == "Pending")
+            }
+        }
+        .padding(16)
+        .liftSurface(radius: 16)
     }
 }
 
@@ -476,6 +749,12 @@ private enum ForumDemoContent {
                     id: demoID(post.id, offset: 4), postID: post.id, authorID: authorID, parentCommentID: nil,
                     body: "Add your own perspective here when this community goes live.",
                     createdAt: post.createdAt.addingTimeInterval(3600)
+                ),
+                ForumComment(
+                    id: demoID(post.id, offset: 5), postID: post.id, authorID: authorID,
+                    parentCommentID: demoID(post.id, offset: 3),
+                    body: "A reply nested under the first comment demonstrates the conversation structure.",
+                    createdAt: post.createdAt.addingTimeInterval(2700)
                 )
             ]
         )
@@ -512,6 +791,7 @@ private struct ForumComposerView: View {
     @State private var title = ""
     @State private var draftBody = ""
     @State private var error: String?
+    @State private var isPublishing = false
 
     var body: some View {
         NavigationStack {
@@ -531,7 +811,12 @@ private struct ForumComposerView: View {
             .navigationTitle("New discussion")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Publish") { Task { await publish() } }.disabled(groupID == nil || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || draftBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button { Task { await publish() } } label: {
+                        if isPublishing { ProgressView() } else { Text("Publish") }
+                    }
+                    .disabled(isPublishing || groupID == nil || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || draftBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
             }
             .onAppear { groupID = selectedGroupID ?? groups.first?.id }
         }
@@ -539,6 +824,9 @@ private struct ForumComposerView: View {
 
     private func publish() async {
         guard let groupID else { return }
+        guard !isPublishing else { return }
+        isPublishing = true
+        defer { isPublishing = false }
         do {
             _ = try await appState.forumStore.createPost(ForumPostDraft(communityID: groupID, kind: "Discussion", title: title, body: draftBody, tag: nil, liftID: nil))
             await didPublish()
@@ -554,13 +842,13 @@ private struct ForumPostCard: View {
 
     var body: some View {
         NavigationLink {
-            ForumThreadView(post: post).environmentObject(appState)
+            ForumThreadView(post: post, highlightedCommentID: nil).environmentObject(appState)
         } label: {
             VStack(alignment: .leading, spacing: 11) {
                 HStack(spacing: 9) {
                     forumAvatar
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(post.tag == "demo" ? "lift_rank_member" : "community member")
+                        Text(authorLabel)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(Color.liftTextSecondary)
                         HStack(spacing: 5) {
@@ -572,9 +860,6 @@ private struct ForumPostCard: View {
                         .foregroundStyle(Color.liftMuted)
                     }
                     Spacer()
-                    Image(systemName: "ellipsis")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(Color.liftMuted)
                 }
                 if post.isPinned || post.isLocked {
                     HStack(spacing: 7) {
@@ -599,10 +884,15 @@ private struct ForumPostCard: View {
                         .background(Color.liftSurfaceSecondary, in: Capsule())
                 }
                 HStack(spacing: 9) {
-                    forumAction(icon: "arrow.up", label: post.isPinned ? "36" : "12")
-                    forumAction(icon: "bubble.left", label: post.isPinned ? "52" : "8")
+                    forumMetric(
+                        icon: post.currentUserVote == 1 ? "arrow.up.circle.fill" : "arrow.up",
+                        label: String(post.voteCount) + " votes"
+                    )
+                    forumMetric(icon: "bubble.left.and.bubble.right", label: String(post.commentCount) + " replies")
                     Spacer()
-                    forumAction(icon: "arrowshape.turn.up.right", label: "")
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.liftMuted)
                 }
                 .padding(.top, 2)
             }
@@ -624,15 +914,23 @@ private struct ForumPostCard: View {
         .frame(width: 38, height: 38)
     }
 
-    private func forumAction(icon: String, label: String) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon).font(.subheadline.weight(.semibold))
-            if !label.isEmpty { Text(label).font(.caption.weight(.bold)) }
+    private var authorLabel: String {
+        if post.tag == "demo" { return "lift_rank_member" }
+        if post.authorID == appState.currentProfile.id {
+            return appState.currentProfile.username.isEmpty ? "You" : "@\(appState.currentProfile.username)"
         }
-        .foregroundStyle(Color.liftMuted)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.liftSurfaceSecondary.opacity(0.7), in: Capsule())
+        if let profile = appState.profileStore.profile(id: post.authorID) {
+            if !profile.username.isEmpty { return "@\(profile.username)" }
+            if !profile.displayName.isEmpty { return profile.displayName }
+        }
+        return "community member"
+    }
+
+    private func forumMetric(icon: String, label: String) -> some View {
+        Label(label, systemImage: icon)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(Color.liftMuted)
+            .accessibilityElement(children: .combine)
     }
 
     private func forumBadge(_ title: String, icon: String) -> some View {
@@ -648,35 +946,53 @@ private struct ForumPostCard: View {
 private struct ForumThreadView: View {
     @EnvironmentObject private var appState: AppState
     let post: ForumPost
+    let highlightedCommentID: UUID?
     @State private var thread: ForumThread?
     @State private var reply = ""
     @State private var replyingTo: UUID?
     @State private var error: String?
     @State private var isWatching = false
     @State private var voteValue: Int?
+    @State private var commentVoteValues: [UUID: Int] = [:]
+    @State private var collapsedCommentIDs: Set<UUID> = []
+    @State private var commentSort: ForumCommentSort = .best
     @State private var showingReportReasons = false
+    @State private var reportTargetCommentID: UUID?
+    @State private var isSubmittingReply = false
+
+    private var isDemoReadOnly: Bool { post.tag == "demo" }
 
     var body: some View {
         AppBackground {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
                     if let thread {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack(spacing: 10) {
                                 forumAvatar
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(post.tag == "demo" ? "lift_rank_member" : "community member")
+                                    Text(authorDisplayName(for: post.authorID, isDemo: isDemoReadOnly))
                                         .font(.subheadline.weight(.semibold))
                                     Text(post.createdAt, style: .relative)
                                         .font(.caption)
                                         .foregroundStyle(Color.liftMuted)
                                 }
                                 Spacer()
-                                Menu {
-                                    Button("Report discussion", role: .destructive) { showingReportReasons = true }
-                                } label: {
-                                    Image(systemName: "ellipsis")
-                                        .foregroundStyle(Color.liftMuted)
+                                if isDemoReadOnly {
+                                    Label("Demo preview", systemImage: "eye")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(Color.liftAccentText)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 5)
+                                        .background(Color.liftLime.opacity(0.12), in: Capsule())
+                                } else {
+                                    Menu {
+                                        Button("Report discussion", role: .destructive) { showingReportReasons = true }
+                                    } label: {
+                                        Image(systemName: "ellipsis")
+                                            .foregroundStyle(Color.liftMuted)
+                                    }
                                 }
                             }
                             Text(thread.post.title)
@@ -686,16 +1002,30 @@ private struct ForumThreadView: View {
                                 .foregroundStyle(Color.liftTextSecondary)
                             HStack(spacing: 9) {
                                 Button { Task { await toggleVote() } } label: {
-                                    threadAction(icon: voteValue == 1 ? "arrow.up.circle.fill" : "arrow.up", label: "36")
+                                    threadAction(icon: voteValue == 1 ? "arrow.up.circle.fill" : "arrow.up", label: "\(thread.post.voteCount)")
                                 }
                                 .buttonStyle(.plain)
+                                .disabled(isDemoReadOnly)
+                                Button { Task { await toggleDownvote() } } label: {
+                                    threadAction(icon: voteValue == -1 ? "arrow.down.circle.fill" : "arrow.down", label: "")
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(isDemoReadOnly)
                                 threadAction(icon: "bubble.left", label: "\(thread.comments.count)")
                                 Spacer()
-                                threadAction(icon: "arrowshape.turn.up.right", label: "")
+                                ShareLink(
+                                    item: "\(thread.post.title)\n\n\(thread.post.body)",
+                                    subject: Text(thread.post.title),
+                                    message: Text("Share this Lift Rivals discussion")
+                                ) {
+                                    Image(systemName: "square.and.arrow.up")
+                                }
+                                .accessibilityLabel("Share discussion")
                                 Button { Task { await toggleWatch() } } label: {
                                     Image(systemName: isWatching ? "bell.fill" : "bell")
                                 }
                                 .foregroundStyle(Color.liftMuted)
+                                .disabled(isDemoReadOnly)
                             }
                         }
                         .padding(16)
@@ -706,9 +1036,18 @@ private struct ForumThreadView: View {
                             Text("\(thread.comments.count) comments")
                                 .font(.headline.weight(.bold))
                             Spacer()
-                            Text("Best")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(Color.liftAccentText)
+                            Menu {
+                                ForEach(ForumCommentSort.allCases) { option in
+                                    Button { commentSort = option } label: {
+                                        Label(option.title, systemImage: option.icon)
+                                    }
+                                }
+                            } label: {
+                                Label(commentSort.title, systemImage: commentSort.icon)
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(Color.liftAccentText)
+                            }
+                            .accessibilityLabel("Comment sort")
                         }
                         .padding(.horizontal, 16)
                         if thread.comments.isEmpty {
@@ -718,7 +1057,12 @@ private struct ForumThreadView: View {
                                 .padding(.horizontal, 16)
                         } else {
                             ForEach(displayComments(from: thread.comments), id: \.comment.id) { row in
-                                forumComment(row.comment, depth: row.depth)
+                                forumComment(
+                                    row.comment,
+                                    depth: row.depth,
+                                    hasReplies: thread.comments.contains { $0.parentCommentID == row.comment.id }
+                                )
+                                    .id(row.comment.id)
                             }
                         }
                     } else {
@@ -726,25 +1070,48 @@ private struct ForumThreadView: View {
                     }
                     if let error { Text(error).font(.caption).foregroundStyle(Color.liftRed) }
                 }
-                .padding(16)
-                .padding(.bottom, 78)
+                    .padding(16)
+                    .padding(.bottom, 78)
+                }
+                .onChange(of: thread?.comments.count) { _, _ in
+                    scrollToHighlightedComment(using: proxy)
+                }
+                .task {
+                    scrollToHighlightedComment(using: proxy)
+                }
             }
         }
         .navigationTitle("Discussion")
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Why are you reporting this discussion?", isPresented: $showingReportReasons, titleVisibility: .visible) {
+        .confirmationDialog(reportDialogTitle, isPresented: $showingReportReasons, titleVisibility: .visible) {
             Button("Spam or promotion", role: .destructive) { Task { await report(reason: "spam") } }
             Button("Harassment or abuse", role: .destructive) { Task { await report(reason: "harassment") } }
             Button("Off-topic or misleading", role: .destructive) { Task { await report(reason: "off_topic") } }
-            Button("Cancel", role: .cancel) {}
+            Button("Cancel", role: .cancel) { reportTargetCommentID = nil }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if thread != nil {
+            if thread?.post.isLocked == true {
+                Text("This discussion is locked. New replies are unavailable.")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.liftMuted)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color.liftBackground)
+            } else if thread != nil {
                 VStack(alignment: .leading, spacing: 6) {
-                    if let replyingTo,
+                    if isDemoReadOnly {
+                        Text("Demo forum is read-only. Sign in to post, reply, vote, or report.")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.liftMuted)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(Color.liftBackground)
+                    } else if let replyingTo,
                        let parent = thread?.comments.first(where: { $0.id == replyingTo }) {
                         HStack(spacing: 6) {
-                            Text("Replying to \(parent.authorID == appState.currentProfile.id ? appState.currentProfile.username : "community member")")
+                            Text("Replying to \(authorDisplayName(for: parent.authorID, isDemo: isDemoReadOnly))")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(Color.liftMuted)
                             Spacer()
@@ -757,10 +1124,14 @@ private struct ForumThreadView: View {
                             .lineLimit(1...4)
                             .textFieldStyle(.roundedBorder)
                         Button { Task { await submitReply() } } label: {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .font(.title2)
+                            if isSubmittingReply {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "arrow.up.circle.fill")
+                                    .font(.title2)
+                            }
                         }
-                        .disabled(reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(isSubmittingReply || reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .tint(Color.liftAccentText)
                     }
                 }
@@ -772,6 +1143,19 @@ private struct ForumThreadView: View {
         .task { await load() }
     }
 
+    private func scrollToHighlightedComment(using proxy: ScrollViewProxy) {
+        guard let highlightedCommentID,
+              thread?.comments.contains(where: { $0.id == highlightedCommentID }) == true else { return }
+        DispatchQueue.main.async {
+            withAnimation { proxy.scrollTo(highlightedCommentID, anchor: .center) }
+        }
+    }
+
+    private var reportDialogTitle: String {
+        let target = reportTargetCommentID == nil ? "discussion" : "comment"
+        return "Why are you reporting this \(target)?"
+    }
+
     private var forumAvatar: some View {
         ZStack {
             Circle().fill(Color.liftLime.opacity(0.9))
@@ -780,6 +1164,18 @@ private struct ForumThreadView: View {
                 .foregroundStyle(Color.liftOnAccent)
         }
         .frame(width: 38, height: 38)
+    }
+
+    private func authorDisplayName(for authorID: UUID, isDemo: Bool) -> String {
+        if isDemo { return "lift_rank_member" }
+        if authorID == appState.currentProfile.id {
+            return appState.currentProfile.username.isEmpty ? "You" : "@\(appState.currentProfile.username)"
+        }
+        if let profile = appState.profileStore.profile(id: authorID) {
+            if !profile.username.isEmpty { return "@\(profile.username)" }
+            if !profile.displayName.isEmpty { return profile.displayName }
+        }
+        return "community member"
     }
 
     private func threadAction(icon: String, label: String) -> some View {
@@ -793,22 +1189,18 @@ private struct ForumThreadView: View {
         .background(Color.liftSurfaceSecondary.opacity(0.7), in: Capsule())
     }
 
-    private func forumComment(_ comment: ForumComment, depth: Int) -> some View {
+    private func forumComment(_ comment: ForumComment, depth: Int, hasReplies: Bool) -> some View {
         HStack(alignment: .top, spacing: 10) {
             forumAvatar
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
-                    Text(comment.authorID == appState.currentProfile.id ? appState.currentProfile.username : "lift_rank_member")
+                    Text(authorDisplayName(for: comment.authorID, isDemo: isDemoReadOnly))
                         .font(.caption.weight(.bold))
                     Text("•")
-                    Text(comment.createdAt, style: .relative)
-                        .font(.caption2)
-                        .foregroundStyle(Color.liftMuted)
-                    Spacer()
-                    Image(systemName: "ellipsis")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftMuted)
-                }
+                                    Text(comment.createdAt, style: .relative)
+                                        .font(.caption2)
+                                        .foregroundStyle(Color.liftMuted)
+                                }
                 Text(comment.body)
                     .font(.body)
                 HStack(spacing: 18) {
@@ -818,7 +1210,43 @@ private struct ForumThreadView: View {
                         Label("Reply", systemImage: "arrowshape.turn.up.left")
                     }
                     .buttonStyle(.plain)
-                    Label("12", systemImage: "arrow.up")
+                    .disabled(isDemoReadOnly)
+                    Button { Task { await toggleCommentVote(comment) } } label: {
+                        Label(
+                            commentVoteValues[comment.id] == 1 ? "Voted (\(comment.voteCount))" : "Vote (\(comment.voteCount))",
+                            systemImage: commentVoteValues[comment.id] == 1 ? "arrow.up.circle.fill" : "arrow.up"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isDemoReadOnly)
+                    Button { Task { await toggleCommentDownvote(comment) } } label: {
+                        Image(systemName: commentVoteValues[comment.id] == -1 ? "arrow.down.circle.fill" : "arrow.down")
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isDemoReadOnly)
+                    if hasReplies {
+                        Button {
+                            if collapsedCommentIDs.contains(comment.id) {
+                                collapsedCommentIDs.remove(comment.id)
+                            } else {
+                                collapsedCommentIDs.insert(comment.id)
+                            }
+                        } label: {
+                            Label(
+                                collapsedCommentIDs.contains(comment.id) ? "Expand replies" : "Collapse replies",
+                                systemImage: collapsedCommentIDs.contains(comment.id) ? "chevron.right" : "chevron.down"
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Button {
+                        reportTargetCommentID = comment.id
+                        showingReportReasons = true
+                    } label: {
+                        Label("Report", systemImage: "flag")
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isDemoReadOnly)
                 }
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color.liftMuted)
@@ -842,20 +1270,39 @@ private struct ForumThreadView: View {
 
         func append(_ comment: ForumComment, depth: Int) {
             rows.append((comment, depth))
-            for child in byParent[comment.id, default: []].sorted(by: { $0.createdAt < $1.createdAt }) {
+            guard !collapsedCommentIDs.contains(comment.id) else { return }
+            for child in sortedComments(byParent[comment.id, default: []]) {
                 append(child, depth: depth + 1)
             }
         }
 
-        for comment in comments.filter({ $0.parentCommentID == nil || !commentIDs.contains($0.parentCommentID!) }).sorted(by: { $0.createdAt < $1.createdAt }) {
+        let roots = comments.filter { $0.parentCommentID == nil || !commentIDs.contains($0.parentCommentID!) }
+        for comment in sortedComments(roots) {
             append(comment, depth: 0)
         }
         return rows
     }
 
+    private func sortedComments(_ comments: [ForumComment]) -> [ForumComment] {
+        switch commentSort {
+        case .best:
+            return comments.sorted {
+                $0.voteCount != $1.voteCount
+                    ? $0.voteCount > $1.voteCount
+                    : $0.createdAt < $1.createdAt
+            }
+        case .new:
+            return comments.sorted { $0.createdAt > $1.createdAt }
+        }
+    }
+
     private func load() async {
         do {
             thread = try await appState.forumStore.thread(postID: post.id)
+            voteValue = thread?.post.currentUserVote
+            commentVoteValues = Dictionary(uniqueKeysWithValues: (thread?.comments ?? []).compactMap { comment in
+                comment.currentUserVote.map { (comment.id, $0) }
+            })
 #if DEBUG
             if thread == nil, post.tag == "demo" { thread = ForumDemoContent.thread(for: post) }
 #endif
@@ -877,6 +1324,56 @@ private struct ForumThreadView: View {
         } catch let voteError { error = voteError.localizedDescription }
     }
 
+    private func toggleDownvote() async {
+        let nextValue: Int? = voteValue == -1 ? nil : -1
+        do {
+            try await appState.forumStore.vote(postID: post.id, value: nextValue)
+            voteValue = nextValue
+        } catch let voteError { error = voteError.localizedDescription }
+    }
+
+    private func toggleCommentVote(_ comment: ForumComment) async {
+        let previousValue = commentVoteValues[comment.id]
+        let nextValue: Int? = previousValue == 1 ? nil : 1
+        do {
+            try await appState.forumStore.vote(commentID: comment.id, value: nextValue)
+            if let nextValue { commentVoteValues[comment.id] = nextValue }
+            else { commentVoteValues.removeValue(forKey: comment.id) }
+            updateCommentVoteCount(comment, previousValue: previousValue, nextValue: nextValue)
+        } catch let voteError { error = voteError.localizedDescription }
+    }
+
+    private func toggleCommentDownvote(_ comment: ForumComment) async {
+        let previousValue = commentVoteValues[comment.id]
+        let nextValue: Int? = previousValue == -1 ? nil : -1
+        do {
+            try await appState.forumStore.vote(commentID: comment.id, value: nextValue)
+            if let nextValue { commentVoteValues[comment.id] = nextValue }
+            else { commentVoteValues.removeValue(forKey: comment.id) }
+            updateCommentVoteCount(comment, previousValue: previousValue, nextValue: nextValue)
+        } catch let voteError { error = voteError.localizedDescription }
+    }
+
+    private func updateCommentVoteCount(_ comment: ForumComment, previousValue: Int?, nextValue: Int?) {
+        guard var thread else { return }
+        let oldContribution = previousValue ?? 0
+        let newContribution = nextValue ?? 0
+        let updatedComments = thread.comments.map { existing in
+            guard existing.id == comment.id else { return existing }
+            return ForumComment(
+                id: existing.id,
+                postID: existing.postID,
+                authorID: existing.authorID,
+                parentCommentID: existing.parentCommentID,
+                body: existing.body,
+                createdAt: existing.createdAt,
+                voteCount: max(0, existing.voteCount + newContribution - oldContribution),
+                currentUserVote: nextValue
+            )
+        }
+        thread = ForumThread(post: thread.post, comments: updatedComments)
+    }
+
     private func toggleWatch() async {
         let nextValue = !isWatching
         do {
@@ -887,14 +1384,19 @@ private struct ForumThreadView: View {
 
     private func report(reason: String) async {
         do {
-            try await appState.forumStore.report(targetType: "post", targetID: post.id, communityID: post.communityID, reason: reason, note: "")
-            error = "Thanks. This discussion was reported for moderator review."
+            let targetType = reportTargetCommentID == nil ? "post" : "comment"
+            let targetID = reportTargetCommentID ?? post.id
+            try await appState.forumStore.report(targetType: targetType, targetID: targetID, communityID: post.communityID, reason: reason, note: "")
+            error = "Thanks. This \(targetType) was reported for moderator review."
+            reportTargetCommentID = nil
         } catch let reportError { error = reportError.localizedDescription }
     }
 
     private func submitReply() async {
         let trimmedReply = reply.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedReply.isEmpty else { return }
+        guard !trimmedReply.isEmpty, !isSubmittingReply, thread?.post.isLocked != true else { return }
+        isSubmittingReply = true
+        defer { isSubmittingReply = false }
 #if DEBUG
         if post.tag == "demo", var thread {
             let comment = ForumComment(id: UUID(), postID: post.id, authorID: appState.currentProfile.id, parentCommentID: replyingTo, body: trimmedReply, createdAt: Date())
@@ -1244,6 +1746,9 @@ private struct MeHubContentView: View {
     private func strengthProgressRow(lift: LiftTierProgress, preferredUnit: UnitSystem) -> some View {
         let hasEstimate = lift.estimatedOneRepMaxKilograms != nil
         let progressPercent = Int((lift.progressToNextTier * 100).rounded())
+        let catalogExercise = MockData.trainingExerciseLibrary.first {
+            $0.id == lift.exerciseID || $0.rankingExerciseID == lift.exerciseID
+        }
         let estimatedMaxText = lift.estimatedOneRepMaxKilograms.map { kilograms in
             let estimate = "Est. 1RM \(MeasurementFormatting.formatDisplayedWeight(kilograms, unit: preferredUnit))"
             guard lift.bodyweightMultiple > 0 else { return estimate }
@@ -1252,9 +1757,16 @@ private struct MeHubContentView: View {
 
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Image(systemName: liftSymbol(for: lift.exerciseName))
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(hasEstimate ? Color.liftGold : Color.liftMuted)
+                Group {
+                    if let catalogExercise {
+                        ExerciseCatalogIcon(exercise: catalogExercise)
+                            .scaleEffect(0.56)
+                    } else {
+                        ExerciseNameIcon(name: lift.exerciseName, fallbackSymbol: liftSymbol(for: lift.exerciseName))
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(hasEstimate ? Color.liftGold : Color.liftMuted)
+                    }
+                }
                     .frame(width: 34, height: 34)
                     .background((hasEstimate ? Color.liftGold : Color.liftMuted).opacity(0.11))
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -1305,15 +1817,6 @@ private struct MeHubContentView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("me.strength.lift.\(lift.exerciseID)")
-    }
-
-    private func liftSymbol(for exerciseName: String) -> String {
-        let normalized = exerciseName.lowercased()
-        if normalized.contains("squat") { return "figure.strengthtraining.functional" }
-        if normalized.contains("bench") { return "figure.strengthtraining.traditional" }
-        if normalized.contains("deadlift") { return "figure.strengthtraining.functional" }
-        if normalized.contains("press") { return "dumbbell.fill" }
-        return "chart.line.uptrend.xyaxis"
     }
 
     private func meRow(_ title: String, _ subtitle: String, _ symbol: String, _ tint: Color, badge: String? = nil) -> some View {
@@ -1370,19 +1873,19 @@ private struct MeTrainingInsightsView: View {
             CompactSectionHeader(title: "Training stats")
                 .accessibilityIdentifier("me.section.trainingStats")
             HStack(spacing: 10) {
-                compactStat(title: "Workouts", value: stats.totalWorkouts.formatted(), unit: "all", symbol: "flame.fill", tint: .liftBlue)
+                CompactMetric(title: "Workouts", value: stats.totalWorkouts.formatted(), unit: "all", symbolName: "flame.fill", tint: .liftBlue)
                 compactStatDivider()
-                compactStat(title: "PRs", value: stats.prCount.formatted(), unit: "earned", symbol: "trophy.fill", tint: .liftGold)
+                CompactMetric(title: "PRs", value: stats.prCount.formatted(), unit: "earned", symbolName: "trophy.fill", tint: .liftGold)
                 compactStatDivider()
-                compactStat(
+                CompactMetric(
                     title: "Week volume",
                     value: Int(totalWeeklyVolume).formatted(),
                     unit: preferredUnit.shortLabel,
-                    symbol: "chart.xyaxis.line",
+                    symbolName: "chart.xyaxis.line",
                     tint: .liftGreen
                 )
                 compactStatDivider()
-                compactStat(title: "Streak", value: stats.currentStreak.formatted(), unit: "days", symbol: "flame", tint: .liftOrange)
+                CompactMetric(title: "Streak", value: stats.currentStreak.formatted(), unit: "days", symbolName: "flame", tint: .liftOrange)
             }
             .padding(11)
             .liftSurface(radius: 12)
@@ -1426,10 +1929,20 @@ private struct MeTrainingInsightsView: View {
                 } else {
                     VStack(spacing: 0) {
                         ForEach(Array(recentLifts.enumerated()), id: \.element.id) { index, lift in
+                            let catalogExercise = MockData.trainingExerciseLibrary.first {
+                                $0.id == lift.exerciseID || $0.rankingExerciseID == lift.exerciseID
+                            }
                             HStack(spacing: 13) {
-                                Image(systemName: liftSymbol(for: lift.exerciseName))
-                                    .font(.headline)
-                                    .foregroundStyle(Color.liftGold)
+                                Group {
+                                    if let catalogExercise {
+                                        ExerciseCatalogIcon(exercise: catalogExercise)
+                                            .scaleEffect(0.72)
+                                    } else {
+                                        ExerciseNameIcon(name: lift.exerciseName, fallbackSymbol: liftSymbol(for: lift.exerciseName))
+                                            .font(.headline)
+                                            .foregroundStyle(Color.liftGold)
+                                    }
+                                }
                                     .frame(width: 42, height: 42)
                                     .background(Color.liftGold.opacity(0.11))
                                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -1497,39 +2010,6 @@ private struct MeTrainingInsightsView: View {
             .frame(width: 1, height: 40)
     }
 
-    private func compactStat(
-        title: String,
-        value: String,
-        unit: String,
-        symbol: String,
-        tint: Color
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Label(title, systemImage: symbol)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(Color.liftMuted)
-                .lineLimit(1)
-            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(value)
-                    .font(.subheadline.weight(.black))
-                    .minimumScaleFactor(0.65)
-                Text(unit)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(Color.liftMuted)
-            }
-            .foregroundStyle(tint)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func liftSymbol(for exerciseName: String) -> String {
-        let normalized = exerciseName.lowercased()
-        if normalized.contains("squat") { return "figure.strengthtraining.functional" }
-        if normalized.contains("bench") { return "figure.strengthtraining.traditional" }
-        if normalized.contains("deadlift") { return "figure.strengthtraining.functional" }
-        if normalized.contains("press") { return "dumbbell.fill" }
-        return "chart.line.uptrend.xyaxis"
-    }
 }
 
 struct AwardsView: View {

@@ -97,6 +97,27 @@ struct ForumPost: Identifiable, Codable, Equatable, Sendable {
     let isPinned: Bool
     let isLocked: Bool
     let createdAt: Date
+    let voteCount: Int
+    let commentCount: Int
+    let currentUserVote: Int?
+
+    init(id: UUID, communityID: UUID?, gymID: UUID?, authorID: UUID, kind: String, title: String, body: String, tag: String?, liftID: UUID?, isPinned: Bool, isLocked: Bool, createdAt: Date, voteCount: Int = 0, commentCount: Int = 0, currentUserVote: Int? = nil) {
+        self.id = id
+        self.communityID = communityID
+        self.gymID = gymID
+        self.authorID = authorID
+        self.kind = kind
+        self.title = title
+        self.body = body
+        self.tag = tag
+        self.liftID = liftID
+        self.isPinned = isPinned
+        self.isLocked = isLocked
+        self.createdAt = createdAt
+        self.voteCount = voteCount
+        self.commentCount = commentCount
+        self.currentUserVote = currentUserVote
+    }
 }
 
 struct ForumComment: Identifiable, Codable, Equatable, Sendable {
@@ -106,6 +127,19 @@ struct ForumComment: Identifiable, Codable, Equatable, Sendable {
     let parentCommentID: UUID?
     let body: String
     let createdAt: Date
+    let voteCount: Int
+    let currentUserVote: Int?
+
+    init(id: UUID, postID: UUID, authorID: UUID, parentCommentID: UUID?, body: String, createdAt: Date, voteCount: Int = 0, currentUserVote: Int? = nil) {
+        self.id = id
+        self.postID = postID
+        self.authorID = authorID
+        self.parentCommentID = parentCommentID
+        self.body = body
+        self.createdAt = createdAt
+        self.voteCount = voteCount
+        self.currentUserVote = currentUserVote
+    }
 }
 
 struct ForumThread: Equatable, Sendable {
@@ -135,13 +169,16 @@ struct ForumReport: Identifiable, Codable, Equatable, Sendable {
 @MainActor
 protocol ForumService {
     func communities() async throws -> [ForumCommunity]
-    func posts(communityID: UUID?, limit: Int) async throws -> [ForumPost]
+    func joinedCommunityIDs() async throws -> [UUID]
+    func communityMembershipStatuses() async throws -> [UUID: String]
+    func posts(communityID: UUID?, limit: Int, offset: Int) async throws -> [ForumPost]
     func thread(postID: UUID) async throws -> ForumThread?
     func join(communityID: UUID, requestNote: String) async throws -> String
     func leave(communityID: UUID) async throws
     func createPost(_ draft: ForumPostDraft) async throws -> ForumPost
     func createComment(postID: UUID, body: String, parentCommentID: UUID?) async throws -> ForumComment
     func vote(postID: UUID, value: Int?) async throws
+    func vote(commentID: UUID, value: Int?) async throws
     func watch(postID: UUID, watched: Bool) async throws
     func report(targetType: String, targetID: UUID, communityID: UUID?, reason: String, note: String) async throws
     func reports() async throws -> [ForumReport]

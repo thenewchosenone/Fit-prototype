@@ -42,6 +42,7 @@ struct TrainingTrackerView: View {
     @State var selectedExerciseStrengthTrendDate: Date?
     @State var selectedPlateauInsight: PlateauInsight?
     @State var selectedVolumeWeek: VolumeWeekSelection = .thisWeek
+    @State var selectedProgressRange: ProgressTimeRange = .twelveWeeks
     @AppStorage("liftrank.dismissedPlateauInsights") var dismissedPlateauInsightIDs = ""
     let isEmbeddedInTab: Bool
 

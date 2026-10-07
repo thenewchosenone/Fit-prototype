@@ -66,6 +66,20 @@ final class CompetitionStore: ObservableObject {
 
     var liftsRevision: Int { repository.liftsRevision }
 
+    func canViewProfile(_ profile: UserProfile, viewerID: UUID) -> Bool {
+        guard profile.id != viewerID else { return true }
+        switch profile.profileAudience {
+        case .publicProfile:
+            return true
+        case .privateProfile, .friends:
+            return false
+        case .gym:
+            guard profile.primaryGymID != UUID(uuidString: "00000000-0000-0000-0000-000000000000"),
+                  let viewer = repository.profiles.first(where: { $0.id == viewerID }) else { return false }
+            return viewer.primaryGymID == profile.primaryGymID
+        }
+    }
+
     init(
         repository: any CompetitionRepository,
         liftService: (any LiftService)? = nil,
@@ -324,11 +338,16 @@ final class CompetitionStore: ObservableObject {
         viewerID: UUID,
         includeLiftsWithoutVideo: Bool
     ) async -> [LiftSubmission] {
+        if let profile = repository.profiles.first(where: { $0.id == profileID }),
+           !canViewProfile(profile, viewerID: viewerID) {
+            return []
+        }
         let signature = VisibleProfileLiftsSignature(
             profileID: profileID,
             viewerID: viewerID,
             includeLiftsWithoutVideo: includeLiftsWithoutVideo,
-            liftsRevision: repository.liftsRevision
+            liftsRevision: repository.liftsRevision,
+            profilesRevision: repository.profilesRevision
         )
         if let cached = cachedVisibleProfileLifts(for: signature) {
             return cached
@@ -365,7 +384,8 @@ final class CompetitionStore: ObservableObject {
             profileID: profileID,
             viewerID: viewerID,
             includeLiftsWithoutVideo: includeLiftsWithoutVideo,
-            liftsRevision: repository.liftsRevision
+            liftsRevision: repository.liftsRevision,
+            profilesRevision: repository.profilesRevision
         ))
     }
 
@@ -424,20 +444,8 @@ final class CompetitionStore: ObservableObject {
 
         let entries: [LeaderboardEntry]
         if let remoteLeaderboardEntries {
-            let filtered = remoteLeaderboardEntries.filter { entry in
-                if let repetitionCount = filters.repetitionCount,
-                   entry.lift.repetitions != repetitionCount {
-                    return false
-                }
-                if let experienceLevel = filters.experienceLevel,
-                   entry.profile.experienceLevel != experienceLevel {
-                    return false
-                }
-                if let verificationLevel = filters.verificationLevel {
-                    let evidenceStatus: LiftEvidenceStatus = verificationLevel == .selfReported ? .selfReported : .videoBacked
-                    if entry.lift.resolvedEvidenceStatus != evidenceStatus { return false }
-                }
-                return true
+            let filtered = remoteLeaderboardEntries.filter {
+                remoteLeaderboardEntryMatches($0, filters: filters, verifiedOnly: verifiedOnly)
             }
             var previousScore: Double?
             var currentRank = 0
@@ -459,6 +467,9 @@ final class CompetitionStore: ObservableObject {
             var filtered = repository.lifts.filter {
                 $0.leaderboardEligibleAt <= referenceDate && $0.resolvedModerationStatus == .clear
             }
+            if verifiedOnly {
+                filtered = filtered.filter { $0.resolvedEvidenceStatus == .videoBacked }
+            }
             let profileByID = Dictionary(uniqueKeysWithValues: repository.profiles.map { ($0.id, $0) })
 
             if let exerciseID = filters.exerciseID {
@@ -474,6 +485,9 @@ final class CompetitionStore: ObservableObject {
             if let gymID = filters.gymID {
                 filtered = filtered.filter { $0.gymID == gymID }
             }
+            if let cityID = filters.cityID {
+                filtered = filtered.filter { profileByID[$0.userID]?.cityID == cityID }
+            }
             if let city = filters.city, !city.isEmpty {
                 filtered = filtered.filter {
                     profileByID[$0.userID]?.city.caseInsensitiveCompare(city) == .orderedSame
@@ -482,6 +496,11 @@ final class CompetitionStore: ObservableObject {
             if let state = filters.state, !state.isEmpty {
                 filtered = filtered.filter {
                     profileByID[$0.userID]?.state.caseInsensitiveCompare(state) == .orderedSame
+                }
+            }
+            if let country = filters.country, !country.isEmpty {
+                filtered = filtered.filter {
+                    profileByID[$0.userID]?.countryCode?.caseInsensitiveCompare(country) == .orderedSame
                 }
             }
             if let sexCategory = filters.sexCategory {
@@ -880,6 +899,42 @@ final class CompetitionStore: ObservableObject {
         }
     }
 
+    private func remoteLeaderboardEntryMatches(
+        _ entry: LeaderboardEntry,
+        filters: LeaderboardFilters,
+        verifiedOnly: Bool
+    ) -> Bool {
+        let lift = entry.lift
+        let profile = entry.profile
+        guard !verifiedOnly || lift.resolvedEvidenceStatus == .videoBacked else { return false }
+        if let exerciseID = filters.exerciseID,
+           !RankingCalculator.matchesExerciseID(lift, exerciseID: exerciseID) { return false }
+        if let repetitionCount = filters.repetitionCount, lift.repetitions != repetitionCount { return false }
+        if let status = filters.verificationLevel {
+            let evidenceStatus: LiftEvidenceStatus = status == .selfReported ? .selfReported : .videoBacked
+            if lift.resolvedEvidenceStatus != evidenceStatus { return false }
+        }
+        if let gymID = filters.gymID, lift.gymID != gymID { return false }
+        if let cityID = filters.cityID, profile.cityID != cityID { return false }
+        if let city = filters.city, !city.isEmpty,
+           profile.city.caseInsensitiveCompare(city) != .orderedSame { return false }
+        if let state = filters.state, !state.isEmpty,
+           profile.state.caseInsensitiveCompare(state) != .orderedSame { return false }
+        if let country = filters.country, !country.isEmpty,
+           profile.countryCode?.caseInsensitiveCompare(country) != .orderedSame { return false }
+        if let sexCategory = filters.sexCategory, profile.sexCategory != sexCategory { return false }
+        if let ageGroup = filters.ageGroup, !ageGroup.isEmpty, profile.ageGroup != ageGroup { return false }
+        if let experienceLevel = filters.experienceLevel, profile.experienceLevel != experienceLevel { return false }
+        if let weightClassID = filters.weightClassID {
+            guard RankingCalculator.weightClass(
+                for: lift.bodyweightAtLift,
+                sexCategory: profile.sexCategory,
+                classes: weightClasses
+            )?.id == weightClassID else { return false }
+        }
+        return isLift(lift, inTimeRange: filters.timeRange)
+    }
+
     private func leaderboardEligibleLiftCount(at referenceDate: Date) -> Int {
         if cachedLeaderboardEligibilityLiftsRevision != repository.liftsRevision {
             cachedLeaderboardEligibilityDates = repository.lifts
@@ -930,6 +985,7 @@ private struct VisibleProfileLiftsSignature: Equatable {
     let viewerID: UUID
     let includeLiftsWithoutVideo: Bool
     let liftsRevision: Int
+    let profilesRevision: Int
 }
 
 private struct OverallScoreSignature: Equatable {

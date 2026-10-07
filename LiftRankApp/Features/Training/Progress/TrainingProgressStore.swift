@@ -287,26 +287,6 @@ final class TrainingProgressStore {
         repository.updateBodyweight(entry)
     }
 
-    func updateStrainEntry(_ entry: StrainEntry) {
-        resetAccountScopedEntriesIfNeeded()
-        repository.updateStrainEntry(entry)
-    }
-
-    func removeStrainEntry(_ entryID: UUID) {
-        resetAccountScopedEntriesIfNeeded()
-        repository.deleteStrainEntry(entryID)
-    }
-
-    func updateInjuryEntry(_ entry: InjuryEntry) {
-        resetAccountScopedEntriesIfNeeded()
-        repository.updateInjuryEntry(entry)
-    }
-
-    func removeInjuryEntry(_ entryID: UUID) {
-        resetAccountScopedEntriesIfNeeded()
-        repository.deleteInjuryEntry(entryID)
-    }
-
     private func resetAccountScopedEntriesIfNeeded() {
         guard cachedUserID != repository.currentProfile.id else { return }
         cachedUserID = repository.currentProfile.id

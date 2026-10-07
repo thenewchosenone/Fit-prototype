@@ -16,6 +16,7 @@ enum SupabaseProfileMapper {
             preferredUnit: remote.preferredUnit,
             city: remote.city ?? "",
             state: remote.region ?? "",
+            countryCode: remote.countryCode,
             cityID: remote.cityID,
             primaryGymID: noGymID,
             primaryGymName: "No primary gym",
@@ -27,7 +28,8 @@ enum SupabaseProfileMapper {
             hideBodyweight: remote.privacy.bodyweightAudience == .privateProfile,
             hideCity: remote.privacy.locationAudience == .privateProfile,
             hideGym: true,
-            hideLiftVideos: !remote.privacy.showLiftVideos
+            hideLiftVideos: !remote.privacy.showLiftVideos,
+            profileAudience: remote.privacy.profileAudience
         )
     }
 
@@ -49,6 +51,7 @@ enum SupabaseProfileMapper {
             preferredUnit: .pounds,
             city: card.city ?? "",
             state: card.region ?? "",
+            countryCode: card.countryCode,
             cityID: nil,
             primaryGymID: card.primaryGymID ?? fallbackGymID ?? noGymID,
             primaryGymName: card.primaryGymName ?? "Gym hidden",
@@ -60,12 +63,20 @@ enum SupabaseProfileMapper {
             hideBodyweight: !bodyweightVisible,
             hideCity: card.city == nil,
             hideGym: card.primaryGymID == nil,
-            hideLiftVideos: false
+            hideLiftVideos: false,
+            profileAudience: .publicProfile
         )
     }
 }
 
 enum ProfileDataAuthority {
+    static func latestLoggedBodyweight(profilePounds: Double, entries: [BodyweightEntry]) -> Double {
+        entries
+            .filter { ($0.actual ?? 0) > 0 }
+            .max { $0.targetDate < $1.targetDate }?
+            .actual ?? profilePounds
+    }
+
     static func currentBodyweight(profilePounds: Double, historyFallbackPounds: Double?) -> Double {
         guard profilePounds <= 0,
               let historyFallbackPounds,

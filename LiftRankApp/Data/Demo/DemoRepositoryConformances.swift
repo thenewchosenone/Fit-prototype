@@ -28,12 +28,6 @@ extension DemoRepository: ProfileRepository {
         }
     }
 
-    func setChallengeJoined(_ challenge: Challenge, joined: Bool) {
-        guard let index = challenges.firstIndex(where: { $0.id == challenge.id }),
-              challenges[index].isJoined != joined else { return }
-        challenges[index].isJoined = joined
-        challenges[index].participantCount += joined ? 1 : -1
-    }
 }
 
 extension DemoRepository: NotificationRepository {

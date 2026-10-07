@@ -20,6 +20,7 @@ extension AppState {
                 guard accountSession?.userID == userID,
                       repository.currentProfile.id == userID else { return }
                 try await profileStore.saveBodyweightEntry(entry)
+                _ = try await profileStore.updateProfile(profile)
                 guard accountSession?.userID == userID,
                       repository.currentProfile.id == userID else { return }
                 trainingProgressStore.updateBodyweight(entry)

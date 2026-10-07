@@ -73,13 +73,6 @@ struct CompetitiveStatistics: Codable, Hashable {
     var topHundredDailyFinishes: Int = 0
 }
 
-struct AchievementDefinition: Identifiable, Codable, Hashable {
-    let id: String
-    let title: String
-    let description: String
-    let symbolName: String
-}
-
 struct AchievementUnlock: Identifiable, Codable, Hashable {
     let id: String
     let title: String

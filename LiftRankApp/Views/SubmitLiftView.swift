@@ -194,7 +194,10 @@ struct SubmitLiftView: View {
                 LiftActionRow(
                     title: "Exercise",
                     subtitle: exercise.name,
-                    symbolName: exerciseSymbol
+                    symbolName: exerciseSymbol,
+                    catalogExercise: MockData.trainingExerciseLibrary.first {
+                        $0.rankingExerciseID == exercise.id || $0.id == exercise.id
+                    }
                 ) {
                     activeSelector = .exercise
                 }
@@ -391,12 +394,10 @@ struct SubmitLiftView: View {
     }
 
     private var exerciseSymbol: String {
-        switch exercise.id {
-        case "bench": return "figure.strengthtraining.traditional"
-        case "squat": return "figure.strengthtraining.functional"
-        case "deadlift": return "dumbbell.fill"
-        default: return "figure.strengthtraining.traditional"
-        }
+        MockData.trainingExerciseLibrary.first(where: {
+            $0.rankingExerciseID == exercise.id || $0.id == exercise.id
+        })?.symbolName
+            ?? exercise.symbolName
     }
 
     private var visibilitySymbol: String {
@@ -421,7 +422,18 @@ struct SubmitLiftView: View {
     private func options(for selector: SubmitLiftSelector) -> [LeaderboardOption] {
         switch selector {
         case .exercise:
-            return MockData.exercises.map { LeaderboardOption(id: $0.id, title: $0.name, subtitle: $0.isPowerlift ? "Powerlift" : "Exercise", symbol: $0.symbolName) }
+            return MockData.exercises.map { exercise in
+                let catalogExercise = MockData.trainingExerciseLibrary.first {
+                    $0.rankingExerciseID == exercise.id || $0.id == exercise.id
+                }
+                return LeaderboardOption(
+                    id: exercise.id,
+                    title: exercise.name,
+                    subtitle: exercise.isPowerlift ? "Powerlift" : "Exercise",
+                    symbol: catalogExercise?.symbolName ?? exercise.symbolName,
+                    exerciseCatalogID: catalogExercise?.id
+                )
+            }
         case .gym:
             return [LeaderboardOption(
                 id: "no-gym",

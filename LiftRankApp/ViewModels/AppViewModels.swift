@@ -78,9 +78,6 @@ final class AppState: ObservableObject {
         set { sessionStore.message = newValue }
     }
 
-    var remoteGymMemberships: [GymMembershipRecord] { accountSocialStore.gymMemberships }
-    var remoteBlocks: [UserBlockRecord] { accountSocialStore.blocks }
-
     private(set) var outstandingLegalDocuments: [LegalDocument] {
         get { sessionStore.outstandingLegalDocuments }
         set { sessionStore.updateOutstandingLegalDocuments(newValue) }
@@ -167,6 +164,11 @@ final class AppState: ObservableObject {
             }
             .store(in: &cancellables)
         self.accountSocialStore.objectWillChange
+            .sink { [weak self] _ in
+                self?.scheduleForwardedObjectWillChange()
+            }
+            .store(in: &cancellables)
+        self.workoutSyncStore.objectWillChange
             .sink { [weak self] _ in
                 self?.scheduleForwardedObjectWillChange()
             }
@@ -835,13 +837,14 @@ final class AppState: ObservableObject {
                 repository.bodyweightEntries = entries
             }
             let currentWeight = repository.currentProfile.bodyweightPounds
-            let reconciledWeight = ProfileDataAuthority.currentBodyweight(
+            let reconciledWeight = ProfileDataAuthority.latestLoggedBodyweight(
                 profilePounds: currentWeight,
-                historyFallbackPounds: repository.bodyweightEntries.last?.actual
+                entries: repository.bodyweightEntries
             )
             if reconciledWeight != currentWeight {
                 var localProfile = repository.currentProfile
                 localProfile.bodyweightPounds = reconciledWeight
+                repository.currentProfile = localProfile
                 profileStore.saveProfile(localProfile)
             }
         } catch {
@@ -1154,10 +1157,6 @@ final class AppState: ObservableObject {
         }
     }
 
-    func markNotificationRead(_ notification: NotificationItem) {
-        notificationStore.markRead(notification.id)
-    }
-
     func markAllNotificationsRead() {
         notificationStore.markAllRead()
     }
@@ -1183,6 +1182,10 @@ final class AppState: ObservableObject {
             trainingTrackerStartOnProgress = section == .progress
             requestedTrackerSegment = section.rawValue
             selectedTab = 2
+        case .forumPost(let postID, let commentID):
+            router.forumPostToOpen = postID
+            router.forumCommentToOpen = commentID
+            router.selectedTab = .forum
         case .home:
             selectedTab = 0
         }

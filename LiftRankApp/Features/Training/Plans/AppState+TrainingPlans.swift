@@ -91,6 +91,37 @@ extension AppState {
         return week
     }
 
+    var selectedPlanQueueEnabled: Bool {
+        programStore.queueEnabled(planID: selectedWorkoutPlanID)
+    }
+
+    var selectedPlanQueuedSessions: [WorkoutSession] {
+        programStore.queuedSessions(planID: selectedWorkoutPlanID)
+    }
+
+    var nextQueuedWorkoutSession: WorkoutSession? {
+        programStore.nextQueuedSession(planID: selectedWorkoutPlanID, completedWorkouts: completedWorkouts)
+    }
+
+    @discardableResult
+    func setSelectedPlanQueueEnabled(_ enabled: Bool) -> Bool {
+        let changed = programStore.setQueue(planID: selectedWorkoutPlanID, enabled: enabled)
+        if changed {
+            Haptics.success()
+            Task { await synchronizeWorkoutPlans() }
+        } else {
+            Haptics.warning()
+        }
+        return changed
+    }
+
+    @discardableResult
+    func reorderSelectedPlanQueue(_ sessionIDs: [UUID]) -> Bool {
+        let changed = programStore.reorderQueue(planID: selectedWorkoutPlanID, sessionIDs: sessionIDs)
+        if changed { Task { await synchronizeWorkoutPlans() } }
+        return changed
+    }
+
     func cloneWeek(_ week: WorkoutWeek) -> WorkoutWeek {
         let clone = programStore.cloneWeek(week)
         Haptics.success()
@@ -104,6 +135,11 @@ extension AppState {
 
     func addSession(to week: WorkoutWeek, day: String, name: String) -> WorkoutSession {
         let session = programStore.addSession(to: week, day: day, name: name)
+        if selectedPlanQueueEnabled {
+            let sessionIDs = selectedPlanQueuedSessions.map(\.id) + [session.id]
+            _ = programStore.reorderQueue(planID: selectedWorkoutPlanID, sessionIDs: sessionIDs)
+            Task { await synchronizeWorkoutPlans() }
+        }
         Haptics.success()
         return session
     }
@@ -122,6 +158,13 @@ extension AppState {
 
     func cancelWorkout(_ session: WorkoutSession) {
         programStore.cancelSession(session)
+        Haptics.warning()
+    }
+
+    func markWorkoutSessionOutcome(_ outcome: WorkoutSessionOutcome, for sessionID: UUID?) {
+        guard let sessionID,
+              let session = workoutSessions.first(where: { $0.id == sessionID }) else { return }
+        programStore.setSessionOutcome(session, outcome: outcome)
         Haptics.warning()
     }
 
@@ -213,6 +256,81 @@ extension AppState {
             week: week,
             planID: planID ?? selectedWorkoutPlanID
         )
+    }
+
+    func scheduledWorkout(referenceDate: Date = .now) -> (week: WorkoutWeek, session: WorkoutSession, date: Date)? {
+        let today = Calendar.current.startOfDay(for: referenceDate)
+        let rows = scheduledPlanRows(referenceDate: referenceDate)
+        return rows.first(where: { Calendar.current.isDate($0.date, inSameDayAs: today) && !isCompletedPlanSession($0.session) })
+            ?? rows.first(where: { Calendar.current.isDate($0.date, inSameDayAs: today) })
+    }
+
+    func missedScheduledWorkout(referenceDate: Date = .now) -> (week: WorkoutWeek, session: WorkoutSession, date: Date)? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: referenceDate)
+        return scheduledPlanRows(referenceDate: referenceDate)
+            .filter { $0.date < today && !isCompletedPlanSession($0.session) }
+        .sorted { $0.date < $1.date }
+        .last
+    }
+
+    func nextScheduledWorkout(referenceDate: Date = .now) -> (week: WorkoutWeek, session: WorkoutSession, date: Date)? {
+        let today = Calendar.current.startOfDay(for: referenceDate)
+        return scheduledPlanRows(referenceDate: referenceDate)
+            .first { $0.date > today && !isCompletedPlanSession($0.session) }
+    }
+
+    func scheduledPlanSessions(on date: Date) -> [(week: WorkoutWeek, session: WorkoutSession)] {
+        let target = Calendar.current.startOfDay(for: date)
+        return scheduledPlanRows(referenceDate: date)
+            .filter {
+                Calendar.current.isDate($0.date, inSameDayAs: target) &&
+                    !isCompletedPlanSession($0.session)
+            }
+            .map { (week: $0.week, session: $0.session) }
+    }
+
+    private func scheduledPlanRows(referenceDate: Date) -> [(week: WorkoutWeek, session: WorkoutSession, date: Date)] {
+        let calendar = Calendar.current
+        let settings = workoutPlanProgressionSettings.first { $0.planID == selectedWorkoutPlanID }
+        let currentWeekID = currentSelectedProgramWeek?.id ?? selectedPlanWeeks.first?.id
+
+        return selectedPlanWeeks.flatMap { week in
+            sessions(for: week).compactMap { session -> (week: WorkoutWeek, session: WorkoutSession, date: Date)? in
+                guard let weekdayIndex = calendar.weekdaySymbols.firstIndex(where: {
+                    $0.caseInsensitiveCompare(session.day) == .orderedSame
+                }) else { return nil }
+
+                let cycleStart: Date
+                if let settings {
+                    guard let start = calendar.date(
+                        byAdding: .weekOfYear,
+                        value: week.weekNumber - 1,
+                        to: calendar.startOfDay(for: settings.startedAt)
+                    ) else { return nil }
+                    cycleStart = start
+                } else {
+                    guard week.id == currentWeekID,
+                          let start = calendar.dateInterval(of: .weekOfYear, for: referenceDate)?.start else { return nil }
+                    cycleStart = start
+                }
+
+                let targetWeekday = weekdayIndex + 1
+                let cycleWeekday = calendar.component(.weekday, from: cycleStart)
+                let dayOffset = (targetWeekday - cycleWeekday + 7) % 7
+                guard let date = calendar.date(byAdding: .day, value: dayOffset, to: cycleStart) else { return nil }
+                return (week, session, date)
+            }
+        }
+        .sorted { $0.date < $1.date }
+    }
+
+    private func isCompletedPlanSession(_ session: WorkoutSession) -> Bool {
+        if session.outcome != nil {
+            return true
+        }
+        let prescriptionCount = prescriptions(for: session).count
+        return prescriptionCount > 0 && completedPrescriptionCount(for: session) >= prescriptionCount
     }
 
     func strengthBalance(for week: Int, planID: UUID? = nil) -> StrengthBalance {
@@ -343,6 +461,18 @@ extension AppState {
         selectedWorkoutPlanID = copy.id
         Haptics.success()
         Task { await synchronizeWorkoutPlans() }
+    }
+
+    @discardableResult
+    func saveWorkoutAsRoutine(_ workout: CompletedWorkout) -> Bool {
+        guard let plan = programStore.saveWorkoutAsRoutine(workout) else {
+            Haptics.warning()
+            return false
+        }
+        selectedWorkoutPlanID = plan.id
+        Haptics.success()
+        Task { await synchronizeWorkoutPlans() }
+        return true
     }
 
     func deleteSelectedWorkoutPlan() {

@@ -82,10 +82,6 @@ final class ProfileStore: ObservableObject {
         profiles.first { $0.id == id }
     }
 
-    func containsGym(id: UUID) -> Bool {
-        gyms.contains { $0.id == id }
-    }
-
     func saveProfile(_ profile: UserProfile, insertIfMissing: Bool = true) {
         if repository.currentProfile != profile {
             repository.currentProfile = profile
@@ -233,6 +229,7 @@ final class ProfileStore: ObservableObject {
         local.hideCity = remote.privacy.locationAudience == .privateProfile
         local.hideGym = remote.privacy.gymAudience == .privateProfile
         local.hideLiftVideos = !remote.privacy.showLiftVideos
+        local.profileAudience = remote.privacy.profileAudience
         local.avatarPath = remote.avatarPath
 
         if repository.currentProfile != local {

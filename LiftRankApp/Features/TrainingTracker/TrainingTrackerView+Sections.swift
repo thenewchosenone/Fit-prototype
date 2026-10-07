@@ -764,7 +764,17 @@ private struct HistoryWorkoutPickerView: View {
                     Text("Log for \(LiftTimeFormatter.shortDateNoTime(date))")
                 }
 
-                Section("\(appState.selectedWorkoutPlan?.name ?? "Selected plan") workouts") {
+                let scheduled = appState.scheduledPlanSessions(on: date)
+                let scheduledIDs = Set(scheduled.map(\.session.id))
+                if !scheduled.isEmpty {
+                    Section("Scheduled for this date") {
+                        ForEach(scheduled, id: \.session.id) { item in
+                            historySessionButton(item.session, week: item.week)
+                        }
+                    }
+                }
+
+                Section("Other \(appState.selectedWorkoutPlan?.name ?? "selected plan") workouts") {
                     let weeks = appState.selectedPlanWeeks
                     if weeks.isEmpty {
                         Text("Select a workout plan to add one of its sessions.")
@@ -772,22 +782,9 @@ private struct HistoryWorkoutPickerView: View {
                             .foregroundStyle(Color.liftMuted)
                     } else {
                         ForEach(weeks) { week in
-                            ForEach(appState.sessions(for: week)) { session in
-                                Button {
-                                    onSelectSession(session)
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text("\(session.day) · \(session.name)")
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(Color.liftText)
-                                        Text("Week \(week.weekNumber) · \(appState.prescriptions(for: session).count) exercises")
-                                            .font(.caption)
-                                            .foregroundStyle(Color.liftMuted)
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
+                            let otherSessions = appState.sessions(for: week).filter { !scheduledIDs.contains($0.id) }
+                            ForEach(otherSessions) { session in
+                                historySessionButton(session, week: week)
                             }
                         }
                     }
@@ -801,5 +798,23 @@ private struct HistoryWorkoutPickerView: View {
                 }
             }
         }
+    }
+
+    private func historySessionButton(_ session: WorkoutSession, week: WorkoutWeek) -> some View {
+        Button {
+            onSelectSession(session)
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("\(session.day) · \(session.name)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.liftText)
+                Text("Week \(week.weekNumber) · \(appState.prescriptions(for: session).count) exercises")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }

@@ -153,6 +153,10 @@ struct WorkoutHistoryCalendar: View {
                     calendarDay(day)
                 }
             }
+            // Calendar cells reuse stable positional IDs; invalidate the grid when
+            // the month changes so leading days (for example September 1–5) cannot
+            // retain the previous month's rendered state.
+            .id(monthStart)
 
             Divider().overlay(Color.liftOverlay)
 

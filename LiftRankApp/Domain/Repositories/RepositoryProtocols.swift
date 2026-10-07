@@ -32,6 +32,15 @@ protocol ActiveWorkoutRepository: AnyObject {
         at startedAt: Date
     ) -> ActiveWorkoutState?
 
+    @discardableResult
+    func repeatWorkout(
+        _ completedWorkout: CompletedWorkout,
+        gymID: UUID?,
+        bodyweight: Double?,
+        unit: UnitSystem,
+        at startedAt: Date
+    ) -> ActiveWorkoutState?
+
     func pauseActiveWorkout(at date: Date)
     func resumeActiveWorkout(at date: Date)
     func clearActiveWorkoutDraft()
@@ -39,6 +48,7 @@ protocol ActiveWorkoutRepository: AnyObject {
     func discardActiveWorkout()
     func deleteCompletedWorkout(_ workout: CompletedWorkout)
     func updateCompletedWorkout(_ workout: CompletedWorkout)
+    func rebuildWorkoutHistoryDerivedState()
     func removeExerciseFromActiveWorkout(_ exercise: WorkoutExerciseSnapshot)
     func setAutomaticRestTimerEnabledForActiveWorkout(_ enabled: Bool)
     func updateWorkoutSetLog(_ log: WorkoutSetLog)
@@ -96,6 +106,8 @@ protocol ProgramRepository: AnyObject {
     func currentProgramWeek(planID: UUID, at date: Date) -> WorkoutWeek?
     func addWorkoutPlan(_ plan: WorkoutPlan)
     func updateWorkoutPlan(_ plan: WorkoutPlan)
+    @discardableResult
+    func updateWorkoutQueue(planID: UUID, enabled: Bool, sessionIDs: [UUID]) -> Bool
     func duplicateWorkoutPlan(_ plan: WorkoutPlan) -> WorkoutPlan
     func deleteWorkoutPlan(_ plan: WorkoutPlan)
 
@@ -108,6 +120,7 @@ protocol ProgramRepository: AnyObject {
     func addWorkoutSession(weekID: UUID, day: String, name: String) -> WorkoutSession
     func deleteWorkoutSession(_ session: WorkoutSession)
     func cancelWorkoutSession(_ session: WorkoutSession)
+    func setWorkoutSessionOutcome(_ session: WorkoutSession, outcome: WorkoutSessionOutcome?)
 
     @discardableResult
     func addWorkoutPrescription(_ prescription: WorkoutExercisePrescription) -> WorkoutExercisePrescription
@@ -150,10 +163,6 @@ protocol TrainingProgressRepository: AnyObject {
     var injuryEntries: [InjuryEntry] { get }
 
     func updateBodyweight(_ entry: BodyweightEntry)
-    func updateStrainEntry(_ entry: StrainEntry)
-    func deleteStrainEntry(_ entryID: UUID)
-    func updateInjuryEntry(_ entry: InjuryEntry)
-    func deleteInjuryEntry(_ entryID: UUID)
     func clearTrainingHealthEntries()
 }
 
@@ -219,6 +228,7 @@ protocol WorkoutSyncRepository: AnyObject {
     var workoutPlanSyncRevisions: [UUID: Int] { get set }
     var workoutPlanLastSyncedPayloads: [UUID: Data] { get set }
     var pendingRemoteWorkoutPlanDeletions: Set<UUID> { get set }
+    func rebuildWorkoutHistoryDerivedState()
 
     func clearAccountScopedWorkoutHistory()
     func refreshAchievementUnlocks(now: Date)

@@ -3,6 +3,223 @@ import Foundation
 enum PopularExerciseCatalog {
     private typealias Seed = (id: String, name: String, bodyPart: String, category: String, reps: String)
 
+
+    private static let expandedSeeds: [(id: String, name: String, bodyPart: String, category: String, reps: String, equipment: String)] = [
+        ("machine_converging_chest_press", "Converging Chest Press", "Chest", "Push", "8-12", "Machine"),
+        ("machine_chest_supported_row", "Chest-Supported Row Machine", "Upper Back", "Pull", "8-12", "Machine"),
+        ("machine_rear_delt", "Rear Delt Machine", "Rear Delts", "Pull", "10-15", "Machine"),
+        ("machine_shoulder_press_neutral", "Neutral-Grip Shoulder Press", "Shoulders", "Push", "8-12", "Machine"),
+        ("machine_single_leg_curl", "Single-Leg Curl", "Hamstrings", "Legs", "10-15", "Machine"),
+        ("machine_hip_abduction", "Hip Abduction Machine", "Glutes", "Legs", "12-20", "Machine"),
+        ("machine_hip_adduction", "Hip Adduction Machine", "Adductors", "Legs", "12-20", "Machine"),
+        ("machine_standing_calf", "Standing Calf Machine", "Calves", "Legs", "10-20", "Machine"),
+        ("machine_seated_calf", "Seated Calf Machine", "Calves", "Legs", "10-20", "Machine"),
+        ("machine_biceps_curl", "Biceps Curl Machine", "Biceps", "Pull", "10-15", "Machine"),
+        ("machine_ab_crunch", "Ab Crunch Machine", "Core", "Core", "10-15", "Machine"),
+        ("cable_chest_press", "Cable Chest Press", "Chest", "Push", "8-12", "Cable"),
+        ("cable_single_arm_press", "Single-Arm Cable Press", "Chest", "Push", "8-12", "Cable"),
+        ("cable_landmine_press", "Cable Landmine Press", "Shoulders", "Push", "8-12", "Cable"),
+        ("cable_broad_grip_row", "Wide-Grip Cable Row", "Back", "Pull", "8-12", "Cable"),
+        ("cable_close_grip_row", "Close-Grip Cable Row", "Back", "Pull", "8-12", "Cable"),
+        ("cable_reverse_grip_row", "Reverse-Grip Cable Row", "Lats", "Pull", "8-12", "Cable"),
+        ("cable_half_kneeling_pulldown", "Half-Kneeling Pulldown", "Lats", "Pull", "8-12", "Cable"),
+        ("cable_single_arm_pulldown", "Single-Arm Pulldown", "Lats", "Pull", "10-15", "Cable"),
+        ("cable_face_pull_rope", "Rope Face Pull", "Rear Delts", "Pull", "12-20", "Cable"),
+        ("cable_rear_delt_cross", "Cable Rear-Delt Cross", "Rear Delts", "Pull", "12-20", "Cable"),
+        ("cable_bent_over_lateral", "Bent-Over Cable Lateral Raise", "Rear Delts", "Pull", "12-20", "Cable"),
+        ("cable_biceps_curl_bar", "Bar Cable Curl", "Biceps", "Pull", "8-12", "Cable"),
+        ("cable_biceps_curl_rope", "Rope Cable Curl", "Biceps", "Pull", "10-15", "Cable"),
+        ("cable_triceps_pressdown_bar", "Straight-Bar Pressdown", "Triceps", "Push", "8-12", "Cable"),
+        ("cable_triceps_pressdown_single", "Single-Arm Pressdown", "Triceps", "Push", "10-15", "Cable"),
+        ("cable_triceps_crossbody", "Cross-Body Triceps Extension", "Triceps", "Push", "10-15", "Cable"),
+        ("cable_overhead_single", "Single-Arm Overhead Extension", "Triceps", "Push", "10-15", "Cable"),
+        ("cable_kickback", "Cable Glute Kickback", "Glutes", "Legs", "12-20", "Cable"),
+        ("cable_leg_abduction", "Cable Leg Abduction", "Glutes", "Legs", "12-20", "Cable"),
+        ("cable_leg_adduction", "Cable Leg Adduction", "Adductors", "Legs", "12-20", "Cable"),
+        ("cable_lift", "Cable Lift", "Core", "Core", "10-15", "Cable"),
+        ("db_lateral_raise_seated", "Seated Lateral Raise", "Shoulders", "Push", "12-20", "Dumbbell"),
+        ("db_rear_delt_row", "Rear-Delt Dumbbell Row", "Rear Delts", "Pull", "10-15", "Dumbbell"),
+        ("db_incline_row", "Incline Dumbbell Row", "Upper Back", "Pull", "8-12", "Dumbbell"),
+        ("db_single_leg_rdl", "Single-Leg Dumbbell RDL", "Hamstrings", "Legs", "8-12", "Dumbbell"),
+        ("db_deficit_lunge", "Deficit Dumbbell Lunge", "Quads/Glutes", "Legs", "8-12", "Dumbbell"),
+        ("db_goblet_squat", "Goblet Squat", "Quads", "Legs", "8-15", "Dumbbell"),
+        ("db_cossack_squat", "Dumbbell Cossack Squat", "Adductors", "Legs", "8-12", "Dumbbell"),
+        ("db_split_squat", "Dumbbell Split Squat", "Quads/Glutes", "Legs", "8-12", "Dumbbell"),
+        ("db_hamstring_bridge", "Dumbbell Hamstring Bridge", "Hamstrings", "Legs", "10-15", "Dumbbell"),
+        ("db_suitcase_carry", "Dumbbell Suitcase Carry", "Core", "Carry", "20-40 sec", "Dumbbell"),
+        ("db_farmer_carry", "Dumbbell Farmer Carry", "Grip", "Carry", "20-40 sec", "Dumbbell"),
+        ("db_wrist_curl", "Dumbbell Wrist Curl", "Forearms", "Pull", "12-20", "Dumbbell"),
+        ("db_reverse_wrist_curl", "Reverse Wrist Curl", "Forearms", "Pull", "12-20", "Dumbbell"),
+        ("db_tate_press", "Tate Press", "Triceps", "Push", "10-15", "Dumbbell"),
+        ("db_skullcrusher", "Dumbbell Skullcrusher", "Triceps", "Push", "10-15", "Dumbbell"),
+        ("kb_front_squat", "Double Kettlebell Front Squat", "Quads", "Legs", "6-12", "Kettlebell"),
+        ("kb_rack_lunge", "Kettlebell Rack Lunge", "Quads/Glutes", "Legs", "8-12", "Kettlebell"),
+        ("kb_single_arm_swing", "Single-Arm Kettlebell Swing", "Glutes", "Legs", "10-20", "Kettlebell"),
+        ("kb_clean", "Kettlebell Clean", "Full Body", "Pull", "6-12", "Kettlebell"),
+        ("kb_snatch", "Kettlebell Snatch", "Full Body", "Pull", "6-12", "Kettlebell"),
+        ("kb_deadlift", "Kettlebell Deadlift", "Hamstrings", "Legs", "8-15", "Kettlebell"),
+        ("kb_rack_carry", "Kettlebell Rack Carry", "Core", "Carry", "20-40 sec", "Kettlebell"),
+        ("kb_bottoms_up_press", "Bottoms-Up Press", "Shoulders", "Push", "6-10", "Kettlebell"),
+        ("kb_figure_eight", "Kettlebell Figure Eight", "Core", "Core", "10-20", "Kettlebell"),
+        ("bb_close_grip_bench", "Close-Grip Bench Press", "Triceps", "Push", "5-10", "Barbell"),
+        ("bb_wide_grip_bench", "Wide-Grip Bench Press", "Chest", "Push", "5-10", "Barbell"),
+        ("bb_paused_bench", "Paused Bench Press", "Chest", "Push", "3-8", "Barbell"),
+        ("bb_spoto_press", "Spoto Press", "Chest", "Push", "5-10", "Barbell"),
+        ("bb_behind_neck_press", "Behind-Neck Press", "Shoulders", "Push", "8-12", "Barbell"),
+        ("bb_zercher_squat", "Zercher Squat", "Quads", "Legs", "5-10", "Barbell"),
+        ("bb_front_squat_paused", "Paused Front Squat", "Quads", "Legs", "3-8", "Barbell"),
+        ("bb_box_squat", "Box Squat", "Quads", "Legs", "5-10", "Barbell"),
+        ("bb_high_bar_squat", "High-Bar Squat", "Quads", "Legs", "5-10", "Barbell"),
+        ("bb_stiff_leg_deadlift", "Stiff-Leg Deadlift", "Hamstrings", "Legs", "6-10", "Barbell"),
+        ("bb_deficit_deadlift", "Deficit Deadlift", "Hamstrings", "Legs", "3-8", "Barbell"),
+        ("bb_block_pull", "Block Pull", "Back", "Pull", "3-8", "Barbell"),
+        ("bb_snatch_grip_deadlift", "Snatch-Grip Deadlift", "Back", "Pull", "5-10", "Barbell"),
+        ("bb_yates_row", "Yates Row", "Back", "Pull", "8-12", "Barbell"),
+        ("bb_landmine_row", "Landmine Row", "Back", "Pull", "8-12", "Barbell"),
+        ("bb_overhead_carry", "Barbell Overhead Carry", "Core", "Carry", "20-40 sec", "Barbell"),
+        ("bw_assisted_dip", "Assisted Dip", "Chest/Triceps", "Push", "6-12", "Bodyweight"),
+        ("bw_ring_dip", "Ring Dip", "Chest/Triceps", "Push", "6-12", "Bodyweight"),
+        ("bw_archer_pullup", "Archer Pull-Up", "Lats", "Pull", "3-8", "Bodyweight"),
+        ("bw_deficit_pushup", "Deficit Push-Up", "Chest", "Push", "8-20", "Bodyweight"),
+        ("bw_shrimp_squat", "Shrimp Squat", "Quads", "Legs", "5-12", "Bodyweight"),
+        ("bw_sissy_squat", "Bodyweight Sissy Squat", "Quads", "Legs", "8-15", "Bodyweight"),
+        ("bw_hanging_knee_raise", "Hanging Knee Raise", "Core", "Core", "8-15", "Bodyweight"),
+        ("bw_ab_wheel", "Ab Wheel Rollout", "Core", "Core", "6-15", "Bodyweight"),
+        ("bw_hollow_hold", "Hollow Body Hold", "Core", "Core", "20-40 sec", "Bodyweight"),
+        ("bw_copenhagen_plank", "Copenhagen Plank", "Adductors", "Core", "20-40 sec", "Bodyweight"),
+        ("bw_back_extension", "Bodyweight Back Extension", "Back", "Pull", "10-20", "Bodyweight"),
+        ("cardio_rower", "Rowing Machine", "Full Body", "Cardio", "20-30 min", "Cardio"),
+        ("cardio_assault_bike", "Assault Bike", "Full Body", "Cardio", "10-20 min", "Cardio"),
+        ("cardio_ski_erg", "Ski Erg", "Full Body", "Cardio", "10-20 min", "Cardio"),
+        ("cardio_stair_climber", "Stair Climber", "Legs", "Cardio", "15-30 min", "Cardio"),
+        ("cardio_incline_walk", "Incline Treadmill Walk", "Legs", "Cardio", "20-40 min", "Cardio"),
+        ("cardio_sled_push", "Sled Push", "Full Body", "Cardio", "20-40 m", "Cardio"),
+        ("cardio_sled_drag", "Sled Drag", "Legs", "Cardio", "20-40 m", "Cardio"),
+        ("cardio_battle_rope", "Battle Rope", "Full Body", "Cardio", "20-40 sec", "Cardio"),
+        ("cardio_jump_rope", "Jump Rope", "Full Body", "Cardio", "5-15 min", "Cardio"),
+        ("cardio_shuttle_run", "Shuttle Run", "Full Body", "Cardio", "10-20 rounds", "Cardio"),
+        ("mobility_couch_stretch", "Couch Stretch", "Quads", "Mobility", "30-60 sec", "Bodyweight"),
+        ("mobility_90_90", "90/90 Hip Switch", "Hips", "Mobility", "8-12", "Bodyweight"),
+        ("mobility_world_greatest", "World’s Greatest Stretch", "Full Body", "Mobility", "5-8", "Bodyweight"),
+        ("mobility_cat_cow", "Cat-Cow", "Back", "Mobility", "8-12", "Bodyweight"),
+        ("mobility_wall_slide", "Wall Slide", "Shoulders", "Mobility", "8-15", "Bodyweight"),
+        ("mobility_band_external_rotation", "Band External Rotation", "Rotator Cuff", "Mobility", "12-20", "Band"),
+        ("mobility_band_dislocate", "Band Dislocate", "Shoulders", "Mobility", "8-15", "Band"),
+        ("mobility_ankle_rocker", "Ankle Rocker", "Calves", "Mobility", "10-15", "Bodyweight"),
+        ("mobility_adductor_rockback", "Adductor Rockback", "Adductors", "Mobility", "8-12", "Bodyweight"),
+        ("machine_single_arm_row", "Single-Arm Row Machine", "Back", "Pull", "8-12", "Machine"),
+        ("machine_vertical_chest_press", "Vertical Chest Press", "Chest", "Push", "8-12", "Machine"),
+        ("machine_glute_kickback", "Glute Kickback Machine", "Glutes", "Legs", "10-15", "Machine"),
+        ("machine_inner_thigh", "Inner Thigh Machine", "Adductors", "Legs", "12-20", "Machine"),
+        ("machine_outer_thigh", "Outer Thigh Machine", "Glutes", "Legs", "12-20", "Machine"),
+        ("machine_dip_chest", "Chest Dip Machine", "Chest", "Push", "8-12", "Machine"),
+        ("machine_wrist_curl", "Wrist Curl Machine", "Forearms", "Pull", "12-20", "Machine"),
+        ("cable_press_around", "Cable Press-Around", "Chest", "Push", "10-15", "Cable"),
+        ("cable_reverse_fly", "Cable Reverse Fly", "Rear Delts", "Pull", "12-20", "Cable"),
+        ("cable_shrug", "Cable Shrug", "Traps", "Pull", "10-15", "Cable"),
+        ("cable_lean_away_raise", "Lean-Away Cable Raise", "Shoulders", "Push", "12-20", "Cable"),
+        ("cable_split_stance_row", "Split-Stance Cable Row", "Back", "Pull", "8-12", "Cable"),
+        ("cable_hip_flexion", "Cable Hip Flexion", "Hip Flexors", "Legs", "12-20", "Cable"),
+        ("cable_reverse_crunch", "Cable Reverse Crunch", "Core", "Core", "10-15", "Cable"),
+        ("cable_anti_rotation_walkout", "Anti-Rotation Walkout", "Core", "Core", "8-12", "Cable"),
+        ("cable_side_bend", "Cable Side Bend", "Obliques", "Core", "10-15", "Cable"),
+        ("cable_lateral_lunge", "Cable Lateral Lunge", "Adductors", "Legs", "8-12", "Cable"),
+        ("db_floor_fly", "Dumbbell Floor Fly", "Chest", "Push", "10-15", "Dumbbell"),
+        ("db_leaning_lateral_raise", "Leaning Lateral Raise", "Shoulders", "Push", "12-20", "Dumbbell"),
+        ("db_high_pull", "Dumbbell High Pull", "Shoulders", "Pull", "8-12", "Dumbbell"),
+        ("db_rear_delt_fly", "Dumbbell Rear-Delt Fly", "Rear Delts", "Pull", "12-20", "Dumbbell"),
+        ("db_windmill", "Dumbbell Windmill", "Core", "Core", "8-12", "Dumbbell"),
+        ("db_hindu_squat", "Dumbbell Hindu Squat", "Quads", "Legs", "10-20", "Dumbbell"),
+        ("db_lateral_lunge", "Dumbbell Lateral Lunge", "Adductors", "Legs", "8-12", "Dumbbell"),
+        ("db_curtsy_lunge", "Dumbbell Curtsy Lunge", "Glutes", "Legs", "8-12", "Dumbbell"),
+        ("bb_reverse_grip_bench", "Reverse-Grip Bench Press", "Chest", "Push", "6-10", "Barbell"),
+        ("bb_incline_row", "Incline Barbell Row", "Back", "Pull", "8-12", "Barbell"),
+        ("bb_split_squat", "Barbell Split Squat", "Quads/Glutes", "Legs", "8-12", "Barbell"),
+        ("bb_lateral_lunge", "Barbell Lateral Lunge", "Adductors", "Legs", "8-12", "Barbell"),
+        ("bb_zercher_carry", "Zercher Carry", "Core", "Carry", "20-40 sec", "Barbell"),
+        ("kb_dead_clean", "Kettlebell Dead Clean", "Full Body", "Pull", "6-12", "Kettlebell"),
+        ("kb_lateral_lunge", "Kettlebell Lateral Lunge", "Adductors", "Legs", "8-12", "Kettlebell"),
+        ("kb_carry_farmer", "Kettlebell Farmer Carry", "Grip", "Carry", "20-40 sec", "Kettlebell"),
+        ("kb_seated_press", "Seated Kettlebell Press", "Shoulders", "Push", "8-12", "Kettlebell"),
+        ("bw_handstand_pushup", "Handstand Push-Up", "Shoulders", "Push", "3-10", "Bodyweight"),
+        ("bw_l_sit", "L-Sit", "Core", "Core", "10-30 sec", "Bodyweight"),
+        ("bw_v_up", "V-Up", "Core", "Core", "8-15", "Bodyweight"),
+        ("bw_reverse_hyper", "Bodyweight Reverse Hyperextension", "Glutes", "Legs", "10-20", "Bodyweight"),
+        ("bw_hamstring_walkout", "Hamstring Walkout", "Hamstrings", "Legs", "6-12", "Bodyweight"),
+        ("bw_incline_pushup", "Incline Push-Up", "Chest", "Push", "10-25", "Bodyweight"),
+        ("bw_close_grip_pushup", "Close-Grip Push-Up", "Triceps", "Push", "8-20", "Bodyweight"),
+        ("cardio_bike", "Stationary Bike", "Legs", "Cardio", "20-40 min", "Cardio"),
+        ("cardio_elliptical", "Elliptical", "Full Body", "Cardio", "20-40 min", "Cardio"),
+        ("cardio_treadmill_run", "Treadmill Run", "Full Body", "Cardio", "15-30 min", "Cardio"),
+        ("cardio_farmer_walk", "Loaded Farmer Walk", "Full Body", "Cardio", "20-40 m", "Dumbbell"),
+        ("mobility_deep_squat_hold", "Deep Squat Hold", "Hips", "Mobility", "20-60 sec", "Bodyweight"),
+        ("mobility_pigeon", "Pigeon Stretch", "Glutes", "Mobility", "30-60 sec", "Bodyweight"),
+        ("mobility_thoracic_rotation", "Thoracic Rotation", "Back", "Mobility", "8-12", "Bodyweight"),
+        ("mobility_shoulder_pass", "Shoulder Pass-Through", "Shoulders", "Mobility", "8-15", "Band"),
+        ("machine_standing_shoulder_press", "Standing Shoulder Press Machine", "Shoulders", "Push", "8-12", "Machine"),
+        ("cable_single_arm_lateral_raise", "Single-Arm Cable Lateral Raise", "Shoulders", "Push", "12-20", "Cable"),
+        ("db_front_rack_carry", "Dumbbell Front-Rack Carry", "Core", "Carry", "20-40 sec", "Dumbbell"),
+        ("machine_iso_lateral_press", "Iso-Lateral Press Machine", "Chest", "Push", "8-12", "Machine"),
+        ("machine_iso_lateral_row", "Iso-Lateral Row Machine", "Back", "Pull", "8-12", "Machine"),
+        ("machine_reverse_fly", "Reverse Fly Machine", "Rear Delts", "Pull", "10-15", "Machine"),
+        ("machine_vertical_chest_fly", "Vertical Chest Fly Machine", "Chest", "Push", "10-15", "Machine"),
+        ("machine_glute_ham_raise", "Glute-Ham Raise Machine", "Hamstrings", "Legs", "6-12", "Machine"),
+        ("machine_reverse_hyper", "Reverse Hyperextension Machine", "Glutes", "Legs", "10-15", "Machine"),
+        ("machine_donkey_calf", "Donkey Calf Raise Machine", "Calves", "Legs", "10-20", "Machine"),
+        ("machine_45_back_extension", "45-Degree Back Extension Machine", "Back", "Pull", "10-15", "Machine"),
+        ("machine_torso_rotation", "Torso Rotation Machine", "Obliques", "Core", "10-15", "Machine"),
+        ("machine_hip_thrust", "Hip Thrust Machine", "Glutes", "Legs", "8-12", "Machine"),
+        ("cable_low_row_single", "Single-Arm Low Cable Row", "Back", "Pull", "8-12", "Cable"),
+        ("cable_mid_fly", "Mid-Height Cable Fly", "Chest", "Push", "10-15", "Cable"),
+        ("cable_kneeling_crunch", "Kneeling Cable Crunch", "Core", "Core", "10-15", "Cable"),
+        ("cable_reverse_fly_high", "High Cable Reverse Fly", "Rear Delts", "Pull", "12-20", "Cable"),
+        ("cable_crossbody_curl", "Cross-Body Cable Curl", "Biceps", "Pull", "10-15", "Cable"),
+        ("cable_triceps_kickback", "Cable Triceps Kickback", "Triceps", "Push", "10-15", "Cable"),
+        ("cable_standing_leg_curl", "Standing Cable Leg Curl", "Hamstrings", "Legs", "10-15", "Cable"),
+        ("cable_marching", "Cable Resisted March", "Core", "Core", "10-20", "Cable"),
+        ("db_decline_press", "Decline Dumbbell Press", "Chest", "Push", "8-12", "Dumbbell"),
+        ("db_decline_fly", "Decline Dumbbell Fly", "Chest", "Push", "10-15", "Dumbbell"),
+        ("db_seated_press", "Seated Dumbbell Press", "Shoulders", "Push", "8-12", "Dumbbell"),
+        ("db_reverse_lunge_front_rack", "Front-Rack Dumbbell Reverse Lunge", "Quads/Glutes", "Legs", "8-12", "Dumbbell"),
+        ("db_hack_squat", "Dumbbell Hack Squat", "Quads", "Legs", "8-15", "Dumbbell"),
+        ("db_lying_leg_raise", "Dumbbell Lying Leg Raise", "Core", "Core", "8-15", "Dumbbell"),
+        ("db_overhead_carry", "Dumbbell Overhead Carry", "Core", "Carry", "20-40 sec", "Dumbbell"),
+        ("bb_decline_bench", "Barbell Decline Bench Press", "Chest", "Push", "5-10", "Barbell"),
+        ("bb_seated_press", "Seated Barbell Press", "Shoulders", "Push", "6-10", "Barbell"),
+        ("bb_hang_clean", "Hang Power Clean", "Full Body", "Pull", "3-6", "Barbell"),
+        ("bb_snatch", "Barbell Snatch", "Full Body", "Pull", "1-5", "Barbell"),
+        ("bb_front_rack_lunge", "Front-Rack Barbell Lunge", "Quads/Glutes", "Legs", "8-12", "Barbell"),
+        ("bb_romanian_single_leg", "Single-Leg Barbell RDL", "Hamstrings", "Legs", "8-12", "Barbell"),
+        ("kb_double_clean", "Double Kettlebell Clean", "Full Body", "Pull", "6-12", "Kettlebell"),
+        ("kb_double_push_press", "Double Kettlebell Push Press", "Shoulders", "Push", "6-12", "Kettlebell"),
+        ("kb_front_rack_reverse_lunge", "Kettlebell Front-Rack Reverse Lunge", "Quads/Glutes", "Legs", "8-12", "Kettlebell"),
+        ("kb_dead_bug", "Kettlebell Dead Bug", "Core", "Core", "8-12", "Kettlebell"),
+        ("kb_overhead_carry", "Kettlebell Overhead Carry", "Core", "Carry", "20-40 sec", "Kettlebell"),
+        ("bw_pullup_hold", "Pull-Up Isometric Hold", "Lats", "Pull", "10-30 sec", "Bodyweight"),
+        ("bw_dip_hold", "Dip Isometric Hold", "Triceps", "Push", "10-30 sec", "Bodyweight"),
+        ("bw_elevated_pike_pushup", "Elevated Pike Push-Up", "Shoulders", "Push", "6-15", "Bodyweight"),
+        ("bw_lateral_stepdown", "Lateral Step-Down", "Quads", "Legs", "8-15", "Bodyweight"),
+        ("bw_single_leg_squat_box", "Single-Leg Box Squat", "Quads", "Legs", "5-12", "Bodyweight"),
+        ("bw_glute_ham_walkout", "Glute-Ham Walkout", "Hamstrings", "Legs", "6-12", "Bodyweight"),
+        ("bw_prone_y_raise", "Prone Y Raise", "Rear Delts", "Pull", "10-20", "Bodyweight"),
+        ("band_monster_walk", "Band Monster Walk", "Glutes", "Legs", "10-20", "Band"),
+        ("band_clamshell", "Band Clamshell", "Glutes", "Legs", "12-20", "Band"),
+        ("band_pullthrough", "Band Pull-Through", "Glutes", "Legs", "12-20", "Band"),
+        ("cardio_spin_bike", "Spin Bike", "Legs", "Cardio", "20-40 min", "Cardio"),
+        ("cardio_fan_bike_sprint", "Fan Bike Sprint", "Full Body", "Cardio", "10-30 sec", "Cardio"),
+        ("cardio_sled_lateral_drag", "Lateral Sled Drag", "Legs", "Cardio", "20-40 m", "Cardio"),
+        ("mobility_thread_needle", "Thread the Needle", "Shoulders", "Mobility", "8-12", "Bodyweight"),
+        ("mobility_hip_flexor_reach", "Half-Kneeling Hip Flexor Reach", "Hips", "Mobility", "30-60 sec", "Bodyweight"),
+        ("mobility_wrist_extension", "Wrist Extension Stretch", "Forearms", "Mobility", "20-40 sec", "Bodyweight"),
+        ("machine_prone_leg_curl", "Prone Single-Leg Curl Machine", "Hamstrings", "Legs", "10-15", "Machine"),
+        ("cable_standing_chest_fly", "Standing Cable Chest Fly", "Chest", "Push", "10-15", "Cable"),
+        ("db_squat_to_press", "Dumbbell Squat to Press", "Full Body", "Push", "8-15", "Dumbbell"),
+        ("bb_overhead_squat", "Barbell Overhead Squat", "Full Body", "Legs", "5-10", "Barbell"),
+        ("kb_clean_and_press", "Kettlebell Clean and Press", "Full Body", "Push", "6-12", "Kettlebell"),
+        ("bw_lateral_bound", "Lateral Bound", "Legs", "Cardio", "8-16", "Bodyweight"),
+        ("mobility_scapular_wall_slide", "Scapular Wall Slide", "Shoulders", "Mobility", "8-15", "Bodyweight"),
+    ]
+
     static let exercises: [TrainingExerciseCatalogItem] =
         machineSeeds.map { make($0, equipment: $0.id.hasPrefix("machine_smith_") ? "Smith Machine" : "Machine") } +
         cableSeeds.map { make($0, equipment: "Cable") } +
@@ -11,7 +228,8 @@ enum PopularExerciseCatalog {
         barbellSeeds.map { make($0, equipment: "Barbell") } +
         bodyweightSeeds.map { make($0, equipment: "Bodyweight") } +
         kettlebellSeeds.map { make($0, equipment: "Kettlebell") } +
-        bandSeeds.map { make($0, equipment: "Band") }
+        bandSeeds.map { make($0, equipment: "Band") } +
+        expandedSeeds.map { make(($0.id, $0.name, $0.bodyPart, $0.category, $0.reps), equipment: $0.equipment) }
 
     private static let machineSeeds: [Seed] = [
         ("machine_smith_bench_press", "Smith Machine Bench Press", "Chest", "Push", "6-10"),
@@ -406,30 +624,47 @@ enum PopularExerciseCatalog {
     private static func symbol(for id: String, bodyPart: String) -> String {
         let exerciseID = id.lowercased()
         let value = bodyPart.lowercased()
-        if value.contains("core") || value.contains("oblique") { return "figure.core.training" }
+        if exerciseID.contains("wood_chop") || exerciseID.contains("pallof") || exerciseID.contains("crunch") || exerciseID.contains("plank") || exerciseID.contains("twist") {
+            return "figure.core.training"
+        }
         if exerciseID == "machine_back_extension" { return "figure.flexibility" }
-        if exerciseID == "band_face_pull" { return "arrow.left.and.right" }
+        if exerciseID == "band_face_pull" { return "figure.strengthtraining.functional" }
         if exerciseID == "band_lat_pulldown" { return "figure.climbing" }
         if exerciseID == "machine_front_lat_pulldown" { return "figure.climbing" }
-        if exerciseID.contains("face_pull") { return "figure.arms.open" }
-        if exerciseID.contains("external_rotation") || exerciseID.contains("internal_rotation") { return "arrow.triangle.2.circlepath" }
-        if exerciseID.contains("front_raise") { return "arrow.up" }
-        if exerciseID.contains("overhead_press") || exerciseID.contains("shoulder_press") || exerciseID.contains("push_press") { return "arrow.up.circle" }
-        if exerciseID.contains("calf_raise") { return "arrow.up" }
+        if exerciseID.contains("face_pull") { return "figure.strengthtraining.functional" }
+        if exerciseID.contains("external_rotation") || exerciseID.contains("internal_rotation") { return "figure.stand" }
+        if exerciseID.contains("front_raise") { return "figure.stand" }
+        if exerciseID.contains("neck") { return "figure.stand" }
+        if exerciseID.contains("overhead_press") || exerciseID.contains("shoulder_press") || exerciseID.contains("push_press") || exerciseID.contains("arnold_press") || exerciseID.contains("military_press") { return "figure.stand" }
+        if exerciseID.contains("calf_raise") {
+            return exerciseID.contains("seated") ? "figure.seated.side" : "figure.stand"
+        }
         if exerciseID.contains("leg_press") { return "figure.seated.side" }
         if exerciseID.contains("leg_extension") || exerciseID.contains("leg_curl") { return "figure.strengthtraining.functional" }
+        if exerciseID.contains("push_up") || exerciseID.contains("pushup") || exerciseID.contains("dip") { return "figure.strengthtraining.functional" }
+        if exerciseID.contains("stiff_leg_deadlift") || exerciseID.contains("romanian_deadlift") || exerciseID.contains("good_morning") { return "figure.flexibility" }
+        if exerciseID.contains("hip_thrust") || exerciseID.contains("glute_bridge") { return "figure.strengthtraining.functional" }
+        if exerciseID.contains("shrug") { return "figure.stand" }
+        if exerciseID.contains("wrist_curl") || exerciseID.contains("wrist_extension") { return "figure.stand" }
+        if exerciseID.contains("pull_apart") { return "figure.strengthtraining.functional" }
+        if exerciseID.contains("overhead_triceps_extension") { return "figure.stand" }
         if exerciseID.contains("pull_up") || exerciseID.contains("chin_up") || exerciseID.contains("muscle_up") { return "figure.climbing" }
-        if exerciseID.contains("pulldown") || exerciseID.contains("pull_over") { return "arrow.down.to.line.compact" }
+        if exerciseID.contains("pulldown") || exerciseID.contains("pull_over") || exerciseID.contains("pullover") { return "figure.climbing" }
+        if exerciseID.contains("upright_row") || exerciseID.contains("upright row") { return "figure.stand" }
         if exerciseID == "barbell_row" || exerciseID.contains("chest_supported") || exerciseID.contains("seal_row") || exerciseID.contains("renegade_row") { return "figure.rower" }
-        if exerciseID.contains("cable_row") || exerciseID.contains("seated_row") { return "arrow.left.arrow.right" }
+        if (exerciseID.contains("cable") && exerciseID.contains("row")) || exerciseID.contains("seated_row") { return "figure.rower" }
         if exerciseID.contains("row") { return "figure.rower" }
-        if exerciseID.contains("fly") || exerciseID.contains("lateral_raise") || exerciseID.contains("rear_delt") { return "figure.arms.open" }
+        if exerciseID.contains("lateral_raise") { return "figure.stand" }
+        if exerciseID.contains("fly") || exerciseID.contains("rear_delt") { return "figure.stand" }
         if exerciseID.contains("crossover") { return "arrow.left.and.right" }
-        if exerciseID.contains("crunch") { return "figure.core.training" }
-        if exerciseID.contains("crunch") || exerciseID.contains("wood_chop") || exerciseID.contains("pallof") { return "arrow.down.to.line.compact" }
+        if value.contains("core") || value.contains("oblique") { return "figure.core.training" }
         if value.contains("quad") || value.contains("hamstring") || value.contains("glute") || value.contains("calf") || value.contains("leg") { return "figure.strengthtraining.functional" }
-        if value.contains("chest") || value.contains("shoulder") || value.contains("tricep") || value.contains("bicep") { return "figure.strengthtraining.traditional" }
-        return "dumbbell.fill"
+        if value.contains("chest") || value.contains("shoulder") || value.contains("tricep") || value.contains("bicep") {
+            return "figure.strengthtraining.functional"
+        }
+        // Keep unresolved catalog entries neutral; a dumbbell implies equipment
+        // that may not match the custom or prescription movement.
+        return "figure.strengthtraining.functional"
     }
 }
 

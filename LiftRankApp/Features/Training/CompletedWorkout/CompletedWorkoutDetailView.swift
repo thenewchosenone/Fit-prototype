@@ -142,6 +142,24 @@ struct CompletedWorkoutDetailView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        if appState.repeatWorkout(displayedWorkout) {
+                            dismiss()
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .accessibilityLabel("Repeat workout")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        _ = appState.saveWorkoutAsRoutine(displayedWorkout)
+                    } label: {
+                        Image(systemName: "bookmark")
+                    }
+                    .accessibilityLabel("Save workout as routine")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         editingWorkout = displayedWorkout
                     } label: {
                         Image(systemName: "pencil")

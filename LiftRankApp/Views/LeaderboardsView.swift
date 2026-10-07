@@ -10,6 +10,7 @@ struct LeaderboardsView: View {
     @State var handledFocusRequestID: UUID?
     @State var athleteSearchResults: [UserProfile] = []
     @State var lastRefreshedLeaderboardRequestKey: String?
+    @State var leaderboardPage = 1
 
     var body: some View { featureBody }
 }

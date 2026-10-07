@@ -60,6 +60,7 @@ final class MockProfileService: ProfileService {
             region: profile.state, countryCode: "US", cityID: profile.cityID, yearsExperience: profile.yearsExperience,
             experienceLevel: profile.experienceLevel,
             privacy: ProfilePrivacySettings(
+                profileAudience: profile.profileAudience,
                 ageBandAudience: profile.hideExactAge ? .privateProfile : .publicProfile,
                 bodyweightAudience: profile.hideBodyweight ? .privateProfile : .publicProfile,
                 locationAudience: profile.hideCity ? .privateProfile : .publicProfile,
@@ -81,6 +82,7 @@ final class MockProfileService: ProfileService {
         profile.cityID = draft.cityID
         profile.yearsExperience = draft.yearsExperience ?? profile.yearsExperience
         profile.experienceLevel = draft.experienceLevel ?? profile.experienceLevel
+        profile.profileAudience = draft.privacy.profileAudience
         profile.hideLiftVideos = !draft.privacy.showLiftVideos
         _ = try await updateProfile(profile)
         return try await authenticatedProfile()
@@ -321,21 +323,38 @@ final class MockForumService: ForumService {
     ]
 
     func communities() async throws -> [ForumCommunity] { demoCommunities }
-    func posts(communityID: UUID?, limit: Int) async throws -> [ForumPost] { [] }
+    func joinedCommunityIDs() async throws -> [UUID] { [] }
+    func communityMembershipStatuses() async throws -> [UUID: String] { [:] }
+    func posts(communityID: UUID?, limit: Int, offset: Int) async throws -> [ForumPost] { [] }
     func thread(postID: UUID) async throws -> ForumThread? { nil }
-    func join(communityID: UUID, requestNote: String) async throws -> String { "demo-membership" }
-    func leave(communityID: UUID) async throws {}
+    func join(communityID: UUID, requestNote: String) async throws -> String {
+        throw LiftRankServiceError.invalidInput("Joining communities is unavailable in the simulator demo.")
+    }
+    func leave(communityID: UUID) async throws {
+        throw LiftRankServiceError.invalidInput("Leaving communities is unavailable in the simulator demo.")
+    }
     func createPost(_ draft: ForumPostDraft) async throws -> ForumPost {
         throw LiftRankServiceError.invalidInput("Posting is unavailable in the simulator demo.")
     }
     func createComment(postID: UUID, body: String, parentCommentID: UUID?) async throws -> ForumComment {
         throw LiftRankServiceError.invalidInput("Commenting is unavailable in the simulator demo.")
     }
-    func vote(postID: UUID, value: Int?) async throws {}
-    func watch(postID: UUID, watched: Bool) async throws {}
-    func report(targetType: String, targetID: UUID, communityID: UUID?, reason: String, note: String) async throws {}
+    func vote(postID: UUID, value: Int?) async throws {
+        throw LiftRankServiceError.invalidInput("Voting is unavailable in the simulator demo.")
+    }
+    func vote(commentID: UUID, value: Int?) async throws {
+        throw LiftRankServiceError.invalidInput("Voting is unavailable in the simulator demo.")
+    }
+    func watch(postID: UUID, watched: Bool) async throws {
+        throw LiftRankServiceError.invalidInput("Watching discussions is unavailable in the simulator demo.")
+    }
+    func report(targetType: String, targetID: UUID, communityID: UUID?, reason: String, note: String) async throws {
+        throw LiftRankServiceError.invalidInput("Reporting is unavailable in the simulator demo.")
+    }
     func reports() async throws -> [ForumReport] { [] }
-    func moderate(postID: UUID, action: String, reason: String) async throws {}
+    func moderate(postID: UUID, action: String, reason: String) async throws {
+        throw LiftRankServiceError.invalidInput("Moderation is unavailable in the simulator demo.")
+    }
 }
 #endif
 

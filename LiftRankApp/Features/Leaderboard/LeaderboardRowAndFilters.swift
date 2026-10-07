@@ -10,6 +10,12 @@ struct LeaderboardRow: View {
         LeaderboardRankPresentation.color(for: entry.rank)
     }
 
+    private var catalogExercise: TrainingExerciseCatalogItem? {
+        MockData.trainingExerciseLibrary.first {
+            $0.id == entry.lift.exerciseID || $0.rankingExerciseID == entry.lift.exerciseID
+        }
+    }
+
     var body: some View {
         LiftCard {
             VStack(alignment: .leading, spacing: 12) {
@@ -55,14 +61,38 @@ struct LeaderboardRow: View {
                     VStack(alignment: .trailing, spacing: 5) {
                         Text(RankingFormatting.leaderboardValueText(for: entry, rankingType: rankingType, preferredUnit: appState.currentProfile.preferredUnit))
                             .font(.headline)
-                        Label(entry.rankMovement >= 0 ? "+\(entry.rankMovement)" : "\(entry.rankMovement)", systemImage: entry.rankMovement >= 0 ? "arrow.up" : "arrow.down")
-                            .font(.caption.bold())
-                            .foregroundStyle(entry.rankMovement >= 0 ? Color.liftGreen : Color.liftRed)
+                            if entry.rankMovement > 0 {
+                                Label("+\(entry.rankMovement)", systemImage: "arrow.up")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(Color.liftGreen)
+                            } else if entry.rankMovement < 0 {
+                                Label("\(entry.rankMovement)", systemImage: "arrow.down")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(Color.liftRed)
+                            } else {
+                                Label("—", systemImage: "minus")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(Color.liftMuted)
+                            }
                     }
                 }
 
                 HStack(spacing: 8) {
-                    Label(entry.lift.exerciseName, systemImage: "dumbbell.fill")
+                    HStack(spacing: 5) {
+                        if let catalogExercise {
+                            ExerciseCatalogIcon(exercise: catalogExercise)
+                                .scaleEffect(0.38)
+                                .frame(width: 22, height: 22)
+                        } else {
+                            ExerciseNameIcon(
+                                name: entry.lift.exerciseName,
+                                fallbackSymbol: "figure.strengthtraining.functional"
+                            )
+                            .scaleEffect(0.38)
+                            .frame(width: 22, height: 22)
+                        }
+                        Text(entry.lift.exerciseName)
+                    }
                     Label(entry.profile.hideBodyweight ? "Hidden BW" : "\(MeasurementFormatting.formatBodyweightOrDash(entry.lift.bodyweightAtLift, preferredUnit: appState.currentProfile.preferredUnit)) BW", systemImage: "scalemass.fill")
                     Label(
                         ProfileDisplayFormatting.location(
@@ -74,6 +104,23 @@ struct LeaderboardRow: View {
                     )
                 }
                 .font(.caption)
+                .foregroundStyle(Color.liftMuted)
+                .lineLimit(1)
+
+                HStack(spacing: 8) {
+                    Text(MeasurementFormatting.recordedLiftSetText(
+                        weight: entry.lift.weight,
+                        unit: entry.lift.unit,
+                        repetitions: entry.lift.repetitions,
+                        includeRepLabel: true
+                    ))
+                    if entry.lift.weightPerHand == true {
+                        Text("per hand")
+                    }
+                    Text("·")
+                    Text(LiftTimeFormatter.shortDateTime(entry.lift.performedAt))
+                }
+                .font(.caption2.weight(.medium))
                 .foregroundStyle(Color.liftMuted)
                 .lineLimit(1)
 
@@ -445,6 +492,7 @@ struct LeaderboardFiltersView: View {
                         case "all":
                             quickFilterButton("All lifters", symbol: "globe") {
                                 appState.leaderboardFilters = LeaderboardFilters(exerciseID: appState.leaderboardFilters.exerciseID)
+                                appState.verifiedOnly = false
                             }
                         case "city":
                             quickFilterButton("My city", symbol: "mappin.and.ellipse") {

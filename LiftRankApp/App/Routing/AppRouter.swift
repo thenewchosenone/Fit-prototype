@@ -49,7 +49,8 @@ enum AppCover: String, Identifiable, Hashable {
 final class AppRouter: ObservableObject {
     @Published var selectedTab: AppTab = .home
     @Published var trackerSection: TrackerSection = .today
-    @Published var requestsLeaderboardSearch = false
+    @Published var forumPostToOpen: UUID?
+    @Published var forumCommentToOpen: UUID?
     @Published var sheet: AppSheet?
     @Published var cover: AppCover?
 
@@ -59,24 +60,6 @@ final class AppRouter: ObservableObject {
         } else if sheet == destination {
             sheet = nil
         }
-    }
-
-    func setCover(_ destination: AppCover, isPresented: Bool) {
-        if isPresented {
-            cover = destination
-        } else if cover == destination {
-            cover = nil
-        }
-    }
-
-    func openTracker(_ section: TrackerSection) {
-        trackerSection = section
-        selectedTab = .track
-    }
-
-    func openAthleteSearch() {
-        requestsLeaderboardSearch = true
-        selectedTab = .leaderboards
     }
 
 }

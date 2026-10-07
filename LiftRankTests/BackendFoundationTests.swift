@@ -639,6 +639,53 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(store.notifications.first).isRead)
     }
 
+    func testForumReplyNotificationRoutesToExactPost() throws {
+        let repository = DemoRepository()
+        let store = NotificationStore(repository: repository)
+        let postID = UUID()
+        let notification = NotificationItem(
+            id: UUID(), title: "New reply", message: "A lifter replied.", kind: "forum_reply",
+            createdAt: .now, isRead: false,
+            destination: NotificationDestination(kind: .forumPost, targetID: postID)
+        )
+
+        let route = store.open(notification)
+
+        guard case .forumPost(let routedPostID, let routedCommentID) = route else {
+            return XCTFail("Expected a forum-post route")
+        }
+        XCTAssertEqual(routedPostID, postID)
+        XCTAssertNil(routedCommentID)
+    }
+
+    func testForumReplyNotificationCarriesExactCommentTarget() throws {
+        let repository = DemoRepository()
+        let store = NotificationStore(repository: repository)
+        let postID = UUID()
+        let commentID = UUID()
+        let notification = NotificationItem(
+            id: UUID(), title: "New reply", message: "A lifter replied.", kind: "forum_reply",
+            createdAt: .now, isRead: false,
+            destination: NotificationDestination(kind: .forumPost, targetID: postID, commentID: commentID)
+        )
+
+        let route = store.open(notification)
+
+        guard case .forumPost(let routedPostID, let routedCommentID) = route else {
+            return XCTFail("Expected a forum-post route")
+        }
+        XCTAssertEqual(routedPostID, postID)
+        XCTAssertEqual(routedCommentID, commentID)
+    }
+
+    func testUnknownNotificationDestinationFallsBackWithoutDroppingTheNotification() throws {
+        let data = #"{"kind":"forumComment","targetID":"00000000-0000-0000-0000-000000000001"}"#.data(using: .utf8)!
+        let destination = try JSONDecoder().decode(NotificationDestination.self, from: data)
+
+        XCTAssertEqual(destination.kind, .home)
+        XCTAssertEqual(destination.targetID, UUID(uuidString: "00000000-0000-0000-0000-000000000001"))
+    }
+
     @MainActor
     func testLiftNotificationRoutesToTheCurrentProfileInsteadOfLiftID() throws {
         let repository = DemoRepository()
@@ -699,7 +746,12 @@ final class BackendFoundationTests: XCTestCase {
             countryCode: "US",
             yearsExperience: 4,
             experienceLevel: .intermediate,
-            privacy: ProfilePrivacySettings(bodyweightAudience: .privateProfile, showLiftVideos: false)
+            privacy: ProfilePrivacySettings(
+                bodyweightAudience: .privateProfile,
+                locationAudience: .privateProfile,
+                gymAudience: .privateProfile,
+                showLiftVideos: false
+            )
         )
 
         store.applyAuthenticatedProfile(remote, retainingDemoProfiles: false)
@@ -709,6 +761,8 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(store.currentProfile.avatarPath, "avatars/production.jpg")
         XCTAssertEqual(store.currentProfile.heightInches, 170 / 2.54, accuracy: 0.001)
         XCTAssertTrue(store.currentProfile.hideBodyweight)
+        XCTAssertTrue(store.currentProfile.hideCity)
+        XCTAssertTrue(store.currentProfile.hideGym)
         XCTAssertTrue(store.currentProfile.hideLiftVideos)
         XCTAssertEqual(store.profiles.map(\.id), [userID])
     }
@@ -876,7 +930,11 @@ final class BackendFoundationTests: XCTestCase {
             cityID: serverCityID,
             yearsExperience: 3,
             experienceLevel: .intermediate,
-            privacy: ProfilePrivacySettings(locationAudience: .privateProfile, showLiftVideos: false)
+            privacy: ProfilePrivacySettings(
+                profileAudience: .privateProfile,
+                locationAudience: .privateProfile,
+                showLiftVideos: false
+            )
         )
         let gym = Gym(
             id: UUID(),
@@ -887,6 +945,7 @@ final class BackendFoundationTests: XCTestCase {
             verifiedLiftCount: 0
         )
         let privacy = ProfilePrivacySettings(
+            divisionAudience: .friends,
             locationAudience: .privateProfile,
             friendListAudience: .gym,
             showLiftVideos: false
@@ -909,6 +968,7 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(saved.city, "Austin")
         XCTAssertEqual(saved.state, "Texas")
         XCTAssertTrue(saved.hideLiftVideos)
+        XCTAssertEqual(saved.profileAudience, .privateProfile)
         let savedDraft = try XCTUnwrap(service.lastSavedProfileDraft)
         XCTAssertEqual(savedDraft.bio, "Training for my next total")
         XCTAssertEqual(
@@ -921,6 +981,7 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(savedDraft.city, "Miami")
         XCTAssertEqual(savedDraft.region, "Florida")
         XCTAssertEqual(savedDraft.privacy.locationAudience, .privateProfile)
+        XCTAssertEqual(savedDraft.privacy.divisionAudience, .friends)
         XCTAssertEqual(savedDraft.privacy.friendListAudience, .gym)
         XCTAssertFalse(savedDraft.privacy.showLiftVideos)
         XCTAssertEqual(store.profiles.map(\.id), [userID])
@@ -941,7 +1002,7 @@ final class BackendFoundationTests: XCTestCase {
             birthDate: nil,
             sexCategory: .male,
             heightCentimeters: nil,
-            bodyweightPounds: 200,
+            bodyweightPounds: 220,
             city: "Miami",
             region: "Florida",
             countryCode: "US",
@@ -963,20 +1024,20 @@ final class BackendFoundationTests: XCTestCase {
             id: UUID(),
             week: 1,
             targetDate: Date(timeIntervalSince1970: 1_800_000_000),
-            actual: 212,
+            actual: 211,
             notes: "Home log"
         ))
 
         let deadline = Date().addingTimeInterval(1)
-        while service.savedBodyweightEntries.isEmpty && Date() < deadline {
+        while service.updateProfileCount == 0 && Date() < deadline {
             try await Task.sleep(nanoseconds: 20_000_000)
         }
 
-        XCTAssertEqual(appState.currentProfile.bodyweightPounds, 212)
-        XCTAssertEqual(appState.bodyweightEntries.last?.actual, 212)
-        XCTAssertEqual(service.profile.bodyweightPounds, 212)
-        XCTAssertEqual(service.updateProfileCount, 0)
-        XCTAssertEqual(service.savedBodyweightEntries.last?.actual, 212)
+        XCTAssertEqual(appState.currentProfile.bodyweightPounds, 211)
+        XCTAssertEqual(appState.bodyweightEntries.last?.actual, 211)
+        XCTAssertEqual(service.profile.bodyweightPounds, 211)
+        XCTAssertEqual(service.updateProfileCount, 1)
+        XCTAssertEqual(service.savedBodyweightEntries.last?.actual, 211)
     }
 
     func testBodyweightHistorySyncFailureDoesNotSignOutAuthenticatedAccount() async {
@@ -1065,6 +1126,24 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(
             ProfileDataAuthority.currentBodyweight(profilePounds: 0, historyFallbackPounds: nil),
             0
+        )
+    }
+
+    func testLatestLoggedBodyweightUsesNewestDatedEntryRegardlessOfArrayOrder() {
+        let older = BodyweightEntry(
+            id: UUID(), week: 1, targetDate: Date(timeIntervalSince1970: 1_000), actual: 220, notes: ""
+        )
+        let newer = BodyweightEntry(
+            id: UUID(), week: 2, targetDate: Date(timeIntervalSince1970: 2_000), actual: 211, notes: ""
+        )
+
+        XCTAssertEqual(
+            ProfileDataAuthority.latestLoggedBodyweight(profilePounds: 220, entries: [newer, older]),
+            211
+        )
+        XCTAssertEqual(
+            ProfileDataAuthority.latestLoggedBodyweight(profilePounds: 220, entries: [older, BodyweightEntry(id: UUID(), week: 2, targetDate: newer.targetDate, actual: nil, notes: "")]),
+            220
         )
     }
 
@@ -2243,13 +2322,33 @@ final class BackendFoundationTests: XCTestCase {
         store.enqueueCompletedWorkout(snapshot)
         store.enqueueCompletedWorkout(snapshot)
         XCTAssertEqual(store.pendingCompletedWorkoutUploads.map(\.id), [snapshot.id])
+        XCTAssertEqual(store.historySyncState, .local)
 
         await store.synchronizeCompletedWorkoutHistory()
         await store.synchronizeCompletedWorkoutHistory()
 
         XCTAssertTrue(store.pendingCompletedWorkoutUploads.isEmpty)
+        XCTAssertEqual(store.historySyncState, .synced)
         let uploadedWorkoutIDs = try await service.completedWorkouts(since: nil).map(\.id)
         XCTAssertEqual(uploadedWorkoutIDs, [snapshot.id])
+    }
+
+    @MainActor
+    func testWorkoutSyncStoreSurfacesNeedsAttentionAfterUploadFailure() async {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let store = WorkoutSyncStore(repository: repository, service: FailingCompletedWorkoutSyncService())
+        let snapshot = CompletedWorkoutSnapshot(
+            id: UUID(),
+            ownerID: repository.currentProfile.id,
+            payload: Data("workout".utf8),
+            completedAt: .now
+        )
+
+        store.enqueueCompletedWorkout(snapshot)
+        await store.synchronizeCompletedWorkoutHistory()
+
+        XCTAssertEqual(store.historySyncState, .needsAttention)
+        XCTAssertEqual(store.pendingCompletedWorkoutUploads.map(\.id), [snapshot.id])
     }
 
     @MainActor
@@ -2329,6 +2428,7 @@ final class BackendFoundationTests: XCTestCase {
         while !service.requestStarted {
             await Task.yield()
         }
+        XCTAssertEqual(store.historySyncState, .syncing)
         store.enqueueCompletedWorkout(edited)
         service.release()
         await sync.value
@@ -2539,6 +2639,30 @@ final class BackendFoundationTests: XCTestCase {
         await store.synchronizeWorkoutPlans()
 
         XCTAssertFalse(repository.workoutPlans.contains { $0.id == plan.id })
+    }
+
+    @MainActor
+    func testWorkoutSyncStoreUploadsPlannedSessionOutcomeChanges() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let service = MockWorkoutSyncService()
+        let plan = WorkoutPlan(id: UUID(), name: "Outcome plan", createdAt: .now)
+        let phase = WorkoutPhase(id: UUID(), planID: plan.id, name: "Phase", order: 0, goal: "Training", durationWeeks: 1)
+        let week = WorkoutWeek(id: UUID(), planID: plan.id, phaseID: phase.id, weekNumber: 1, title: "Week 1", notes: "")
+        let session = WorkoutSession(id: UUID(), weekID: week.id, day: "Monday", name: "Lower", order: 0, notes: "")
+        repository.workoutPlans = [plan]
+        repository.workoutPhases = [phase]
+        repository.workoutWeeks = [week]
+        repository.workoutSessions = [session]
+
+        let store = WorkoutSyncStore(repository: repository, service: service)
+        await store.synchronizeWorkoutPlans()
+        repository.setWorkoutSessionOutcome(session, outcome: .skipped)
+        await store.synchronizeWorkoutPlans()
+
+        let documents = try await service.plans()
+        let document = try XCTUnwrap(documents.first(where: { $0.id == plan.id }))
+        let payload = try JSONDecoder().decode(WorkoutPlanSyncPayload.self, from: document.payload)
+        XCTAssertEqual(payload.sessions.first?.outcome, .skipped)
     }
 
     @MainActor
@@ -2870,6 +2994,20 @@ private final class GatedCompletedWorkoutUploadService: WorkoutSyncService {
         continuation?.resume()
         continuation = nil
     }
+}
+
+@MainActor
+private struct FailingCompletedWorkoutSyncService: WorkoutSyncService {
+    func plans() async throws -> [WorkoutPlanDocument] { [] }
+    func savePlan(_ document: WorkoutPlanDocument, expectedRevision: Int) async throws -> WorkoutSyncResult {
+        throw LiftRankServiceError.configurationMissing
+    }
+    func deletePlan(id: UUID) async throws {}
+    func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot] { [] }
+    func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws {
+        throw LiftRankServiceError.server("Sync failed")
+    }
+    func deleteCompletedWorkout(id: UUID) async throws {}
 }
 
 @MainActor

@@ -25,6 +25,7 @@ struct WorkoutSessionRunView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var presentedSheet: WorkoutSessionSheet?
     @State private var showingCancelConfirmation = false
+    @State private var showingSkipConfirmation = false
     @State private var showingEmptyWorkoutConfirmation = false
     @State private var isReorderingExercises = false
     @State private var dismissAfterSummary = false
@@ -210,6 +211,21 @@ struct WorkoutSessionRunView: View {
                 Button("Keep Working Out", role: .cancel) {}
             } message: {
                 Text("All sets in this active workout will be permanently discarded. Your plan is not changed.")
+            }
+            .confirmationDialog("Skip this planned workout?", isPresented: $showingSkipConfirmation, titleVisibility: .visible) {
+                Button("Skip Planned Workout", role: .destructive) {
+                    appState.markWorkoutSessionOutcome(.skipped, for: appState.activeWorkout?.sourceSessionID)
+                    appState.discardActiveWorkout()
+                    dismiss()
+                }
+                Button("Mark Rest Day") {
+                    appState.markWorkoutSessionOutcome(.rest, for: appState.activeWorkout?.sourceSessionID)
+                    appState.discardActiveWorkout()
+                    dismiss()
+                }
+                Button("Keep Training", role: .cancel) {}
+            } message: {
+                Text("Choose Skip when you did not complete this planned workout, or Rest Day when recovery was intentional. Neither is added to workout history or counted as completed.")
             }
             .confirmationDialog(
                 "End this empty workout?",
@@ -458,6 +474,20 @@ struct WorkoutSessionRunView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .buttonStyle(.plain)
+            if workout?.source == .planned {
+                Button {
+                    showingSkipConfirmation = true
+                } label: {
+                    Image(systemName: "forward.end.fill")
+                        .font(.headline.weight(.bold))
+                        .frame(width: 52, height: 52)
+                        .background(Color.liftCard)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.liftGold)
+                .accessibilityLabel("Skip planned workout")
+            }
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 12)

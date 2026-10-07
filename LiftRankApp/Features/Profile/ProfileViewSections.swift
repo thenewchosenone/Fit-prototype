@@ -2,9 +2,10 @@ import SwiftUI
 
 enum ProfileSection: String, CaseIterable, Identifiable {
     case overview = "Overview"
-    case prVideos = "Videos"
-    case training = "Training profile"
+    case prVideos = "PR videos"
+    case training = "Training"
     case history = "Workout history"
+    case timeline = "Timeline"
     case submissions = "Submissions"
 
     var id: String {
@@ -13,6 +14,7 @@ enum ProfileSection: String, CaseIterable, Identifiable {
         case .prVideos: return "prVideos"
         case .training: return "training"
         case .history: return "history"
+        case .timeline: return "timeline"
         case .submissions: return "submissions"
         }
     }
@@ -20,12 +22,13 @@ enum ProfileSection: String, CaseIterable, Identifiable {
 
 private struct ProfileSectionNavigation: View {
     @Binding var selection: ProfileSection
+    let sections: [ProfileSection]
     let onSelect: (ProfileSection) -> Void
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(ProfileSection.allCases, id: \.id) { section in
+                ForEach(sections, id: \.id) { section in
                     let isSelected = selection == section
                     Button(action: { select(section) }) {
                         Text(section.rawValue)
@@ -56,26 +59,53 @@ extension ProfileView {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
-                    header
-                    Text("Jump to")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.liftMuted)
-                    ProfileSectionNavigation(selection: $selectedProfileSection) { section in
-                        if section == .training { showingAthleteDetails = true }
-                        withAnimation(.easeInOut) { proxy.scrollTo(section.id, anchor: .top) }
-                    }
-                    .padding(.vertical, 2)
-                    Group {
-                        summary(presentation: liftPresentation)
-                            .id(ProfileSection.overview.id)
-                        ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: liftPresentation.lifts)
-                            .id(ProfileSection.prVideos.id)
-                        athleteDetails(presentation: liftPresentation)
-                            .id(ProfileSection.training.id)
-                        trainingHistory
-                            .id(ProfileSection.history.id)
-                        recentSubmissions(profileLifts: liftPresentation.lifts)
-                            .id(ProfileSection.submissions.id)
+                    if !isCurrentUser && appState.isBlocked(profile.id) {
+                        blockedProfileState
+                    } else if !isCurrentUser && !appState.competitionStore.canViewProfile(
+                        profile,
+                        viewerID: viewerID ?? appState.currentProfile.id
+                    ) {
+                        restrictedProfileState
+                    } else {
+                        header
+                        if !isCurrentUser && liftPresentation.lifts.isEmpty {
+                            LiftEmptyState(
+                                title: "No public training data",
+                                message: "This athlete hasn’t shared any qualifying lifts yet, or their submissions are private.",
+                                symbolName: "eye.slash",
+                                compact: true
+                            )
+                            .accessibilityIdentifier("profile.noPublicData")
+                        }
+                        Text("Jump to")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.liftMuted)
+                            ProfileSectionNavigation(
+                                selection: $selectedProfileSection,
+                            sections: isCurrentUser
+                                ? ProfileSection.allCases
+                                : [.overview, .prVideos, .training, .submissions]
+                        ) { section in
+                            if section == .training { showingAthleteDetails = true }
+                            withAnimation(.easeInOut) { proxy.scrollTo(section.id, anchor: .top) }
+                        }
+                        .padding(.vertical, 2)
+                        Group {
+                            summary(presentation: liftPresentation)
+                                .id(ProfileSection.overview.id)
+                            ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: liftPresentation.lifts)
+                                .id(ProfileSection.prVideos.id)
+                            athleteDetails(presentation: liftPresentation)
+                                .id(ProfileSection.training.id)
+                            if isCurrentUser {
+                                trainingHistory
+                                    .id(ProfileSection.history.id)
+                                profileTimeline
+                                    .id(ProfileSection.timeline.id)
+                            }
+                            recentSubmissions(profileLifts: liftPresentation.lifts)
+                                .id(ProfileSection.submissions.id)
+                        }
                     }
                 }
                 .padding()
@@ -89,24 +119,45 @@ extension ProfileView {
                 ProfilePhotoManagerView()
                     .environmentObject(appState)
             }
-            .navigationTitle(isCurrentUser ? "Profile" : profile.username)
+            .sheet(isPresented: $showingPublicPreview) {
+                NavigationStack {
+                    ProfileView(profile: profile, surface: .public, viewerID: UUID())
+                        .environmentObject(appState)
+                }
+                .presentationDetents([.large])
+            }
+            .sheet(item: $selectedTimelineWorkout) { workout in
+                CompletedWorkoutDetailView(workout: workout)
+                    .environmentObject(appState)
+                    .presentationDetents([.large])
+            }
+            .navigationTitle(isCurrentUser ? "Personal profile" : (profile.username.isEmpty ? "Public profile" : profile.username))
             .toolbar {
                 if isCurrentUser {
                     ToolbarItem(placement: .topBarLeading) {
                         Button {
                             appState.showingSubmitSheet = true
                         } label: {
-                            Image(systemName: "plus.circle.fill")
+                            Label("Submit lift", systemImage: "plus.circle.fill")
                         }
                         .accessibilityLabel("Submit a lift")
                     }
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            appState.showingSettings = true
+                        Menu {
+                            Button {
+                                showingPublicPreview = true
+                            } label: {
+                                Label("View as public", systemImage: "eye")
+                            }
+                            Button {
+                                appState.showingSettings = true
+                            } label: {
+                                Label("Settings", systemImage: "gearshape")
+                            }
                         } label: {
-                            Image(systemName: "gearshape.circle.fill")
+                            Label("Profile actions", systemImage: "gearshape.circle.fill")
                         }
-                        .accessibilityLabel("Open settings")
+                        .accessibilityLabel("Profile actions")
                     }
                 } else {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -116,7 +167,11 @@ extension ProfileView {
                             }
                             .accessibilityIdentifier("profile.reportAthlete")
                             Button(appState.isBlocked(profile.id) ? "Unblock athlete" : "Block athlete", role: appState.isBlocked(profile.id) ? nil : .destructive) {
-                                appState.setBlocked(profile.id, blocked: !appState.isBlocked(profile.id))
+                                if appState.isBlocked(profile.id) {
+                                    appState.setBlocked(profile.id, blocked: false)
+                                } else {
+                                    confirmingProfileBlock = true
+                                }
                             }
                             .accessibilityIdentifier(appState.isBlocked(profile.id) ? "profile.unblockAthlete" : "profile.blockAthlete")
                         } label: { Image(systemName: "ellipsis.circle.fill") }
@@ -157,6 +212,14 @@ extension ProfileView {
             Button("OK", role: .cancel) { submissionDeletionError = nil }
         } message: {
             Text(submissionDeletionError ?? "Try again.")
+        }
+        .confirmationDialog("Block this athlete?", isPresented: $confirmingProfileBlock, titleVisibility: .visible) {
+            Button("Block athlete", role: .destructive) {
+                appState.setBlocked(profile.id, blocked: true)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You won’t see this athlete’s profile, lifts, or activity until you unblock them.")
         }
     }
 

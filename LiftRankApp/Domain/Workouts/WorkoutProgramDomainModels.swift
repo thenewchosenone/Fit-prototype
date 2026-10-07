@@ -14,6 +14,56 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
     var goal: String = "Build strength and muscle"
     var notes: String = ""
     var isActive: Bool = true
+    var queueEnabled: Bool = false
+    var queuedSessionIDs: [UUID] = []
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, createdAt, goal, notes, isActive, queueEnabled, queuedSessionIDs
+    }
+
+    init(
+        id: UUID,
+        name: String,
+        createdAt: Date,
+        goal: String = "Build strength and muscle",
+        notes: String = "",
+        isActive: Bool = true,
+        queueEnabled: Bool = false,
+        queuedSessionIDs: [UUID] = []
+    ) {
+        self.id = id
+        self.name = name
+        self.createdAt = createdAt
+        self.goal = goal
+        self.notes = notes
+        self.isActive = isActive
+        self.queueEnabled = queueEnabled
+        self.queuedSessionIDs = queuedSessionIDs
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        goal = try container.decodeIfPresent(String.self, forKey: .goal) ?? "Build strength and muscle"
+        notes = try container.decodeIfPresent(String.self, forKey: .notes) ?? ""
+        isActive = try container.decodeIfPresent(Bool.self, forKey: .isActive) ?? true
+        queueEnabled = try container.decodeIfPresent(Bool.self, forKey: .queueEnabled) ?? false
+        queuedSessionIDs = try container.decodeIfPresent([UUID].self, forKey: .queuedSessionIDs) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(goal, forKey: .goal)
+        try container.encode(notes, forKey: .notes)
+        try container.encode(isActive, forKey: .isActive)
+        try container.encode(queueEnabled, forKey: .queueEnabled)
+        try container.encode(queuedSessionIDs, forKey: .queuedSessionIDs)
+    }
 }
 
 enum WorkoutProgressionMethod: String, CaseIterable, Codable, Hashable, Identifiable {
@@ -100,6 +150,11 @@ struct WorkoutWeek: Identifiable, Codable, Hashable {
     var notes: String
 }
 
+enum WorkoutSessionOutcome: String, Codable, Hashable {
+    case skipped
+    case rest
+}
+
 struct WorkoutSession: Identifiable, Codable, Hashable {
     var id: UUID
     var weekID: UUID
@@ -107,6 +162,7 @@ struct WorkoutSession: Identifiable, Codable, Hashable {
     var name: String
     var order: Int
     var notes: String
+    var outcome: WorkoutSessionOutcome? = nil
 }
 
 struct WorkoutExercisePrescription: Identifiable, Codable, Hashable {

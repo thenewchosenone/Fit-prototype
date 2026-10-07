@@ -16,8 +16,16 @@ final class ForumStore {
         try await service.communities()
     }
 
-    func posts(communityID: UUID?, limit: Int) async throws -> [ForumPost] {
-        try await service.posts(communityID: communityID, limit: limit)
+    func joinedCommunityIDs() async throws -> [UUID] {
+        try await service.joinedCommunityIDs()
+    }
+
+    func communityMembershipStatuses() async throws -> [UUID: String] {
+        try await service.communityMembershipStatuses()
+    }
+
+    func posts(communityID: UUID?, limit: Int, offset: Int = 0) async throws -> [ForumPost] {
+        try await service.posts(communityID: communityID, limit: limit, offset: offset)
     }
 
     func thread(postID: UUID) async throws -> ForumThread? {
@@ -42,6 +50,10 @@ final class ForumStore {
 
     func vote(postID: UUID, value: Int?) async throws {
         try await service.vote(postID: postID, value: value)
+    }
+
+    func vote(commentID: UUID, value: Int?) async throws {
+        try await service.vote(commentID: commentID, value: value)
     }
 
     func watch(postID: UUID, watched: Bool) async throws {

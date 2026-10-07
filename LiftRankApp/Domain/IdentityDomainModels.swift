@@ -20,6 +20,7 @@ struct UserProfile: Identifiable, Codable, Hashable {
     var preferredUnit: UnitSystem
     var city: String
     var state: String
+    var countryCode: String? = nil
     var cityID: UUID? = nil
     var primaryGymID: UUID
     var primaryGymName: String
@@ -32,6 +33,7 @@ struct UserProfile: Identifiable, Codable, Hashable {
     var hideCity: Bool
     var hideGym: Bool
     var hideLiftVideos: Bool
+    var profileAudience: PrivacyAudience = .publicProfile
 }
 
 struct Gym: Identifiable, Codable, Hashable {
@@ -115,33 +117,6 @@ struct LiftMediaAsset: Identifiable, Codable, Hashable {
     var storagePath: String
     var contentType: String
     var byteCount: Int
-    var createdAt: Date
-}
-
-struct LiftReportRecord: Identifiable, Codable, Hashable {
-    var id: UUID
-    var liftID: UUID
-    var reporterID: UUID
-    var reason: LiftReportReason
-    var note: String
-    var isOpen: Bool
-    var createdAt: Date
-}
-
-struct LiftVoteRecord: Identifiable, Codable, Hashable {
-    var id: String { "\(liftID.uuidString):\(voterID.uuidString)" }
-    var liftID: UUID
-    var voterID: UUID
-    var value: LiftVoteValue
-    var createdAt: Date
-}
-
-struct LiftModerationActionRecord: Identifiable, Codable, Hashable {
-    var id: UUID
-    var liftID: UUID
-    var actorID: UUID
-    var decision: LiftModeratorDecision
-    var note: String
     var createdAt: Date
 }
 

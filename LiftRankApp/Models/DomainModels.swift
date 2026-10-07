@@ -67,26 +67,6 @@ enum LiftVoteValue: Int, Codable, CaseIterable, Identifiable {
     var id: Int { rawValue }
 }
 
-struct Challenge: Identifiable, Codable, Hashable {
-    var id: UUID
-    var title: String
-    var description: String
-    var startDate: Date
-    var endDate: Date
-    var goal: String
-    var eligibility: String
-    var participantCount: Int
-    var progress: Double
-    var isJoined: Bool
-}
-
-struct ChallengeParticipant: Identifiable, Codable, Hashable {
-    let id: UUID
-    let userID: UUID
-    let challengeID: UUID
-    var progress: Double
-}
-
 enum CompetitiveMovement: String, Codable, CaseIterable, Identifiable {
     case barbellBenchPress = "barbell_bench_press"
     case backSquat = "back_squat"

@@ -135,6 +135,21 @@ extension DemoRepository {
     }
 
     @discardableResult
+    func updateWorkoutQueue(planID: UUID, enabled: Bool, sessionIDs: [UUID]) -> Bool {
+        guard let index = workoutPlans.firstIndex(where: { $0.id == planID }) else { return false }
+        let planSessionIDs = Set(workoutSessions.compactMap { session in
+            let week = workoutWeeks.first { $0.id == session.weekID }
+            return week?.planID == planID ? session.id : nil
+        })
+        var updated = workoutPlans[index]
+        updated.queueEnabled = enabled
+        updated.queuedSessionIDs = sessionIDs.filter { planSessionIDs.contains($0) }
+        workoutPlans[index] = updated
+        scheduleWorkoutSnapshotPersistence()
+        return true
+    }
+
+    @discardableResult
     func startWorkoutProgram(
         template: WorkoutProgramTemplate,
         startDate: Date,
@@ -482,6 +497,12 @@ extension DemoRepository {
         workoutSetLogs.removeAll { log in
             prescriptionIDs.contains(log.prescriptionID) && Calendar.current.isDateInToday(log.performedAt)
         }
+        scheduleWorkoutSnapshotPersistence()
+    }
+
+    func setWorkoutSessionOutcome(_ session: WorkoutSession, outcome: WorkoutSessionOutcome?) {
+        guard let index = workoutSessions.firstIndex(where: { $0.id == session.id }) else { return }
+        workoutSessions[index].outcome = outcome
         scheduleWorkoutSnapshotPersistence()
     }
 

@@ -94,6 +94,22 @@ extension AppState {
         return started
     }
 
+    @discardableResult
+    func repeatWorkout(_ completedWorkout: CompletedWorkout) -> Bool {
+        let unit = currentProfile.preferredUnit
+        let bodyweight = unit == .kilograms
+            ? RankingCalculator.poundsToKilograms(currentProfile.bodyweightPounds)
+            : currentProfile.bodyweightPounds
+        let started = activeWorkoutStore.repeatWorkout(
+            completedWorkout,
+            gymID: currentProfile.primaryGymID,
+            bodyweight: bodyweight,
+            unit: unit
+        ) != nil
+        if started { Haptics.success() }
+        return started
+    }
+
     func addExercisesToActiveWorkout(_ exercises: [TrainingExerciseCatalogItem]) {
         activeWorkoutStore.addExercises(exercises)
         Haptics.success()
@@ -131,16 +147,8 @@ extension AppState {
         activeWorkoutStore.updateRestTimer(endsAt: endsAt, exerciseID: exerciseID)
     }
 
-    var activeWorkoutCompletedWorkingSets: [WorkoutSetLog] {
-        activeWorkoutStore.completedWorkingSets
-    }
-
     var activeWorkoutCompletedWorkingSetCount: Int {
         activeWorkoutStore.displayState.completedWorkingSets
-    }
-
-    var activeWorkoutPlannedWorkingSetCount: Int {
-        activeWorkoutStore.plannedWorkingSetCount
     }
 
     func activeWorkoutExerciseProgress(for exercise: WorkoutExerciseSnapshot) -> ActiveWorkoutExerciseProgress {
@@ -309,10 +317,6 @@ extension AppState {
 
     func activeWorkoutPRCandidates() -> [WorkoutPRCandidate] {
         activeWorkoutStore.prCandidates(existingLifts: currentUserLifts, liftsRevision: repository.liftsRevision)
-    }
-
-    func workoutPRCandidates(for workout: CompletedWorkout) -> [WorkoutPRCandidate] {
-        workoutPRSubmissionStore.candidates(for: workout, existingLifts: currentUserLifts)
     }
 
     func submitVideoBackedPRs(for workout: CompletedWorkout, videoURLsBySetID: [UUID: URL]) async {

@@ -48,6 +48,166 @@ extension HomeView {
         }
     }
 
+    @ViewBuilder
+    var workoutSyncStatus: some View {
+        if appState.isAuthenticated && !appState.isDemoMode {
+            let state = appState.workoutSyncStore.historySyncState
+            if state != .synced {
+                let pendingCount = appState.workoutSyncStore.pendingCompletedWorkoutUploads.count
+                let copy: (String, String, String, Color) = switch state {
+                case .local:
+                    ("Workout saved on this device", "\(pendingCount) workout\(pendingCount == 1 ? "" : "s") waiting to sync when the connection is available.", "arrow.triangle.2.circlepath", .orange)
+                case .syncing:
+                    ("Syncing workout history", "Keeping this workout available across your devices.", "arrow.triangle.2.circlepath", .liftAccentText)
+                case .stale:
+                    ("Workout history may be stale", "Refresh to make Home metrics current.", "clock.arrow.circlepath", .orange)
+                case .needsAttention:
+                    ("Workout sync needs attention", "Your workout is safe locally. Try again when you’re online.", "exclamationmark.triangle.fill", .orange)
+                case .synced:
+                    ("", "", "", .clear)
+                }
+                let canRetry = state == .local || state == .stale || state == .needsAttention
+                let syncContent = HStack(spacing: 10) {
+                    Image(systemName: copy.2)
+                        .foregroundStyle(copy.3)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(copy.0)
+                            .font(.subheadline.weight(.bold))
+                        Text(copy.1)
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                    }
+                    Spacer(minLength: 4)
+                    if canRetry {
+                        Text(state == .needsAttention ? "Retry sync" : "Sync now")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.liftAccentText)
+                    }
+                }
+                if canRetry {
+                    Button {
+                        Task { await appState.synchronizeCompletedWorkoutHistory(force: true) }
+                    } label: {
+                        syncContent
+                            .padding(12)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .homePanelStyle()
+                    .accessibilityLabel(state == .needsAttention ? "Retry workout sync" : "Sync workout now")
+                    .accessibilityValue(copy.1)
+                } else {
+                    syncContent
+                        .padding(12)
+                        .homePanelStyle()
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(copy.0)
+                        .accessibilityValue(copy.1)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    var trainingAlerts: some View {
+        let stalledLifts = Array(appState.plateauInsights.prefix(2))
+        let stalledLiftNames = stalledLifts.map { $0.exerciseName }.joined(separator: ", ")
+        let missedWorkout = appState.missedScheduledWorkout()
+        let recoveringMuscles = Array(
+            appState.recoverySummaries()
+                .filter { $0.hoursSinceTraining < 48 }
+                .prefix(2)
+        )
+        let thisWeekVolume = appState.weeklyVolumeByBodyPart().values.reduce(0, +)
+        let priorWeekVolumes = (1...4).compactMap { offset -> Double? in
+            guard let date = Calendar.current.date(byAdding: .weekOfYear, value: -offset, to: .now) else { return nil }
+            return appState.weeklyVolumeByBodyPart(referenceDate: date).values.reduce(0, +)
+        }
+        let baselineVolume = priorWeekVolumes.isEmpty ? 0 : priorWeekVolumes.reduce(0, +) / Double(priorWeekVolumes.count)
+        let unusualVolume = baselineVolume > 0 && thisWeekVolume >= baselineVolume * 1.5
+        let programComplete = selectedProgramIsCompleteForHome
+        let signalCount = (missedWorkout == nil ? 0 : 1)
+            + (stalledLifts.isEmpty ? 0 : 1)
+            + (recoveringMuscles.isEmpty ? 0 : 1)
+            + (unusualVolume ? 1 : 0)
+            + (programComplete ? 1 : 0)
+        if signalCount > 0 {
+            Button {
+                appState.trainingTrackerStartOnProgress = true
+                appState.requestedTrackerSegment = "Progress"
+                appState.selectedTab = 2
+            } label: {
+                HStack(alignment: .top, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "equal.circle.fill")
+                                .foregroundStyle(Color.liftGold)
+                            Text(signalCount == 1 ? "Training signal" : "Training signals")
+                                .font(.subheadline.weight(.bold))
+                            Text("\(signalCount)")
+                                .font(.caption.weight(.black))
+                                .foregroundStyle(Color.liftAccentText)
+                        }
+                        if let missedWorkout {
+                            Text("Missed session")
+                                .font(.caption.weight(.bold))
+                            Text("\(missedWorkout.session.name) · scheduled \(LiftTimeFormatter.shortDateNoTime(missedWorkout.date)) · Log missed workout")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                                .lineLimit(2)
+                        }
+                        if !stalledLifts.isEmpty {
+                            Text("Possible plateau")
+                                .font(.caption.weight(.bold))
+                            Text("\(stalledLiftNames) · Open plateau details")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                                .lineLimit(2)
+                        }
+                        if !recoveringMuscles.isEmpty {
+                            Text("Recovery context")
+                                .font(.caption.weight(.bold))
+                            Text("\(recoveringMuscles.map { $0.muscle.displayName }.joined(separator: ", ")) · Review recovery")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                                .lineLimit(2)
+                        }
+                        if unusualVolume {
+                            Text("Unusual volume")
+                                .font(.caption.weight(.bold))
+                            Text("\(Int((thisWeekVolume / baselineVolume) * 100))% of your prior four-week average · Review volume")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                                .lineLimit(2)
+                        }
+                        if programComplete {
+                            Text("Program milestone")
+                                .font(.caption.weight(.bold))
+                            Text("Program complete · Review program progress")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                                .lineLimit(2)
+                        }
+                        Text("Open Progress")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.liftAccentText)
+                    }
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.liftMuted)
+                }
+                .padding(12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .homePanelStyle()
+            .accessibilityLabel("Training alerts")
+            .accessibilityValue("\(signalCount) signal\(signalCount == 1 ? "" : "s")")
+            .accessibilityHint("Opens Progress for details and next actions")
+        }
+    }
+
     var header: some View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
@@ -167,13 +327,24 @@ extension HomeView {
     }
 
     var trainingOverviewCard: some View {
-        let balance = appState.strengthBalance(for: 1)
+        let currentWeekNumber = appState.currentSelectedProgramWeek?.weekNumber
+            ?? appState.selectedPlanWeeks.first?.weekNumber
+            ?? 1
+        let balance = appState.strengthBalance(for: currentWeekNumber)
         let today = scheduledWorkoutToday
+        let missed = today == nil ? appState.missedScheduledWorkout() : nil
+        let todayComplete = today != nil && todayScheduledSessionCompleted
+        let programComplete = selectedProgramIsCompleteForHome
+        let active = appState.activeWorkout != nil
 
         return Button {
-            appState.requestedTrackerSegment = "Today"
-            appState.trainingTrackerStartOnProgress = false
-            appState.selectedTab = 2
+            if todayComplete || programComplete {
+                openWeeklyProgress()
+            } else {
+                appState.requestedTrackerSegment = active ? "Today" : (today == nil && missed == nil ? "Plans" : "Today")
+                appState.trainingTrackerStartOnProgress = false
+                appState.selectedTab = 2
+            }
         } label: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
@@ -182,7 +353,7 @@ extension HomeView {
                         .tracking(1)
                         .foregroundStyle(Color.liftAccentText)
                     Spacer()
-                    Image(systemName: today == nil ? "bed.double.fill" : "play.fill")
+                    Image(systemName: todayComplete || programComplete ? "checkmark.circle.fill" : active ? "play.fill" : today == nil ? (missed == nil ? "bed.double.fill" : "exclamationmark.circle.fill") : "play.fill")
                         .font(.caption.weight(.black))
                         .foregroundStyle(Color.liftOnAccent)
                         .frame(width: 36, height: 36)
@@ -190,20 +361,33 @@ extension HomeView {
                         .clipShape(Circle())
                 }
 
-                Text(todayWorkoutTitle)
+                Text(homeTrainingTitle(today: today, missed: missed, todayComplete: todayComplete, programComplete: programComplete))
                     .font(.subheadline.weight(.black))
                     .foregroundStyle(Color.liftText)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
-                Text(todayWorkoutSubtitle(today))
+                Text(homeTrainingSubtitle(today: today, missed: missed, todayComplete: todayComplete, programComplete: programComplete))
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
                     .lineLimit(2)
 
                 Spacer(minLength: 2)
 
-                Label(today == nil ? "Open Programs" : "Focus: \(balance.weakest)", systemImage: today == nil ? "list.bullet.rectangle" : "scope")
+                Label(todayComplete || programComplete
+                      ? "View Progress"
+                      : active
+                        ? "Resume workout"
+                        : missed == nil
+                          ? (today == nil ? "Open Programs" : "Focus: \(balance.weakest)")
+                          : "Log missed workout",
+                      systemImage: todayComplete || programComplete
+                        ? "chart.bar.fill"
+                        : active
+                          ? "play.fill"
+                          : missed == nil
+                            ? (today == nil ? "list.bullet.rectangle" : "scope")
+                            : "arrow.uturn.backward.circle")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.liftMuted)
                     .lineLimit(1)
@@ -213,7 +397,49 @@ extension HomeView {
             .liftSurface()
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(scheduledWorkoutToday == nil ? "Rest day, open programs" : "Open today's training, \(todayWorkoutTitle)")
+        .accessibilityLabel(homeTrainingTitle(today: today, missed: missed, todayComplete: todayComplete, programComplete: programComplete))
+    }
+
+    private func homeTrainingTitle(
+        today: WorkoutDaySummary?,
+        missed: (week: WorkoutWeek, session: WorkoutSession, date: Date)?,
+        todayComplete: Bool,
+        programComplete: Bool
+    ) -> String {
+        if programComplete { return "Program complete" }
+        if todayComplete { return "Completed: \(today?.workout ?? "Today's workout")" }
+        if let missed { return "Missed: \(missed.session.name)" }
+        if appState.activeWorkout != nil { return "Resume: \(today?.workout ?? "Active workout")" }
+        return todayWorkoutTitle
+    }
+
+    private func homeTrainingSubtitle(
+        today: WorkoutDaySummary?,
+        missed: (week: WorkoutWeek, session: WorkoutSession, date: Date)?,
+        todayComplete: Bool,
+        programComplete: Bool
+    ) -> String {
+        if programComplete { return "Review your progress and choose what to train next." }
+        if todayComplete { return "Today's session is saved. Review your training progress." }
+        if let missed { return missedWorkoutSubtitle(missed) }
+        if appState.activeWorkout != nil { return "Workout in progress • Continue logging your sets." }
+        return todayWorkoutSubtitle(today)
+    }
+
+    private var todayScheduledSessionCompleted: Bool {
+        guard let scheduled = appState.scheduledWorkout() else { return false }
+        let planned = appState.prescriptions(for: scheduled.session)
+        guard !planned.isEmpty else { return false }
+        return appState.completedPrescriptionCount(for: scheduled.session) >= planned.count
+    }
+
+    private var selectedProgramIsCompleteForHome: Bool {
+        let sessions = appState.selectedPlanWeeks.flatMap { appState.sessions(for: $0) }
+        guard !sessions.isEmpty else { return false }
+        return sessions.allSatisfy { session in
+            let planned = appState.prescriptions(for: session)
+            return !planned.isEmpty && appState.completedPrescriptionCount(for: session) >= planned.count
+        }
     }
 
     var todayWorkoutTitle: String {
@@ -222,12 +448,56 @@ extension HomeView {
 
     func todayWorkoutSubtitle(_ workout: WorkoutDaySummary?) -> String {
         guard let workout else { return "No workout scheduled today" }
-        return "\(appState.selectedWorkoutPlan?.name ?? "Workout plan") • \(workout.exercises) exercises"
+        let week = appState.currentSelectedProgramWeek?.weekNumber
+            ?? appState.selectedPlanWeeks.first?.weekNumber
+        let weekLabel = week.map { "Week \($0)" } ?? ""
+        let progression = appState.workoutPlanProgressionSettings
+            .first { $0.planID == appState.selectedWorkoutPlanID }?.method.rawValue
+        let plannedSets = plannedSetCount(for: workout)
+        let detail = [
+            weekLabel,
+            progression ?? "",
+            "\(workout.exercises) exercises",
+            plannedSets.map { "\($0) planned sets" } ?? ""
+        ]
+            .filter { !$0.isEmpty }
+            .joined(separator: " • ")
+        return "\(appState.selectedWorkoutPlan?.name ?? "Workout plan") • \(detail)"
+    }
+
+    func missedWorkoutSubtitle(_ missed: (week: WorkoutWeek, session: WorkoutSession, date: Date)) -> String {
+        let planName = appState.selectedWorkoutPlan?.name ?? "Workout plan"
+        let progression = appState.workoutPlanProgressionSettings
+            .first { $0.planID == appState.selectedWorkoutPlanID }?.method.rawValue
+        let plannedSets = appState.prescriptions(for: missed.session).reduce(0) { $0 + $1.sets }
+        let details = [
+            "Scheduled \(LiftTimeFormatter.shortDateNoTime(missed.date))",
+            "Week \(missed.week.weekNumber)",
+            progression,
+            "\(plannedSets) planned sets"
+        ].compactMap { $0 }.joined(separator: " • ")
+        return "\(planName) • \(details)"
+    }
+
+
+    private func plannedSetCount(for workout: WorkoutDaySummary) -> Int? {
+        guard let week = appState.currentSelectedProgramWeek ?? appState.selectedPlanWeeks.first,
+              let session = appState.sessions(for: week).first(where: {
+                  $0.day.caseInsensitiveCompare(workout.day) == .orderedSame &&
+                  $0.name.caseInsensitiveCompare(workout.workout) == .orderedSame
+              }) else { return nil }
+        return appState.prescriptions(for: session).reduce(0) { $0 + $1.sets }
     }
 
     var scheduledWorkoutToday: WorkoutDaySummary? {
-        let todayName = Calendar.current.weekdayName(for: .now)
-        return appState.workoutDays(for: 1).first { $0.day.caseInsensitiveCompare(todayName) == .orderedSame }
+        guard let scheduled = appState.scheduledWorkout() else { return nil }
+        let prescriptions = appState.prescriptions(for: scheduled.session)
+        return WorkoutDaySummary(
+            day: scheduled.session.day,
+            workout: scheduled.session.name,
+            exercises: prescriptions.count,
+            completed: appState.completedPrescriptionCount(for: scheduled.session)
+        )
     }
 
     var strengthOverviewCard: some View {
@@ -280,32 +550,41 @@ extension HomeView {
     var quickStats: some View {
         let preferredUnit = appState.currentProfile.preferredUnit
         let totalPounds = appState.powerliftingTotal
+        let topTrackedOneRepMaxPounds = appState.progressExerciseOptions()
+            .compactMap { option -> Double? in
+                guard let kilograms = appState.exerciseRecords(for: option.id).bestEstimatedOneRepMaxKilograms else { return nil }
+                return RankingCalculator.kilogramsToPounds(kilograms)
+            }
+            .max() ?? 0
+        let primaryStrengthPounds = totalPounds > 0 ? totalPounds : topTrackedOneRepMaxPounds
         let relativeTotal = RankingCalculator.relativeTotal(
             total: totalPounds,
             bodyweight: appState.currentProfile.bodyweightPounds
         )
         return HStack(spacing: 12) {
-            compactStat(
-                title: "Total",
-                value: "\(Int(MeasurementFormatting.convert(totalPounds, from: .pounds, to: preferredUnit)))",
+            CompactMetric(
+                title: totalPounds > 0 ? "Total" : "Top 1RM",
+                value: primaryStrengthPounds > 0
+                    ? "\(Int(MeasurementFormatting.convert(primaryStrengthPounds, from: .pounds, to: preferredUnit)))"
+                    : "—",
                 unit: preferredUnit.shortLabel,
-                symbol: "dumbbell.fill",
+                symbolName: "dumbbell.fill",
                 tint: .liftAccentText
             )
             statDivider
-            compactStat(
+            CompactMetric(
                 title: "Bodyweight",
                 value: bodyweightStat.value,
                 unit: bodyweightStat.unit,
-                symbol: "scalemass.fill",
+                symbolName: "scalemass.fill",
                 tint: .liftAccentText
             )
             statDivider
-            compactStat(
+            CompactMetric(
                 title: "Relative",
-                value: RankingFormatting.ratioText(relativeTotal),
+                value: totalPounds > 0 ? RankingFormatting.ratioText(relativeTotal) : "—",
                 unit: "x",
-                symbol: "bolt.fill",
+                symbolName: "bolt.fill",
                 tint: .liftAccentText
             )
         }
@@ -314,8 +593,12 @@ extension HomeView {
     }
 
     var bodyweightStat: (value: String, unit: String) {
+        let latestLoggedBodyweight = ProfileDataAuthority.latestLoggedBodyweight(
+            profilePounds: appState.currentProfile.bodyweightPounds,
+            entries: appState.bodyweightEntries
+        )
         let text = MeasurementFormatting.formatBodyweightOrDash(
-            appState.currentProfile.bodyweightPounds,
+            latestLoggedBodyweight,
             preferredUnit: appState.currentProfile.preferredUnit
         )
         guard text != "—" else { return ("—", "") }
@@ -324,10 +607,15 @@ extension HomeView {
     }
 
     var highlights: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let missedWorkout = appState.missedScheduledWorkout()
+        return VStack(alignment: .leading, spacing: 12) {
             dashboardSectionHeader("Quick actions")
             HStack(spacing: 12) {
-                highlightButton("Log workout", "dumbbell.fill", Color.liftAccentText) {
+                highlightButton(
+                    missedWorkout == nil ? "Log workout" : "Log missed workout",
+                    missedWorkout == nil ? "dumbbell.fill" : "arrow.uturn.backward.circle",
+                    Color.liftAccentText
+                ) {
                     appState.requestedTrackerSegment = "Today"
                     appState.trainingTrackerStartOnProgress = false
                     appState.selectedTab = 2
@@ -338,8 +626,8 @@ extension HomeView {
                         currentBodyweightPounds: appState.currentProfile.bodyweightPounds
                     )
                 }
-                highlightButton("Gyms", "building.2.fill", Color.liftGreen) {
-                    showingGyms = true
+                highlightButton("Progress", "chart.bar.fill", Color.liftGreen) {
+                    openWeeklyProgress()
                 }
             }
         }
@@ -371,35 +659,10 @@ extension HomeView {
             .frame(width: 1, height: 48)
     }
 
-    func compactStat(
-        title: String,
-        value: String,
-        unit: String,
-        symbol: String,
-        tint: Color
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Label(title, systemImage: symbol)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(Color.liftMuted)
-                .lineLimit(1)
-            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(value)
-                    .font(.subheadline.weight(.black))
-                    .minimumScaleFactor(0.65)
-                Text(unit)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(Color.liftMuted)
-            }
-            .foregroundStyle(tint)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     var recentPRs: some View {
         let recentLifts = Array(appState.currentUserLifts.prefix(3))
         return VStack(alignment: .leading, spacing: 12) {
-            dashboardSectionHeader("Recent PRs", actionTitle: "Submit lift") {
+            dashboardSectionHeader("Recent submitted PRs", actionTitle: "Submit lift") {
                 appState.showingSubmitSheet = true
             }
 
@@ -439,20 +702,29 @@ extension HomeView {
                             appState.router.sheet = .recentPR(lift)
                         } label: {
                             HStack(spacing: 13) {
-                                Image(systemName: liftSymbol(for: lift.exerciseName))
-                                    .font(.headline)
-                                    .foregroundStyle(Color.liftGold)
-                                    .frame(width: 42, height: 42)
-                                    .background(Color.liftGold.opacity(0.11))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                Group {
+                                    if let catalogExercise = MockData.trainingExerciseLibrary.first(where: {
+                                        $0.id == lift.exerciseID || $0.rankingExerciseID == lift.exerciseID
+                                    }) {
+                                        ExerciseCatalogIcon(exercise: catalogExercise)
+                                            .scaleEffect(0.72)
+                                    } else {
+                                        ExerciseNameIcon(name: lift.exerciseName, fallbackSymbol: liftSymbol(for: lift.exerciseName))
+                                            .font(.headline)
+                                            .foregroundStyle(Color.liftGold)
+                                    }
+                                }
+                                .frame(width: 42, height: 42)
+                                .background(Color.liftGold.opacity(0.11))
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(lift.exerciseName)
                                         .font(.subheadline.weight(.bold))
                                         .foregroundStyle(Color.liftText)
-                                    Text(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true))
-                                        .font(.caption)
-                                        .foregroundStyle(Color.liftMuted)
+                                Text("\(prSourceLabel(for: lift)) · " + MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true))
+                                    .font(.caption)
+                                    .foregroundStyle(Color.liftMuted)
                                     VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus, compact: true)
                                         .padding(.top, 3)
                                 }
@@ -487,119 +759,39 @@ extension HomeView {
         lift.videoAssetID != nil || lift.localVideoURL != nil || lift.remoteVideoURL != nil
     }
 
+    func prSourceLabel(for lift: LiftSubmission) -> String {
+        if lift.visibility == .privateLift { return "Private PR" }
+        return lift.resolvedEvidenceStatus == .videoBacked
+            ? "Video-backed submission"
+            : "Self-reported submission"
+    }
+
     func liftSymbol(for exerciseName: String) -> String {
         let normalized = exerciseName.lowercased()
         if normalized.contains("squat") { return "figure.strengthtraining.functional" }
         if normalized.contains("bench") { return "figure.strengthtraining.traditional" }
-        return "dumbbell.fill"
+        if normalized.contains("deadlift") { return "figure.strengthtraining.functional" }
+        if normalized.contains("row") { return "figure.rower" }
+        if normalized.contains("pulldown") || normalized.contains("pull-down") || normalized.contains("pullover") { return "figure.climbing" }
+        if normalized.contains("curl") { return "figure.stand" }
+        if normalized.contains("fly") || normalized.contains("rear delt") { return "figure.stand" }
+        if normalized.contains("lateral raise") || normalized.contains("front raise") { return "figure.stand" }
+        if normalized.contains("lunge") || normalized.contains("step-up") || normalized.contains("step up") { return "figure.walk" }
+        if normalized.contains("calf raise") { return normalized.contains("seated") ? "figure.seated.side" : "figure.stand" }
+        if normalized.contains("leg press") { return "figure.seated.side" }
+        if normalized.contains("hip thrust") || normalized.contains("glute bridge") { return "figure.strengthtraining.functional" }
+        if normalized.contains("shrug") { return "figure.stand" }
+        if normalized.contains("overhead press") || normalized.contains("shoulder press") || normalized.contains("push press") || normalized.contains("arnold press") || normalized.contains("military press") {
+            return "figure.stand"
+        }
+        if normalized.contains("push-up") || normalized.contains("push up") || normalized.contains("dip") {
+            return "figure.strengthtraining.functional"
+        }
+        return "figure.strengthtraining.functional"
     }
 
     var weeklyActivity: some View {
-        let summary = homeWeeklySummary
-        let statusText = weeklyStatusText(summary)
-        let statusColor = weeklyStatusColor(summary)
-
-        return VStack(alignment: .leading, spacing: 12) {
-            dashboardSectionHeader("Training this week", actionTitle: "Details") {
-                openWeeklyProgress()
-            }
-
-            Button {
-                openWeeklyProgress()
-            } label: {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("\(summary.completedWorkoutCount)/\(summary.plannedWorkoutCount)")
-                            .font(.system(size: 32, weight: .black, design: .rounded))
-                            .foregroundStyle(Color.liftText)
-                        Text("workouts")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(Color.liftMuted)
-                        Spacer(minLength: 8)
-                        Text(statusText)
-                            .font(.caption.weight(.black))
-                            .foregroundStyle(statusColor)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(statusColor.opacity(0.11))
-                            .clipShape(Capsule())
-                    }
-
-                    HStack(spacing: 0) {
-                        weeklyMetric(
-                            value: Int(summary.volume).formatted(),
-                            label: "\(appState.currentProfile.preferredUnit.shortLabel) VOLUME"
-                        )
-                        weeklyDivider
-                        weeklyMetric(value: MeasurementFormatting.shortDurationText(summary.duration), label: "TRAINING TIME")
-                        weeklyDivider
-                        weeklyMetric(value: "\(summary.completedSetCount)", label: "WORKING SETS")
-                    }
-
-                    HStack(spacing: 0) {
-                        ForEach(summary.points) { point in
-                            VStack(spacing: 7) {
-                                Text(point.day)
-                                    .font(.caption2.weight(.bold))
-                                    .foregroundStyle(Calendar.current.isDateInToday(point.date) ? Color.liftAccentText : Color.liftMuted)
-                                ZStack {
-                                    Circle()
-                                        .fill(point.count > 0 ? Color.liftBlue : Color.liftSeparator)
-                                        .frame(width: 30, height: 30)
-                                    if point.count > 0 {
-                                        Image(systemName: "checkmark")
-                                            .font(.caption2.weight(.black))
-                                            .foregroundStyle(.white)
-                                    } else {
-                                        Circle()
-                                            .fill(Color.liftMuted.opacity(0.55))
-                                            .frame(width: 4, height: 4)
-                                    }
-                                    if Calendar.current.isDateInToday(point.date) {
-                                        Circle()
-                                            .stroke(Color.liftBlue, lineWidth: 2)
-                                            .frame(width: 36, height: 36)
-                                    }
-                                }
-                                .accessibilityLabel("\(point.day), \(point.count > 0 ? "workout completed" : "no completed workout")")
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                    }
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .homePanelStyle()
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open weekly training progress, \(summary.completedWorkoutCount) of \(summary.plannedWorkoutCount) workouts, \(summary.completedSetCount) completed working sets")
-
-            WeeklyTrainingDayGoalCard(summary: summary)
-        }
-    }
-
-    func weeklyMetric(value: String, label: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(value)
-                .font(.subheadline.weight(.black).monospacedDigit())
-                .foregroundStyle(Color.liftText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            Text(label)
-                .font(.system(size: 9, weight: .black, design: .rounded))
-                .tracking(0.45)
-                .foregroundStyle(Color.liftMuted)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    var weeklyDivider: some View {
-        Rectangle()
-            .fill(Color.liftSeparator)
-            .frame(width: 1, height: 36)
-            .padding(.horizontal, 9)
+        WeeklyTrainingDayGoalCard(summary: homeWeeklySummary)
     }
 
     func openWeeklyProgress() {
@@ -626,19 +818,6 @@ extension HomeView {
     var homeWeeklySummary: HomeWeeklySummary {
         appState.homeWeeklySummary()
     }
-
-    func weeklyStatusText(_ summary: HomeWeeklySummary) -> String {
-        guard summary.plannedWorkoutCount > 0 else { return "No plan" }
-        if summary.completedWorkoutCount >= summary.plannedWorkoutCount { return "Complete" }
-        if summary.completedWorkoutCount > 0 { return "In progress" }
-        return "Not started"
-    }
-
-    func weeklyStatusColor(_ summary: HomeWeeklySummary) -> Color {
-        guard summary.plannedWorkoutCount > 0 else { return .liftMuted }
-        if summary.completedWorkoutCount >= summary.plannedWorkoutCount { return .liftGreen }
-        return summary.completedWorkoutCount > 0 ? .liftBlue : .liftMuted
-    }
 }
 
 struct WeeklyTrainingDayGoalCard: View {
@@ -648,56 +827,85 @@ struct WeeklyTrainingDayGoalCard: View {
     private var goal: Int? { appState.workoutPreferences.weeklyTrainingDayGoal }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack {
-                Text("Weekly training-day goal")
-                    .font(.subheadline.weight(.bold))
-                Spacer()
-                Menu {
-                    ForEach(1...7, id: \.self) { days in
-                        Button("\(days) day\(days == 1 ? "" : "s") per week") {
-                            appState.setWeeklyTrainingDayGoal(days)
-                        }
-                    }
-                    if goal != nil {
-                        Button("Turn off goal", role: .destructive) {
-                            appState.setWeeklyTrainingDayGoal(nil)
-                        }
-                    }
-                } label: {
-                    Label(goal.map { "\($0) days" } ?? "Set goal", systemImage: "chevron.down")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftAccentText)
-                }
-                .accessibilityIdentifier("weeklyTrainingGoal.menu")
-            }
-
+        Group {
             if let goal {
                 let completedDays = summary.completedTrainingDayCount
-                Text("\(completedDays) of \(goal) training days")
-                    .font(.title3.weight(.black).monospacedDigit())
-                ProgressView(value: Double(min(completedDays, goal)), total: Double(goal))
-                    .tint(Color.liftGreen)
-                    .accessibilityLabel("Weekly training-day goal progress")
-                    .accessibilityValue("\(min(completedDays, goal)) of \(goal) days")
-                Text(completedDays >= goal
-                     ? "Goal reached — enjoy your planned rest days."
-                     : "Next milestone: \(goal) training days • \(goal - completedDays) to go.")
-                    .font(.caption)
-                    .foregroundStyle(Color.liftMuted)
-            } else {
-                Text("Choose a weekly goal to track how many days you train. Rest days are okay.")
-                    .font(.caption)
-                    .foregroundStyle(Color.liftMuted)
-            }
+                HStack(spacing: 12) {
+                    ZStack {
+                        ProgressView(value: Double(min(completedDays, goal)), total: Double(goal))
+                            .progressViewStyle(.circular)
+                            .tint(Color.liftGreen)
+                            .scaleEffect(1.35)
+                        Text("\(min(completedDays, goal))")
+                            .font(.caption.weight(.black).monospacedDigit())
+                    }
+                    .frame(width: 36, height: 36)
+                    .accessibilityHidden(true)
 
-            Text("Each calendar day counts once, even if you log more than one workout.")
-                .font(.caption2)
-                .foregroundStyle(Color.liftMuted)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label("Training-day goal", systemImage: "target")
+                            .font(.subheadline.weight(.bold))
+                        Text(completedDays >= goal ? "Goal reached" : "\(goal - completedDays) to go")
+                            .font(.caption)
+                            .foregroundStyle(completedDays >= goal ? Color.liftGreen : Color.liftMuted)
+                    }
+                    Spacer(minLength: 4)
+                    goalMenu
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .homePanelStyle()
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Weekly training-day goal")
+                .accessibilityValue("\(min(completedDays, goal)) of \(goal) days")
+            } else {
+                Button {
+                    appState.setWeeklyTrainingDayGoal(3)
+                } label: {
+                    HStack(spacing: 9) {
+                        Image(systemName: "target")
+                            .foregroundStyle(Color.liftAccentText)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Set a weekly training goal")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(Color.liftText)
+                            Text("Counts distinct training days")
+                                .font(.caption2)
+                                .foregroundStyle(Color.liftMuted)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.liftMuted)
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .homePanelStyle()
+                .accessibilityIdentifier("weeklyTrainingGoal.set")
+                .accessibilityHint("Sets a three-day weekly training goal; use the goal menu to change it.")
+            }
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .homePanelStyle()
+    }
+
+    private var goalMenu: some View {
+        Menu {
+            ForEach(1...7, id: \.self) { days in
+                Button("\(days) day\(days == 1 ? "" : "s") per week") {
+                    appState.setWeeklyTrainingDayGoal(days)
+                }
+            }
+            Button("Turn off goal", role: .destructive) {
+                appState.setWeeklyTrainingDayGoal(nil)
+            }
+        } label: {
+            Label("\(goal ?? 0) days", systemImage: "chevron.down")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.liftAccentText)
+        }
+        .accessibilityIdentifier("weeklyTrainingGoal.menu")
     }
 }
 
@@ -719,6 +927,8 @@ extension HomeView {
                 LazyVStack(alignment: .leading, spacing: 18) {
                     header
                     workoutStatus
+                    workoutSyncStatus
+                    trainingAlerts
                     balancedOverview
                     quickStats
                     highlights
@@ -756,10 +966,6 @@ extension HomeView {
         }
         .sheet(isPresented: $showingAwards) {
             NavigationStack { AwardsView() }
-                .environmentObject(appState)
-        }
-        .sheet(isPresented: $showingGyms) {
-            NavigationStack { GymDirectoryView() }
                 .environmentObject(appState)
         }
     }

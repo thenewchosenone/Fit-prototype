@@ -285,13 +285,14 @@ enum RankingCalculator {
                 displayedRank = index + 1
             }
             previousScore = entryScore
-            let movementSeed = abs(profile.username.hashValue % 7) - 3
             entries.append(
                 LeaderboardEntry(
                     rank: displayedRank,
                     profile: profile,
                     lift: lift,
-                    rankMovement: lift.userID == currentUserID ? 3 : movementSeed,
+                    // Movement requires a prior server snapshot; never invent it
+                    // from a username or assume the current user moved by a fixed amount.
+                    rankMovement: 0,
                     score: entryScore,
                     powerliftingBreakdown: candidate.breakdown
                 )
@@ -322,21 +323,6 @@ enum RankingCalculator {
 
     static func totalForUser(_ userID: UUID, lifts: [LiftSubmission]) -> Double {
         kilogramsToPounds(powerliftingBreakdown(for: userID, lifts: lifts).totalKilograms)
-    }
-
-    static func plateLoading(for totalWeight: Double, unit: UnitSystem) -> [(label: String, count: Int)] {
-        let barWeight = unit == .pounds ? 45.0 : 20.0
-        let plates = unit == .pounds ? [45.0, 35.0, 25.0, 10.0, 5.0, 2.5] : [25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25]
-        var sideWeight = max(0, (totalWeight - barWeight) / 2.0)
-        var result: [(String, Int)] = []
-        for plate in plates {
-            let count = Int(sideWeight / plate)
-            if count > 0 {
-                result.append(("\(format(plate)) \(unit.shortLabel)", count))
-                sideWeight -= Double(count) * plate
-            }
-        }
-        return result
     }
 
     static func format(_ value: Double) -> String {

@@ -7,6 +7,7 @@ enum NotificationDestinationKind: String, Codable, CaseIterable, Identifiable {
     case gym
     case workoutTracker
     case profile
+    case forumPost
 
     var id: String { rawValue }
 }
@@ -14,6 +15,7 @@ enum NotificationDestinationKind: String, Codable, CaseIterable, Identifiable {
 struct NotificationDestination: Codable, Hashable {
     var kind: NotificationDestinationKind
     var targetID: UUID?
+    var commentID: UUID?
     var exerciseID: String?
     var gymID: UUID?
     var rankingType: RankingType?
@@ -24,6 +26,7 @@ struct NotificationDestination: Codable, Hashable {
     init(
         kind: NotificationDestinationKind,
         targetID: UUID? = nil,
+        commentID: UUID? = nil,
         exerciseID: String? = nil,
         gymID: UUID? = nil,
         rankingType: RankingType? = nil,
@@ -31,6 +34,7 @@ struct NotificationDestination: Codable, Hashable {
     ) {
         self.kind = kind
         self.targetID = targetID
+        self.commentID = commentID
         self.exerciseID = exerciseID
         self.gymID = gymID
         self.rankingType = rankingType
@@ -38,13 +42,15 @@ struct NotificationDestination: Codable, Hashable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case kind, targetID, exerciseID, gymID, rankingType, trackerStartsOnProgress
+        case kind, targetID, commentID, exerciseID, gymID, rankingType, trackerStartsOnProgress
     }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
-        kind = try values.decodeIfPresent(NotificationDestinationKind.self, forKey: .kind) ?? .home
+        let rawKind = try values.decodeIfPresent(String.self, forKey: .kind)
+        kind = NotificationDestinationKind(rawValue: rawKind ?? "") ?? .home
         targetID = try values.decodeIfPresent(UUID.self, forKey: .targetID)
+        commentID = try values.decodeIfPresent(UUID.self, forKey: .commentID)
         exerciseID = try values.decodeIfPresent(String.self, forKey: .exerciseID)
         gymID = try values.decodeIfPresent(UUID.self, forKey: .gymID)
         rankingType = try values.decodeIfPresent(RankingType.self, forKey: .rankingType)

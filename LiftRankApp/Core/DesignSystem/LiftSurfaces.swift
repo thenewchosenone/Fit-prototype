@@ -152,35 +152,6 @@ extension LiftEvidenceStatus {
     }
 }
 
-struct FilterChip: View {
-    let title: String
-    var isActive = true
-    var action: (() -> Void)?
-
-    var body: some View {
-        Button {
-            Haptics.light()
-            action?()
-        } label: {
-            HStack(spacing: 6) {
-                Text(title)
-                if action != nil {
-                    Image(systemName: "xmark.circle.fill")
-                }
-            }
-            .font(.system(size: 11, weight: .bold, design: .rounded))
-            .tracking(0.4)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(isActive ? Color.liftLime.opacity(0.16) : Color.liftCard)
-            .foregroundStyle(isActive ? Color.liftAccentText : Color.liftMuted)
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(Color.liftSurfaceBorder, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 enum LiftTimeFormatter {
     static func relativeNoSeconds(from date: Date, now: Date = .now) -> String {
         let seconds = max(0, Int(now.timeIntervalSince(date)))
@@ -196,10 +167,6 @@ enum LiftTimeFormatter {
         if days < 7 { return "\(days)d ago" }
 
         return date.formatted(.dateTime.month(.abbreviated).day())
-    }
-
-    static func shortDate(_ date: Date) -> String {
-        date.formatted(date: .abbreviated, time: .omitted)
     }
 
     static func shortMonthAndYear(_ date: Date) -> String {
@@ -290,52 +257,6 @@ struct CompactSectionHeader: View {
     }
 }
 
-struct ScreenContainer<Content: View>: View {
-    let title: String?
-    let showTitle: Bool
-    let spacing: CGFloat
-    let content: Content
-    let headerAction: (() -> AnyView)?
-
-    init(
-        title: String? = nil,
-        showTitle: Bool = false,
-        spacing: CGFloat = LiftDesign.spacing20,
-        @ViewBuilder headerAction: @escaping () -> some View = { EmptyView() },
-        @ViewBuilder content: () -> Content
-    ) {
-        self.title = title
-        self.showTitle = showTitle
-        self.spacing = spacing
-        self.content = content()
-        self.headerAction = { AnyView(headerAction()) }
-    }
-
-    var body: some View {
-        AppBackground {
-            VStack(spacing: 0) {
-                if showTitle, let title {
-                    Text(title)
-                        .font(.system(size: 34, weight: .black, design: .rounded))
-                        .foregroundStyle(Color.liftTextPrimary)
-                        .padding(.horizontal, LiftDesign.screenHorizontalPadding)
-                        .padding(.top, LiftDesign.spacing16)
-                        .padding(.bottom, LiftDesign.spacing12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                if let headerAction {
-                    headerAction()
-                        .padding(.horizontal, LiftDesign.screenHorizontalPadding)
-                        .padding(.bottom, spacing)
-                }
-
-                content
-                    .padding(.horizontal, LiftDesign.screenHorizontalPadding)
-            }
-        }
-    }
-}
-
 struct DashboardCard<Content: View>: View {
     let content: Content
 
@@ -386,6 +307,33 @@ struct MetricCard: View {
                     .lineLimit(2)
             }
         }
+    }
+}
+
+struct CompactMetric: View {
+    let title: String
+    let value: String
+    let unit: String
+    let symbolName: String
+    var tint = Color.liftLime
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Label(title, systemImage: symbolName)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Color.liftMuted)
+                .lineLimit(1)
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(value)
+                    .font(.subheadline.weight(.black))
+                    .minimumScaleFactor(0.65)
+                Text(unit)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(Color.liftMuted)
+            }
+            .foregroundStyle(tint)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

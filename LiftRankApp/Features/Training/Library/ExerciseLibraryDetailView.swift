@@ -34,11 +34,34 @@ struct ExerciseLibraryDetailView: View {
     }
     private var history: [ExerciseHistoryEntry] { appState.exerciseHistory(for: exercise.id) }
     private var records: ExerciseRecords { appState.exerciseRecords(for: exercise.id) }
+    private var repDBImageURL: URL? { RepDBExerciseMedia.imageURL(for: exercise.id) }
 
     var body: some View {
         AppBackground {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    if let repDBImageURL {
+                        VStack(alignment: .leading, spacing: 6) {
+                            AsyncImage(url: repDBImageURL) { phase in
+                                if let image = phase.image {
+                                    image
+                                        .resizable()
+                                        .scaledToFit()
+                                } else if phase.error != nil {
+                                    ExerciseCatalogIcon(exercise: exercise)
+                                } else {
+                                    ProgressView()
+                                        .frame(maxWidth: .infinity, minHeight: 180)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 180, maxHeight: 240)
+                            .background(Color.liftCard)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            Link(RepDBExerciseMedia.attribution, destination: URL(string: "https://repdb.co")!)
+                                .font(.caption2)
+                                .foregroundStyle(Color.liftMuted)
+                        }
+                    }
                     VStack(alignment: .leading, spacing: 10) {
                         ExerciseMuscleMap(profile: splitProfile, displayStyle: .hero)
                             .frame(height: 230)

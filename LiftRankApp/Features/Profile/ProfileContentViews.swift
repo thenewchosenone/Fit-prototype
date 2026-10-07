@@ -420,6 +420,10 @@ struct EditProfileView: View {
             .navigationTitle("Edit Profile")
             .onAppear {
                 draft = appState.currentProfile
+                draft.bodyweightPounds = ProfileDataAuthority.latestLoggedBodyweight(
+                    profilePounds: draft.bodyweightPounds,
+                    entries: appState.bodyweightEntries
+                )
                 privacy = appState.authenticatedPrivacy
                 selectedGymID = appState.gyms.first(where: {
                     $0.id == draft.primaryGymID || $0.name == draft.primaryGymName

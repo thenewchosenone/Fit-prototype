@@ -17,6 +17,11 @@ struct ProgramPlanDetailView: View {
         let selectedWeek = selectedWeekID.flatMap { id in weeks.first { $0.id == id } } ?? weeks.first
         let selectedWeekPosition = selectedWeek.flatMap { selected in weeks.firstIndex { $0.id == selected.id } }
         let phaseName = appState.selectedPlanPhases.first?.name ?? "Base Phase"
+        let selectedPhase = selectedWeek.flatMap { appState.phase(for: $0) }
+        let isRecoveryWeek = selectedWeek.map { week in
+            let text = "\(week.title) \(week.notes)".lowercased()
+            return text.contains("deload") || text.contains("rest") || text.contains("recovery")
+        } ?? false
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
@@ -67,6 +72,15 @@ struct ProgramPlanDetailView: View {
                             Label("Delete Week", systemImage: "trash")
                         }
                     }
+                    Divider()
+                    Button {
+                        _ = appState.setSelectedPlanQueueEnabled(!appState.selectedPlanQueueEnabled)
+                    } label: {
+                        Label(
+                            appState.selectedPlanQueueEnabled ? "Disable session queue" : "Use session queue",
+                            systemImage: appState.selectedPlanQueueEnabled ? "list.number" : "play.list"
+                        )
+                    }
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.headline.weight(.bold))
@@ -76,6 +90,31 @@ struct ProgramPlanDetailView: View {
                         .clipShape(Circle())
                 }
                 .accessibilityLabel("Plan detail options")
+            }
+
+            if let selectedWeek {
+                LiftCard {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: isRecoveryWeek ? "figure.mind.and.body" : "arrow.up.right")
+                            .font(.headline.weight(.bold))
+                            .foregroundStyle(isRecoveryWeek ? Color.liftGold : Color.liftAccentText)
+                            .frame(width: 38, height: 38)
+                            .background((isRecoveryWeek ? Color.liftGold : Color.liftBlue).opacity(0.14))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(selectedPhase?.name ?? "Base Phase")
+                                .font(.subheadline.weight(.bold))
+                            Text(isRecoveryWeek ? "Recovery-focused week" : (selectedPhase?.goal ?? "Build consistent training momentum."))
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text("Week \(selectedWeek.weekNumber)\(selectedPhase.map { " of \($0.durationWeeks)" } ?? "")")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(isRecoveryWeek ? Color.liftGold : Color.liftMuted)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
             }
 
             if detailTab == "Weeks" {
@@ -280,6 +319,66 @@ struct ProgramPlanDetailView: View {
 
     private func overview(selectedWeek: WorkoutWeek?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
+            if let nextQueuedSession = appState.nextQueuedWorkoutSession {
+                LiftCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Label("Session queue", systemImage: "play.list")
+                                .font(.headline.weight(.bold))
+                            Spacer()
+                            Text("\(appState.selectedPlanQueuedSessions.count) sessions")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.liftMuted)
+                        }
+                        Text("The next workout follows your queue, even when it is not the next calendar day.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                        ForEach(Array(appState.selectedPlanQueuedSessions.enumerated()), id: \.element.id) { index, session in
+                            HStack(spacing: 8) {
+                                Text("\(index + 1)")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(Color.liftMuted)
+                                    .frame(width: 20)
+                                Text(session.name)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                Spacer()
+                                Button {
+                                    var ids = appState.selectedPlanQueuedSessions.map(\.id)
+                                    ids.swapAt(index, index - 1)
+                                    _ = appState.reorderSelectedPlanQueue(ids)
+                                } label: {
+                                    Image(systemName: "chevron.up")
+                                }
+                                .disabled(index == 0)
+                                Button {
+                                    var ids = appState.selectedPlanQueuedSessions.map(\.id)
+                                    ids.swapAt(index, index + 1)
+                                    _ = appState.reorderSelectedPlanQueue(ids)
+                                } label: {
+                                    Image(systemName: "chevron.down")
+                                }
+                                .disabled(index == appState.selectedPlanQueuedSessions.count - 1)
+                            }
+                            .foregroundStyle(Color.liftMuted)
+                        }
+                        Button {
+                            selectedSessionToRun = nextQueuedSession
+                        } label: {
+                            Label("Start next: \(nextQueuedSession.name)", systemImage: "play.circle.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.liftAccentText)
+                    }
+                }
+            } else if appState.selectedPlanQueueEnabled {
+                TrackerMessageCard(
+                    title: "Session queue is clear",
+                    message: "Enable more sessions or finish the current plan to refill your next workout."
+                )
+            }
             if let selectedWeek {
                 let presentation = appState.programWeekPresentation(for: selectedWeek)
                 let sessions = presentation.sessions

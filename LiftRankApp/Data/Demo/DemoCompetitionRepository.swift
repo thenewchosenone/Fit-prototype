@@ -1,6 +1,11 @@
 import Foundation
 
 extension DemoRepository {
+    func rebuildWorkoutHistoryDerivedState() {
+        completedWorkouts.sort { $0.completedAt > $1.completedAt }
+        refreshAchievementUnlocks(now: .now)
+    }
+
     func seedDemoLeaderboardDataIfNeeded() {
         let marker = "[demo:leaderboard-100-v1]"
         guard !lifts.contains(where: { $0.caption == marker }) else { return }

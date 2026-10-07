@@ -1,7 +1,16 @@
+import Combine
 import Foundation
 
+enum WorkoutHistorySyncState: Equatable {
+    case local
+    case syncing
+    case synced
+    case stale
+    case needsAttention
+}
+
 @MainActor
-final class WorkoutSyncStore {
+final class WorkoutSyncStore: ObservableObject {
     private let repository: any WorkoutSyncRepository
     private let service: any WorkoutSyncService
     private let makeUUID: () -> UUID
@@ -13,6 +22,7 @@ final class WorkoutSyncStore {
     private var lastPassivePlanSyncAt: Date?
     private var historySyncInFlight = false
     private var planSyncInFlight = false
+    @Published private(set) var historySyncState: WorkoutHistorySyncState = .synced
 
     init(
         repository: any WorkoutSyncRepository,
@@ -40,6 +50,7 @@ final class WorkoutSyncStore {
         } else {
             repository.pendingCompletedWorkoutUploads.append(snapshot)
         }
+        historySyncState = .local
         repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
@@ -47,12 +58,16 @@ final class WorkoutSyncStore {
         resetAccountScopedDataIfNeeded()
         let userID = repository.currentProfile.id
         guard !historySyncInFlight else { return }
-        if !force,
-           let lastPassiveHistorySyncAt,
-           Date.now.timeIntervalSince(lastPassiveHistorySyncAt) < passiveSyncInterval {
-            return
+        if !force {
+            if let lastPassiveHistorySyncAt,
+               Date.now.timeIntervalSince(lastPassiveHistorySyncAt) < passiveSyncInterval {
+                return
+            }
+            historySyncState = .stale
         }
         historySyncInFlight = true
+        historySyncState = .syncing
+        var syncFailed = false
         defer {
             historySyncInFlight = false
             if repository.currentProfile.id == userID, !force {
@@ -68,6 +83,7 @@ final class WorkoutSyncStore {
                 guard repository.currentProfile.id == userID else { return }
                 repository.deletedCompletedWorkoutIDs.remove(deletedID)
             } catch {
+                syncFailed = true
                 guard repository.currentProfile.id == userID else { return }
             }
         }
@@ -83,12 +99,14 @@ final class WorkoutSyncStore {
                     repository.pendingCompletedWorkoutUploads.remove(at: index)
                 }
             } catch {
+                syncFailed = true
                 guard repository.currentProfile.id == userID else { return }
             }
         }
 
         guard let remote = try? await service.completedWorkouts(since: nil) else {
             guard repository.currentProfile.id == userID else { return }
+            historySyncState = .needsAttention
             repository.persistWorkoutSnapshotWithoutBlockingUI()
             return
         }
@@ -109,8 +127,15 @@ final class WorkoutSyncStore {
                 repository.completedWorkouts.append(workout)
             }
         }
-        repository.completedWorkouts.sort { $0.completedAt > $1.completedAt }
-        repository.refreshAchievementUnlocks(now: .now)
+        repository.rebuildWorkoutHistoryDerivedState()
+        if syncFailed {
+            historySyncState = .needsAttention
+        } else if repository.pendingCompletedWorkoutUploads.isEmpty,
+                  repository.deletedCompletedWorkoutIDs.isEmpty {
+            historySyncState = .synced
+        } else {
+            historySyncState = .local
+        }
         repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 

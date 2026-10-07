@@ -224,6 +224,23 @@ final class ActiveWorkoutStore {
         )
     }
 
+    @discardableResult
+    func repeatWorkout(
+        _ completedWorkout: CompletedWorkout,
+        gymID: UUID?,
+        bodyweight: Double?,
+        unit: UnitSystem
+    ) -> ActiveWorkoutState? {
+        guard workout == nil else { return nil }
+        return repository.repeatWorkout(
+            completedWorkout,
+            gymID: gymID,
+            bodyweight: bodyweight,
+            unit: unit,
+            at: now()
+        )
+    }
+
     func addExercises(_ exercises: [TrainingExerciseCatalogItem]) {
         repository.addExercisesToActiveWorkout(exercises)
     }

@@ -76,6 +76,73 @@ extension DemoRepository {
         return workout
     }
 
+    @discardableResult
+    func repeatWorkout(
+        _ completedWorkout: CompletedWorkout,
+        gymID: UUID?,
+        bodyweight: Double?,
+        unit: UnitSystem,
+        at startedAt: Date = .now
+    ) -> ActiveWorkoutState? {
+        guard activeWorkout == nil else { return nil }
+        let newWorkoutID = UUID()
+        var exerciseIDsByOriginalID: [UUID: UUID] = [:]
+        let exercises = completedWorkout.exercises.enumerated().map { index, original in
+            let newID = UUID()
+            exerciseIDsByOriginalID[original.id] = newID
+            var copy = original
+            copy.id = newID
+            copy.order = index
+            return copy
+        }
+        let workout = ActiveWorkoutState(
+            id: newWorkoutID,
+            source: completedWorkout.source,
+            sourceSessionID: completedWorkout.sourceSessionID,
+            sourcePlanID: completedWorkout.sourcePlanID,
+            sourceWeekID: nil,
+            name: completedWorkout.name,
+            dayLabel: startedAt.formatted(.dateTime.weekday(.wide)),
+            startedAt: startedAt,
+            historyDate: nil,
+            pausedAt: nil,
+            accumulatedPausedTime: 0,
+            gymID: gymID,
+            bodyweight: bodyweight,
+            unit: unit,
+            exercises: exercises,
+            automaticRestTimerEnabled: workoutPreferences.defaultRestTimerEnabled,
+            restTimerEndsAt: nil,
+            restTimerExerciseID: nil
+        )
+        activeWorkout = workout
+        let previousLogs = Dictionary(grouping: completedWorkout.sets, by: { $0.prescriptionID })
+        for exercise in exercises {
+            let originalID = exerciseIDsByOriginalID.first(where: { $0.value == exercise.id })?.key
+            let priorSets = originalID.flatMap { previousLogs[$0] } ?? []
+            for setNumber in 1...max(1, exercise.targetSets) {
+                let prior = priorSets.first { $0.setNumber == setNumber }
+                workoutSetLogs.append(
+                    WorkoutSetLog(
+                        id: UUID(),
+                        prescriptionID: exercise.id,
+                        performedAt: startedAt,
+                        setNumber: setNumber,
+                        weight: prior?.weight,
+                        reps: prior?.reps,
+                        rpe: nil,
+                        isWarmup: prior?.isWarmup ?? false,
+                        isComplete: false,
+                        workoutID: newWorkoutID,
+                        recordedUnit: unit
+                    )
+                )
+            }
+        }
+        scheduleWorkoutSnapshotPersistence()
+        return workout
+    }
+
     func addExercisesToActiveWorkout(_ exercises: [TrainingExerciseCatalogItem]) {
         guard var workout = activeWorkout else { return }
         var existingExerciseIDs = Set(workout.exercises.map(\.exerciseID))
@@ -323,7 +390,7 @@ extension DemoRepository {
         completedWorkouts.insert(completed, at: 0)
         workoutSetLogs.removeAll { $0.workoutID == workout.id }
         activeWorkout = nil
-        refreshAchievementUnlocks()
+        rebuildWorkoutHistoryDerivedState()
         scheduleWorkoutSnapshotPersistence()
         return completed
     }
@@ -343,7 +410,7 @@ extension DemoRepository {
         deletedCompletedWorkoutIDs.remove(workout.id)
         completedWorkouts[index] = workout
         completedWorkouts.sort { $0.completedAt > $1.completedAt }
-        refreshAchievementUnlocks()
+        rebuildWorkoutHistoryDerivedState()
         scheduleWorkoutSnapshotPersistence()
     }
 
@@ -352,7 +419,7 @@ extension DemoRepository {
         if !completedWorkouts[index].linkedSubmissionIDs.contains(submissionID) {
             completedWorkouts[index].linkedSubmissionIDs.append(submissionID)
         }
-        refreshAchievementUnlocks()
+        rebuildWorkoutHistoryDerivedState()
         scheduleWorkoutSnapshotPersistence()
     }
 

@@ -13,4 +13,5 @@ enum NotificationRoute: Hashable {
     case profile(UUID?)
     case gym(UUID?)
     case tracker(TrackerSection)
+    case forumPost(UUID, commentID: UUID?)
 }

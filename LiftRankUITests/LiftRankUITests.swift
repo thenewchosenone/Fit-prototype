@@ -510,7 +510,7 @@ final class LiftRankUITests: XCTestCase {
     func testHomeScrollPerformance() {
         let app = launchDemo(arguments: ["-uiTestingCompetitionFixture"])
         XCTAssertTrue(tab("home", in: app).waitForExistence(timeout: 8))
-        XCTAssertTrue(app.staticTexts["Recent PRs"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Recent submitted PRs"].waitForExistence(timeout: 5))
 
         let options = XCTMeasureOptions()
         options.iterationCount = 3
@@ -519,11 +519,16 @@ final class LiftRankUITests: XCTestCase {
         measure(metrics: [XCTClockMetric()], options: options) {
             startMeasuring()
             app.swipeUp()
-            XCTAssertTrue(app.staticTexts["Training this week"].waitForExistence(timeout: 5))
+            let weeklyGoal = app.buttons["weeklyTrainingGoal.set"]
+            let weeklyGoalProgress = app.staticTexts["Training-day goal"]
+            XCTAssertTrue(
+                weeklyGoal.waitForExistence(timeout: 5) ||
+                weeklyGoalProgress.waitForExistence(timeout: 5)
+            )
             stopMeasuring()
 
             app.swipeDown()
-            XCTAssertTrue(app.staticTexts["Recent PRs"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts["Recent submitted PRs"].waitForExistence(timeout: 5))
         }
     }
 
@@ -653,7 +658,7 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(tab("profile", in: app).waitForExistence(timeout: 5))
         XCTAssertTrue(publicProfile.waitForExistence(timeout: 5))
         publicProfile.tap()
-        XCTAssertTrue(app.staticTexts["Rankings, progress, videos, and achievements"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["profile.sectionNavigation"].waitForExistence(timeout: 5))
         XCTAssertTrue(tab("profile", in: app).waitForNonExistence(timeout: 5))
 
         app.navigationBars.buttons.firstMatch.tap()
@@ -721,8 +726,7 @@ final class LiftRankUITests: XCTestCase {
             XCTAssertTrue(publicProfile.waitForExistence(timeout: 5))
             publicProfile.tap()
 
-            XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 5))
-            XCTAssertTrue(app.staticTexts["Rankings, progress, videos, and achievements"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.descendants(matching: .any)["profile.sectionNavigation"].waitForExistence(timeout: 5))
             XCTAssertTrue(tab("profile", in: app).waitForNonExistence(timeout: 5))
 
             let back = app.navigationBars.buttons.firstMatch
@@ -752,7 +756,7 @@ final class LiftRankUITests: XCTestCase {
             let publicProfile = app.buttons["me.publicProfile"]
             XCTAssertTrue(publicProfile.waitForExistence(timeout: 5))
             publicProfile.tap()
-            XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.descendants(matching: .any)["profile.sectionNavigation"].waitForExistence(timeout: 5))
 
             startMeasuring()
             app.navigationBars.buttons.firstMatch.tap()
@@ -871,9 +875,9 @@ final class LiftRankUITests: XCTestCase {
         let publicProfile = app.buttons["me.publicProfile"]
         XCTAssertTrue(publicProfile.waitForExistence(timeout: 5))
         publicProfile.tap()
-        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["profile.sectionNavigation"].waitForExistence(timeout: 5))
 
-        let videoLibrary = app.descendants(matching: .any)["profile.liftVideos"]
+        let videoLibrary = app.descendants(matching: .any)["profile.prVideos"]
         var attempts = 0
         while !videoLibrary.exists && attempts < 6 {
             app.swipeUp()
@@ -898,9 +902,9 @@ final class LiftRankUITests: XCTestCase {
         let publicProfile = app.buttons["me.publicProfile"]
         XCTAssertTrue(publicProfile.waitForExistence(timeout: 5))
         publicProfile.tap()
-        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["profile.sectionNavigation"].waitForExistence(timeout: 5))
 
-        let videoLibrary = app.descendants(matching: .any)["profile.liftVideos"]
+        let videoLibrary = app.descendants(matching: .any)["profile.prVideos"]
         var attempts = 0
         while !videoLibrary.exists && attempts < 6 {
             app.swipeUp()
@@ -936,9 +940,9 @@ final class LiftRankUITests: XCTestCase {
         let publicProfile = app.buttons["me.publicProfile"]
         XCTAssertTrue(publicProfile.waitForExistence(timeout: 8))
         publicProfile.tap()
-        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.descendants(matching: .any)["profile.sectionNavigation"].waitForExistence(timeout: 8))
 
-        let videoLibrary = app.descendants(matching: .any)["profile.liftVideos"]
+        let videoLibrary = app.descendants(matching: .any)["profile.prVideos"]
         var attempts = 0
         while !videoLibrary.exists && attempts < 8 {
             app.swipeUp()
@@ -970,9 +974,9 @@ final class LiftRankUITests: XCTestCase {
         let publicProfile = app.buttons["me.publicProfile"]
         XCTAssertTrue(publicProfile.waitForExistence(timeout: 5))
         publicProfile.tap()
-        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["profile.sectionNavigation"].waitForExistence(timeout: 5))
 
-        let videoLibrary = app.descendants(matching: .any)["profile.liftVideos"]
+        let videoLibrary = app.descendants(matching: .any)["profile.prVideos"]
         var attempts = 0
         while !videoLibrary.exists && attempts < 8 {
             app.swipeUp()
@@ -1072,6 +1076,10 @@ final class LiftRankUITests: XCTestCase {
         tab("track", in: app).tap()
         app.buttons["Library"].tap()
 
+        let exerciseSearch = app.textFields["Search exercises"]
+        XCTAssertTrue(exerciseSearch.waitForExistence(timeout: 5))
+        exerciseSearch.tap()
+        exerciseSearch.typeText("Barbell Bench Press")
         let bench = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Barbell Bench Press")).firstMatch
         XCTAssertTrue(bench.waitForExistence(timeout: 5))
         bench.tap()
@@ -1552,6 +1560,9 @@ final class LiftRankUITests: XCTestCase {
         let block = app.buttons["profile.blockAthlete"]
         XCTAssertTrue(block.waitForExistence(timeout: 5))
         block.tap()
+        let confirmBlock = app.buttons["Block athlete"]
+        XCTAssertTrue(confirmBlock.waitForExistence(timeout: 5))
+        confirmBlock.tap()
 
         let blocked = NSPredicate(format: "value == %@", "Blocked")
         expectation(for: blocked, evaluatedWith: options)

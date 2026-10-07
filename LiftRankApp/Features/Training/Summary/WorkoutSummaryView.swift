@@ -54,6 +54,29 @@ struct WorkoutSummaryView: View {
         return (plannedSets, summary.totalSets >= plannedSets)
     }
 
+    private var plannedProgramMilestone: String? {
+        guard let activeWorkout = appState.activeWorkout,
+              let sessionID = activeWorkout.sourceSessionID,
+              let session = appState.workoutSessions.first(where: { $0.id == sessionID }),
+              let week = appState.workoutWeeks.first(where: { $0.id == session.weekID }),
+              let plan = appState.workoutPlans.first(where: { $0.id == week.planID }) else { return nil }
+        let planWeekIDs = Set(appState.workoutWeeks.filter { $0.planID == plan.id }.map(\.id))
+        let plannedSessionCount = appState.workoutSessions.filter {
+            planWeekIDs.contains($0.weekID) && !appState.prescriptions(for: $0).isEmpty
+        }.count
+        guard plannedSessionCount > 0 else { return nil }
+        let priorCompletedSessionIDs: Set<UUID> = Set(appState.completedWorkouts.compactMap { workout in
+            guard workout.sourcePlanID == plan.id, !workout.completedWorkingSets.isEmpty else { return nil }
+            return workout.sourceSessionID
+        })
+        let priorCompletedCount = priorCompletedSessionIDs.count
+        let completedCount = priorCompletedCount + 1
+        if completedCount == 1 { return "First planned session complete" }
+        if completedCount >= plannedSessionCount { return "Program complete: \(plan.name)" }
+        let halfway = max(2, Int(ceil(Double(plannedSessionCount) / 2)))
+        return completedCount == halfway ? "Halfway through \(plan.name)" : nil
+    }
+
     private var previousComparableWorkout: CompletedWorkout? {
         appState.previousComparableWorkout(for: summary)
     }
@@ -313,15 +336,18 @@ struct WorkoutSummaryView: View {
                         }
 
                         PrimaryButton(title: "Save & finish", symbolName: "checkmark.circle.fill") {
-                            var highlights = prCandidates.prefix(2).map { candidate in
+                            let prHighlights = prCandidates.prefix(2).map { candidate in
                                 "New \(candidate.exerciseName) PR: \(MeasurementFormatting.recordedLiftSetText(weight: candidate.weight, unit: candidate.unit, repetitions: candidate.repetitions))"
                             }
-                            if volumePRDetails != nil {
-                                highlights.append("New workout volume PR")
-                            }
-                            highlights.append(contentsOf: newlyUnlockedAchievements.prefix(2).map { "Achievement: \($0.title)" })
+                            let highlights = Self.orderedCompletionHighlights(
+                                prHighlights: prHighlights,
+                                hasVolumePR: volumePRDetails != nil,
+                                plannedSessionComplete: plannedSessionProgress?.isComplete == true,
+                                programMilestone: plannedProgramMilestone,
+                                achievements: newlyUnlockedAchievements.prefix(2).map { "Achievement: \($0.title)" }
+                            )
                             if onComplete(effort, notes, videoURLsBySetID, false) {
-                                completionHighlights = Array(highlights.prefix(3))
+                                completionHighlights = highlights
                                 finishedDuration = activeDuration
                                 finishedUnit = summaryUnit
                                 hasSavedWorkout = true
@@ -698,6 +724,30 @@ struct WorkoutSummaryView: View {
                 trackingTypesByExerciseID[exercise.exerciseID]
             return ExerciseTrackingKind(rawTrackingType ?? "Weight + Reps") == .weightReps
         }
+    }
+
+    static func orderedCompletionHighlights(
+        prHighlights: [String],
+        hasVolumePR: Bool,
+        plannedSessionComplete: Bool,
+        programMilestone: String?,
+        achievements: [String],
+        limit: Int = 3
+    ) -> [String] {
+        guard limit > 0 else { return [] }
+        var highlights: [String] = []
+        if let programMilestone {
+            highlights.append(programMilestone)
+        }
+        highlights.append(contentsOf: prHighlights)
+        if hasVolumePR {
+            highlights.append("New workout volume PR")
+        }
+        if plannedSessionComplete {
+            highlights.append("Planned program session complete")
+        }
+        highlights.append(contentsOf: achievements)
+        return Array(highlights.prefix(limit))
     }
 
     private func currentWorkoutWorkingSetRepetitions(_ workingSets: [WorkoutSetLog]) -> Int {
