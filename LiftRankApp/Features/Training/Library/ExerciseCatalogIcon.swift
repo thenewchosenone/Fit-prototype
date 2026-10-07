@@ -496,7 +496,7 @@ enum RepDBExerciseMedia {
         "cable_face_pull": "face-pull",
         "cable_fly": "cable-fly",
         "cable_front_raise": "cable-front-raise",
-        "cable_kickback": "cable-kickback",
+        "cable_glute_kickback": "cable-kickback",
         "cable_lateral_raise": "cable-lateral-raise",
         "cable_pull_through": "cable-pull-through",
         "cable_single_arm_pulldown": "one-arm-lat-pulldown",
