@@ -6,11 +6,9 @@ import {
   ChevronRight,
   Dumbbell,
   Flag,
-  Heart,
   Mail,
   MapPin,
   MessageCircle,
-  MoreHorizontal,
   Plus,
   Save,
   Search,
@@ -21,12 +19,10 @@ import {
   Trophy,
   UserPlus,
   Users,
-  Weight,
   X
 } from "lucide-react";
 import { type FormEvent, type PropsWithChildren, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { makeId } from "./lib";
 import {
   areFriends,
   computedLeaderboardEntries,
@@ -54,7 +50,6 @@ export { BodyRegionGlyph, muscleVisualKey } from "./ExerciseVisual";
 import type {
   CommunityPost,
   EquipmentType,
-  Exercise,
   LiftVisibility,
   MessageReportReason,
   UserProfile,

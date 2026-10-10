@@ -726,6 +726,27 @@ final class BackendFoundationTests: XCTestCase {
     }
 
 
+    func testTrainingFocusSurvivesProfileSaveRefreshAndOlderCache() async throws {
+        let repository = DemoRepository()
+        let service = MockProfileService(repository: repository)
+        let store = ProfileStore(repository: repository, profileService: service)
+        for focus in TrainingFocus.allCases {
+            var edited = repository.currentProfile
+            edited.trainingFocus = focus
+            let saved = try await store.saveEditedProfile(
+                edited, primaryGym: nil, privacy: ProfilePrivacySettings(), authenticated: true
+            )
+            XCTAssertEqual(saved.trainingFocus, focus)
+            let refreshed = try await service.authenticatedProfile()
+            XCTAssertEqual(SupabaseProfileMapper.authenticated(refreshed).trainingFocus, focus)
+        }
+        let data = try JSONEncoder().encode(repository.currentProfile)
+        var olderCache = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        olderCache.removeValue(forKey: "trainingFocus")
+        let decoded = try JSONDecoder().decode(UserProfile.self, from: JSONSerialization.data(withJSONObject: olderCache))
+        XCTAssertNil(decoded.trainingFocus)
+    }
+
     func testProfileStoreOwnsAuthenticatedMappingAndProductionIsolation() {
         let repository = DemoRepository()
         let store = ProfileStore(repository: repository)
@@ -905,12 +926,14 @@ final class BackendFoundationTests: XCTestCase {
         edited.bio = "Training for my next total"
         edited.avatarPath = "avatars/updated.jpg"
         edited.preferredUnit = .kilograms
+        edited.trainingFocus = .bodybuilding
         edited.ageGroup = "30-34"
         edited.bodyweightPounds = 205
         edited.yearsExperience = 7
         edited.cityID = UUID()
         edited.city = "Miami"
         edited.state = "Florida"
+        edited.countryCode = "CA"
         let serverCityID = UUID()
         service.saveProfileResponse = AuthenticatedProfile(
             id: userID,
@@ -971,13 +994,19 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(saved.profileAudience, .privateProfile)
         let savedDraft = try XCTUnwrap(service.lastSavedProfileDraft)
         XCTAssertEqual(savedDraft.bio, "Training for my next total")
-        XCTAssertEqual(
-            ProfileDisplayFormatting.ageGroup(for: try XCTUnwrap(savedDraft.birthDate)),
-            "30-34"
-        )
+        XCTAssertEqual(savedDraft.trainingFocus, .bodybuilding)
+        XCTAssertEqual(savedDraft.birthDate, Date(timeIntervalSince1970: 700_000_000))
         XCTAssertEqual(savedDraft.bodyweightPounds, 205)
         XCTAssertEqual(savedDraft.yearsExperience, 7)
         XCTAssertEqual(savedDraft.cityID, edited.cityID)
+        XCTAssertEqual(savedDraft.countryCode, "CA")
+        XCTAssertTrue(savedDraft.updatesPrimaryGym)
+        XCTAssertEqual(savedDraft.primaryGymID, gym.id)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(SaveProfileParameters(draft: savedDraft))) as? [String: Any])
+        XCTAssertEqual(payload["new_show_lift_videos"] as? Bool, false)
+        XCTAssertEqual(payload["new_bodyweight_audience"] as? String, privacy.bodyweightAudience.rawValue)
+        XCTAssertEqual(payload["new_primary_gym_id"] as? String, gym.id.uuidString)
+        XCTAssertEqual(payload["updates_primary_gym"] as? Bool, true)
         XCTAssertEqual(savedDraft.city, "Miami")
         XCTAssertEqual(savedDraft.region, "Florida")
         XCTAssertEqual(savedDraft.privacy.locationAudience, .privateProfile)
@@ -985,6 +1014,41 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(savedDraft.privacy.friendListAudience, .gym)
         XCTAssertFalse(savedDraft.privacy.showLiftVideos)
         XCTAssertEqual(store.profiles.map(\.id), [userID])
+    }
+
+    func testProfileSaveFailureRetainsLocalPrivacyAndCanRetryWithExplicitGymRemoval() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let remote = AuthenticatedProfile(
+            id: repository.currentProfile.id, username: repository.currentProfile.username,
+            displayName: repository.currentProfile.displayName, bio: "", avatarPath: nil,
+            onboardingCompleted: true, preferredUnit: .pounds, birthDate: Date(timeIntervalSince1970: 700_000_000),
+            sexCategory: .male, heightCentimeters: 180, bodyweightPounds: 200,
+            city: "Miami", region: "Florida", countryCode: "US", yearsExperience: 2,
+            experienceLevel: .intermediate, privacy: ProfilePrivacySettings()
+        )
+        let service = TestProfileService(profile: remote)
+        let store = ProfileStore(repository: repository, profileService: service)
+        let original = store.currentProfile
+        var requested = original
+        requested.preferredUnit = .kilograms
+        let privacy = ProfilePrivacySettings(profileAudience: .friends, locationAudience: .gym, showLiftVideos: false)
+        service.saveProfileError = LiftRankServiceError.server("Save failed")
+        do {
+            _ = try await store.saveEditedProfile(requested, primaryGym: nil, privacy: privacy, authenticated: true, updatePrimaryGym: true)
+            XCTFail("Save failure must reach the caller")
+        } catch {
+            XCTAssertEqual(store.currentProfile, original)
+        }
+        service.saveProfileError = nil
+        let saved = try await store.saveEditedProfile(requested, primaryGym: nil, privacy: privacy, authenticated: true, updatePrimaryGym: true)
+        XCTAssertEqual(saved.profileAudience, .friends)
+        XCTAssertTrue(saved.hideLiftVideos)
+        XCTAssertTrue(saved.primaryGymName.isEmpty)
+        let draft = try XCTUnwrap(service.lastSavedProfileDraft)
+        XCTAssertTrue(draft.updatesPrimaryGym)
+        XCTAssertNil(draft.primaryGymID)
+        XCTAssertEqual(draft.birthDate, remote.birthDate)
+        XCTAssertEqual(draft.privacy, privacy)
     }
 
     func testBodyweightLogUpdatesLocalProfileAndAuthenticatedProfileService() async throws {
@@ -3144,6 +3208,7 @@ private final class TestProfileService: ProfileService {
     private(set) var authenticatedProfileStarted = false
     private var authenticatedProfileRelease: CheckedContinuation<Void, Never>?
     var saveProfileResponse: AuthenticatedProfile?
+    var saveProfileError: Error?
     private(set) var lastSavedProfileDraft: ProfileDraft?
     var avatarDownload: ProfileAvatarDownload?
     var uploadedAvatarReturnPath: String?
@@ -3183,6 +3248,7 @@ private final class TestProfileService: ProfileService {
     func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile {
         saveProfileCount += 1
         lastSavedProfileDraft = draft
+        if let saveProfileError { throw saveProfileError }
         profile.displayName = draft.displayName
         profile.bio = draft.bio
         profile.preferredUnit = draft.preferredUnit

@@ -9,6 +9,16 @@ enum TrackerProgressCategory: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+extension TrainingFocus {
+    var startingCategory: TrackerProgressCategory {
+        switch self {
+        case .bodybuilding: .muscle
+        case .powerlifting: .strength
+        case .generalFitness, .mixed: .consistency
+        }
+    }
+}
+
 private struct BodyweightChartPoint: Identifiable {
     let id: UUID
     let date: Date
@@ -19,29 +29,33 @@ private struct BodyweightChartPoint: Identifiable {
 extension TrainingTrackerView {
     var progress: some View {
         let volumeWeek = selectedVolumeWeek
-        let totals = appState.weeklyVolumeByBodyPart(referenceDate: volumeWeek.referenceDate)
-        let maxVolume = max(1, totals.values.max() ?? 1)
-        let totalVolume = totals.values.reduce(0, +)
-        let rankedTotals = totals
-            .map { (bodyPart: $0.key, value: $0.value) }
-            .sorted {
-                if $0.value == $1.value { return $0.bodyPart < $1.bodyPart }
-                return $0.value > $1.value
-            }
-        let bodyweightEntries = selectedBodyweightEntries
-        let weekCompletion = selectedWeek.map(appState.weekCompletion(for:))
-        let historyPresentation = appState.workoutHistoryPresentation(
-            displayedMonth: workoutHistoryMonth,
-            selectedDate: selectedWorkoutHistoryDate
-        )
-        let exerciseOptions = appState.progressExerciseOptions()
 
         return LazyVStack(alignment: .leading, spacing: 14) {
-            Text("Progress")
-                .font(.title3.weight(.black))
+            HStack {
+                Text("Progress")
+                    .font(.title3.weight(.black))
+                Spacer()
+                if let focus = appState.currentProfile.trainingFocus {
+                    Label(focus.title, systemImage: focus.symbol)
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                }
+            }
 
             progressSyncStatus
-            progressOverviewCard
+            if appState.currentProfile.trainingFocus == nil && !dismissedTrainingFocusPrompt {
+                HStack {
+                    Button("Choose a training focus in Settings") {
+                        appState.router.sheet = .settings(.training)
+                    }
+                    .font(.caption.weight(.semibold))
+                    .frame(minHeight: LiftDesign.minimumTouchTarget)
+                    Spacer()
+                    NativeIconButton(symbolName: "xmark", accessibilityLabel: "Dismiss training focus suggestion") {
+                        dismissedTrainingFocusPrompt = true
+                    }
+                }
+            }
 
             Picker("Progress category", selection: $selectedProgressCategory) {
                 ForEach(TrackerProgressCategory.allCases) { category in
@@ -51,7 +65,17 @@ extension TrainingTrackerView {
             .pickerStyle(.segmented)
             .accessibilityIdentifier("tracker.progress.category")
 
+            if selectedProgressCategory != .consistency {
+                trainingAttentionSection(category: selectedProgressCategory)
+            }
+
             if selectedProgressCategory == .consistency {
+                let weekCompletion = selectedWeek.map(appState.weekCompletion(for:))
+                let historyPresentation = appState.workoutHistoryPresentation(
+                    displayedMonth: workoutHistoryMonth,
+                    selectedDate: selectedWorkoutHistoryDate
+                )
+                progressOverviewCard
                 WeeklyTrainingDayGoalCard(summary: appState.homeWeeklySummary())
                 programConsistencySection(weekCompletion: weekCompletion)
                 recoveryInsightSection
@@ -64,6 +88,8 @@ extension TrainingTrackerView {
             }
 
             if selectedProgressCategory == .strength {
+                let exerciseOptions = appState.progressExerciseOptions()
+                let bodyweightEntries = selectedBodyweightEntries
                 strengthProgressSection
 
                 if !exerciseOptions.isEmpty {
@@ -113,6 +139,15 @@ extension TrainingTrackerView {
             }
 
             if selectedProgressCategory == .muscle {
+                let totals = appState.weeklyVolumeByBodyPart(referenceDate: volumeWeek.referenceDate)
+                let maxVolume = max(1, totals.values.max() ?? 1)
+                let totalVolume = totals.values.reduce(0, +)
+                let rankedTotals = totals
+                    .map { (bodyPart: $0.key, value: $0.value) }
+                    .sorted {
+                        if $0.value == $1.value { return $0.bodyPart < $1.bodyPart }
+                        return $0.value > $1.value
+                    }
                 weeklyMuscleSetSection
 
                 VStack(alignment: .leading, spacing: 14) {
@@ -176,7 +211,7 @@ extension TrainingTrackerView {
                         }
 
                         VStack(spacing: 13) {
-                            ForEach(Array(rankedTotals.enumerated()), id: \.element.bodyPart) { index, item in
+                            ForEach(Array(rankedTotals.prefix(showAllMuscleVolumeRows ? rankedTotals.count : 5).enumerated()), id: \.element.bodyPart) { index, item in
                                 volumeBodyPartRow(
                                     bodyPart: item.bodyPart,
                                     value: item.value,
@@ -187,6 +222,13 @@ extension TrainingTrackerView {
                             }
                         }
                         .padding(.top, 2)
+                        if rankedTotals.count > 5 {
+                            Button(showAllMuscleVolumeRows ? "Show fewer muscles" : "Show all \(rankedTotals.count) muscles") {
+                                showAllMuscleVolumeRows.toggle()
+                            }
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.liftAccentText)
+                        }
                     }
                 }
                 .padding(16)
@@ -200,13 +242,27 @@ extension TrainingTrackerView {
             }
         }
         .onAppear {
-            syncProgressExerciseSelection()
-            syncWorkoutHistorySelection()
+            if !didLoadTrainingFocus {
+                loadTrainingFocus()
+                didLoadTrainingFocus = true
+            }
+            if selectedProgressCategory == .strength { syncProgressExerciseSelection() }
+            if selectedProgressCategory == .consistency { syncWorkoutHistorySelection() }
             Task { await appState.synchronizeCompletedWorkoutHistory(force: false) }
         }
         .onChange(of: appState.completedWorkoutsRevision) {
-            syncProgressExerciseSelection()
-            syncWorkoutHistorySelection()
+            if selectedProgressCategory == .strength { syncProgressExerciseSelection() }
+            if selectedProgressCategory == .consistency { syncWorkoutHistorySelection() }
+        }
+        .onChange(of: selectedProgressCategory) { _, category in
+            if category == .strength { syncProgressExerciseSelection() }
+            if category == .consistency { syncWorkoutHistorySelection() }
+        }
+        .onChange(of: appState.currentProfile.id) {
+            loadTrainingFocus()
+        }
+        .onChange(of: appState.currentProfile.trainingFocus) {
+            loadTrainingFocus()
         }
     }
 
@@ -289,14 +345,18 @@ extension TrainingTrackerView {
         }
         let baselineVolume = priorWeeks.map(\.volume).reduce(0, +) / Double(priorWeeks.count)
         let recovery = appState.recoverySummaries().filter { $0.hoursSinceTraining < 48 }.count
-        return VStack(alignment: .leading, spacing: 10) {
+        let trend = priorWeeks.reversed().map(\.volume) + [summary.volume]
+        let peakVolume = max(1, trend.max() ?? 1)
+        return VStack(alignment: .leading, spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("This week")
-                        .font(.headline.weight(.bold))
+                    Text("THIS WEEK")
+                        .font(.caption2.weight(.black))
+                        .tracking(1.2)
+                        .foregroundStyle(Color.liftAccentText)
                     Text(summary.completedWorkoutCount == 0
                          ? "Log a workout to start your weekly snapshot."
-                         : "Your training snapshot across completed working sets.")
+                         : "Your training at a glance")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
@@ -308,25 +368,54 @@ extension TrainingTrackerView {
                 }
             }
 
-            HStack(spacing: 0) {
-                progressOverviewMetric("Workouts", value: "\(summary.completedWorkoutCount)")
-                progressOverviewDivider
-                progressOverviewMetric("Working sets", value: "\(summary.completedSetCount)")
-                progressOverviewDivider
+            HStack(alignment: .bottom, spacing: 16) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("\(summary.completedWorkoutCount)")
+                        .font(.system(size: 48, weight: .black, design: .rounded).monospacedDigit())
+                        .foregroundStyle(Color.liftAccentText)
+                    Text("workout\(summary.completedWorkoutCount == 1 ? "" : "s") completed")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.liftMuted)
+                }
+                Spacer(minLength: 0)
+                VStack(alignment: .trailing, spacing: 5) {
+                    HStack(alignment: .bottom, spacing: 5) {
+                        ForEach(Array(trend.enumerated()), id: \.offset) { index, value in
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .fill(index == trend.count - 1 ? Color.liftAccentText : Color.liftAccentText.opacity(0.3))
+                                .frame(width: 12, height: max(4, CGFloat(value / peakVolume) * 42))
+                        }
+                    }
+                    .frame(height: 42, alignment: .bottom)
+                    Text("5-WEEK VOLUME")
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .tracking(0.6)
+                        .foregroundStyle(Color.liftMuted)
+                }
+            }
+            HStack(spacing: 10) {
+                progressOverviewMetric("WORKING SETS", value: "\(summary.completedSetCount)", symbol: "checkmark.circle.fill")
                 progressOverviewMetric(
-                    "Volume",
-                    value: MeasurementFormatting.formatDisplayedWeight(summary.volume, unit: appState.currentProfile.preferredUnit)
+                    "VOLUME LOAD",
+                    value: MeasurementFormatting.formatRecordedWeight(
+                        summary.volume,
+                        unit: appState.currentProfile.preferredUnit,
+                        format: { Int($0.rounded()).formatted() }
+                    ),
+                    symbol: "scalemass.fill"
                 )
             }
-            Text(progressBaselineText(summary: summary, baselineVolume: baselineVolume))
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.liftMuted)
+            if summary.completedWorkoutCount > 0 || baselineVolume > 0 {
+                Text(progressBaselineText(summary: summary, baselineVolume: baselineVolume))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.liftMuted)
+            }
         }
-        .padding(14)
+        .padding(18)
         .background(Color.liftCard)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Color.liftOverlay, lineWidth: 1)
         }
         .accessibilityElement(children: .contain)
@@ -344,24 +433,82 @@ extension TrainingTrackerView {
         return "Volume is \(percentage)% \(difference > 0 ? "above" : "below") your four-week baseline."
     }
 
-    private func progressOverviewMetric(_ title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.caption2.weight(.medium))
+    private func progressOverviewMetric(_ title: String, value: String, symbol: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(title, systemImage: symbol)
+                .font(.system(size: 9, weight: .black, design: .rounded))
+                .tracking(0.5)
                 .foregroundStyle(Color.liftMuted)
             Text(value)
-                .font(.subheadline.weight(.black).monospacedDigit())
+                .font(.headline.weight(.black).monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 8)
+        .padding(12)
+        .background(Color.liftCardRaised.opacity(0.62))
+        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
     }
 
-    private var progressOverviewDivider: some View {
-        Rectangle()
-            .fill(Color.liftSeparator)
-            .frame(width: 1, height: 30)
+    @ViewBuilder
+    private func trainingAttentionSection(category: TrackerProgressCategory) -> some View {
+        let insights = category == .strength ? appState.strengthAttentionInsights : appState.muscleAttentionInsights
+        let nextWorkout = appState.scheduledPlanSessions(on: .now).first
+            ?? appState.nextScheduledWorkout().map { (week: $0.week, session: $0.session) }
+        if !insights.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "scope")
+                        .foregroundStyle(Color.liftAccentText)
+                    Text("What needs attention")
+                        .font(.headline.weight(.bold))
+                }
+                Text(category == .strength
+                     ? "Signals from your logged lifts, with a step to consider next."
+                     : "Compares training emphasis, not muscle size or appearance.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+
+                ForEach(insights) { insight in
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text(insight.title)
+                            .font(.subheadline.weight(.bold))
+                        Text(insight.evidence)
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                        Label(insight.nextStep, systemImage: "arrow.turn.down.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.liftAccentText)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color.liftCardRaised.opacity(0.62))
+                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                }
+
+                Button {
+                    if let nextWorkout { selectedWeekID = nextWorkout.week.id }
+                    withAnimation(.snappy) { segment = .plans }
+                } label: {
+                    HStack {
+                        Text(nextWorkout.map { "Next planned: \($0.session.name)" } ?? "Review your workout plan")
+                            .lineLimit(1)
+                        Spacer(minLength: 8)
+                        Image(systemName: "arrow.right")
+                    }
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.liftAccentText)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(16)
+            .background(Color.liftCard)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.liftOverlay, lineWidth: 1)
+            }
+        }
     }
 
     private func programConsistencySection(weekCompletion: Double?) -> some View {
@@ -372,16 +519,16 @@ extension TrainingTrackerView {
                 HStack(alignment: .center) {
                     ZStack {
                         Circle()
-                            .stroke(Color.liftOverlay, lineWidth: 6)
+                            .stroke(Color.liftOverlay, lineWidth: 8)
                         Circle()
                             .trim(from: 0, to: min(max(completion, 0), 1))
-                            .stroke(Color.liftGreen, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                            .stroke(Color.liftGreen, style: StrokeStyle(lineWidth: 8, lineCap: .round))
                             .rotationEffect(.degrees(-90))
                         Text("\(Int(completion * 100))%")
-                            .font(.system(size: 11, weight: .black, design: .rounded))
+                            .font(.system(size: 17, weight: .black, design: .rounded))
                             .monospacedDigit()
                     }
-                    .frame(width: 52, height: 52)
+                    .frame(width: 72, height: 72)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Program consistency")
@@ -695,13 +842,13 @@ extension TrainingTrackerView {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     ForEach(Array(weeks.enumerated()), id: \.offset) { _, week in
                         Text(week.weekStart.formatted(.dateTime.month(.abbreviated).day()))
-                            .frame(width: 39)
+                            .frame(width: 42)
                     }
                 }
                 .font(.system(size: 8, weight: .black, design: .rounded))
                 .foregroundStyle(Color.liftMuted)
 
-                ForEach(ranked, id: \.muscle) { item in
+                ForEach(ranked.prefix(showAllMuscleSetRows ? ranked.count : 5), id: \.muscle) { item in
                     Button {
                         focusedWorkoutSetID = nil
                         selectedCompletedWorkout = mostRecentWorkout(for: item.muscle)
@@ -734,6 +881,13 @@ extension TrainingTrackerView {
                     .accessibilityLabel("\(item.muscle.displayName), \(item.total) working sets across four weeks, trained in \(item.frequency) of four weeks, \(muscleTargetStatus(item.counts.last ?? 0).label) at \(item.counts.last ?? 0) sets this week")
                     .accessibilityHint("Opens a recent workout that trained this muscle")
                 }
+                if ranked.count > 5 {
+                    Button(showAllMuscleSetRows ? "Show fewer muscles" : "Show all \(ranked.count) muscles") {
+                        showAllMuscleSetRows.toggle()
+                    }
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.liftAccentText)
+                }
             }
         }
         .padding(14)
@@ -751,6 +905,7 @@ extension TrainingTrackerView {
             summary.liftProgress.first { $0.exerciseID == exerciseID }
         }
         let completeMaxes = keyLifts.compactMap(\.estimatedOneRepMaxKilograms)
+        let highestMax = max(1, completeMaxes.max() ?? 1)
         let threeLiftTotal = completeMaxes.count == 3 ? completeMaxes.reduce(0, +) : nil
         let latestBodyweight = recentBodyweightEntries.last?.actual ?? appState.currentProfile.bodyweightPounds
         let bodyweightKilograms = MeasurementFormatting.normalizeToKilograms(latestBodyweight, unit: .pounds)
@@ -785,24 +940,33 @@ extension TrainingTrackerView {
             } else {
                 HStack(spacing: 8) {
                     ForEach(keyLifts, id: \.exerciseID) { lift in
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 8) {
                             Text(lift.exerciseName.uppercased())
-                                .font(.system(size: 8, weight: .black, design: .rounded))
+                                .font(.system(size: 9, weight: .black, design: .rounded))
+                                .tracking(0.4)
                                 .foregroundStyle(Color.liftMuted)
                                 .lineLimit(1)
                             Text(lift.estimatedOneRepMaxKilograms.map {
                                 MeasurementFormatting.formatDisplayedWeight($0, unit: appState.currentProfile.preferredUnit)
                             } ?? "—")
-                                .font(.subheadline.weight(.black).monospacedDigit())
+                                .font(.headline.weight(.black).monospacedDigit())
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.75)
+                            GeometryReader { geometry in
+                                ZStack(alignment: .leading) {
+                                    Capsule().fill(Color.liftOverlay)
+                                    Capsule().fill(Color.liftAccentText)
+                                        .frame(width: geometry.size.width * CGFloat((lift.estimatedOneRepMaxKilograms ?? 0) / highestMax))
+                                }
+                            }
+                            .frame(height: 5)
                             Text(lift.estimatedOneRepMaxKilograms == nil ? "No data" : lift.currentTier.label)
-                                .font(.system(size: 9, weight: .semibold))
+                                .font(.caption2.weight(.semibold))
                                 .foregroundStyle(Color.liftMuted)
                                 .lineLimit(1)
                         }
-                        .frame(maxWidth: .infinity, minHeight: 67, alignment: .leading)
-                        .padding(.horizontal, 9)
+                        .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
+                        .padding(10)
                         .background(Color.liftCardRaised.opacity(0.62))
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
@@ -862,17 +1026,17 @@ extension TrainingTrackerView {
     }
 
     private func muscleWeekBar(count: Int) -> some View {
-        let barHeight = count > 0 ? 5 + min(count, 12) * 2 : 4
-        let barColor: Color = count > 0 ? .liftGreen : .liftOverlay
-        return VStack(spacing: 2) {
-            RoundedRectangle(cornerRadius: 2)
+        let barHeight = count > 0 ? 6 + Double(min(count, 20)) * 1.6 : 4.0
+        let barColor: Color = count >= 8 && count <= 20 ? .liftGreen : count > 20 ? .liftPurple : count > 0 ? .liftGold : .liftOverlay
+        return VStack(spacing: 4) {
+            RoundedRectangle(cornerRadius: 4)
                 .fill(barColor)
-                .frame(width: 14, height: CGFloat(barHeight))
+                .frame(width: 22, height: CGFloat(barHeight))
             Text("\(count)")
-                .font(.system(size: 9, weight: .bold, design: .rounded).monospacedDigit())
+                .font(.system(size: 10, weight: .bold, design: .rounded).monospacedDigit())
                 .foregroundStyle(Color.liftText)
         }
-        .frame(width: 39, height: 31, alignment: .bottom)
+        .frame(width: 42, height: 50, alignment: .bottom)
     }
 
     private func muscleTargetStatus(_ weeklySetCount: Int) -> (label: String, color: Color) {

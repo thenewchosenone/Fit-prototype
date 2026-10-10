@@ -15,7 +15,8 @@ enum ProfileLiftVideoLibrary {
             .filter { lift in
                 guard lift.userID == profileID else { return false }
                 guard viewerID == profileID || lift.visibility == .publicLift else { return false }
-                return includeLiftsWithoutVideo || lift.hasVideoReference
+                return includeLiftsWithoutVideo || (lift.hasVideoReference &&
+                    (viewerID == profileID || lift.resolvedModerationStatus == .clear))
             }
             .sorted { $0.performedAt > $1.performedAt }
     }
@@ -52,7 +53,7 @@ struct ProfileLiftVideosSection: View {
         )
         }
         var bestByExercise: [String: LiftSubmission] = [:]
-        for lift in candidates {
+        for lift in candidates where isCurrentUser || lift.resolvedModerationStatus == .clear {
             let key = lift.exerciseName.lowercased()
             if bestByExercise[key] == nil || lift.weight > bestByExercise[key]!.weight {
                 bestByExercise[key] = lift
@@ -238,14 +239,15 @@ private enum EditProfileSelector: String, Identifiable {
 private struct EditProfileLocation: Identifiable, Hashable {
     let city: String
     let state: String
-    var id: String { "\(state.lowercased())|\(city.lowercased())" }
+    let countryCode: String
+    var id: String { "\(countryCode)|\(state.lowercased())|\(city.lowercased())" }
 
     static let catalog: [EditProfileLocation] = {
         var unique: [String: EditProfileLocation] = [:]
         for country in LaunchLocationCatalog.countries {
             for region in country.regions {
                 for city in region.cities {
-                    let location = EditProfileLocation(city: city, state: region.name)
+                    let location = EditProfileLocation(city: city, state: region.name, countryCode: country.code)
                     unique[location.id] = location
                 }
             }
@@ -267,13 +269,10 @@ struct EditProfileView: View {
     @State private var showingPhotoManager = false
     @State private var activeSelector: EditProfileSelector?
     @State private var selectedGymID: UUID?
-    @State private var privacy = ProfilePrivacySettings()
+    @State private var updatesPrimaryGym = false
     @State private var showingUsernameChangeConfirmation = false
-    private var ageGroups: [String] {
-        MockData.standardAgeGroups.contains(draft.ageGroup)
-            ? MockData.standardAgeGroups
-            : [draft.ageGroup] + MockData.standardAgeGroups
-    }
+    @State private var hasLoadedDraft = false
+    @State private var selectedBodyweightEntry: BodyweightEntry?
 
     private var selectedGym: Gym? {
         appState.gyms.first { $0.id == selectedGymID }
@@ -282,11 +281,11 @@ struct EditProfileView: View {
     private var locations: [EditProfileLocation] {
         var unique = Dictionary(uniqueKeysWithValues: EditProfileLocation.catalog.map { ($0.id, $0) })
         for gym in appState.gyms where !gym.city.isEmpty && !gym.state.isEmpty {
-            let location = EditProfileLocation(city: gym.city, state: gym.state)
+            let location = EditProfileLocation(city: gym.city, state: gym.state, countryCode: LaunchLocationCatalog.countries.first { $0.regions.contains { $0.name == gym.state } }?.code ?? draft.countryCode ?? "US")
             unique[location.id] = location
         }
         if !draft.city.isEmpty && !draft.state.isEmpty {
-            let current = EditProfileLocation(city: draft.city, state: draft.state)
+            let current = EditProfileLocation(city: draft.city, state: draft.state, countryCode: draft.countryCode ?? "US")
             unique[current.id] = current
         }
         return unique.values.sorted(by: EditProfileLocation.locationSort)
@@ -339,7 +338,7 @@ struct EditProfileView: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Profile photo")
                                         .font(.headline)
-                                    Text(draft.avatarPath == nil ? "Add or change your photo" : "Replace or remove your photo")
+                                    Text("Photo changes save separately from this form")
                                         .font(.caption)
                                         .foregroundStyle(Color.liftMuted)
                                 }
@@ -355,17 +354,14 @@ struct EditProfileView: View {
                         LabeledContent("Display name") {
                             TextField("Display name", text: $draft.displayName)
                                 .multilineTextAlignment(.trailing)
+                                .accessibilityIdentifier("editProfile.displayName")
                         }
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Bio")
                             TextField("Tell athletes about your training", text: bioBinding, axis: .vertical)
                                 .lineLimit(2...4)
                         }
-                        Picker("Age group", selection: $draft.ageGroup) {
-                            ForEach(ageGroups, id: \.self) { ageGroup in
-                                Text(ageGroup).tag(ageGroup)
-                            }
-                        }
+                        LabeledContent("Age group", value: draft.ageGroup)
                         Picker("Gender", selection: $draft.sexCategory) {
                             ForEach(SexCategory.allCases) { Text($0.rawValue).tag($0) }
                         }
@@ -382,17 +378,26 @@ struct EditProfileView: View {
                     }
                     Section("Body") {
                         NumericInputField(title: "Height", value: $draft.heightInches, unit: "in", presentation: .formRow)
-                        NumericInputField(
-                            title: "Bodyweight",
-                            value: bodyweightDisplayValue,
-                            unit: draft.preferredUnit.shortLabel,
-                            presentation: .formRow
-                        )
+                        Button {
+                            selectedBodyweightEntry = BodyweightEntry.draftForCurrentWeek(
+                                entries: appState.bodyweightEntries,
+                                currentBodyweightPounds: draft.bodyweightPounds
+                            )
+                        } label: {
+                            LabeledContent("Log bodyweight", value: MeasurementFormatting.formatRecordedWeight(
+                                MeasurementFormatting.convert(draft.bodyweightPounds, from: .pounds, to: draft.preferredUnit),
+                                unit: draft.preferredUnit
+                            ))
+                        }
+                        .accessibilityIdentifier("editProfile.logBodyweight")
+                    }
+                    if let message = appState.accountMessage {
+                        Section { Text(message).foregroundStyle(Color.liftRed) }
                     }
                     Section("Location") {
                         profileSelectionRow(
                             title: "Location",
-                            value: draft.city.isEmpty ? "Choose a location" : "\(draft.city), \(draft.state)",
+                            value: draft.city.isEmpty ? "Choose a location" : "\(draft.city), \(draft.state) · \(draft.countryCode ?? "US")",
                             symbol: "mappin.and.ellipse"
                         ) { activeSelector = .location }
                         profileSelectionRow(
@@ -401,30 +406,18 @@ struct EditProfileView: View {
                             symbol: "building.2.fill"
                         ) { activeSelector = .gym }
                     }
-                    Section("Privacy") {
-                        audiencePicker("Profile", selection: $privacy.profileAudience)
-                        audiencePicker("Age band", selection: $privacy.ageBandAudience)
-                        audiencePicker("Division", selection: $privacy.divisionAudience)
-                        audiencePicker("Bodyweight", selection: $privacy.bodyweightAudience)
-                        audiencePicker("Location", selection: $privacy.locationAudience)
-                        audiencePicker("Gym", selection: $privacy.gymAudience)
-                        audiencePicker("Friend list", selection: $privacy.friendListAudience)
-                        Toggle("Show approved lift videos publicly", isOn: $privacy.showLiftVideos)
-                        Text("Ratio and weight-class rankings may indirectly reveal bodyweight even when the bodyweight field is private.")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
-                    }
                 }
                 .scrollContentBackground(.hidden)
             }
             .navigationTitle("Edit Profile")
             .onAppear {
+                guard !hasLoadedDraft else { return }
+                hasLoadedDraft = true
                 draft = appState.currentProfile
                 draft.bodyweightPounds = ProfileDataAuthority.latestLoggedBodyweight(
                     profilePounds: draft.bodyweightPounds,
                     entries: appState.bodyweightEntries
                 )
-                privacy = appState.authenticatedPrivacy
                 selectedGymID = appState.gyms.first(where: {
                     $0.id == draft.primaryGymID || $0.name == draft.primaryGymName
                 })?.id
@@ -448,8 +441,17 @@ struct EditProfileView: View {
                 }
                 .presentationDetents([.large])
             }
+            .sheet(item: $selectedBodyweightEntry) { entry in
+                BodyweightEntryEditor(entry: entry) { updatedEntry in
+                    appState.updateBodyweight(updatedEntry)
+                }
+                .environmentObject(appState)
+            }
+            .onChange(of: appState.currentProfile.bodyweightPounds) { _, weight in
+                draft.bodyweightPounds = weight
+            }
             .sheet(isPresented: $showingPhotoManager, onDismiss: {
-                draft = appState.currentProfile
+                draft.avatarPath = appState.currentProfile.avatarPath
             }) {
                 ProfilePhotoManagerView()
                 .environmentObject(appState)
@@ -489,36 +491,19 @@ struct EditProfileView: View {
     private func saveDraft(allowUsernameChange: Bool) {
         var outgoingDraft = draft
         outgoingDraft.experienceLevel = appState.earnedExperienceLevel
+        let privacy = appState.authenticatedPrivacy
         outgoingDraft.hideLiftVideos = !privacy.showLiftVideos
         Task {
             if await appState.saveEditedProfile(
                 outgoingDraft,
                 primaryGym: selectedGym,
                 privacy: privacy,
-                allowUsernameChange: allowUsernameChange
+                allowUsernameChange: allowUsernameChange,
+                updatePrimaryGym: updatesPrimaryGym
             ) {
                 dismiss()
             }
         }
-    }
-
-    private func audiencePicker(_ title: String, selection: Binding<PrivacyAudience>) -> some View {
-        Picker(title, selection: selection) {
-            ForEach(PrivacyAudience.allCases) { audience in
-                Text(audience.label).tag(audience)
-            }
-        }
-    }
-
-    private var bodyweightDisplayValue: Binding<Double> {
-        Binding(
-            get: {
-                MeasurementFormatting.convert(draft.bodyweightPounds, from: .pounds, to: draft.preferredUnit)
-            },
-            set: { newValue in
-                draft.bodyweightPounds = MeasurementFormatting.convert(newValue, from: draft.preferredUnit, to: .pounds)
-            }
-        )
     }
 
     private var bioBinding: Binding<String> {
@@ -558,10 +543,10 @@ struct EditProfileView: View {
         switch selector {
         case .location:
             return locations.map {
-                LeaderboardOption(id: $0.id, title: $0.city, subtitle: $0.state, symbol: "mappin.and.ellipse")
+                LeaderboardOption(id: $0.id, title: $0.city, subtitle: "\($0.state) · \($0.countryCode)", symbol: "mappin.and.ellipse")
             }
         case .gym:
-            return orderedGyms.map {
+            return [LeaderboardOption(id: "none", title: "No primary gym", subtitle: "Keep your memberships", symbol: "building.2")] + orderedGyms.map {
                 LeaderboardOption(id: $0.id.uuidString, title: $0.name, subtitle: "\($0.city), \($0.state)", symbol: "building.2.fill")
             }
         }
@@ -570,9 +555,9 @@ struct EditProfileView: View {
     private func selectedID(for selector: EditProfileSelector) -> String {
         switch selector {
         case .location:
-            return EditProfileLocation(city: draft.city, state: draft.state).id
+            return EditProfileLocation(city: draft.city, state: draft.state, countryCode: draft.countryCode ?? "US").id
         case .gym:
-            return selectedGymID?.uuidString ?? ""
+            return selectedGymID?.uuidString ?? "none"
         }
     }
 
@@ -580,14 +565,27 @@ struct EditProfileView: View {
         switch selector {
         case .location:
             guard let location = locations.first(where: { $0.id == id }) else { return }
+            let countryChanged = draft.countryCode != location.countryCode
             draft.city = location.city
             draft.state = location.state
-            if let gym = selectedGym,
-               gym.city.caseInsensitiveCompare(location.city) != .orderedSame ||
-                gym.state.caseInsensitiveCompare(location.state) != .orderedSame {
+            draft.countryCode = location.countryCode
+            draft.cityID = nil
+            if !draft.primaryGymName.isEmpty,
+               countryChanged || selectedGym?.city.caseInsensitiveCompare(location.city) != .orderedSame ||
+                selectedGym?.state.caseInsensitiveCompare(location.state) != .orderedSame {
                 selectedGymID = nil
+                updatesPrimaryGym = true
+                draft.primaryGymID = UUID()
+                draft.primaryGymName = ""
             }
         case .gym:
+            updatesPrimaryGym = true
+            if id == "none" {
+                selectedGymID = nil
+                draft.primaryGymID = UUID()
+                draft.primaryGymName = ""
+                return
+            }
             guard let gymID = UUID(uuidString: id), let gym = appState.gyms.first(where: { $0.id == gymID }) else { return }
             selectedGymID = gym.id
             draft.primaryGymID = gym.id
@@ -602,6 +600,7 @@ struct ProfilePhotoManagerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var item: PhotosPickerItem?
     @State private var loading = false
+    @State private var photoError: String?
     @State private var selectedSourceImage: UIImage?
     @State private var previewImage: UIImage?
     @State private var storedImage: UIImage?
@@ -675,6 +674,8 @@ struct ProfilePhotoManagerView: View {
                                         selectedSourceImage = nil
                                         Task { @MainActor in
                                             await Task.yield()
+                                            photoError = nil
+                                            appState.accountMessage = nil
                                             await appState.saveProfilePhoto(previewImage)
                                         }
                                     }
@@ -687,6 +688,12 @@ struct ProfilePhotoManagerView: View {
                             showingRemoveConfirmation = true
                         }
                         .buttonStyle(.bordered)
+                    }
+
+                    if let photoError {
+                        Text(photoError)
+                            .font(.caption)
+                            .foregroundStyle(Color.liftRed)
                     }
 
                     if loading {
@@ -707,6 +714,8 @@ struct ProfilePhotoManagerView: View {
             }
             .confirmationDialog("Remove profile photo?", isPresented: $showingRemoveConfirmation, titleVisibility: .visible) {
                 Button("Remove Photo", role: .destructive) {
+                    photoError = nil
+                    appState.accountMessage = nil
                     appState.removeProfilePhoto()
                 }
             } message: {
@@ -726,20 +735,30 @@ struct ProfilePhotoManagerView: View {
                     )
                 }
             }
+            .onChange(of: appState.accountMessage) { _, message in
+                if let message { photoError = message }
+            }
             .onChange(of: item) { _, newItem in
                 guard let newItem else { return }
                 loading = true
+                photoError = nil
                 Task {
                     defer { loading = false }
-                    guard let data = try? await newItem.loadTransferable(type: Data.self) else { return }
-                    let image = await Task.detached(priority: .userInitiated) {
-                        UIImage(data: data)?.preparedForProfileEditing()
-                    }.value
-                    guard let image else { return }
-                    await MainActor.run {
+                    do {
+                        guard let data = try await newItem.loadTransferable(type: Data.self) else {
+                            throw LiftRankServiceError.invalidInput("That photo couldn't be read. Choose another image.")
+                        }
+                        let image = await Task.detached(priority: .userInitiated) {
+                            UIImage(data: data)?.preparedForProfileEditing()
+                        }.value
+                        guard let image else {
+                            throw LiftRankServiceError.invalidInput("That photo couldn't be opened. Choose another image.")
+                        }
                         selectedSourceImage = image
                         showingCropEditor = true
                         item = nil
+                    } catch {
+                        photoError = appState.userMessage(error)
                     }
                 }
             }

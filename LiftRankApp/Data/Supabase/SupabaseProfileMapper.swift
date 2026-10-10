@@ -29,7 +29,8 @@ enum SupabaseProfileMapper {
             hideCity: remote.privacy.locationAudience == .privateProfile,
             hideGym: true,
             hideLiftVideos: !remote.privacy.showLiftVideos,
-            profileAudience: remote.privacy.profileAudience
+            profileAudience: remote.privacy.profileAudience,
+            trainingFocus: remote.trainingFocus
         )
     }
 

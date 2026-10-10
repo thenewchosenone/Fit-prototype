@@ -80,6 +80,46 @@ extension DemoRepository {
                 ))
             }
         }
+
+        let publicProfileMarker = "[demo:public-profile-v1]"
+        if !lifts.contains(where: { $0.userID == currentProfile.id && $0.caption == publicProfileMarker }) {
+            let publicMovements: [(id: String, name: String, movement: CompetitiveMovement, weight: Double)] = [
+                ("squat", "Back squat", .backSquat, 365),
+                ("bench", "Barbell bench press", .barbellBenchPress, 245),
+                ("deadlift", "Conventional deadlift", .conventionalDeadlift, 455)
+            ]
+            let bodyweight = currentProfile.bodyweightPounds
+            lifts.append(contentsOf: publicMovements.enumerated().map { index, movement in
+                LiftSubmission(
+                    id: UUID(uuidString: String(format: "D2000000-0000-0000-0000-%012d", index + 1))!,
+                    userID: currentProfile.id,
+                    exerciseID: movement.id,
+                    exerciseName: movement.name,
+                    weight: movement.weight,
+                    unit: .pounds,
+                    normalizedWeightKilograms: RankingCalculator.poundsToKilograms(movement.weight),
+                    repetitions: 1,
+                    isActualOneRepMax: true,
+                    estimatedOneRepMax: movement.weight,
+                    bodyweightAtLift: bodyweight,
+                    bodyweightMultiple: bodyweight > 0 ? movement.weight / bodyweight : 0,
+                    equipmentType: .raw,
+                    variation: "Competition",
+                    gymID: currentProfile.primaryGymID,
+                    performedAt: Calendar.current.date(byAdding: .day, value: -(index + 1) * 7, to: .now) ?? .now,
+                    localVideoURL: nil,
+                    remoteVideoURL: nil,
+                    caption: publicProfileMarker,
+                    verificationStatus: .selfReported,
+                    visibility: .publicLift,
+                    createdAt: .now,
+                    updatedAt: .now,
+                    competitiveMovement: movement.movement,
+                    evidenceStatus: .selfReported,
+                    moderationStatus: .clear
+                )
+            })
+        }
     }
 
     func addLift(_ lift: LiftSubmission, refreshAchievements: Bool = true) {
@@ -306,12 +346,12 @@ extension DemoRepository {
         add("1,250 lb Total", when: powerliftingTotal >= RankingCalculator.poundsToKilograms(1_250))
         add("1,500 lb Total", when: powerliftingTotal >= RankingCalculator.poundsToKilograms(1_500))
         add("2,000 lb Total", when: powerliftingTotal >= RankingCalculator.poundsToKilograms(2_000))
-        add("Bodyweight Bench", when: maxBench >= bodyweightKilograms)
-        add("1.5x Bodyweight Bench", when: maxBench >= bodyweightKilograms * 1.5)
-        add("1.5x Bodyweight Squat", when: maxSquat >= bodyweightKilograms * 1.5)
-        add("2x Bodyweight Squat", when: maxSquat >= bodyweightKilograms * 2)
-        add("2x Bodyweight Deadlift", when: maxDeadlift >= bodyweightKilograms * 2)
-        add("2.5x Bodyweight Deadlift", when: maxDeadlift >= bodyweightKilograms * 2.5)
+        add("Bodyweight Bench", when: bodyweightKilograms > 0 && maxBench >= bodyweightKilograms)
+        add("1.5x Bodyweight Bench", when: bodyweightKilograms > 0 && maxBench >= bodyweightKilograms * 1.5)
+        add("1.5x Bodyweight Squat", when: bodyweightKilograms > 0 && maxSquat >= bodyweightKilograms * 1.5)
+        add("2x Bodyweight Squat", when: bodyweightKilograms > 0 && maxSquat >= bodyweightKilograms * 2)
+        add("2x Bodyweight Deadlift", when: bodyweightKilograms > 0 && maxDeadlift >= bodyweightKilograms * 2)
+        add("2.5x Bodyweight Deadlift", when: bodyweightKilograms > 0 && maxDeadlift >= bodyweightKilograms * 2.5)
         for milestone in [15, 40, 60, 150, 250, 400, 750] {
             add("\(milestone.formatted()) Workouts", when: stats.totalWorkouts >= milestone)
         }
@@ -339,11 +379,11 @@ extension DemoRepository {
         for milestone in [600, 900, 1_100, 1_400, 1_700, 1_800] {
             add("\(milestone.formatted()) lb Total", when: powerliftingTotal >= RankingCalculator.poundsToKilograms(Double(milestone)))
         }
-        add("1.25x Bodyweight Bench", when: maxBench >= bodyweightKilograms * 1.25)
-        add("2x Bodyweight Bench", when: maxBench >= bodyweightKilograms * 2)
-        add("2x Bodyweight Deadlift", when: maxDeadlift >= bodyweightKilograms * 2)
-        add("2.5x Bodyweight Squat", when: maxSquat >= bodyweightKilograms * 2.5)
-        add("3x Bodyweight Deadlift", when: maxDeadlift >= bodyweightKilograms * 3)
+        add("1.25x Bodyweight Bench", when: bodyweightKilograms > 0 && maxBench >= bodyweightKilograms * 1.25)
+        add("2x Bodyweight Bench", when: bodyweightKilograms > 0 && maxBench >= bodyweightKilograms * 2)
+        add("2x Bodyweight Deadlift", when: bodyweightKilograms > 0 && maxDeadlift >= bodyweightKilograms * 2)
+        add("2.5x Bodyweight Squat", when: bodyweightKilograms > 0 && maxSquat >= bodyweightKilograms * 2.5)
+        add("3x Bodyweight Deadlift", when: bodyweightKilograms > 0 && maxDeadlift >= bodyweightKilograms * 3)
         for milestone in [10, 25, 50, 100] {
             add("\(milestone) Exercises Explored", when: distinctExerciseCount >= milestone)
         }
@@ -355,7 +395,8 @@ extension DemoRepository {
         }
 
         let strengthTier = RankingCalculator.strengthTierSummary(
-            performances: RankingCalculator.strengthPerformances(from: completedWorkouts),
+            performances: RankingCalculator.strengthPerformances(from: completedWorkouts)
+                + RankingCalculator.strengthPerformances(fromSubmissions: userLifts),
             bodyweightKilograms: bodyweightKilograms,
             sexCategory: currentProfile.sexCategory
         ).overallTier
@@ -418,7 +459,7 @@ extension DemoRepository {
     private func verifiedOrCompletedOneRepKilogramsByExercise(userLifts: [LiftSubmission]) -> [String: Double] {
         let trackedExerciseIDs: Set<String> = ["bench", "squat", "deadlift"]
         var bestByExercise: [String: Double] = [:]
-        for lift in userLifts where lift.repetitions == 1 {
+        for lift in userLifts where lift.repetitions == 1 && lift.resolvedModerationStatus != .rejected {
             guard let exerciseID = trackedExerciseIDs.first(where: { RankingCalculator.matchesExerciseID(lift, exerciseID: $0) }) else { continue }
             bestByExercise[exerciseID] = max(bestByExercise[exerciseID] ?? 0, lift.normalizedWeightKilograms)
         }

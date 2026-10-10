@@ -69,6 +69,9 @@ struct ProfileDraft: Equatable {
     var experienceLevel: ExperienceLevel?
     var privacy: ProfilePrivacySettings
     var completesOnboarding: Bool
+    var trainingFocus: TrainingFocus? = nil
+    var updatesPrimaryGym: Bool = false
+    var primaryGymID: UUID? = nil
 }
 
 struct LocationCitySuggestion: Equatable, Identifiable, Hashable {
@@ -107,6 +110,7 @@ struct AuthenticatedProfile: Equatable {
     var yearsExperience: Int?
     var experienceLevel: ExperienceLevel?
     var privacy: ProfilePrivacySettings
+    var trainingFocus: TrainingFocus? = nil
 }
 
 struct PublicProfileCard: Equatable, Identifiable {

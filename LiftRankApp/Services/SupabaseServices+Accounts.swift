@@ -121,6 +121,7 @@ private struct PrivateDetailsDTO: Codable {
     let cityID: UUID?
     let yearsExperience: Int?
     let experienceLevel: String?
+    let trainingFocus: TrainingFocus?
 
     enum CodingKeys: String, CodingKey {
         case city, region
@@ -133,6 +134,7 @@ private struct PrivateDetailsDTO: Codable {
         case countryCode = "country_code"
         case yearsExperience = "years_experience"
         case experienceLevel = "experience_level"
+        case trainingFocus = "training_focus"
     }
 }
 
@@ -317,41 +319,21 @@ final class SupabaseProfileService: ProfileService {
             cityID: profile.cityID,
             city: profile.city, region: profile.state, countryCode: existing.countryCode ?? "US",
             yearsExperience: profile.yearsExperience, experienceLevel: profile.experienceLevel,
-            privacy: ProfilePrivacySettings(
-                profileAudience: existing.privacy.profileAudience,
-                ageBandAudience: profile.hideExactAge ? .privateProfile : .publicProfile,
-                divisionAudience: existing.privacy.divisionAudience,
-                bodyweightAudience: profile.hideBodyweight ? .privateProfile : .publicProfile,
-                locationAudience: profile.hideCity ? .privateProfile : .publicProfile,
-                gymAudience: profile.hideGym ? .privateProfile : .publicProfile,
-                friendListAudience: existing.privacy.friendListAudience,
-                showLiftVideos: !profile.hideLiftVideos
-            ),
-            completesOnboarding: existing.onboardingCompleted
+            privacy: existing.privacy,
+            completesOnboarding: existing.onboardingCompleted,
+            trainingFocus: profile.trainingFocus
         )
         return userProfile(try await saveProfile(draft))
     }
 
     func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile {
         do {
-            let params = SaveProfileParameters(draft: draft)
-            try await client.rpc("save_own_profile", params: params).execute()
-            try await client.from("profiles")
-                .update(ProfileAvatarPathUpdate(avatarPath: draft.avatarPath))
-                .eq("id", value: try await client.auth.session.user.id)
-                .execute()
-            try await client.from("profile_private_details")
-                .update(PrivateBodyweightUpdate(bodyweightPounds: draft.bodyweightPounds))
-                .eq("user_id", value: try await client.auth.session.user.id)
-                .execute()
-            try await client.from("profile_privacy")
-                .update(ProfilePrivacyDirectUpdate(
-                    bodyweightAudience: draft.privacy.bodyweightAudience,
-                    showLiftVideos: draft.privacy.showLiftVideos
-                ))
-                .eq("user_id", value: try await client.auth.session.user.id)
-                .execute()
-            return try await authenticatedProfile()
+            try await client.rpc("save_own_profile_mobile", params: ["profile": SaveProfileParameters(draft: draft)]).execute()
+            do {
+                return try await authenticatedProfile()
+            } catch {
+                throw LiftRankServiceError.server("Your changes were saved, but the updated profile couldn't be loaded. Retry to refresh it.")
+            }
         } catch let error as LiftRankServiceError { throw error }
         catch { throw SupabaseServiceErrorMapper.map(error) }
     }
@@ -455,7 +437,8 @@ final class SupabaseProfileService: ProfileService {
                 gymAudience: PrivacyAudience(rawValue: privacy.gymAudience) ?? .publicProfile,
                 friendListAudience: PrivacyAudience(rawValue: privacy.friendListAudience) ?? .friends,
                 showLiftVideos: privacy.showLiftVideos ?? true
-            )
+            ),
+            trainingFocus: details.trainingFocus
         )
     }
 
@@ -467,11 +450,6 @@ final class SupabaseProfileService: ProfileService {
         guard let value else { return nil }
         return SexCategory.allCases.first { $0.rawValue.lowercased() == value.lowercased() }
     }
-}
-
-private struct PrivateBodyweightUpdate: Encodable {
-    let bodyweightPounds: Double?
-    enum CodingKeys: String, CodingKey { case bodyweightPounds = "bodyweight_lb" }
 }
 
 private struct SaveBodyweightCheckInParameters: Encodable {
@@ -488,21 +466,12 @@ private struct SaveBodyweightCheckInParameters: Encodable {
     }
 }
 
-private struct ProfilePrivacyDirectUpdate: Encodable {
-    let bodyweightAudience: PrivacyAudience
-    let showLiftVideos: Bool
-    enum CodingKeys: String, CodingKey {
-        case bodyweightAudience = "bodyweight_audience"
-        case showLiftVideos = "show_lift_videos"
-    }
-}
-
 private struct ProfileAvatarPathUpdate: Encodable {
     let avatarPath: String?
     enum CodingKeys: String, CodingKey { case avatarPath = "avatar_path" }
 }
 
-private struct SaveProfileParameters: Encodable {
+struct SaveProfileParameters: Encodable {
     let newDisplayName: String
     let newBio: String
     let newPreferredUnit: String
@@ -522,6 +491,13 @@ private struct SaveProfileParameters: Encodable {
     let newGymAudience: String
     let newFriendListAudience: String
     let completeOnboarding: Bool
+    let newBodyweightAudience: String
+    let newShowLiftVideos: Bool
+    let newBodyweightPounds: Double?
+    let newTrainingFocus: TrainingFocus?
+    let newAvatarPath: String?
+    let updatesPrimaryGym: Bool
+    let newPrimaryGymID: UUID?
 
     enum CodingKeys: String, CodingKey {
         case newDisplayName = "new_display_name", newBio = "new_bio"
@@ -533,6 +509,9 @@ private struct SaveProfileParameters: Encodable {
         case newDivisionAudience = "new_division_audience", newLocationAudience = "new_location_audience"
         case newGymAudience = "new_gym_audience", newFriendListAudience = "new_friend_list_audience"
         case completeOnboarding = "complete_onboarding"
+        case newBodyweightAudience = "new_bodyweight_audience", newShowLiftVideos = "new_show_lift_videos"
+        case newBodyweightPounds = "new_bodyweight_pounds", newTrainingFocus = "new_training_focus"
+        case newAvatarPath = "new_avatar_path", updatesPrimaryGym = "updates_primary_gym", newPrimaryGymID = "new_primary_gym_id"
     }
 
     init(draft: ProfileDraft) {
@@ -555,6 +534,13 @@ private struct SaveProfileParameters: Encodable {
         newGymAudience = draft.privacy.gymAudience.rawValue
         newFriendListAudience = draft.privacy.friendListAudience.rawValue
         completeOnboarding = draft.completesOnboarding
+        newBodyweightAudience = draft.privacy.bodyweightAudience.rawValue
+        newShowLiftVideos = draft.privacy.showLiftVideos
+        newBodyweightPounds = draft.bodyweightPounds
+        newTrainingFocus = draft.trainingFocus
+        newAvatarPath = draft.avatarPath
+        updatesPrimaryGym = draft.updatesPrimaryGym
+        newPrimaryGymID = draft.primaryGymID
     }
 }
 

@@ -21,7 +21,15 @@ struct ExerciseCatalogIcon: View {
                         .stroke(Color.liftOverlay.opacity(0.7), lineWidth: 1)
                 }
 
-            movementIcon
+            VStack(spacing: 2) {
+                Image(systemName: iconGroup.symbol)
+                    .font(.system(size: 23, weight: .semibold))
+                    .frame(height: 27)
+                Text(iconGroup.rawValue)
+                    .font(.system(size: 8, weight: .bold, design: .rounded))
+                    .tracking(0.3)
+            }
+            .foregroundStyle(Color.liftAccentText)
         }
         .frame(width: 54, height: 54)
         .accessibilityElement(children: .ignore)
@@ -31,392 +39,64 @@ struct ExerciseCatalogIcon: View {
     private var accessibilityDescription: String {
         let profile = exercise.resolvedMuscleProfile
         let secondary = profile.secondary.isEmpty ? "" : "; assisting \(profile.secondaryDescription)"
-        return "\(exercise.name); primary muscles \(profile.primaryDescription)\(secondary)"
+        return "\(exercise.name); \(iconGroup.rawValue.lowercased()) exercise; primary muscles \(profile.primaryDescription)\(secondary)"
     }
 
-    private var unresolvedFallbackSymbol: String {
-        let weakSymbols = [
-            "dumbbell.fill",
-            "arrow.up",
-            "arrow.down",
-            "arrow.left.and.right",
-            "arrow.up.and.down",
-            "arrow.triangle.2.circlepath",
-            "figure.arms.open",
-            "figure.strengthtraining.traditional"
-        ]
-        guard weakSymbols.contains(exercise.symbolName) else { return exercise.symbolName }
+    private enum IconGroup: String {
+        case push = "PUSH"
+        case pull = "PULL"
+        case legs = "LEGS"
+        case arms = "ARMS"
+        case core = "CORE"
+        case carry = "CARRY"
+        case cardio = "CARDIO"
+        case mobility = "MOBILITY"
+        case strength = "STRENGTH"
+
+        var symbol: String {
+            switch self {
+            case .push: return "arrow.up"
+            case .pull: return "arrow.down"
+            case .legs: return "figure.strengthtraining.functional"
+            case .arms, .strength: return "dumbbell.fill"
+            case .core: return "figure.core.training"
+            case .carry: return "figure.walk"
+            case .cardio: return "heart.fill"
+            case .mobility: return "figure.flexibility"
+            }
+        }
+    }
+
+    private var iconGroup: IconGroup {
+        let category = exercise.workoutCategory.lowercased()
+        if category == "cardio" { return .cardio }
+        if category == "mobility" { return .mobility }
+        if category == "carry" || exercise.movementPattern == .carry { return .carry }
+        if category == "core" { return .core }
+        if category == "arms" { return .arms }
+        if category == "push" { return .push }
+        if category == "pull" { return .pull }
+        if category == "legs" || category == "pull/legs" { return .legs }
+        if category == "conditioning" { return .cardio }
+
+        switch exercise.movementPattern {
+        case .horizontalPress, .verticalPress: return .push
+        case .horizontalPull, .verticalPull: return .pull
+        case .squat, .hinge, .lunge, .calf: return .legs
+        case .curl, .elbowExtension: return .arms
+        case .shoulderIsolation: return .push
+        case .core: return .core
+        case .carry: return .carry
+        case .other: break
+        }
+
         let bodyPart = exercise.bodyPart.lowercased()
-        if bodyPart.contains("core") || bodyPart.contains("oblique") { return "figure.core.training" }
-        if bodyPart.contains("back") || bodyPart.contains("lat") || bodyPart.contains("trap") { return "figure.rower" }
-        if bodyPart.contains("chest") || bodyPart.contains("shoulder") || bodyPart.contains("bicep") || bodyPart.contains("tricep") {
-            return "figure.strengthtraining.traditional"
-        }
-        return "figure.strengthtraining.functional"
-    }
-
-    @ViewBuilder
-    private var movementIcon: some View {
-        let name = exercise.name.lowercased()
-        let gradient = LinearGradient(
-            colors: [Color(red: 0.89, green: 1.0, blue: 0.38), Color.liftBlue],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-        let equipment = exercise.equipment.lowercased()
-        let implementSymbol = equipment.contains("barbell")
-            ? "line.3.horizontal"
-            : equipment.contains("machine") || equipment.contains("smith")
-                ? "square.stack.3d.up.fill"
-            : equipment.contains("band") || equipment.contains("cable")
-                ? "arrow.left.and.right"
-                : "dumbbell.fill"
-        if name.contains("arnold press") {
-            ZStack {
-                Image(systemName: "figure.strengthtraining.functional")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "dumbbell.fill")
-                    .font(.system(size: 12, weight: .black))
-                    .offset(y: -10)
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 11, weight: .black))
-                    .offset(y: 7)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("overhead press") || name.contains("shoulder press") || name.contains("push press") || name.contains("military press") {
-            ZStack {
-                Image(systemName: "figure.stand")
-                    .font(.system(size: 25, weight: .semibold))
-                Image(systemName: implementSymbol)
-                    .font(.system(size: 18, weight: .bold))
-                    .offset(y: -13)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("lateral raise") {
-            ZStack {
-                Image(systemName: "figure.stand")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "arrow.left.and.right")
-                    .font(.system(size: 13, weight: .black))
-                    .offset(y: -1)
-                Image(systemName: implementSymbol)
-                    .font(.system(size: 10, weight: .black))
-                    .offset(y: -10)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("calf raise") {
-            ZStack {
-                Image(systemName: name.contains("seated") ? "figure.seated.side" : "figure.stand")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: implementSymbol)
-                    .font(.system(size: 12, weight: .black))
-                    .offset(y: -10)
-                Image(systemName: "arrow.up.to.line.compact")
-                    .font(.system(size: 13, weight: .black))
-                    .offset(y: 10)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("front raise") {
-            ZStack {
-                Image(systemName: "figure.stand")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 13, weight: .black))
-                    .offset(y: -10)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("neck") {
-            ZStack {
-                Image(systemName: "figure.stand")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: name.contains("lateral") ? "arrow.left.and.right" : "arrow.up.and.down")
-                    .font(.system(size: 12, weight: .black))
-                    .offset(y: -2)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("face pull") || name.contains("pull-apart") {
-            ZStack {
-                Image(systemName: "figure.strengthtraining.functional")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: implementSymbol)
-                    .font(.system(size: 10, weight: .black))
-                    .offset(y: -9)
-                Image(systemName: "arrow.left.and.right")
-                    .font(.system(size: 11, weight: .black))
-                    .offset(y: 1)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("fly") || name.contains("rear delt") {
-            ZStack {
-                Image(systemName: "figure.stand")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "arrow.left.and.right")
-                    .font(.system(size: 13, weight: .black))
-                    .offset(y: 1)
-                Image(systemName: implementSymbol)
-                    .font(.system(size: 10, weight: .black))
-                    .offset(y: -10)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("leg press") && (name.contains("45") || name.contains("linear")) {
-            ZStack {
-                Image(systemName: "figure.seated.side")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: 13, weight: .black))
-                    .offset(x: 9, y: -1)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("vertical leg press") {
-            ZStack {
-                Image(systemName: "figure.seated.side")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 13, weight: .black))
-                    .offset(y: -1)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("horizontal leg press") {
-            ZStack {
-                Image(systemName: "figure.seated.side")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 13, weight: .black))
-                    .offset(x: 10, y: 2)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("leg press") {
-            ZStack {
-                Image(systemName: "figure.seated.side")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 13, weight: .black))
-                    .offset(x: 10, y: 2)
-            }
-            .foregroundStyle(gradient)
-        } else if (name.contains("assisted") || name.contains("assist")) && (name.contains("pull-up") || name.contains("pull up") || name.contains("chin-up") || name.contains("chin up")) {
-            ZStack {
-                Image(systemName: "figure.climbing")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "square.stack.3d.up.fill")
-                    .font(.system(size: 11, weight: .black))
-                    .offset(y: 10)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("alternating") && name.contains("bench press") {
-            ZStack {
-                Image(systemName: "figure.strengthtraining.traditional")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "dumbbell.fill")
-                    .font(.system(size: 13, weight: .black))
-                    .offset(y: -10)
-                Image(systemName: "arrow.left.and.right")
-                    .font(.system(size: 10, weight: .black))
-                    .offset(y: 7)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("pulldown") || name.contains("pull-down") || name.contains("pullover") {
-            ZStack {
-                Image(systemName: "figure.climbing")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "arrow.down")
-                    .font(.system(size: 13, weight: .black))
-                    .offset(y: -10)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("pull-up") || name.contains("pull up") || name.contains("chin-up") || name.contains("chin up") {
-            Image(systemName: "figure.climbing")
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(gradient)
-        } else if name.contains("back extension") {
-            ZStack {
-                Image(systemName: "figure.flexibility")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 12, weight: .black))
-                    .offset(y: 9)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("push-up") || name.contains("push up") || name.contains("dip") {
-            ZStack {
-                Image(systemName: "figure.strengthtraining.functional")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "arrow.down")
-                    .font(.system(size: 12, weight: .black))
-                    .offset(y: -1)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("bench press") || name.contains("chest press") || name.contains("floor press") || name.contains("incline press") {
-            ZStack {
-                Image(systemName: "figure.strengthtraining.traditional")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: implementSymbol)
-                    .font(.system(size: 17, weight: .bold))
-                    .offset(y: -10)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("shrug") {
-            ZStack {
-                Image(systemName: "figure.stand")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: implementSymbol)
-                    .font(.system(size: 10, weight: .black))
-                    .offset(y: -10)
-                Image(systemName: "arrow.up.and.down")
-                    .font(.system(size: 12, weight: .black))
-                    .offset(y: -1)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("wrist curl") || name.contains("wrist extension") {
-            ZStack {
-                Image(systemName: "figure.stand")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: implementSymbol)
-                    .font(.system(size: 10, weight: .black))
-                    .offset(y: -9)
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 11, weight: .black))
-                    .offset(y: 5)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("hip thrust") || name.contains("glute bridge") {
-            ZStack {
-                Image(systemName: "figure.core.training")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 12, weight: .black))
-                    .offset(y: 9)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("leg curl") {
-            ZStack {
-                Image(systemName: "figure.seated.side")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "arrow.down")
-                    .font(.system(size: 12, weight: .black))
-                    .offset(x: 10, y: 2)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("leg extension") {
-            ZStack {
-                Image(systemName: "figure.seated.side")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 12, weight: .black))
-                    .offset(x: 10, y: 2)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("deadlift") || name.contains("good morning") || name.contains("pull-through") {
-            ZStack {
-                Image(systemName: "figure.flexibility")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: implementSymbol)
-                    .font(.system(size: 14, weight: .black))
-                    .offset(y: -8)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("squat") {
-            ZStack {
-                Image(systemName: "figure.strengthtraining.functional")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: implementSymbol)
-                    .font(.system(size: 14, weight: .black))
-                    .offset(y: -8)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("lunge") || name.contains("step-up") || name.contains("step up") {
-            Image(systemName: "figure.walk")
-                .font(.system(size: 25, weight: .semibold))
-                .foregroundStyle(gradient)
-        } else if name.contains("curl") {
-            ZStack {
-                Image(systemName: "figure.stand")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: implementSymbol)
-                    .font(.system(size: 10, weight: .black))
-                    .offset(y: -9)
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 11, weight: .black))
-                    .offset(y: 7)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("upright row") {
-            ZStack {
-                Image(systemName: "figure.stand")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: implementSymbol)
-                    .font(.system(size: 13, weight: .black))
-                    .offset(y: -8)
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 11, weight: .black))
-                    .offset(y: 8)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("external rotation") || name.contains("internal rotation") {
-            ZStack {
-                Image(systemName: "figure.stand")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: implementSymbol)
-                    .font(.system(size: 10, weight: .black))
-                    .offset(y: -9)
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 13, weight: .black))
-                    .offset(y: -1)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("wood chop") || name.contains("pallof") || name.contains("twist") || name.contains("rotation") {
-            ZStack {
-                Image(systemName: "figure.core.training")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 12, weight: .black))
-                    .offset(y: -1)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("kickback") || name.contains("abduction") || name.contains("adduction") || name.contains("lateral walk") {
-            ZStack {
-                Image(systemName: "figure.stand")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "arrow.left.and.right")
-                    .font(.system(size: 12, weight: .black))
-                    .offset(y: 3)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("triceps") || name.contains("pushdown") || name.contains("skull crusher") {
-            ZStack {
-                Image(systemName: "figure.stand")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: "arrow.down")
-                    .font(.system(size: 12, weight: .black))
-                    .offset(y: -8)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("push-up") || name.contains("push up") || name.contains("dip") {
-            Image(systemName: "figure.strengthtraining.functional")
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(gradient)
-        } else if name.contains("farmer") && name.contains("carry") {
-            ZStack {
-                Image(systemName: "figure.walk")
-                    .font(.system(size: 24, weight: .semibold))
-                Image(systemName: implementSymbol)
-                    .font(.system(size: 12, weight: .black))
-                    .offset(y: -1)
-            }
-            .foregroundStyle(gradient)
-        } else if name.contains("crunch") || name.contains("plank") || name.contains("sit-up") || name.contains("sit up") {
-            Image(systemName: "figure.core.training")
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(gradient)
-        } else if name.contains("row") && !name.contains("upright") {
-            Image(systemName: "figure.rower")
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(gradient)
-        } else {
-            Image(systemName: unresolvedFallbackSymbol)
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(gradient)
-        }
+        if bodyPart.contains("core") || bodyPart.contains("oblique") { return .core }
+        if bodyPart.contains("quad") || bodyPart.contains("hamstring") || bodyPart.contains("glute") || bodyPart.contains("calf") { return .legs }
+        if bodyPart.contains("bicep") || bodyPart.contains("tricep") || bodyPart.contains("forearm") { return .arms }
+        if bodyPart.contains("chest") || bodyPart.contains("shoulder") { return .push }
+        if bodyPart.contains("back") || bodyPart.contains("lat") { return .pull }
+        return .strength
     }
 }
 
@@ -566,12 +246,10 @@ enum RepDBExerciseMedia {
         "leg_extension": "leg-extension",
         "leg_press": "leg-press",
         "lying_leg_curl": "leg-curl",
-        "machine_back_extension": "machine-back-extension",
         "machine_chest_press": "chest-press-machine",
         "machine_converging_chest_press": "chest-press-machine",
         "machine_vertical_chest_press": "chest-press-machine",
         "machine_vertical_chest_fly": "machine-chest-fly",
-        "machine_45_back_extension": "machine-back-extension",
         "machine_donkey_calf": "donkey-calf-raise",
         "machine_single_leg_curl": "single-leg-lying-leg-curl",
         "machine_glute_kickback": "glute-kickback",

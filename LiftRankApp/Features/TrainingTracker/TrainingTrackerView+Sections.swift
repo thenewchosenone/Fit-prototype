@@ -278,7 +278,7 @@ extension TrainingTrackerView {
             .padding(.top, 8)
             .padding(.bottom, 6)
 
-            if appState.selectedWorkoutPlan == nil {
+            if appState.selectedWorkoutPlan == nil && segment == .today {
                 HStack(spacing: 8) {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(Color.liftAccentText)
@@ -335,9 +335,6 @@ extension TrainingTrackerView {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Today's training")
                         .font(.title3.weight(.black))
-                    Text("Your workout plan, today's session, and recovery.")
-                        .font(.caption)
-                        .foregroundStyle(Color.liftMuted)
                 }
                 Spacer()
             }
@@ -527,7 +524,7 @@ extension TrainingTrackerView {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("My Plans")
                             .font(.headline)
-                        Text("Choose which plan is active; edit its weeks and workouts below.")
+                        Text("Select your active plan.")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                     }

@@ -57,7 +57,7 @@ final class MockProfileService: ProfileService {
             preferredUnit: profile.preferredUnit, birthDate: nil, sexCategory: profile.sexCategory,
             heightCentimeters: profile.heightInches * 2.54,
             bodyweightPounds: profile.bodyweightPounds, city: profile.city,
-            region: profile.state, countryCode: "US", cityID: profile.cityID, yearsExperience: profile.yearsExperience,
+            region: profile.state, countryCode: profile.countryCode, cityID: profile.cityID, yearsExperience: profile.yearsExperience,
             experienceLevel: profile.experienceLevel,
             privacy: ProfilePrivacySettings(
                 profileAudience: profile.profileAudience,
@@ -66,7 +66,8 @@ final class MockProfileService: ProfileService {
                 locationAudience: profile.hideCity ? .privateProfile : .publicProfile,
                 gymAudience: profile.hideGym ? .privateProfile : .publicProfile,
                 showLiftVideos: !profile.hideLiftVideos
-            )
+            ),
+            trainingFocus: profile.trainingFocus
         )
     }
     func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile {
@@ -74,12 +75,14 @@ final class MockProfileService: ProfileService {
         profile.displayName = draft.displayName
         profile.bio = draft.bio
         profile.preferredUnit = draft.preferredUnit
+        profile.trainingFocus = draft.trainingFocus ?? profile.trainingFocus
         profile.sexCategory = draft.sexCategory ?? .male
         profile.heightInches = (draft.heightCentimeters ?? profile.heightInches * 2.54) / 2.54
         profile.bodyweightPounds = draft.bodyweightPounds ?? profile.bodyweightPounds
         profile.city = draft.city
         profile.state = draft.region
         profile.cityID = draft.cityID
+        profile.countryCode = draft.countryCode
         profile.yearsExperience = draft.yearsExperience ?? profile.yearsExperience
         profile.experienceLevel = draft.experienceLevel ?? profile.experienceLevel
         profile.profileAudience = draft.privacy.profileAudience

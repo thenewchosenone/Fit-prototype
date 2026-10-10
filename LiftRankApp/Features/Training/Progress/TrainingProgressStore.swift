@@ -46,6 +46,13 @@ struct TrainingRecoverySummary: Equatable {
     let hoursSinceTraining: Int
 }
 
+struct TrainingAttentionInsight: Identifiable {
+    let id: String
+    let title: String
+    let evidence: String
+    let nextStep: String
+}
+
 struct CompletedWorkoutPresentation {
     let workout: CompletedWorkout
     let exercises: [WorkoutExerciseSnapshot]
@@ -166,6 +173,8 @@ final class TrainingProgressStore {
     private var cachedHomeWeeklySummarySignature: HomeWeeklySummarySignature?
     private var cachedWeeklyVolumeByBodyPart: [String: Double]?
     private var cachedWeeklyVolumeByBodyPartSignature: WeeklyVolumeByBodyPartSignature?
+    private var cachedWeeklyWorkingSetsByMuscle: [(weekStart: Date, counts: [ExerciseMuscleRegion: Int])]?
+    private var cachedWeeklyWorkingSetsByMuscleSignature: WeeklyWorkingSetsByMuscleSignature?
     private var cachedExerciseHistory: [ExerciseHistoryEntry]?
     private var cachedExerciseHistorySignature: ExerciseHistorySignature?
     private var cachedExerciseProgressPoints: [ExerciseProgressPoint]?
@@ -298,6 +307,8 @@ final class TrainingProgressStore {
         cachedHomeWeeklySummarySignature = nil
         cachedWeeklyVolumeByBodyPart = nil
         cachedWeeklyVolumeByBodyPartSignature = nil
+        cachedWeeklyWorkingSetsByMuscle = nil
+        cachedWeeklyWorkingSetsByMuscleSignature = nil
         cachedExerciseHistory = nil
         cachedExerciseHistorySignature = nil
         cachedExerciseProgressPoints = nil
@@ -620,10 +631,24 @@ final class TrainingProgressStore {
         referenceDate: Date = .now,
         weekCount: Int = 4
     ) -> [(weekStart: Date, counts: [ExerciseMuscleRegion: Int])] {
+        resetAccountScopedEntriesIfNeeded()
         guard weekCount > 0,
               let currentWeek = calendar.dateInterval(of: .weekOfYear, for: referenceDate) else { return [] }
+        let signature = WeeklyWorkingSetsByMuscleSignature(
+            weekStart: currentWeek.start,
+            weekCount: weekCount,
+            completedWorkoutsRevision: repository.completedWorkoutsRevision
+        )
+        if let cachedWeeklyWorkingSetsByMuscle,
+           cachedWeeklyWorkingSetsByMuscleSignature == signature {
+            return cachedWeeklyWorkingSetsByMuscle
+        }
 
-        return (0..<weekCount).reversed().compactMap { offset in
+        let oldestWeekStart = calendar.date(byAdding: .weekOfYear, value: 1 - weekCount, to: currentWeek.start) ?? currentWeek.start
+        let recentWorkouts = repository.completedWorkouts.filter {
+            $0.completedAt >= oldestWeekStart && $0.completedAt < currentWeek.end
+        }
+        let weeks: [(weekStart: Date, counts: [ExerciseMuscleRegion: Int])] = (0..<weekCount).reversed().compactMap { offset in
             guard let weekStart = calendar.date(
                 byAdding: .weekOfYear,
                 value: -offset,
@@ -631,11 +656,11 @@ final class TrainingProgressStore {
             ), let week = calendar.dateInterval(of: .weekOfYear, for: weekStart) else { return nil }
 
             var totals: [ExerciseMuscleRegion: Int] = [:]
-            for workout in repository.completedWorkouts where week.contains(workout.completedAt) {
-            let countsByExercise = Dictionary(
-                grouping: workout.sets.lazy.filter { $0.isComplete && !$0.isWarmup },
-                by: { $0.prescriptionID }
-            ).mapValues { $0.count }
+            for workout in recentWorkouts where week.contains(workout.completedAt) {
+                let countsByExercise = Dictionary(
+                    grouping: workout.sets.lazy.filter { $0.isComplete && !$0.isWarmup },
+                    by: { $0.prescriptionID }
+                ).mapValues { $0.count }
 
                 for exercise in workout.exercises {
                     let count = countsByExercise[exercise.id] ?? 0
@@ -652,6 +677,76 @@ final class TrainingProgressStore {
 
             return (weekStart, totals)
         }
+        cachedWeeklyWorkingSetsByMuscle = weeks
+        cachedWeeklyWorkingSetsByMuscleSignature = signature
+        return weeks
+    }
+
+    func strengthAttentionInsights(
+        summary: StrengthTierSummary,
+        referenceDate: Date = .now
+    ) -> [TrainingAttentionInsight] {
+        var insights = plateauInsights
+            .filter { RankingCalculator.strengthTierExerciseIDs.contains($0.exerciseID) }
+            .map { plateau in
+                TrainingAttentionInsight(
+                    id: "plateau-\(plateau.exerciseID)",
+                    title: "\(plateau.exerciseName) may be stalled",
+                    evidence: "Estimated strength and working-set volume did not rise by more than 1% in its last three workouts.",
+                    nextStep: "Review recovery and technique. If your plan calls for progression, aim for one more rep with sound form before adding load."
+                )
+            }
+
+        let cutoff = referenceDate.addingTimeInterval(-28 * 24 * 3_600)
+        for lift in summary.liftProgress {
+            let sessionCount = repository.completedWorkouts.filter { workout in
+                workout.completedAt >= cutoff && workout.completedAt <= referenceDate && workout.exercises.contains { exercise in
+                    (exercise.rankingExerciseID ?? exercise.exerciseID) == lift.exerciseID && workout.sets.contains {
+                        $0.prescriptionID == exercise.id && $0.isComplete && !$0.isWarmup
+                    }
+                }
+            }.count
+            guard sessionCount < 2 else { continue }
+            insights.append(TrainingAttentionInsight(
+                id: "frequency-\(lift.exerciseID)",
+                title: "\(lift.exerciseName) has little recent practice",
+                evidence: "\(sessionCount) completed working-set session\(sessionCount == 1 ? "" : "s") in the last 28 days.",
+                nextStep: "If \(lift.exerciseName.lowercased()) is a priority, check its frequency in your plan and log a quality working set."
+            ))
+        }
+        return Array(insights.prefix(2))
+    }
+
+    func muscleAttentionInsights(referenceDate: Date = .now) -> [TrainingAttentionInsight] {
+        let completedWeeks = Array(weeklyWorkingSetsByMuscle(referenceDate: referenceDate).dropLast())
+        guard completedWeeks.filter({ !$0.counts.isEmpty }).count >= 2 else { return [] }
+
+        var totals: [ExerciseMuscleRegion: Int] = [:]
+        for week in completedWeeks {
+            for (muscle, count) in week.counts {
+                totals[muscle, default: 0] += count
+            }
+        }
+
+        let pairs: [(ExerciseMuscleRegion, ExerciseMuscleRegion)] = [
+            (.quads, .hamstrings), (.biceps, .triceps), (.frontDelts, .rearDelts)
+        ]
+        let insights: [TrainingAttentionInsight] = pairs.compactMap { first, second in
+            let firstCount = totals[first, default: 0]
+            let secondCount = totals[second, default: 0]
+            let higher = firstCount >= secondCount ? first : second
+            let lower = firstCount >= secondCount ? second : first
+            let higherCount = max(firstCount, secondCount)
+            let lowerCount = min(firstCount, secondCount)
+            guard higherCount >= 8, higherCount - lowerCount >= 6, higherCount >= lowerCount * 2 else { return nil }
+            return TrainingAttentionInsight(
+                id: "emphasis-\(first.rawValue)-\(second.rawValue)",
+                title: "\(lower.displayName) received less work",
+                evidence: "\(lower.displayName): \(lowerCount) primary sets; \(higher.displayName): \(higherCount) across the last three completed weeks.",
+                nextStep: "If balanced development is a goal, check whether your next plan week includes work focused on \(lower.displayName.lowercased())."
+            )
+        }
+        return Array(insights.prefix(2))
     }
 
     func homeWeeklySummary(
@@ -1124,6 +1219,12 @@ private struct WeeklyVolumeByBodyPartSignature: Equatable {
         self.preferredUnit = preferredUnit
         self.completedWorkoutsRevision = completedWorkoutsRevision
     }
+}
+
+private struct WeeklyWorkingSetsByMuscleSignature: Equatable {
+    let weekStart: Date
+    let weekCount: Int
+    let completedWorkoutsRevision: Int
 }
 
 private struct HomeWeeklySummarySignature: Equatable {

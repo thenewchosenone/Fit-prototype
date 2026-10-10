@@ -563,9 +563,9 @@ enum ExerciseBodyRegionResolver {
         include(.back, when: value.contains("back") || value.contains("lat") || value.contains("trap"))
         include(.arms, when: value.contains("bicep") || value.contains("tricep") || value.contains("arm") || value.contains("forearm") || value.contains("grip"))
         include(.core, when: value.contains("core") || value.contains("abdominal") || value.contains("oblique"))
-        include(.glutes, when: value.contains("glute"))
-        include(.upperLegs, when: value.contains("quad") || value.contains("hamstring") || value.contains("adductor") || value.contains("upper leg"))
-        include(.lowerLegs, when: value.contains("calf") || value.contains("calves") || value.contains("tibialis") || value.contains("lower leg"))
+        include(.glutes, when: value.contains("glute") || value == "hips")
+        include(.upperLegs, when: value == "legs" || value == "hips" || value.contains("quad") || value.contains("hamstring") || value.contains("adductor") || value.contains("upper leg") || value.contains("hip flexor"))
+        include(.lowerLegs, when: value == "legs" || value.contains("calf") || value.contains("calves") || value.contains("tibialis") || value.contains("lower leg"))
         include(.fullBody, when: value.contains("full body"))
 
         return regions.isEmpty ? [.fullBody] : regions

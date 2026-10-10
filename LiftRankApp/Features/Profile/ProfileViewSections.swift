@@ -68,19 +68,27 @@ extension ProfileView {
                         restrictedProfileState
                     } else {
                         header
-                        if !isCurrentUser && liftPresentation.lifts.isEmpty {
+                        if let profileLoadError {
+                            LiftEmptyState(
+                                title: "Couldn't load training data",
+                                message: profileLoadError,
+                                symbolName: "wifi.exclamationmark",
+                                actionTitle: "Retry",
+                                action: { Task { await refreshProfileData(force: true) } },
+                                compact: true
+                            )
+                        }
+                        if !isCurrentUser && liftPresentation.lifts.isEmpty && profileLoadError == nil {
                             LiftEmptyState(
                                 title: "No public training data",
-                                message: "This athlete hasn’t shared any qualifying lifts yet, or their submissions are private.",
+                                message: "Qualifying lifts are either not shared yet or not available to visitors.",
                                 symbolName: "eye.slash",
                                 compact: true
                             )
                             .accessibilityIdentifier("profile.noPublicData")
                         }
-                        Text("Jump to")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.liftMuted)
-                            ProfileSectionNavigation(
+                        if isCurrentUser || !liftPresentation.lifts.isEmpty {
+                        ProfileSectionNavigation(
                                 selection: $selectedProfileSection,
                             sections: isCurrentUser
                                 ? ProfileSection.allCases
@@ -105,6 +113,7 @@ extension ProfileView {
                             }
                             recentSubmissions(profileLifts: liftPresentation.lifts)
                                 .id(ProfileSection.submissions.id)
+                        }
                         }
                     }
                 }
@@ -188,6 +197,9 @@ extension ProfileView {
         .onChange(of: appState.competitionStore.liftsRevision) { _, _ in
             Task { await refreshVisibleProfileLifts() }
         }
+        .onChange(of: appState.authenticatedPrivacy) { _, _ in
+            Task { await refreshVisibleProfileLifts() }
+        }
         .alert(submissionPendingDeletion?.requiresCoordinatedRemoval == true ? "Remove protected submission?" : "Permanently delete submission?", isPresented: Binding(
             get: { submissionPendingDeletion != nil },
             set: { if !$0 { submissionPendingDeletion = nil } }
@@ -224,6 +236,14 @@ extension ProfileView {
     }
 
     private func refreshProfileData(force: Bool) async {
+        profileLoadError = nil
+        if !isCurrentUser && appState.isAuthenticated && !appState.isDemoMode {
+            do {
+                try await appState.competitionStore.refreshProfileSubmissions(for: profile.id)
+            } catch {
+                profileLoadError = appState.userMessage(error)
+            }
+        }
         await refreshVisibleProfileLifts()
         if isCurrentUser {
             async let lifts: Void = appState.refreshProductionLifts(force: force)

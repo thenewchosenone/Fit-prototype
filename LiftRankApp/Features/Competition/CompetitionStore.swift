@@ -333,6 +333,17 @@ final class CompetitionStore: ObservableObject {
         )
     }
 
+    func refreshProfileSubmissions(for profileID: UUID) async throws {
+        guard let liftService else { throw LiftRankServiceError.configurationMissing }
+        let viewerID = repository.currentProfile.id
+        let submissions = try await liftService.submissions(forUserID: profileID)
+        guard repository.currentProfile.id == viewerID, !Task.isCancelled else {
+            throw LiftRankServiceError.sessionExpired
+        }
+        let merged = repository.lifts.filter { $0.userID != profileID } + submissions
+        if repository.lifts != merged { repository.lifts = merged }
+    }
+
     func visibleProfileLifts(
         for profileID: UUID,
         viewerID: UUID,

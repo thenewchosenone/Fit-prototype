@@ -5,7 +5,7 @@ let catalogPromise: Promise<Gym[]> | null = null;
 
 export function loadGymCatalog(): Promise<Gym[]> {
   catalogPromise ??= import("./gymCatalog.json")
-    .then(({ default: catalog }) => catalog.gyms.map((gym) => withLegacyDemoMetrics({ ...gym, countryCode: "US" as const })))
+    .then(({ default: catalog }) => catalog.gyms.map((gym) => withLegacyDemoMetrics(gym as Gym)))
     .catch((error: unknown) => {
       catalogPromise = null;
       throw error;

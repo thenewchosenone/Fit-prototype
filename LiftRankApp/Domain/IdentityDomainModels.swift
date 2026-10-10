@@ -1,5 +1,38 @@
 import Foundation
 
+enum TrainingFocus: String, CaseIterable, Identifiable, Codable {
+    case bodybuilding
+    case powerlifting
+    case generalFitness
+    case mixed
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .bodybuilding: "Bodybuilding"
+        case .powerlifting: "Powerlifting"
+        case .generalFitness: "General fitness"
+        case .mixed: "Mixed training"
+        }
+    }
+    var detail: String {
+        switch self {
+        case .bodybuilding: "Muscle work and balance"
+        case .powerlifting: "Squat, bench, and deadlift"
+        case .generalFitness: "Consistency and recovery"
+        case .mixed: "A mix of strength, muscle, and consistency"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .bodybuilding: "figure.strengthtraining.traditional"
+        case .powerlifting: "dumbbell.fill"
+        case .generalFitness: "heart.fill"
+        case .mixed: "square.grid.2x2.fill"
+        }
+    }
+}
+
 struct WeightClass: Identifiable, Codable, Hashable {
     let id: String
     let sexCategory: SexCategory
@@ -34,6 +67,7 @@ struct UserProfile: Identifiable, Codable, Hashable {
     var hideGym: Bool
     var hideLiftVideos: Bool
     var profileAudience: PrivacyAudience = .publicProfile
+    var trainingFocus: TrainingFocus? = nil
 }
 
 struct Gym: Identifiable, Codable, Hashable {

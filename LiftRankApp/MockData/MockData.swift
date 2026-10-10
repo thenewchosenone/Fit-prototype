@@ -14,8 +14,11 @@ enum MockData {
         Exercise(id: "dumbbell_bench_press", name: "Dumbbell bench press", symbolName: "figure.strengthtraining.traditional", isPowerlift: false)
     ]
 
-    static var trainingExerciseLibrary: [TrainingExerciseCatalogItem] {
-        (coreTrainingExerciseLibrary + PopularExerciseCatalog.exercises).map { item in
+    static let trainingExerciseLibrary: [TrainingExerciseCatalogItem] = {
+        var exerciseIDs = Set<String>()
+        let uniqueExercises = (coreTrainingExerciseLibrary + PopularExerciseCatalog.exercises)
+            .filter { exerciseIDs.insert($0.id).inserted }
+        return uniqueExercises.map { item in
             var enriched = item
             enriched.muscleProfile = item.muscleProfile ?? ExerciseMuscleProfileResolver.profile(name: item.name, bodyPart: item.bodyPart)
             enriched.searchAliases = Array(Set(item.searchAliases + exerciseAliases(for: item)))
@@ -28,7 +31,7 @@ enum MockData {
             }
             return enriched
         }
-    }
+    }()
 
     private static func exerciseAliases(for exercise: TrainingExerciseCatalogItem) -> [String] {
         var aliases = generatedAliases(for: exercise)
@@ -80,6 +83,12 @@ enum MockData {
 
     private static func movementPattern(for exercise: TrainingExerciseCatalogItem) -> ExerciseMovementPattern {
         let name = exercise.name.lowercased()
+        if name.contains("back extension") || name.contains("hyperextension") {
+            return .hinge
+        }
+        if name.contains("extension") && exercise.bodyPart.localizedCaseInsensitiveContains("triceps") {
+            return .elbowExtension
+        }
         if name.contains("bench") || name.contains("chest press") || name.contains("pec deck") || name.contains("dip") || name.contains("fly") || name.contains("push-up") || name.contains("push up") || name.contains("floor press") {
             return .horizontalPress
         }
@@ -104,7 +113,7 @@ enum MockData {
         if name.contains("curl") && !name.contains("leg curl") {
             return .curl
         }
-        if name.contains("pressdown") || name.contains("triceps") || name.contains("extension") {
+        if name.contains("pressdown") || name.contains("triceps") {
             return .elbowExtension
         }
         if name.contains("lateral raise") || name.contains("rear delt") || name.contains("upright row") || name.contains("high pull") || name.contains("shrug") {
@@ -237,25 +246,27 @@ enum MockData {
 
     static let demoProfile = UserProfile(
         id: demoUserID,
-        username: "",
-        displayName: "",
-        ageGroup: "",
+        username: "alex.reyes",
+        displayName: "Alex Reyes",
+        bio: "Powerlifting-focused training with a focus on steady progress.",
+        ageGroup: "30-34",
         sexCategory: .male,
-        heightInches: 0,
-        bodyweightPounds: 0,
+        heightInches: 70,
+        bodyweightPounds: 198,
         preferredUnit: .pounds,
-        city: "",
-        state: "",
-        primaryGymID: UUID(),
-        primaryGymName: "",
-        yearsExperience: 0,
-        experienceLevel: .beginner,
+        city: "Miami",
+        state: "Florida",
+        primaryGymID: UUID(uuidString: "D0000000-0000-0000-0000-000000000100")!,
+        primaryGymName: "Lift Rivals Demo Gym",
+        yearsExperience: 4,
+        experienceLevel: .intermediate,
         profileImageName: "person.crop.circle.fill",
         hideExactAge: false,
         hideBodyweight: false,
         hideCity: false,
         hideGym: false,
-        hideLiftVideos: false
+        hideLiftVideos: false,
+        trainingFocus: .powerlifting
     )
 
     static let achievements: [Achievement] = (

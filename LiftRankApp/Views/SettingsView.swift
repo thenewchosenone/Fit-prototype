@@ -17,14 +17,7 @@ struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var preferredUnit = UnitSystem.pounds
-    @State private var privateProfile = false
-    @State private var hideBodyweight = false
-    @State private var hideExactAge = false
-    @State private var hideLocation = false
-    @State private var hideGym = false
-    @State private var hideLiftVideos = false
-    @State private var divisionAudience = PrivacyAudience.publicProfile
-    @State private var friendListAudience = PrivacyAudience.friends
+    @State private var trainingFocus: TrainingFocus?
     @State private var privacy = ProfilePrivacySettings()
     @AppStorage("liftrank.appearance") private var appearance = LiftAppearance.system.rawValue
     @State private var settingsInfo: SettingsInfoPage?
@@ -32,6 +25,7 @@ struct SettingsView: View {
     @State private var confirmingDeletion = false
     @State private var confirmingDemoReset = false
     @State private var isSavingSettings = false
+    @State private var hasLoadedDraft = false
     @State private var settingsSaveError: String?
     @State private var failedSettingsUpdate: (profile: UserProfile, privacy: ProfilePrivacySettings)?
     @Environment(\.openURL) private var openURL
@@ -67,39 +61,25 @@ struct SettingsView: View {
                     }
                     .id(SettingsSection.account)
                     Section("Privacy") {
-                        Toggle("Private profile", isOn: $privateProfile)
-                        Text(privateProfile
-                             ? "Private profile overrides every field below. Turning it off restores each saved field setting."
-                             : "Your profile is public; each field below controls what other athletes can see.")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
-                        Toggle("Hide bodyweight from public", isOn: $hideBodyweight)
-                        Toggle("Hide age band from public", isOn: $hideExactAge)
-                        Toggle("Hide location from public", isOn: $hideLocation)
-                        Toggle("Hide gym from public", isOn: $hideGym)
-                        Toggle("Hide approved lift videos from public", isOn: $hideLiftVideos)
-                        Picker("Division visibility", selection: $divisionAudience) {
-                            ForEach(PrivacyAudience.allCases) { audience in
-                                Text(audience.label).tag(audience)
-                            }
+                        audiencePicker("Profile visibility", selection: $privacy.profileAudience)
+                        audiencePicker("Bodyweight", selection: $privacy.bodyweightAudience)
+                        audiencePicker("Age band", selection: $privacy.ageBandAudience)
+                        audiencePicker("Location", selection: $privacy.locationAudience)
+                        audiencePicker("Gym", selection: $privacy.gymAudience)
+                        audiencePicker("Division", selection: $privacy.divisionAudience)
+                        audiencePicker("Friend list", selection: $privacy.friendListAudience)
+                        Toggle("Show lift videos", isOn: $privacy.showLiftVideos)
+                        DisclosureGroup("How visibility works") {
+                            Text("Profile visibility limits who can open your profile. Field settings apply within that audience. Achievements and unlocked badges stay private. Ratio and weight-class rankings may indirectly reveal bodyweight.")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
                         }
-                        Picker("Friend list visibility", selection: $friendListAudience) {
-                            ForEach(PrivacyAudience.allCases) { audience in
-                                Text(audience.label).tag(audience)
-                            }
-                        }
-                        Text("These controls affect what appears on your public profile and leaderboards; they do not delete your training records.")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
-                        Text("Achievements and unlocked badges stay private on public profiles.")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
                         Button {
                             showingPublicPreview = true
                         } label: {
                             Label("Preview public profile", systemImage: "person.text.rectangle")
                         }
-                        Text("Review what another athlete can see with the current privacy settings.")
+                        Text("Preview uses your saved settings.")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                     }
@@ -116,10 +96,25 @@ struct SettingsView: View {
                     }
                     .id(SettingsSection.notifications)
                     Section("Training") {
-                        Toggle("Automatically submit video-backed PRs", isOn: Binding(
+                        Picker("Training focus", selection: $trainingFocus) {
+                            if trainingFocus == nil {
+                                Text("Choose a focus").tag(nil as TrainingFocus?)
+                            }
+                            ForEach(TrainingFocus.allCases) { focus in
+                                Text(focus.title).tag(Optional(focus))
+                            }
+                        }
+                        .accessibilityIdentifier("settings.trainingFocus")
+                        Text("Sets the first Progress view. All views and your workout history remain available.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                        Toggle("Automatically share workout PRs", isOn: Binding(
                             get: { appState.workoutPreferences.automaticallySubmitVideoBackedPRs },
                             set: { appState.setAutomaticVideoPRSubmission($0) }
                         ))
+                        Text("With automatic sharing enabled, eligible PRs can appear publicly as self-reported without video or as video-backed when you attach one. Ordinary workout logs and private PRs stay private.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
                         Toggle("Start rest timer after completed sets", isOn: Binding(
                             get: { appState.workoutPreferences.defaultRestTimerEnabled },
                             set: { appState.setDefaultRestTimerEnabled($0) }
@@ -129,9 +124,6 @@ struct SettingsView: View {
                                 Task { await appState.retryFailedWorkoutPRSubmissions() }
                             }
                         }
-                        Text("With automatic sharing enabled, eligible PRs can appear publicly as self-reported without video or as video-backed when you attach one. Ordinary workout logs and private PRs stay private.")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
                     }
                     .id(SettingsSection.training)
                     Section("Legal and Safety") {
@@ -152,23 +144,20 @@ struct SettingsView: View {
                         }
                     }
                     .id(SettingsSection.appearance)
-                    Section("Developer") {
-                        if appState.isDemoMode {
+                    if appState.isDemoMode {
+                        Section("Demo") {
                             Button("Reset Demo Data", role: .destructive) {
                                 confirmingDemoReset = true
                             }
-                        } else {
-                            Text("Authenticated profile, social, and workout backup data are synchronized through Supabase. Local data is used for offline access.")
-                                .font(.caption)
                         }
+                        .id(SettingsSection.developer)
                     }
-                    .id(SettingsSection.developer)
                     if appState.accountOperationInProgress || appState.accountMessage != nil {
                         Section {
                             if appState.accountOperationInProgress {
                                 HStack(spacing: 10) {
                                     ProgressView()
-                                    Text("Deleting account...")
+                                    Text(isSavingSettings ? "Saving settings…" : "Updating account…")
                                         .foregroundStyle(Color.liftMuted)
                                 }
                             } else if let message = appState.accountMessage {
@@ -200,17 +189,13 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .onAppear {
+                guard !hasLoadedDraft else { return }
+                hasLoadedDraft = true
                 let profile = appState.currentProfile
                 privacy = appState.authenticatedPrivacy
                 preferredUnit = profile.preferredUnit
-                privateProfile = privacy.profileAudience == .privateProfile
-                hideBodyweight = privacy.bodyweightAudience == .privateProfile
-                hideExactAge = privacy.ageBandAudience == .privateProfile
-                hideLocation = privacy.locationAudience == .privateProfile
-                hideGym = privacy.gymAudience == .privateProfile
-                hideLiftVideos = !privacy.showLiftVideos
-                divisionAudience = privacy.divisionAudience
-                friendListAudience = privacy.friendListAudience
+                trainingFocus = profile.trainingFocus
+                    ?? UserDefaults.standard.string(forKey: "liftrank.progressFocus.\(profile.id.uuidString)").flatMap(TrainingFocus.init(rawValue:))
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -257,28 +242,21 @@ struct SettingsView: View {
                 Text("This clears the demo profile, workouts, bodyweight history, plans, awards, and other local demo progress. It does not affect production accounts.")
             }
         }
+        .interactiveDismissDisabled(isSavingSettings)
         .preferredColorScheme(LiftAppearance(rawValue: appearance)?.colorScheme)
     }
 
     private func profileSettingsUpdate() -> (profile: UserProfile, privacy: ProfilePrivacySettings) {
         var profile = appState.currentProfile
-        var updatedPrivacy = privacy
         profile.preferredUnit = preferredUnit
-        profile.hideBodyweight = hideBodyweight
-        profile.hideExactAge = hideExactAge
-        profile.hideCity = hideLocation
-        profile.hideGym = hideGym
-        profile.hideLiftVideos = hideLiftVideos
-        updatedPrivacy.profileAudience = resolvedAudience(current: privacy.profileAudience, hidden: privateProfile)
-        profile.profileAudience = updatedPrivacy.profileAudience
-        updatedPrivacy.bodyweightAudience = resolvedAudience(current: privacy.bodyweightAudience, hidden: hideBodyweight)
-        updatedPrivacy.ageBandAudience = resolvedAudience(current: privacy.ageBandAudience, hidden: hideExactAge)
-        updatedPrivacy.locationAudience = resolvedAudience(current: privacy.locationAudience, hidden: hideLocation)
-        updatedPrivacy.gymAudience = resolvedAudience(current: privacy.gymAudience, hidden: hideGym)
-        updatedPrivacy.divisionAudience = divisionAudience
-        updatedPrivacy.friendListAudience = friendListAudience
-        updatedPrivacy.showLiftVideos = !hideLiftVideos
-        return (profile, updatedPrivacy)
+        profile.trainingFocus = trainingFocus
+        profile.hideBodyweight = privacy.bodyweightAudience == .privateProfile
+        profile.hideExactAge = privacy.ageBandAudience == .privateProfile
+        profile.hideCity = privacy.locationAudience == .privateProfile
+        profile.hideGym = privacy.gymAudience == .privateProfile
+        profile.hideLiftVideos = !privacy.showLiftVideos
+        profile.profileAudience = privacy.profileAudience
+        return (profile, privacy)
     }
 
     private func saveSettingsAndClose() {
@@ -304,13 +282,7 @@ struct SettingsView: View {
         isSavingSettings = true
         defer { isSavingSettings = false }
         let saved: Bool
-        if appState.isAuthenticated && !appState.isDemoMode {
-            saved = await appState.saveEditedProfile(profile, primaryGym: nil, privacy: privacy)
-        } else {
-            appState.updateProfile(profile)
-            appState.setAuthenticatedPrivacy(privacy)
-            saved = true
-        }
+        saved = await appState.saveEditedProfile(profile, primaryGym: nil, privacy: privacy)
         if saved {
             failedSettingsUpdate = nil
             settingsSaveError = nil
@@ -320,9 +292,14 @@ struct SettingsView: View {
         }
     }
 
-    private func resolvedAudience(current: PrivacyAudience, hidden: Bool) -> PrivacyAudience {
-        if hidden { return .privateProfile }
-        return current == .privateProfile ? .publicProfile : current
+    private func audiencePicker(_ title: String, selection: Binding<PrivacyAudience>) -> some View {
+        Picker(title, selection: selection) {
+            ForEach(PrivacyAudience.allCases) { audience in
+                Text(audience.label).tag(audience)
+            }
+        }
+        .accessibilityIdentifier(title)
+        .accessibilityValue(selection.wrappedValue.label)
     }
 }
 

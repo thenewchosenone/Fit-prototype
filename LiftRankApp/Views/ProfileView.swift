@@ -7,7 +7,20 @@ enum ProfileSurface {
 
 struct ProfileView: View {
     @EnvironmentObject var appState: AppState
-    let profile: UserProfile
+    private let initialProfile: UserProfile
+    var profile: UserProfile {
+        guard initialProfile.id == appState.currentProfile.id else { return initialProfile }
+        var current = appState.currentProfile
+        if surface == .public {
+            let privacy = appState.authenticatedPrivacy
+            current.hideBodyweight = privacy.bodyweightAudience != .publicProfile
+            current.hideExactAge = privacy.ageBandAudience != .publicProfile
+            current.hideCity = privacy.locationAudience != .publicProfile
+            current.hideGym = privacy.gymAudience != .publicProfile
+            current.hideLiftVideos = !privacy.showLiftVideos
+        }
+        return current
+    }
     let surface: ProfileSurface
     var isCurrentUser: Bool { surface == .personal }
     /// Public-profile routes pass a non-owner identity so visibility filtering
@@ -17,6 +30,7 @@ struct ProfileView: View {
     @State var showingAthleteDetails = false
     @State var selectedProfileSection: ProfileSection = .overview
     @State var liftPresentation = ProfileLiftPresentation.empty
+    @State var profileLoadError: String?
     @State var submissionPendingDeletion: LiftSubmission?
     @State var submissionDeletionError: String?
     @State var isDeletingSubmission = false
@@ -28,7 +42,7 @@ struct ProfileView: View {
     @State var selectedTimelineWorkout: CompletedWorkout?
 
     init(profile: UserProfile, surface: ProfileSurface, viewerID: UUID? = nil) {
-        self.profile = profile
+        self.initialProfile = profile
         self.surface = surface
         self.viewerID = viewerID
     }

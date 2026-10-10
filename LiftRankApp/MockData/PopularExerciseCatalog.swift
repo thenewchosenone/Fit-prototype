@@ -656,7 +656,6 @@ enum PopularExerciseCatalog {
         if exerciseID.contains("row") { return "figure.rower" }
         if exerciseID.contains("lateral_raise") { return "figure.stand" }
         if exerciseID.contains("fly") || exerciseID.contains("rear_delt") { return "figure.stand" }
-        if exerciseID.contains("crossover") { return "arrow.left.and.right" }
         if value.contains("core") || value.contains("oblique") { return "figure.core.training" }
         if value.contains("quad") || value.contains("hamstring") || value.contains("glute") || value.contains("calf") || value.contains("leg") { return "figure.strengthtraining.functional" }
         if value.contains("chest") || value.contains("shoulder") || value.contains("tricep") || value.contains("bicep") {
@@ -670,7 +669,30 @@ enum PopularExerciseCatalog {
 
 enum ExerciseGuidanceCatalog {
     static func guidance(for exercise: TrainingExerciseCatalogItem) -> ExerciseGuidance? {
-        entries[exercise.id] ?? fallbackGuidance(for: exercise)
+        if let guidance = entries[exercise.id] { return guidance }
+        let name = exercise.name.lowercased()
+        if name.contains("back extension") {
+            return .init(
+                summary: "A controlled back extension for the glutes, hamstrings, and spinal erectors.",
+                steps: ["Adjust the support and secure your feet before starting.", "Lower your torso through a comfortable range while keeping your spine controlled.", "Return to a controlled neutral position without arching backward."],
+                cues: ["Avoid hyperextending at the top", "Use a slow, controlled range"]
+            )
+        }
+        if name.contains("hyperextension") {
+            return .init(
+                summary: "A supported reverse hyperextension for the glutes, hamstrings, and lower back.",
+                steps: ["Support your torso on the pad and hold the handles.", "Raise your legs using your hips while keeping your trunk steady.", "Lower your legs with control without swinging."],
+                cues: ["Stop before your lower back arches", "Start with a light load"]
+            )
+        }
+        if name.contains("leg extension") {
+            return .init(
+                summary: "A seated knee-extension movement for the quadriceps.",
+                steps: ["Align your knees with the machine pivot and position the pad above your ankles.", "Extend your knees through a comfortable range while keeping your hips on the seat.", "Lower the pad slowly to the starting position."],
+                cues: ["Keep your torso supported", "Avoid kicking or bouncing the load"]
+            )
+        }
+        return fallbackGuidance(for: exercise)
     }
 
     private static let entries: [String: ExerciseGuidance] = [

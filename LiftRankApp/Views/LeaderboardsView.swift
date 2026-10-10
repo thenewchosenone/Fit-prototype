@@ -4,6 +4,7 @@ struct LeaderboardsView: View {
     @EnvironmentObject var appState: AppState
     @State var searchText = ""
     @State var isSearchVisible = false
+    @State var showsRankingExplanation = false
     @State var activeSelector: LeaderboardSelector?
     @State var showingCustomRepInput = false
     @State var customRepText = ""

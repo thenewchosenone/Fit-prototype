@@ -112,7 +112,8 @@ final class ProfileStore: ObservableObject {
         primaryGym: Gym?,
         privacy: ProfilePrivacySettings,
         authenticated: Bool,
-        allowUsernameChange: Bool = false
+        allowUsernameChange: Bool = false,
+        updatePrimaryGym: Bool = false
     ) async throws -> UserProfile {
         guard let profileService else { throw LiftRankServiceError.configurationMissing }
         let expectedUserID = repository.currentProfile.id
@@ -137,21 +138,21 @@ final class ProfileStore: ObservableObject {
                 bio: profile.bio ?? existing.bio,
                 avatarPath: profile.avatarPath,
                 preferredUnit: profile.preferredUnit,
-                birthDate: ProfileDisplayFormatting.representativeBirthDate(
-                    for: profile.ageGroup,
-                    fallback: existing.birthDate ?? Date()
-                ),
+                birthDate: existing.birthDate,
                 sexCategory: profile.sexCategory,
                 heightCentimeters: profile.heightInches * 2.54,
                 bodyweightPounds: profile.bodyweightPounds,
                 cityID: profile.cityID,
                 city: profile.city,
                 region: profile.state,
-                countryCode: existing.countryCode ?? "US",
+                countryCode: profile.countryCode ?? existing.countryCode ?? "US",
                 yearsExperience: profile.yearsExperience,
                 experienceLevel: profile.experienceLevel,
                 privacy: privacy,
-                completesOnboarding: existing.onboardingCompleted
+                completesOnboarding: existing.onboardingCompleted,
+                trainingFocus: profile.trainingFocus,
+                updatesPrimaryGym: updatePrimaryGym || primaryGym != nil,
+                primaryGymID: primaryGym?.id
             ))
             guard repository.currentProfile.id == expectedUserID,
                   remote.id == expectedUserID else { throw LiftRankServiceError.sessionExpired }
@@ -174,6 +175,9 @@ final class ProfileStore: ObservableObject {
         if let primaryGym {
             saved.primaryGymID = primaryGym.id
             saved.primaryGymName = primaryGym.name
+        } else if updatePrimaryGym {
+            saved.primaryGymID = UUID()
+            saved.primaryGymName = ""
         }
         saveProfile(saved)
         return saved
@@ -221,6 +225,7 @@ final class ProfileStore: ObservableObject {
         local.bodyweightPounds = remote.bodyweightPounds ?? 0
         local.city = remote.city ?? ""
         local.state = remote.region ?? ""
+        local.countryCode = remote.countryCode
         local.cityID = remote.cityID
         local.yearsExperience = remote.yearsExperience ?? 0
         local.experienceLevel = remote.experienceLevel ?? .beginner

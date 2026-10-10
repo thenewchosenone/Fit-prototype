@@ -36,30 +36,29 @@ extension LeaderboardsView {
                             filterBar.padding(.vertical, 10)
 
                             if appState.leaderboardFilters.exerciseID == nil,
-                               [.total, .relativeTotal].contains(appState.leaderboardFilters.rankingType) {
-                                Label(
-                                    appState.leaderboardFilters.rankingType == .relativeTotal
-                                        ? "Relative total compares best bench, squat, and deadlift to bodyweight."
-                                        : "Total combines each lifter’s best bench, squat, and deadlift.",
-                                    systemImage: "info.circle"
-                                )
-                                .font(.caption)
-                                .foregroundStyle(Color.liftMuted)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                               [.total, .relativeTotal, .absolute].contains(appState.leaderboardFilters.rankingType) {
+                                Button {
+                                    showsRankingExplanation.toggle()
+                                } label: {
+                                    Label("How this ranking works", systemImage: "info.circle")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(Color.liftAccentText)
+                                }
+                                .buttonStyle(.plain)
                                 .padding(.horizontal, 16)
                                 .padding(.bottom, 8)
-                            }
-                            if appState.leaderboardFilters.exerciseID == nil,
-                               appState.leaderboardFilters.rankingType == .absolute {
-                                Label(
-                                    "All exercises ranks each athlete by their best eligible single lift. Choose an exercise for an exercise-specific ranking.",
-                                    systemImage: "info.circle"
-                                )
-                                .font(.caption)
-                                .foregroundStyle(Color.liftMuted)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 16)
-                                .padding(.bottom, 8)
+                                if showsRankingExplanation {
+                                    let explanation = switch appState.leaderboardFilters.rankingType {
+                                    case .relativeTotal: "Relative total compares best bench, squat, and deadlift to bodyweight."
+                                    case .total: "Total combines each lifter’s best bench, squat, and deadlift."
+                                    default: "All exercises ranks each athlete by their best eligible single lift. Choose an exercise for an exercise-specific ranking."
+                                    }
+                                    Text(explanation)
+                                        .font(.caption)
+                                        .foregroundStyle(Color.liftMuted)
+                                        .padding(.horizontal, 16)
+                                        .padding(.bottom, 8)
+                                }
                             }
                             if let evidenceMessage = leaderboardEvidenceMessage {
                                 Label(evidenceMessage, systemImage: appState.verifiedOnly ? "video.fill" : "person.fill")

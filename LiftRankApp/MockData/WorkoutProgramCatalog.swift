@@ -17,14 +17,6 @@ enum WorkoutProgramCatalog {
         templates.first { $0.id == id }
     }
 
-    static func phase(for week: Int) -> (name: String, goal: String, order: Int) {
-        switch week {
-        case 1...4: ("Foundation", "Build technique and work capacity", 0)
-        case 5...8: ("Progressive Overload", "Add productive volume and load", 1)
-        default: ("Intensification", "Practice heavier, high-quality work", 2)
-        }
-    }
-
     static func weekTitle(_ week: Int) -> String {
         switch week {
         case 4, 8: "Week \(week) · Deload"
@@ -91,15 +83,6 @@ enum WorkoutProgramCatalog {
                 "Weeks 5–7 · Intensification",
                 "Week 8 · Deload",
                 "Weeks 9–11 · Peak practice",
-                "Week 12 · Recovery and performance check"
-            ]
-        case "cables_only_foundation_12", "free_weights_only_foundation_12":
-            return [
-                "Weeks 1–3 · Foundation",
-                "Week 4 · Deload",
-                "Weeks 5–7 · Progressive overload",
-                "Week 8 · Deload",
-                "Weeks 9–11 · Intensification",
                 "Week 12 · Recovery and performance check"
             ]
         default:

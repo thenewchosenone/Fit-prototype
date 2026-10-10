@@ -1238,6 +1238,14 @@ extension AppState {
         trainingProgressStore.plateauInsights
     }
 
+    var strengthAttentionInsights: [TrainingAttentionInsight] {
+        trainingProgressStore.strengthAttentionInsights(summary: strengthTierSummary)
+    }
+
+    var muscleAttentionInsights: [TrainingAttentionInsight] {
+        trainingProgressStore.muscleAttentionInsights()
+    }
+
     func recoverySummaries(referenceDate: Date = .now) -> [TrainingRecoverySummary] {
         trainingProgressStore.recoverySummaries(referenceDate: referenceDate)
     }

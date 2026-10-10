@@ -38,6 +38,10 @@ struct TrainingTrackerView: View {
     @State var selectedWorkoutHistoryDate: Date?
     @State var selectedProgressExerciseID: String?
     @State var selectedProgressCategory: TrackerProgressCategory = .consistency
+    @State var showAllMuscleSetRows = false
+    @State var showAllMuscleVolumeRows = false
+    @State var didLoadTrainingFocus = false
+    @State var dismissedTrainingFocusPrompt = false
     @State var selectedExerciseWeightTrendDate: Date?
     @State var selectedExerciseStrengthTrendDate: Date?
     @State var selectedPlateauInsight: PlateauInsight?

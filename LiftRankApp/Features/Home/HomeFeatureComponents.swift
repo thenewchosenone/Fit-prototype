@@ -125,12 +125,10 @@ extension HomeView {
         }
         let baselineVolume = priorWeekVolumes.isEmpty ? 0 : priorWeekVolumes.reduce(0, +) / Double(priorWeekVolumes.count)
         let unusualVolume = baselineVolume > 0 && thisWeekVolume >= baselineVolume * 1.5
-        let programComplete = selectedProgramIsCompleteForHome
         let signalCount = (missedWorkout == nil ? 0 : 1)
             + (stalledLifts.isEmpty ? 0 : 1)
             + (recoveringMuscles.isEmpty ? 0 : 1)
             + (unusualVolume ? 1 : 0)
-            + (programComplete ? 1 : 0)
         if signalCount > 0 {
             Button {
                 appState.trainingTrackerStartOnProgress = true
@@ -176,14 +174,6 @@ extension HomeView {
                             Text("Unusual volume")
                                 .font(.caption.weight(.bold))
                             Text("\(Int((thisWeekVolume / baselineVolume) * 100))% of your prior four-week average · Review volume")
-                                .font(.caption)
-                                .foregroundStyle(Color.liftMuted)
-                                .lineLimit(2)
-                        }
-                        if programComplete {
-                            Text("Program milestone")
-                                .font(.caption.weight(.bold))
-                            Text("Program complete · Review program progress")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
                                 .lineLimit(2)
@@ -419,8 +409,8 @@ extension HomeView {
         todayComplete: Bool,
         programComplete: Bool
     ) -> String {
-        if programComplete { return "Review your progress and choose what to train next." }
-        if todayComplete { return "Today's session is saved. Review your training progress." }
+        if programComplete { return "Ready for your next program." }
+        if todayComplete { return "Today's session is saved." }
         if let missed { return missedWorkoutSubtitle(missed) }
         if appState.activeWorkout != nil { return "Workout in progress • Continue logging your sets." }
         return todayWorkoutSubtitle(today)
@@ -527,6 +517,8 @@ extension HomeView {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.liftMuted)
 
+                strengthMetric
+
                 Spacer(minLength: 2)
 
                 HStack {
@@ -547,7 +539,8 @@ extension HomeView {
         .accessibilityLabel("Open strength milestones, \(summary.overallTier.label), \(summary.completedRequiredLiftCount) of \(summary.requiredLiftCount) lifts logged")
     }
 
-    var quickStats: some View {
+    @ViewBuilder
+    var strengthMetric: some View {
         let preferredUnit = appState.currentProfile.preferredUnit
         let totalPounds = appState.powerliftingTotal
         let topTrackedOneRepMaxPounds = appState.progressExerciseOptions()
@@ -557,53 +550,16 @@ extension HomeView {
             }
             .max() ?? 0
         let primaryStrengthPounds = totalPounds > 0 ? totalPounds : topTrackedOneRepMaxPounds
-        let relativeTotal = RankingCalculator.relativeTotal(
-            total: totalPounds,
-            bodyweight: appState.currentProfile.bodyweightPounds
-        )
-        return HStack(spacing: 12) {
-            CompactMetric(
-                title: totalPounds > 0 ? "Total" : "Top 1RM",
-                value: primaryStrengthPounds > 0
-                    ? "\(Int(MeasurementFormatting.convert(primaryStrengthPounds, from: .pounds, to: preferredUnit)))"
-                    : "—",
-                unit: preferredUnit.shortLabel,
-                symbolName: "dumbbell.fill",
-                tint: .liftAccentText
-            )
-            statDivider
-            CompactMetric(
-                title: "Bodyweight",
-                value: bodyweightStat.value,
-                unit: bodyweightStat.unit,
-                symbolName: "scalemass.fill",
-                tint: .liftAccentText
-            )
-            statDivider
-            CompactMetric(
-                title: "Relative",
-                value: totalPounds > 0 ? RankingFormatting.ratioText(relativeTotal) : "—",
-                unit: "x",
-                symbolName: "bolt.fill",
-                tint: .liftAccentText
-            )
+        if primaryStrengthPounds > 0 {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(totalPounds > 0 ? "Total" : "Top estimated 1RM")
+                    .font(.caption2)
+                    .foregroundStyle(Color.liftMuted)
+                Text("\(Int(MeasurementFormatting.convert(primaryStrengthPounds, from: .pounds, to: preferredUnit))) \(preferredUnit.shortLabel)")
+                    .font(.subheadline.weight(.bold).monospacedDigit())
+                    .foregroundStyle(Color.liftAccentText)
+            }
         }
-        .padding(14)
-        .liftSurface()
-    }
-
-    var bodyweightStat: (value: String, unit: String) {
-        let latestLoggedBodyweight = ProfileDataAuthority.latestLoggedBodyweight(
-            profilePounds: appState.currentProfile.bodyweightPounds,
-            entries: appState.bodyweightEntries
-        )
-        let text = MeasurementFormatting.formatBodyweightOrDash(
-            latestLoggedBodyweight,
-            preferredUnit: appState.currentProfile.preferredUnit
-        )
-        guard text != "—" else { return ("—", "") }
-        let parts = text.split(separator: " ", maxSplits: 1).map(String.init)
-        return (parts.first ?? text, parts.dropFirst().first ?? "")
     }
 
     var highlights: some View {
@@ -625,9 +581,6 @@ extension HomeView {
                         entries: appState.bodyweightEntries,
                         currentBodyweightPounds: appState.currentProfile.bodyweightPounds
                     )
-                }
-                highlightButton("Progress", "chart.bar.fill", Color.liftGreen) {
-                    openWeeklyProgress()
                 }
             }
         }
@@ -651,12 +604,6 @@ extension HomeView {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("home.quickAction.\(title.replacingOccurrences(of: " ", with: "").lowercased())")
-    }
-
-    var statDivider: some View {
-        Rectangle()
-            .fill(Color.liftSeparator)
-            .frame(width: 1, height: 48)
     }
 
     var recentPRs: some View {
@@ -930,7 +877,6 @@ extension HomeView {
                     workoutSyncStatus
                     trainingAlerts
                     balancedOverview
-                    quickStats
                     highlights
                     recentPRs
                     weeklyActivity

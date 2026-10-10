@@ -120,7 +120,8 @@ const coreGymRows = [
 ] as const;
 
 export function withLegacyDemoMetrics(gym: Gym): Gym {
-  return { ...gym, ...(legacyDemoMetrics.get(gym.id) ?? {}) };
+  const metrics = legacyDemoMetrics.get(gym.id);
+  return metrics ? { ...gym, ...metrics } : gym;
 }
 
 export const gymSeed: Gym[] = coreGymRows.map(([id, name, address, city, postalCode, slug]) => withLegacyDemoMetrics({

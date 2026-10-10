@@ -483,10 +483,36 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 18) {
                 screenHeader(
                     eyebrow: "YOUR TRAINING",
-                    title: "What are you working toward?",
-                    subtitle: "Choose what matters to you. This helps us decide what to build and improve."
+                    title: "What are you training for?",
+                    subtitle: "Your focus puts relevant progress first. Change it anytime in Settings."
                 )
 
+                ForEach(TrainingFocus.allCases) { focus in
+                    Button {
+                        profile.trainingFocus = focus
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: focus.symbol)
+                                .foregroundStyle(Color.liftAccentText)
+                                .frame(width: 28)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(focus.title).font(.headline)
+                                Text(focus.detail).font(.caption).foregroundStyle(Color.liftMuted)
+                            }
+                            Spacer()
+                            Image(systemName: profile.trainingFocus == focus ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(Color.liftAccentText)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .padding(12)
+                        .background(Color.liftCard, in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("onboarding.focus.\(focus.rawValue)")
+                    .accessibilityAddTraits(profile.trainingFocus == focus ? .isSelected : [])
+                }
+
+                DisclosureGroup("Other goals (optional)") {
                 ForEach(goalOptions, id: \.id) { option in
                     Button {
                         Haptics.light()
@@ -528,6 +554,7 @@ struct OnboardingView: View {
                         }
                     }
                     .buttonStyle(.plain)
+                }
                 }
             }
             .padding(.horizontal, 20)
@@ -1253,6 +1280,7 @@ struct OnboardingView: View {
                 }
             }
             .accessibilityIdentifier("onboarding.next")
+            .disabled(step == 1 && profile.trainingFocus == nil)
 
             if step == 3 && focusedRecord == nil {
                 Button("I’ll add my lifts later") {
@@ -1306,7 +1334,8 @@ struct OnboardingView: View {
             yearsExperience: yearsTraining,
             experienceLevel: appState.earnedExperienceLevel,
             privacy: privacy,
-            completesOnboarding: completesOnboarding
+            completesOnboarding: completesOnboarding,
+            trainingFocus: profile.trainingFocus
             )
         }
         let startingLifts = [

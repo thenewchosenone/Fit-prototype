@@ -3,7 +3,6 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronUp,
-  BarChart3,
   Building2,
   CalendarDays,
   Check,
@@ -15,25 +14,20 @@ import {
   Copy,
   Dumbbell,
   Flame,
-  Folder,
   Gauge,
   History,
   House,
   Columns3,
   LibraryBig,
   LogOut,
-  Menu,
   MessageCircle,
-  MoreHorizontal,
   Pencil,
   Play,
   Plus,
   RotateCcw,
   Search,
-  Settings,
   ShieldCheck,
   SlidersHorizontal,
-  Square,
   Eye,
   EyeOff,
   Trash2,
@@ -56,7 +50,6 @@ import {
   useState
 } from "react";
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { leaderboardSeed } from "./data";
 import { workoutProgramTemplates } from "./programTemplates";
 import { exerciseMatchesFilters, searchExercises } from "./exerciseSearch";
 import { BodyRegionGlyph } from "./ExerciseVisual";
@@ -474,7 +467,6 @@ function TodayPage() {
 
   const startFreestyle = () => {
     if (!currentWeek) return;
-    const sessionId = makeId("session");
     dispatch({
       type: "ADD_SESSION",
       weekId: currentWeek.id,
@@ -1161,161 +1153,6 @@ function WorkoutDetailPage() {
   );
 }
 
-function ProfilePage() {
-  const { state } = useTracker();
-  const activePlan = state.plans.find((plan) => plan.id === state.activePlanId);
-  const activeWeeks = activePlan ? state.weeks.filter((week) => week.planId === activePlan.id) : [];
-  const activeWeek = activeWeeks[0];
-  const currentEntries = leaderboardSeed.filter((entry) => entry.isCurrentUser);
-  const primaryEntry = currentEntries.find((entry) => entry.rankingType === "Absolute") ?? currentEntries[0] ?? leaderboardSeed[0];
-  const absoluteEntry = currentEntries.find((entry) => entry.rankingType === "Absolute") ?? primaryEntry;
-  const relativeEntry = currentEntries.find((entry) => entry.rankingType === "Relative total");
-  const bestRank = Math.min(...currentEntries.map((entry) => entry.rank));
-  const latestBodyweight = state.bodyweight.at(-1);
-  const totalVolume = state.completedWorkouts.reduce((sum, workout) => sum + workout.totalVolume, 0);
-  const completion = activeWeek ? weekCompletion(state, activeWeek.id) : 0;
-  const latestWorkout = state.completedWorkouts.at(-1);
-  const prRows = state.exercises
-    .map((exercise) => ({ exercise, records: personalRecords(state, exercise.id) }))
-    .filter((item) => item.records.heaviest)
-    .slice(0, 3);
-  const verifiedLifts = currentEntries
-    .filter((entry) => entry.verification !== "Self Reported")
-    .sort((left, right) => left.rank - right.rank);
-
-  return (
-    <div className="page">
-      <section className="profile-hero">
-        <div className="profile-avatar" aria-hidden>RJ</div>
-        <div className="profile-hero-copy">
-          <p className="eyebrow">Lifter profile</p>
-          <h1>Robert J.</h1>
-          <p>@rjrob23 · {primaryEntry.ageGroup} · {primaryEntry.experienceLevel}</p>
-          <div className="profile-chip-row">
-            <span className="status-chip">{primaryEntry.gym}</span>
-            <span className="status-chip">{primaryEntry.city}, {primaryEntry.state}</span>
-            <span className="status-chip">{primaryEntry.verification}</span>
-          </div>
-        </div>
-        <div className="profile-hero-actions">
-          <NavLink className="primary-button" to="/leaderboards"><Trophy size={18} /> Rankings</NavLink>
-          <NavLink className="quiet-button" to="/progress"><History size={18} /> History</NavLink>
-        </div>
-      </section>
-
-      <div className="stat-grid">
-        <MetricCard icon={<Trophy />} label="Best rank" value={`#${bestRank}`} detail={`${absoluteEntry.exercise} leaderboard`} />
-        <MetricCard icon={<Weight />} label="Bodyweight" value={latestBodyweight ? formatWeight(latestBodyweight.weight) : formatWeight(primaryEntry.bodyweight)} detail="latest logged" />
-        <MetricCard icon={<Activity />} label="Verified total" value={formatWeight(primaryEntry.total)} detail="shown on profile" />
-        <MetricCard icon={<History />} label="Workouts" value={`${state.completedWorkouts.length}`} detail={`${formatWeight(totalVolume)} lb volume`} />
-      </div>
-
-      <div className="profile-layout">
-        <section className="profile-main">
-          <Card className="profile-section-card">
-            <SectionTitle title="Strength snapshot" action={<NavLink to="/leaderboards">Open board</NavLink>} />
-            <div className="profile-lift-grid">
-              <div>
-                <span className="icon-tile blue"><Trophy size={20} /></span>
-                <strong>{formatLeaderboardScore(absoluteEntry)}</strong>
-                <small>{absoluteEntry.exercise} · {absoluteEntry.verification}</small>
-              </div>
-              <div>
-                <span className="icon-tile green"><Activity size={20} /></span>
-                <strong>{formatWeight(primaryEntry.total)}</strong>
-                <small>Powerlifting total on file</small>
-              </div>
-              <div>
-                <span className="icon-tile"><Gauge size={20} /></span>
-                <strong>{relativeEntry ? formatLeaderboardScore(relativeEntry) : "—"}</strong>
-                <small>Relative total ranking</small>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="profile-section-card">
-            <SectionTitle title="Verified lifts" />
-            <div className="profile-list">
-              {verifiedLifts.map((entry) => (
-                <div key={entry.id} className="profile-list-row">
-                  <span className="icon-tile"><ShieldCheck size={19} /></span>
-                  <div>
-                    <strong>{entry.exercise}</strong>
-                    <small>#{entry.rank} · {entry.rankingType} · {entry.verification}</small>
-                  </div>
-                  <b>{formatLeaderboardScore(entry)}</b>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="profile-section-card">
-            <SectionTitle title="Personal records" action={<NavLink to="/progress">View progress</NavLink>} />
-            <div className="profile-list">
-              {prRows.map(({ exercise, records }) => (
-                <div key={exercise.id} className="profile-list-row">
-                  <span className="icon-tile"><Dumbbell size={19} /></span>
-                  <div>
-                    <strong>{exercise.name}</strong>
-                    <small>Estimated 1RM {records.estimated} lb</small>
-                  </div>
-                  <b>{formatWeight(records.heaviest?.weight ?? 0)} × {records.heaviest?.reps}</b>
-                </div>
-              ))}
-              {!prRows.length && <EmptyState title="No logged PRs yet" body="Finish workouts to generate personal records from completed sets." />}
-            </div>
-          </Card>
-        </section>
-
-        <aside className="profile-side">
-          <Card className="profile-section-card">
-            <SectionTitle title="Active plan" action={<NavLink to="/plans">Manage</NavLink>} />
-            <div className="profile-plan-card">
-              <span className="icon-tile blue"><Folder size={20} /></span>
-              <div>
-                <strong>{activePlan?.name ?? "No active plan"}</strong>
-                <small>{activePlan?.goal ?? "Create a plan to show it here."}</small>
-              </div>
-            </div>
-            <div className="profile-plan-progress">
-              <span><strong>{activeWeek?.title ?? "Current week"}</strong><small>{Math.round(completion * 100)}% complete</small></span>
-              <Progress value={completion} />
-            </div>
-          </Card>
-
-          <Card className="profile-section-card">
-            <SectionTitle title="Last workout" />
-            {latestWorkout ? (
-              <div className="profile-list">
-                <div className="profile-list-row">
-                  <span className="icon-tile green"><CheckCircle2 size={19} /></span>
-                  <div>
-                    <strong>{latestWorkout.name}</strong>
-                    <small>{new Date(latestWorkout.completedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</small>
-                  </div>
-                  <b>{formatWeight(latestWorkout.totalVolume)} lb</b>
-                </div>
-              </div>
-            ) : (
-              <EmptyState title="No workouts finished" body="Your latest completed session will appear here." />
-            )}
-          </Card>
-
-          <Card className="profile-section-card">
-            <SectionTitle title="Profile details" />
-            <div className="profile-detail-list">
-              <span><strong>Home gym</strong><small>{primaryEntry.gym}</small></span>
-              <span><strong>Location</strong><small>{primaryEntry.city}, {primaryEntry.state}</small></span>
-              <span><strong>Age group</strong><small>{primaryEntry.ageGroup}</small></span>
-              <span><strong>Experience</strong><small>{primaryEntry.experienceLevel}</small></span>
-            </div>
-          </Card>
-        </aside>
-      </div>
-    </div>
-  );
-}
-
 function WorkoutPage() {
   const { sessionId } = useParams();
   const { state, dispatch } = useTracker();
@@ -1683,7 +1520,7 @@ function SubstituteExerciseDialog({ prescription, usedExerciseIds, onClose }: {
 }
 
 function ExercisePicker({ session, onClose }: { session: WorkoutSession; onClose: () => void }) {
-  const { state, dispatch } = useTracker();
+  const { state } = useTracker();
   const [query, setQuery] = useState("");
   const [bodyPart, setBodyPart] = useState("All");
   const [equipment, setEquipment] = useState("All");

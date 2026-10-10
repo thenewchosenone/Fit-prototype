@@ -3,7 +3,7 @@ import SwiftUI
 
 private struct ProfileChartPoint: Identifiable {
     let id = UUID()
-    let label: String
+    let date: Date
     let value: Double
 }
 
@@ -57,7 +57,9 @@ struct ProfileLiftPresentation {
         bestEstimatedOneRepMaxByExerciseID = Dictionary(uniqueKeysWithValues: ["bench", "squat", "deadlift"].map {
             ($0, RankingCalculator.bestLift(exerciseID: $0, submissions: lifts)?.estimatedOneRepMax ?? 0)
         })
-        chartLifts = Array(lifts.sorted { $0.performedAt < $1.performedAt }.suffix(6))
+        let latestExerciseID = lifts.max { $0.performedAt < $1.performedAt }?.exerciseID
+        chartLifts = Array(lifts.filter { $0.exerciseID == latestExerciseID }
+            .sorted { $0.performedAt < $1.performedAt }.suffix(6))
         bestSubmittedLift = lifts.max { $0.estimatedOneRepMax < $1.estimatedOneRepMax }
         latestSubmittedLift = lifts.max { $0.performedAt < $1.performedAt }
     }
@@ -137,14 +139,13 @@ extension ProfileView {
                              ? (isCurrentUser ? "Your profile" : "Athlete profile")
                              : profile.displayName)
                             .font(.title3.weight(.bold))
-                        Text(profile.username.isEmpty
-                             ? (isCurrentUser ? "Add a username" : "Username unavailable")
-                             : "@\(profile.username)")
-                            .font(.subheadline)
-                            .foregroundStyle(Color.liftMuted)
-                        Text(isCurrentUser ? "Private training dashboard" : "Public athlete card")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(Color.liftAccentText)
+                        if !profile.username.isEmpty || isCurrentUser {
+                            Text(profile.username.isEmpty
+                                 ? "Add a username"
+                                 : "@\(profile.username)")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.liftMuted)
+                        }
                     }
                     Spacer()
                     if isCurrentUser {
@@ -158,21 +159,33 @@ extension ProfileView {
                         }
                     }
                 }
-                Label(identityLocation, systemImage: profile.hideGym && profile.hideCity ? "eye.slash" : "location")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.liftMuted)
-                    .lineLimit(2)
+                if isCurrentUser || hasVisiblePublicLocation {
+                    Label(identityLocation, systemImage: profile.hideGym && profile.hideCity ? "eye.slash" : "location")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.liftMuted)
+                        .lineLimit(2)
+                }
                 if let bio = profile.bio?.trimmingCharacters(in: .whitespacesAndNewlines), !bio.isEmpty {
                     Text(bio)
                         .font(.subheadline)
                         .foregroundStyle(Color.liftText)
                 }
-                Text("\(profile.hideBodyweight ? "Weight class hidden" : weightClassName) • \(displayedExperienceLevel.rawValue)")
-                    .font(.caption)
-                    .foregroundStyle(Color.liftMuted)
-                Text("\(profile.yearsExperience) \(profile.yearsExperience == 1 ? "year" : "years") training")
-                    .font(.caption)
-                    .foregroundStyle(Color.liftMuted)
+                if isCurrentUser || profile.yearsExperience > 0 {
+                    let trainingDetails = [
+                        isCurrentUser || profile.hideBodyweight || profile.bodyweightPounds > 0
+                            ? (profile.hideBodyweight ? "Weight class hidden" : weightClassName)
+                            : nil,
+                        displayedExperienceLevel.rawValue
+                    ].compactMap { $0 }.joined(separator: " • ")
+                    if !trainingDetails.isEmpty {
+                        Text(trainingDetails)
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                    }
+                    Text("\(profile.yearsExperience) \(profile.yearsExperience == 1 ? "year" : "years") training")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                }
                 if isCurrentUser && (profile.displayName.isEmpty || profile.username.isEmpty) {
                     Button("Complete profile") {
                         appState.showingEditProfile = true
@@ -193,8 +206,6 @@ extension ProfileView {
                     progress(presentation: presentation)
                     if isCurrentUser {
                         achievements
-                    } else {
-                        publicAchievementsHidden
                     }
                 }
                 .padding(.top, 18)
@@ -203,7 +214,7 @@ extension ProfileView {
                         Text("Training profile")
                         .font(.headline)
                         .foregroundStyle(Color.liftText)
-                        Text("Strength progress, rankings, and achievements")
+                        Text(isCurrentUser ? "Strength progress, rankings, and achievements" : "Strength progress and rankings")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
@@ -215,10 +226,22 @@ extension ProfileView {
     }
 
     var identityLocation: String {
-        let gym = profile.hideGym ? nil : profile.primaryGymName
-        let location = profile.hideCity ? nil : "\(profile.city), \(profile.state)"
+        let gymName = profile.primaryGymName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let city = profile.city.trimmingCharacters(in: .whitespacesAndNewlines)
+        let state = profile.state.trimmingCharacters(in: .whitespacesAndNewlines)
+        let gym = profile.hideGym || gymName.isEmpty ? nil : gymName
+        let location = profile.hideCity || (city.isEmpty && state.isEmpty)
+            ? nil
+            : [city, state].filter { !$0.isEmpty }.joined(separator: ", ")
         let value = [gym, location].compactMap { $0 }.joined(separator: " • ")
         return value.isEmpty ? "Gym and location hidden" : value
+    }
+
+    var hasVisiblePublicLocation: Bool {
+        guard !isCurrentUser else { return true }
+        let gymVisible = !profile.hideGym && !profile.primaryGymName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let cityVisible = !profile.hideCity && (!profile.city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !profile.state.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        return gymVisible || cityVisible
     }
 
     func summary(presentation: ProfileLiftPresentation) -> some View {
@@ -339,17 +362,22 @@ extension ProfileView {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
+                    Text(presentation.chartLifts.last?.exerciseName ?? "Submitted lift")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Estimated 1RM · \(profile.preferredUnit.shortLabel)")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
                     Chart(chartPoints) { point in
-                        LineMark(x: .value("Month", point.label), y: .value("Max", point.value))
+                        LineMark(x: .value("Date", point.date), y: .value("Estimated 1RM", point.value))
                             .foregroundStyle(Color.liftAccentText)
-                        PointMark(x: .value("Month", point.label), y: .value("Max", point.value))
+                        PointMark(x: .value("Date", point.date), y: .value("Estimated 1RM", point.value))
                             .foregroundStyle(Color.liftGreen)
                     }
                     .frame(height: 190)
                     HStack {
-                        metric("Lifts", "\(presentation.lifts.count)")
-                        metric("Best", bestSubmittedLiftText(presentation.bestSubmittedLift))
-                        metric("Latest", latestSubmittedLiftText(presentation.latestSubmittedLift))
+                        metric("Lifts shown", "\(presentation.chartLifts.count)")
+                        metric("Best shown", bestSubmittedLiftText(presentation.chartLifts.max { $0.estimatedOneRepMax < $1.estimatedOneRepMax }))
+                        metric("Latest", latestSubmittedLiftText(presentation.chartLifts.last))
                     }
                 }
             }
@@ -374,19 +402,6 @@ extension ProfileView {
                     .accessibilityIdentifier(unlocked(achievement) ? "profile.achievement.unlocked" : "profile.achievement.locked")
                 }
             }
-        }
-    }
-
-    var publicAchievementsHidden: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            CompactSectionHeader(title: "Achievements")
-            Text("Achievements are private to this athlete.")
-                .font(.caption)
-                .foregroundStyle(Color.liftMuted)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .liftSurface(radius: 10)
-                .accessibilityIdentifier("profile.achievements.private")
         }
     }
 
@@ -493,13 +508,7 @@ extension ProfileView {
             : []
         return VStack(alignment: .leading, spacing: 10) {
             CompactSectionHeader(title: "Training history")
-            if workouts.isEmpty {
-                LiftEmptyState(
-                    title: "No completed workouts yet",
-                    message: isCurrentUser ? "Complete a training session to build your history." : "Workout history is not shown on public profiles.",
-                    symbolName: "calendar"
-                )
-            } else {
+            if isCurrentUser {
                 HStack(spacing: 8) {
                     Menu {
                         ForEach(ProfileHistoryDateRange.allCases) { range in
@@ -516,7 +525,7 @@ extension ProfileView {
                         Label(profileHistoryType.rawValue, systemImage: "line.3.horizontal.decrease.circle")
                     }
                     Spacer()
-                    Text("\(workouts.count) shown")
+                    Text("\(min(workouts.count, 20)) of \(workouts.count)")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(Color.liftMuted)
                 }
@@ -525,6 +534,22 @@ extension ProfileView {
                 TextField("Filter by exercise", text: $profileHistoryExercise)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel("Filter workout history by exercise")
+            }
+            if workouts.isEmpty {
+                LiftEmptyState(
+                    title: isCurrentUser && !appState.completedWorkouts.isEmpty ? "No workouts match" : "No completed workouts yet",
+                    message: isCurrentUser
+                        ? (appState.completedWorkouts.isEmpty ? "Complete a training session to build your history." : "Try another date range, workout type, or exercise.")
+                        : "Workout history is not shown on public profiles.",
+                    symbolName: "calendar",
+                    actionTitle: isCurrentUser && !appState.completedWorkouts.isEmpty ? "Clear filters" : nil,
+                    action: {
+                        profileHistoryDateRange = .allTime
+                        profileHistoryType = .all
+                        profileHistoryExercise = ""
+                    }
+                )
+            } else {
                 VStack(spacing: 0) {
                     ForEach(Array(workouts.prefix(20).enumerated()), id: \.element.id) { index, workout in
                         HStack(spacing: 12) {
@@ -736,19 +761,19 @@ extension ProfileView {
     private func chartPoints(lifts: [LiftSubmission]) -> [ProfileChartPoint] {
         lifts.map {
             ProfileChartPoint(
-                label: $0.performedAt.formatted(.dateTime.month(.abbreviated)),
-                value: MeasurementFormatting.convert($0.estimatedOneRepMax, from: .kilograms, to: profile.preferredUnit)
+                date: $0.performedAt,
+                value: MeasurementFormatting.convert($0.estimatedOneRepMax, from: .pounds, to: profile.preferredUnit)
             )
         }
     }
 
     private func bestSubmittedLiftText(_ best: LiftSubmission?) -> String {
         guard let best else { return "—" }
-        return MeasurementFormatting.formatDisplayedWeight(best.estimatedOneRepMax, unit: profile.preferredUnit)
+        return MeasurementFormatting.formatRecordedWeight(MeasurementFormatting.convert(best.estimatedOneRepMax, from: .pounds, to: profile.preferredUnit), unit: profile.preferredUnit)
     }
 
     private func latestSubmittedLiftText(_ latest: LiftSubmission?) -> String {
         guard let latest else { return "—" }
-        return MeasurementFormatting.formatDisplayedWeight(latest.estimatedOneRepMax, unit: profile.preferredUnit)
+        return MeasurementFormatting.formatRecordedWeight(MeasurementFormatting.convert(latest.estimatedOneRepMax, from: .pounds, to: profile.preferredUnit), unit: profile.preferredUnit)
     }
 }

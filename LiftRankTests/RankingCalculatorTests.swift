@@ -112,6 +112,7 @@ private final class ToggleLiftService: LiftService {
     let submissionsToReturn: [LiftSubmission]
     var shouldFail = false
     private(set) var submissionsRequestCount = 0
+    private(set) var requestedProfileID: UUID?
     private(set) var reportedLiftID: UUID?
     private(set) var reportedReason: LiftReportReason?
     private(set) var reportedNote: String?
@@ -124,6 +125,12 @@ private final class ToggleLiftService: LiftService {
         submissionsRequestCount += 1
         if shouldFail { throw LiftRankServiceError.server("Lifts unavailable") }
         return submissionsToReturn
+    }
+
+    func submissions(forUserID userID: UUID) async throws -> [LiftSubmission] {
+        requestedProfileID = userID
+        if shouldFail { throw LiftRankServiceError.server("Lifts unavailable") }
+        return submissionsToReturn.filter { $0.userID == userID }
     }
 
     func submit(_ submission: LiftSubmission) async throws -> LiftSubmission { submission }
@@ -3243,7 +3250,9 @@ final class RankingCalculatorTests: XCTestCase {
         let privateVideo = makeLift(userID: athleteID, weight: 600, hasVideo: true, visibility: .privateLift)
         let noVideo = makeLift(userID: athleteID, weight: 610)
         let otherVideo = makeLift(userID: otherAthleteID, weight: 700, hasVideo: true)
-        let lifts = [noVideo, privateVideo, publicVideo, otherVideo]
+        var underReview = makeLift(userID: athleteID, weight: 620, hasVideo: true)
+        underReview.moderationStatus = .underReview
+        let lifts = [noVideo, privateVideo, publicVideo, otherVideo, underReview]
 
         XCTAssertEqual(
             ProfileLiftVideoLibrary.visibleLifts(for: athleteID, viewerID: visitorID, allLifts: lifts).map(\.id),
@@ -3251,7 +3260,7 @@ final class RankingCalculatorTests: XCTestCase {
         )
         XCTAssertEqual(
             Set(ProfileLiftVideoLibrary.visibleLifts(for: athleteID, viewerID: athleteID, allLifts: lifts).map(\.id)),
-            Set([publicVideo.id, privateVideo.id])
+            Set([publicVideo.id, privateVideo.id, underReview.id])
         )
     }
 
@@ -3334,6 +3343,31 @@ final class RankingCalculatorTests: XCTestCase {
                     includeLiftsWithoutVideo: true
                 )
             }
+        }
+    }
+
+    @MainActor
+    func testVisitorProfileLoadsAthleteSubmissionsOutsideTheGlobalFeed() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let athleteID = UUID()
+        let unrelated = makeLift(userID: repository.currentProfile.id, weight: 225)
+        let remoteLift = makeLift(userID: athleteID, weight: 315)
+        repository.lifts = [unrelated]
+        let service = ToggleLiftService(submissions: [remoteLift])
+        let store = CompetitionStore(repository: repository, liftService: service)
+
+        try await store.refreshProfileSubmissions(for: athleteID)
+        XCTAssertEqual(service.requestedProfileID, athleteID)
+        XCTAssertEqual(Set(repository.lifts.map(\.id)), Set([remoteLift.id, unrelated.id]))
+        let visible = await store.visibleProfileLifts(for: athleteID, viewerID: repository.currentProfile.id, includeLiftsWithoutVideo: true)
+        XCTAssertEqual(visible.map(\.id), [remoteLift.id])
+
+        service.shouldFail = true
+        do {
+            try await store.refreshProfileSubmissions(for: athleteID)
+            XCTFail("Profile loading errors must reach the caller")
+        } catch {
+            XCTAssertEqual(Set(repository.lifts.map(\.id)), Set([remoteLift.id, unrelated.id]))
         }
     }
 
@@ -3422,7 +3456,7 @@ final class RankingCalculatorTests: XCTestCase {
         }
         XCTAssertEqual(
             presentation.chartLifts.map(\.id),
-            Array(lifts.sorted { $0.performedAt < $1.performedAt }.suffix(6)).map(\.id)
+            lifts.filter { $0.exerciseID == "deadlift" }.map(\.id)
         )
         XCTAssertEqual(
             presentation.bestSubmittedLift?.id,
@@ -3452,6 +3486,55 @@ final class RankingCalculatorTests: XCTestCase {
             RankingCalculator.bestLift(exerciseID: "bench", submissions: repository.lifts.filter { $0.userID == currentUserID })?.weight,
             225
         )
+    }
+
+    @MainActor
+    func testBodyweightAwardsRequireKnownWeightAndQualifyingLift() {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        repository.lifts = []
+        repository.completedWorkouts = []
+        repository.achievementUnlocks = []
+        repository.currentProfile.bodyweightPounds = 0
+        repository.refreshAchievementUnlocks()
+        XCTAssertFalse(repository.achievementUnlocks.contains { $0.title.contains("Bodyweight ") })
+
+        repository.currentProfile.bodyweightPounds = 200
+        repository.refreshAchievementUnlocks()
+        XCTAssertFalse(repository.achievementUnlocks.contains { $0.title == "Bodyweight Bench" })
+
+        var rejected = makeLift(userID: repository.currentProfile.id, weight: 225, exerciseID: "bench")
+        rejected.moderationStatus = .rejected
+        repository.lifts = [rejected]
+        repository.refreshAchievementUnlocks()
+        XCTAssertFalse(repository.achievementUnlocks.contains { $0.title == "Bodyweight Bench" })
+
+        repository.lifts = [makeLift(userID: repository.currentProfile.id, weight: 225, exerciseID: "bench")]
+        repository.refreshAchievementUnlocks()
+        XCTAssertTrue(repository.achievementUnlocks.contains { $0.title == "Bodyweight Bench" })
+    }
+
+    @MainActor
+    func testRivalAwardsUseTheSameSubmissionPerformancesAsCurrentTier() {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        repository.completedWorkouts = []
+        repository.achievementUnlocks = []
+        repository.currentProfile.bodyweightPounds = 200
+        repository.lifts = [
+            makeLift(userID: repository.currentProfile.id, weight: 225, exerciseID: "bench"),
+            makeLift(userID: repository.currentProfile.id, weight: 315, exerciseID: "squat"),
+            makeLift(userID: repository.currentProfile.id, weight: 405, exerciseID: "deadlift")
+        ]
+        let appState = AppState(repository: repository, serviceContainer: .demo(repository: repository))
+        let tier = appState.strengthTierSummary.overallTier
+        XCTAssertNotEqual(tier, .unranked)
+        repository.refreshAchievementUnlocks()
+        XCTAssertTrue(repository.achievementUnlocks.contains { $0.title == "\(tier.label) Rival" })
+        let earned = repository.achievementUnlocks
+
+        repository.lifts = []
+        repository.refreshAchievementUnlocks()
+        XCTAssertEqual(appState.strengthTierSummary.overallTier, .unranked)
+        XCTAssertEqual(repository.achievementUnlocks, earned)
     }
 
     @MainActor
@@ -6659,6 +6742,22 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(bench.guidance?.summary).isEmpty)
         XCTAssertEqual(calfRaise.guidance?.steps.count, 3)
         XCTAssertFalse(try XCTUnwrap(calfRaise.guidance?.summary).isEmpty)
+    }
+
+    func testExtensionGuidanceMatchesTheTargetJointAndMuscles() throws {
+        for id in ["machine_45_back_extension", "machine_back_extension", "bw_back_extension", "machine_reverse_hyper", "bw_reverse_hyper"] {
+            let exercise = try XCTUnwrap(MockData.trainingExerciseLibrary.first { $0.id == id })
+            XCTAssertEqual(exercise.movementPattern, .hinge, id)
+            XCTAssertFalse(try XCTUnwrap(exercise.guidance?.summary).contains("triceps"), id)
+        }
+        let overhead = try XCTUnwrap(MockData.trainingExerciseLibrary.first { $0.id == "dumbbell_single_arm_overhead_extension" })
+        XCTAssertEqual(overhead.movementPattern, .elbowExtension)
+        let closeGripPress = try XCTUnwrap(MockData.trainingExerciseLibrary.first { $0.id == "bb_close_grip_bench" })
+        XCTAssertEqual(closeGripPress.movementPattern, .horizontalPress)
+        let legExtension = try XCTUnwrap(MockData.trainingExerciseLibrary.first { $0.id == "leg_extension" })
+        XCTAssertTrue(try XCTUnwrap(legExtension.guidance?.steps).contains { $0.contains("knees") })
+        XCTAssertNil(RepDBExerciseMedia.imageURL(for: "machine_45_back_extension"))
+        XCTAssertNil(RepDBExerciseMedia.imageURL(for: "machine_back_extension"))
     }
 
     func testExerciseLibraryHasExplicitTrackingAndRankingEligibility() throws {

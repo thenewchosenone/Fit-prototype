@@ -90,7 +90,8 @@ extension AppState {
         _ profile: UserProfile,
         primaryGym: Gym?,
         privacy: ProfilePrivacySettings,
-        allowUsernameChange: Bool = false
+        allowUsernameChange: Bool = false,
+        updatePrimaryGym: Bool = false
     ) async -> Bool {
         guard CommunityContentPolicy.allows(profile.username, profile.displayName) else {
             accountMessage = CommunityContentPolicy.rejectionMessage
@@ -110,18 +111,25 @@ extension AppState {
 
         do {
             guard currentProfile.id == editingUserID else { throw LiftRankServiceError.sessionExpired }
-            if let primaryGym, isAuthenticated && !isDemoMode {
-                guard try await accountSocialStore.ensureGymJoined(
-                    primaryGym,
-                    maximumMemberships: Self.maximumJoinedGyms,
-                    authenticated: true
-                ) else { throw LiftRankServiceError.gymLimitReached }
-                guard currentProfile.id == editingUserID else { throw LiftRankServiceError.sessionExpired }
-                try await accountSocialStore.setPrimaryGym(primaryGym, authenticated: true)
-                guard currentProfile.id == editingUserID else { throw LiftRankServiceError.sessionExpired }
-            } else if let primaryGym,
-                        !profileStore.isGymJoined(primaryGym.id) &&
-                        !profileStore.joinGym(primaryGym, maximumMemberships: Self.maximumJoinedGyms) {
+            if isAuthenticated && !isDemoMode,
+               profile.city != currentProfile.city || profile.state != currentProfile.state || profile.countryCode != currentProfile.countryCode {
+                let matches = try await serviceContainer.locations.searchCities(
+                    countryCode: profile.countryCode ?? "US", region: profile.state, query: profile.city, limit: 50
+                )
+                guard let city = matches.first(where: {
+                    $0.city.caseInsensitiveCompare(profile.city) == .orderedSame &&
+                    $0.region.caseInsensitiveCompare(profile.state) == .orderedSame && $0.canonicalID != nil
+                }) else {
+                    throw LiftRankServiceError.invalidInput("Choose an available city before saving your location.")
+                }
+                updatedProfile.cityID = city.canonicalID
+                updatedProfile.countryCode = city.countryCode
+                updatedProfile.city = city.city
+                updatedProfile.state = city.region
+            }
+            if let primaryGym, (!isAuthenticated || isDemoMode),
+               !profileStore.isGymJoined(primaryGym.id) &&
+               !profileStore.joinGym(primaryGym, maximumMemberships: Self.maximumJoinedGyms) {
                 throw LiftRankServiceError.gymLimitReached
             }
 
@@ -137,7 +145,8 @@ extension AppState {
                 primaryGym: primaryGym,
                 privacy: privacy,
                 authenticated: isAuthenticated && !isDemoMode,
-                allowUsernameChange: allowUsernameChange
+                allowUsernameChange: allowUsernameChange,
+                updatePrimaryGym: updatePrimaryGym
             )
             guard currentProfile.id == editingUserID else { throw LiftRankServiceError.sessionExpired }
             setAuthenticatedPrivacy(privacy)

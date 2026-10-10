@@ -297,7 +297,8 @@ final class DemoRepository: ObservableObject {
             workoutPrescriptions = snapshot.prescriptions
             workoutSetLogs = snapshot.setLogs
             workoutFeedback = snapshot.feedback
-            customTrainingExercises = snapshot.customExercises
+            var exerciseIDs = Set(MockData.trainingExerciseLibrary.map(\.id))
+            customTrainingExercises = snapshot.customExercises.filter { exerciseIDs.insert($0.id).inserted }
             workoutEntries = snapshot.legacyEntries
             bodyweightEntries = snapshot.bodyweightEntries
             strainEntries = snapshot.strainEntries ?? []

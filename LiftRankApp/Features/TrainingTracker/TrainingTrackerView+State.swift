@@ -66,6 +66,10 @@ extension TrainingTrackerView {
         appState.workoutPlanProgressionSettings.first { $0.planID == appState.selectedWorkoutPlanID }
     }
 
+    func loadTrainingFocus() {
+        selectedProgressCategory = appState.currentProfile.trainingFocus?.startingCategory ?? .consistency
+    }
+
     var selectedWeek: WorkoutWeek? {
         if let selectedWeekID,
            let week = appState.selectedPlanWeeks.first(where: { $0.id == selectedWeekID }) {

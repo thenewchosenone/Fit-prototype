@@ -10,7 +10,10 @@ Status: `[>]` active slice, `[ ]` queued, `[x]` complete. A parent remains open 
 
 - [x] **Backdated workouts:** calendar entry supports prior dates for freestyle and planned sessions while preserving source-session identity.
 - [x] **Sync and bodyweight authority:** local/syncing/attention states are visible, retries are available, and the latest logged bodyweight is the shared source for profile and Home displays.
-- [ ] **Release blockers:** finish owner/viewer privacy verification and the complete regression gate before distribution.
+- [x] **Screen audit P0 corrections (2026-10-09):** All 14 critical items are implemented. The final three passed focused unit/simulator checks and production SQL acceptance after the approved migrations were applied to `ikjgbsrlriqiusuvezco`.
+  - [x] Regression evidence: latest run passed 98 BackendFoundationTests, 251 RankingCalculatorTests, and both Edit Profile location/gym and Settings save/reopen simulator tests. Result: `/tmp/liftrivals-last-p0-final.log`. Earlier focused guidance test also passed after classifier review.
+  - [x] Simulator acceptance: profile draft survives photo management, bodyweight opens the dated log, location/gym picker save/reopen passes, five rounds of Progress switching pass, and unmatched history filters can be cleared. Results: `/tmp/liftrivals-priority-final-tests.log` and `/tmp/liftrivals-priority-acceptance.log`.
+- [ ] **Release blockers:** complete the full release regression gate and authenticated app smoke test against the deployed RPCs before distribution. Production SQL owner/viewer privacy acceptance passed; no new build has been uploaded.
 
 ### Phase 1 — core training experience (active)
 
@@ -138,7 +141,7 @@ These sections retain the detailed acceptance criteria and implementation notes.
   - [x] The profile persistence regression now also asserts Division and Friend list audiences; app and test targets compile in `/private/tmp/LiftRivals-privacy-build-for-testing` (the isolated test invocation returned no discovered tests and is not counted as a passing runtime result).
   - [x] Profile persistence now also asserts the profile-wide Private audience survives remote mapping; focused test passed at `/tmp/LiftRivals-profile-persistence-tests/Logs/Test/Test-LiftRank-2026.10.05_04-37-53--0400.xcresult`.
   - [x] Settings now carries the staged profile-wide audience onto the local `UserProfile` before saving, so demo/local privacy changes take effect immediately; build/install/launch verified at `/tmp/LiftRivals-settings-audience-current-build/Build/Products/Debug-iphonesimulator/LiftRank.app`.
-- [x] Complete the Settings save, error, destructive-action, and legal-document flows. Settings persists changes through the shared profile save path, keeps failed saves retryable, confirms account deletion and demo reset, exposes legal/support documents, and retains unit, appearance, notification, and sign-out actions.
+- [ ] Complete the Settings save, error, destructive-action, and legal-document flows. The existing save path and confirmations are present; birth-date preservation and partial-save recovery remain open after the 2026-10-09 audit.
 
 ### Phase 3 reference — Social and competitive features
 
@@ -202,6 +205,19 @@ These sections retain the detailed acceptance criteria and implementation notes.
 
 ### Phase 1.1 detail — Tracker improvements for strength and hypertrophy
 
+#### Track Today, Plans, and Library audit fixes (2026-10-09)
+
+- [x] **P0 — correct exercise instruction and media:** 45-Degree Back Extension Machine currently shows elbow-extension/triceps instructions and a leg-press-looking image. The name-based movement classifier treats unmatched “extension” names as triceps work; fix that classification, verify the external image mapping, and audit other affected catalog entries before presenting technique guidance.
+  - Implemented 2026-10-09: Corrected back-extension, reverse-hyper, and overhead-triceps movement families; added knee-specific leg-extension guidance. Removed the inaccurate back-extension artwork mappings and added catalog regression coverage.
+- [ ] **P1 — one next step on Today:** when a program is complete, show Choose another program once and keep Start empty workout secondary; the current screen repeats the program-catalog action immediately below the completion card. Keep a plateau alert from displacing the current workout decision.
+- [ ] **P1 — active plan first:** when a plan exists, open Plans on its current week and keep the nine-program catalog collapsed or below the plan. The expanded catalog currently fills the first screen before any active-plan content.
+- [ ] **P1 — coherent week labels:** correct “Week 12 of 4” in the phase card, which mixes the plan-wide week number with a four-week phase duration while the navigator says “12 of 12.” Show either phase week 4 of 4 or plan week 12 of 12, clearly labeled.
+- [ ] **P1 — completed session action:** completed plan sessions still show Start beside “5 of 5 exercises logged.” Lead with View completed workout, and label an intentional repeat as Repeat workout so users do not mistake it for an unfinished session.
+- [ ] **P1 — exercise details within reach:** put About / History / Records / Charts controls above or beside the large media/anatomy blocks, and show a compact exercise summary first. The current media and muscle map push every detail tab below the first screen.
+- [ ] **P2 — usable large catalog:** make the 550-exercise Library easier to scan through reliable search aliases or recently used exercises; enlarge or replace the 22×12-point alphabet targets and review near-duplicate names without merging distinct exercises or histories.
+- [ ] **P2 — one filter commitment:** the Library filter sheet offers both toolbar Apply and a bottom “Show N Exercises” action. Keep one clear primary action with the result count.
+- [ ] **P2 — contextual Track header:** keep plan selection and plan-editing controls on Today/Plans; condense them on Library and Progress, where they occupy space before search or analytics.
+
 - [x] Make program completion count finished planned workouts from completed history as well as in-progress set logs; keep session and week completion in sync after finishing, editing, deleting, or backdating a workout. Completion now maps saved sets back to their source prescriptions and refreshes when workout history changes.
 - [x] Define and label training metrics consistently: working sets, volume load (weight × reps), estimated 1RM, adherence, and training frequency.
   - [x] Show weekly non-warmup working sets grouped by normalized primary muscle, with a drill-down to a recent contributing workout.
@@ -248,6 +264,17 @@ These sections retain the detailed acceptance criteria and implementation notes.
 
 ### Phase 1.2 detail — Progress and analytics refinement
 
+#### Track Progress screen audit fixes (2026-10-09)
+
+- [x] **P0 — fix weekly volume units:** Consistency shows 21,835 lb while Muscle shows 9,904 lb for the same week. `homeWeeklySummary().volume` is already in the preferred unit, but Consistency passes it to `formatDisplayedWeight`, which treats it as kilograms and converts it again. Display the stored unit directly and check the related chart and baseline labels.
+  - Implemented 2026-10-09: Consistency formats the summary in its already-selected unit. The volume trend and baseline use the same preferred-unit totals without another conversion.
+- [ ] **P1 — make completion scope explicit:** label the 100% Program consistency ring as session or exercise completion when sets are only 15/24, and show the selected program week/date so it is not confused with the separate “This week” calendar summary. Remove the repeated “Week 12 · Week 12” subtitle.
+- [ ] **P1 — fair weekly comparison:** compare an in-progress week with the same elapsed portion of prior weeks or label the baseline as full-week context; “66% below” midweek currently reads as a final performance judgment.
+- [ ] **P1 — keep Muscle data visible:** compress “What needs attention” to the most important imbalance, its evidence, and a short action; expand further explanations on demand. Two long recommendation cards currently fill the first screen before the four-week muscle data.
+- [ ] **P1 — clearer Strength guidance:** identify the limiting lift and next attainable target before extra max cards, and label whether each estimated 1RM came from completed sets or a submitted lift. The summary combines both sources while its heading attributes all estimates to completed sets.
+- [ ] **P2 — goal choice before commitment:** “Set a weekly training goal” immediately assigns three days; let the athlete choose a goal or state that default in the action label.
+- [ ] **P1 — real-history responsiveness:** measure the first Strength/Muscle switch on a physical iPhone with a populated account and keep the category change responsive while its data loads; the earlier 10–20-second first-open pause was not reproduced with simulator demo data.
+
 - [x] Use shared semantic design tokens for Progress action text and recovery indicators instead of hard-coded black/orange colors; build verified at `/private/tmp/LiftRivals-progress-tokens-build/Build/Products/Debug-iphonesimulator/LiftRank.app`.
 
 - [x] Add a compact Progress overview with training status, strength trend, volume trend, and recovery flags.
@@ -289,6 +316,16 @@ These sections retain the detailed acceptance criteria and implementation notes.
 
 ### Phase 1.3 detail — Home command center refinement
 
+#### Home screen audit fixes (2026-10-09)
+
+- [ ] **P1 — make completion actionable:** when a program is complete, lead with choosing the next program; keep View Progress secondary. The current Today card says “Ready for your next program” but opens Progress.
+- [ ] **P1 — compact first viewport:** give Today and its next action clear priority. Shrink the equally tall Strength card to a concise tier/record summary, allow long tier names to fit, and put its detail in Rival tier & awards or Progress.
+- [ ] **P1 — match strength numbers to their source:** distinguish the estimated tier from the submitted three-lift total so they do not look like one calculation; keep an unrelated or missing total from occupying the main training decision area.
+- [ ] **P1 — route signals to their action:** a missed-session signal promising “Log missed workout” currently opens general Progress, as do plateau, recovery, and volume signals. Open the relevant action or section for the selected signal, and avoid repeating the same missed workout in Today and alerts.
+- [ ] **P1 — trim secondary cards:** show only the most recent useful submitted PR with a route to the full list, and surface the weekly training-day goal near Today only when it is set. An unset goal should not consume another Home card.
+- [ ] **P2 — contextual quick actions:** retain Log workout, but use the second shortcut for the most relevant next action instead of always showing Bodyweight; keep Bodyweight available as a smaller logging action.
+- [ ] **P2 — quieter header:** avoid making a zero-day streak a prominent status pill; keep profile, notifications, and settings accessible without crowding the greeting.
+
 - [x] Make the primary Home card answer “What should I do next?” for scheduled, active, rest, missed, backfilled, completed, and finished-program states. The card routes active sessions to Resume, completed or finished programs to Progress, missed sessions to Log missed workout, scheduled sessions to Today, and rest/no-plan states to Plans.
   - [x] The primary card now routes active sessions to Resume, completed-today and finished programs to Progress, missed sessions to Log missed workout, and rest days to Programs; build verified at `/private/tmp/LiftRivals-home-state-build/Build/Products/Debug-iphonesimulator/LiftRank.app`.
   - [x] The primary training card now routes scheduled and missed sessions to Today, while a true rest/no-session state opens Plans to choose the next program.
@@ -324,6 +361,18 @@ These sections retain the detailed acceptance criteria and implementation notes.
   - [x] Fixed the active-workout/no-scheduled-session state so Home shows Resume workout, uses the play icon, and routes back to Today instead of opening Programs; build/install/launch verified at `/private/tmp/LiftRivals-home-active-resume-build/Build/Products/Debug-iphonesimulator/LiftRank.app`.
 
 ### Phase 4.1 detail — Gamification expansion
+
+#### Rival Tier and rewards audit fixes (2026-10-09)
+
+- [x] **P0 — valid award thresholds:** require a positive bodyweight and a qualifying lift before unlocking bodyweight-multiple awards; an empty profile currently satisfies zero-versus-zero comparisons.
+  - Implemented 2026-10-09: All bodyweight-multiple thresholds require positive bodyweight; rejected submissions cannot earn new lift awards. Regression checks cover empty, rejected, and qualifying records.
+- [x] **P0 — consistent award state:** calculate tier-related unlocks from the same performances used by the visible Rival Tier, and define how edits, deletions, bodyweight changes, and rejected lifts affect current tier versus historical awards.
+  - Implemented 2026-10-09: Rival unlocks combine completed-workout and eligible submitted performances, matching the visible tier. Current tier recalculates after record or bodyweight changes; previously earned milestone history is retained. Rejected submissions cannot generate new unlocks.
+- [ ] **P1 — honest tier meaning:** explain that the overall tier is limited by the lowest of squat, bench, and deadlift; label it as an estimated training tier on the share card so it cannot be mistaken for a verified competition rank.
+- [ ] **P1 — useful first viewport:** show current Rival Tier, the limiting lift, and the next attainable goal before award galleries; collapse or filter the long unlocked/locked catalog and remove repeated count and celebration copy.
+- [ ] **P1 — consistent records:** identify workout estimates versus submitted/verified lifts on the same screen; prevent a populated tier from sitting beside an unexplained “No PR yet” or a total from a different data source.
+- [ ] **P1 — balanced catalog:** consolidate near-duplicate count awards and replace daily-workout streak incentives with goals that permit rest days; tailor the main goals to training focus while keeping strength tiers accessible.
+- [ ] **P2 — actual rewards and social visibility:** define what titles, frames, or other rewards unlock, then connect earned items to owner-controlled public-profile display and server-authoritative records.
 
 - [x] Enrich the existing workout-finish celebration after a successful save: highlight earned weight, rep, and volume PRs, program milestones, and awards; lead with the most meaningful result and provide View all achievements. The saved screen orders program milestones before PRs, volume, completion, and awards, and exposes a working View all achievements disclosure.
   - [x] Show a post-save confirmation only after the workout save succeeds, with key workout metrics and the top PR, volume-PR, or achievement highlights.
@@ -399,6 +448,55 @@ These sections retain the detailed acceptance criteria and implementation notes.
 
 ### Phase 2.1 detail — Personal and public profile
 
+#### Training details audit fixes (2026-10-09)
+
+- [ ] **P1 — one useful summary:** replace the expanded stack of Strength progress, Top lifts, Training stats, and Recent performance with a compact training snapshot and one relevant next action. Keep deeper lift, tier, and history detail behind their existing destinations; the Me header already shows tier, workouts, PRs, and streak.
+- [ ] **P1 — focus-aware priority:** use the saved training focus to put strength progress first for powerlifting and muscle workload or balance first for bodybuilding, while keeping both available. Show the time window and what changed before adding another metric card.
+- [ ] **P1 — honest strength sources:** label estimated 1RMs from workout sets separately from submitted top lifts and ranking-eligible results. The tier summary can be populated while Top lifts is empty; “lifts ranked” must not describe unverified estimates.
+- [ ] **P1 — working recent lifts:** make each Recent performance lift row open its submission or remove the chevron; currently the rows look tappable but have no action.
+- [ ] **P1 — correct history route:** make “Training history” open completed workouts and submissions, or relabel it “View progress” if it continues to open Track > Progress. Avoid two nearby history links that lead to different places without explanation.
+- [ ] **P1 — coherent week switch:** when Last week is selected, change “of this week” to the selected period and clarify that the lift list is all-time recent submissions; the toggle currently changes only the volume and top-focus figures.
+- [ ] **P2 — meaningful muscle summary:** do not present the largest volume bucket as a muscle-balance conclusion. Volume buckets can combine multiple primary muscles into one label; use per-muscle working sets and a comparison or next step if this is meant to guide bodybuilding.
+- [ ] **P2 — compact empty state:** if there are no logged or submitted lifts, show one clear setup action instead of tier placeholders, three empty Top lift cards, and a separate empty recent-lifts message.
+
+#### Edit Profile audit fixes (2026-10-09)
+
+- [x] **P0 — preserve identity data:** saving an unrelated field must retain the real birth date; changing an age group needs an explicit, accurate rule rather than replacing it with a fabricated date.
+  - Implemented 2026-10-09: Saves preserve the exact authenticated birth date, including a missing date. Age group is read-only rather than fabricating a replacement birth date.
+- [x] **P0 — bodyweight authority:** editing bodyweight must create or update the dated weight record used by Home/Profile, or take the user to that log; reopening Edit Profile must show the value just saved.
+  - Implemented 2026-10-09: Edit Profile opens the existing dated Bodyweight Entry editor and refreshes its weight after a successful log. Removed the separate undated bodyweight input.
+- [x] **P0 — safe photo flow:** returning from the photo editor must preserve other unsaved form edits. Make photo changes and Cancel/Save semantics clear, including upload failure feedback.
+  - Implemented 2026-10-09: The form initializes once and refreshes only its avatar after photo management, preserving other unsaved edits. Photo changes explicitly save separately; photo read/upload failures appear in the photo manager.
+- [x] **P0 — consistent location and gym:** selecting a location must update canonical city ID and country, and clearing an incompatible primary gym must clear the saved gym fields too; confirm what will be saved before dismissing.
+  - Implemented locally 2026-10-09: Resolve changed locations to server city IDs, preserve country, explicitly clear primary gym without leaving memberships, and save profile/gym changes in one transaction. Simulator coverage saves a gym, switches to Toronto, and verifies location and gym after reopening.
+  - Production verified 2026-10-09: authenticated SQL save preserves canonical country/city and exact birth date; clearing/replacing primary gym preserves memberships. Invalid focus and unavailable-gym failures roll back all profile/privacy writes.
+- [ ] **P1 — visible save outcome:** show saving progress and an in-form, retryable error; keep username change and other profile fields consistent if one server step fails.
+- [ ] **P1 — useful field validation:** explain username rules before submission, validate the bio with the same content policy as onboarding, and give field-specific feedback for invalid entries.
+- [ ] **P1 — focused form:** keep public identity, bio, and photo prominent; move computed Experience out of editable identity fields, clarify how Gender affects division and tier, and provide a staged public-profile preview or clear link to visibility settings.
+
+#### Your lifts and training history audit fixes (2026-10-09)
+
+- [x] **P0 — recoverable filters:** keep date, type, and exercise filters visible when results are empty; say “No workouts match” and provide Clear filters instead of claiming no workouts exist.
+  - Implemented 2026-10-09: Filters remain visible with no results. Existing history with no matches offers Clear filters; the count now reports the rendered subset.
+- [ ] **P1 — direct entry:** make “Your lifts and history” open at the workout/submission content or use a focused history layout; the current route repeats the full profile header, strength card, and empty PR-video section before history.
+- [ ] **P1 — usable workout rows:** open the completed-workout detail when a history row is tapped, including its exercises, sets, and source plan; retain owner-only access.
+- [ ] **P1 — honest result limits:** the page says “36 shown” while rendering only 20 workouts, and it caps submissions at five and timeline events at twelve without a way to see the rest. Show the rendered count and provide paging or a full-history route.
+- [ ] **P1 — meaningful timeline:** fix the literal milestone title `"(milestone.formatted()) workouts"`, keep same-day award unlocks from crowding out workout milestones, and link events to their source or award details when available.
+- [ ] **P1 — submission clarity:** distinguish private, friends-only, and public submissions and provide a lift-detail route; do not describe an owner's empty submission list as only “public history.”
+- [ ] **P2 — compact history summary:** show a useful recent-workout summary, active filters, and the next relevant action before secondary charts and awards; avoid duplicating Progress and Rival Tier content on this route.
+
+#### Public profile audit fixes (2026-10-09)
+
+- [x] **P0 — accurate visitor data:** load the visited athlete's public submissions directly, correct estimated-max unit conversion, and chart comparable lifts rather than mixing exercises into one trend.
+  - Implemented 2026-10-09: Added a paginated athlete-specific query behind the existing service/store, independent of the global feed. Visitor failures show Retry. Estimated-max values convert from their recorded pound representation; the dated trend compares one exercise.
+- [x] **P0 — video visibility:** verify the lift-video setting with separate owner/viewer accounts and align the public profile, lift rows, and playback authorization with the intended policy; add runtime SQL security tests for any server policy change.
+  - Implemented locally 2026-10-09: One authorization function now governs playback RPC, storage access, and visible video references. It checks profile audience, lift audience, sharing preference, blocks, and moderation. Label matches report-driven publication: “Show lift videos.” Runtime SQL tests cover owner/friend/gym/stranger/blocked viewers, 40 audience/sharing combinations, private/friends lifts, and moderated footage.
+  - Production verified 2026-10-09: all 40 profile-audience/sharing/viewer combinations passed across playback RPC, storage RLS, and video-reference filtering, plus Friends/Private lift and moderation cases. Previously issued signed playback links retain their existing five-minute expiry.
+- [ ] **P1 — real public identity:** fetch visitor avatars; carry authorized training details into public cards; make demo previews use the same fields and loading path as visitor profiles.
+- [ ] **P1 — concise first screen:** remove duplicate oversized handle, empty score/ranking cells, and stacked empty sections; keep the athlete's identity, useful highlights, and a clear visitor action visible first.
+- [ ] **P1 — social connections:** make forum authors open their profiles and provide an appropriate connect/friend and share path with clear request states.
+- [ ] **P2 — media and activity:** support public photo/video posts and a browsable recent-media feed; retain more than one clip per exercise, with owner-controlled visibility and useful empty states.
+
 - [ ] Define Personal Profile as the private training dashboard and Public Profile as the shareable athlete card; do not rely only on `isCurrentUser` conditionals.
   - [x] Owner weight-class and relative-strength displays now prefer the latest logged bodyweight entry; public profiles retain the persisted profile value. Simulator build passes.
   - [x] Profile navigation now labels the owner route “Personal profile” and visitor routes “Public profile” when no username is available, making the private dashboard versus public athlete surface explicit; build/install/launch verified at `/tmp/LiftRivals-profile-surface-build/Build/Products/Debug-iphonesimulator/LiftRank.app`.
@@ -449,6 +547,22 @@ These sections retain the detailed acceptance criteria and implementation notes.
 
 ### Phase 2.2 detail — Settings and privacy controls
 
+#### Settings audit fixes (2026-10-09)
+
+- [x] **P0 — preserve account data:** saving units, focus, or privacy must not replace the user's real birth date with an age-band estimate; verify an unrelated edit leaves all other account fields unchanged.
+  - Implemented 2026-10-09: Settings shares the corrected birth-date-preserving save path. Backend profile persistence regression checks pass.
+- [x] **P0 — reliable privacy save:** verify profile-wide and field audiences, lift-video visibility, and failure/retry behavior with separate owner, friend, gym member, and unrelated viewer accounts; ensure multi-step saves cannot silently leave partial privacy changes.
+  - Implemented locally 2026-10-09: Replaced four profile writes and separate gym changes with one transactional RPC. Failed saves preserve staged/local values for retry; a committed save followed by a failed refresh reports that distinction. Avatar/bodyweight updates preserve full audience choices. Runtime SQL tests verify rollback on invalid training focus and final gym failure, field access, private-detail isolation, and anonymous RPC denial; Swift regression covers failure/retry and explicit gym removal.
+  - Production deployed and verified 2026-10-09 with explicit user approval: prerequisite `202610080001_private_training_focus.sql` and `202610090001_profile_privacy_integrity.sql` recorded in the production migration ledger. Runtime acceptance from `supabase/tests/202610090001_profile_privacy_integrity.test.sql` passed against production; final read confirms zero fixture accounts/media and fixed `pg_catalog` search paths. SQL editor evidence: https://supabase.com/dashboard/project/ikjgbsrlriqiusuvezco/sql/845ba180-7b2f-4192-aabb-b509510a0291. Full authenticated app/release gate remains separate.
+- [x] **P0 — accurate automatic-sharing label:** the “Automatically submit video-backed PRs” switch can also publish self-reported PRs without video. Name the action for its actual public effect and keep the explanation next to it.
+  - Implemented 2026-10-09: Renamed to “Automatically share workout PRs” with its public/self-reported/video-backed explanation immediately below.
+- [ ] **P1 — honest preview:** show exactly which audience is being previewed and reflect unsaved privacy choices, or clearly require saving before preview; cover Public, Friends, Gym, and Private states.
+- [ ] **P1 — usable audience controls:** reconcile Friends/Gym choices with actual client access and connection flows; remove or defer the Friend list control until visitors can view a friend list.
+- [ ] **P1 — training-focus meaning:** decide whether the choice only sets the initial Progress category or also drives training guidance; keep the Settings description and app behavior aligned.
+- [ ] **P1 — clear save behavior:** distinguish settings saved immediately (appearance and workout preferences) from fields saved by Done; make dismissal with pending edits predictable.
+- [ ] **P1 — sign-out failure:** confirm the stored authentication session is cleared or show a recoverable error when server sign-out fails; do not silently present a completed sign-out after an exception.
+- [ ] **P2 — concise layout:** group the numerous field-visibility controls behind a disclosure, keep account and privacy actions easy to find, and move version/build details into a small footer.
+
 - [x] Organize Settings into Account, Privacy, Training, Notifications, Appearance, Legal, and Developer sections; stable section identities and simulator build evidence are recorded below.
   - [x] Grouped the existing sign-out and delete-account actions under an explicit Account section; simulator build passes.
   - [x] Renamed the workout-preference section to Training and aligned the support link with the documented `/support/` route.
@@ -464,8 +578,8 @@ These sections retain the detailed acceptance criteria and implementation notes.
   - [x] Settings privacy copy build installed and launched on iPhone 17 at `/private/tmp/LiftRivals-settings-privacy-build/Build/Products/Debug-iphonesimulator/LiftRank.app`.
 - [ ] Use consistent privacy labels for profile, bodyweight, age band, location, gym, and lift videos.
   - [x] Settings privacy copy uses one public-visibility vocabulary for profile, bodyweight, age band, location, gym, and approved lift videos.
-- [x] Add a public-profile preview that updates when visibility settings change.
-  - [x] Settings preview now renders the staged privacy/profile draft, so unsaved visibility toggles are reflected before saving.
+- [ ] Add a public-profile preview that updates when visibility settings change.
+  - [ ] The preview passes a staged profile, but `ProfileView` replaces it with the saved current profile and saved privacy for the owner ID. Make the preview honor staged choices and identify the viewer audience.
 - [ ] Explain the difference between public, video-backed, self-reported, and private PR submission settings.
   - [x] Settings now explains that automatic sharing may publish eligible PRs as self-reported or video-backed, while ordinary workout logs and private PRs remain private.
 - [x] Confirm Reset Demo Data with a clear list of affected local data and keep it unavailable in production.
@@ -476,6 +590,16 @@ These sections retain the detailed acceptance criteria and implementation notes.
   - [x] About now describes workout tracking, evidence labels, and directs users to the Settings Support link; Support points to the canonical trailing-slash URL `https://liftrivals.com/support/`.
 
 ### Phase 3.1 detail — Leaderboards
+
+#### Leaderboards screen audit fixes (2026-10-09)
+
+- [ ] **P1 — truthful ranking status:** replace “Updates Live” with the actual refresh state or last-updated time; this view fetches on request changes and has no live subscription. Keep the current athlete’s rank and matching-lifter count, but remove the duplicate Ranking metric already shown by the selected tab.
+- [ ] **P1 — accurate active filters:** count and show the default video-only evidence restriction and country scope in the Filters summary; the current badge says “0 active” while video-only ranking is in effect. Make the selected evidence and time range visible near the results.
+- [ ] **P1 — remove empty movement:** hide the Move column until prior ranking snapshots exist, rather than filling every demo row with “— 0”; use that width for athlete names and ranking values.
+- [ ] **P1 — readable athlete rows:** keep rank, athlete, qualifying value, and evidence clear in the table; move repeated gym text and the clipped squat/bench/deadlift breakdown into the athlete or lift detail.
+- [ ] **P1 — explain every ranking:** give Pound-for-pound and Most improved the same concise definition and comparison period available for Total, Relative total, and Absolute, so the selected score has a clear meaning.
+- [ ] **P2 — faster first result:** reduce the title/metric/filter stack so rankings appear higher on the first screen; retain Scope and Exercise as the primary controls and put less-used filters behind Filters.
+- [ ] **P2 — unranked next step:** when the athlete is unranked, explain the current evidence and lift requirements and link to the relevant submission action from the rank summary.
 
 - [ ] Show eligible PRs without video on the Self-reported leaderboard when automatic sharing is enabled; attaching video updates the same lift to Video-backed. Keep results to 100 per page with Load more, search, and Jump to my rank.
   - [x] Focused regression confirms verified mode excludes self-reported lifts, All lifts includes both evidence states, and Self-reported isolates the no-video entries; result bundle: `/tmp/LiftRivals-leaderboard-audit-test/Logs/Test/Test-LiftRank-2026.10.05_18-26-12--0400.xcresult`.

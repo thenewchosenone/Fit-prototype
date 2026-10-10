@@ -30,6 +30,7 @@ private func liftSymbol(for exerciseName: String) -> String {
 
 private enum MeRoute: Hashable {
     case publicProfile
+    case personalProfile
     case awards
     case gyms
 }
@@ -118,6 +119,8 @@ struct MainTabView: View {
             switch route {
             case .publicProfile:
                 ProfileView(profile: appState.currentProfile, surface: .public, viewerID: UUID())
+            case .personalProfile:
+                ProfileView(profile: appState.currentProfile, surface: .personal)
             case .awards:
                 AwardsView()
             case .gyms:
@@ -252,7 +255,6 @@ private struct ForumView: View {
                     forumHeader
                     forumFeedPicker
                     forumGroupPicker
-                    forumSortBar
                     if isLoading { ProgressView().frame(maxWidth: .infinity).padding(40) }
                     else if let message { LiftEmptyState(title: "Forum unavailable", message: message) }
                     else if feedPosts.isEmpty {
@@ -290,17 +292,6 @@ private struct ForumView: View {
         .navigationTitle(selectedGroup?.name ?? "Forum")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search discussions and communities")
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            Button { showingComposer = true } label: {
-                Label("New discussion", systemImage: "square.and.pencil")
-                    .font(.subheadline.weight(.bold))
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(LiftCompactProminentButtonStyle())
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(Color.liftBackground)
-        }
         .sheet(isPresented: $showingComposer) { ForumComposerView(groups: groups, selectedGroupID: selectedGroupID) { await loadPosts() }.environmentObject(appState) }
         .sheet(isPresented: $showingCommunityDirectory) {
                 ForumCommunityDirectoryView(
@@ -335,100 +326,88 @@ private struct ForumView: View {
     }
 
     private var forumHeader: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center, spacing: 14) {
-                ZStack {
-                    Circle().fill(Color.liftLime)
-                    Image(systemName: "figure.strengthtraining.traditional")
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(Color.liftOnAccent)
-                }
-                .frame(width: 64, height: 64)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(selectedGroup?.name ?? "Training discussions")
-                        .font(.title2.weight(.black))
-                    Text(selectedGroup == nil ? "\(posts.count) discussions" : "community • \(posts.count) discussions")
-                        .font(.subheadline)
-                        .foregroundStyle(Color.liftTextSecondary)
-                }
-                Spacer()
-                if let selectedGroup {
-                    Button {
-                        Task { await toggleMembership(selectedGroup) }
-                    } label: {
-                        Text(joinedGroupIDs.contains(selectedGroup.id) ? "Joined" : "Join")
-                            .font(.subheadline.weight(.bold))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 9)
-                            .background(Color.liftSurfaceElevated, in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
+        HStack(alignment: .center, spacing: 11) {
+            ZStack {
+                Circle().fill(Color.liftLime)
+                Image(systemName: "figure.strengthtraining.traditional")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(Color.liftOnAccent)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 10)
+            .frame(width: 42, height: 42)
 
-            Text(selectedGroup?.details ?? "Ask questions, share progress, and learn from other lifters.")
-                .font(.subheadline)
-                .foregroundStyle(Color.liftTextSecondary)
-                .lineLimit(3)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 12)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 7) {
+                    Text(selectedGroup?.name ?? "Training discussions")
+                        .font(.headline.weight(.black))
+                    Text("\(posts.count)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.liftMuted)
+                }
+                Text(selectedGroup?.details ?? "Ask questions, share progress, and learn from other lifters.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftTextSecondary)
+                    .lineLimit(1)
+            }
 
+            Spacer()
+
+            if let selectedGroup {
+                Button {
+                    Task { await toggleMembership(selectedGroup) }
+                } label: {
+                    Text(joinedGroupIDs.contains(selectedGroup.id) ? "Joined" : "Join")
+                        .font(.caption.weight(.bold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.liftSurfaceElevated, in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
         .background(Color.liftSurfaceBackground)
     }
 
     private var forumGroupPicker: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     forumChip(title: "All communities", id: nil)
                     ForEach(filteredGroups) { group in forumChip(title: group.name, id: group.id) }
                 }
-                .padding(.horizontal, 16)
             }
             Button {
                 showingCommunityDirectory = true
             } label: {
-                Label("Browse communities", systemImage: "square.grid.2x2")
+                Image(systemName: "square.grid.2x2")
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(Color.liftAccentText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: 40)
+                    .frame(width: LiftDesign.minimumTouchTarget, height: LiftDesign.minimumTouchTarget)
                     .background(Color.liftSurfaceElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, 16)
+            .accessibilityLabel("Browse communities")
         }
-        .padding(.vertical, 12)
-        .background(Color.liftBackground)
-    }
-
-    private var forumFeedPicker: some View {
-        HStack(spacing: 6) {
-            ForEach(ForumFeed.allCases) { option in
-                Button(option.rawValue) { feed = option }
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(feed == option ? Color.liftOnAccent : Color.liftMuted)
-                    .frame(maxWidth: .infinity, minHeight: 38)
-                    .background(feed == option ? Color.liftLime : Color.clear, in: Capsule())
-            }
-        }
-        .padding(6)
-        .background(Color.liftSurfaceElevated, in: Capsule())
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(Color.liftBackground)
     }
 
-    private var forumSortBar: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "arrow.up.arrow.down")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.liftMuted)
+    private var forumFeedPicker: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 4) {
+                ForEach(ForumFeed.allCases) { option in
+                    Button(option.rawValue) { feed = option }
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(feed == option ? Color.liftOnAccent : Color.liftMuted)
+                        .frame(maxWidth: .infinity, minHeight: 34)
+                        .background(feed == option ? Color.liftLime : Color.clear, in: Capsule())
+                }
+            }
+            .padding(4)
+            .background(Color.liftSurfaceElevated, in: Capsule())
+
             Menu {
                 ForEach(ForumSort.allCases) { option in
                     Button { sort = option } label: {
@@ -436,17 +415,17 @@ private struct ForumView: View {
                     }
                 }
             } label: {
-                Label(sort.title.uppercased(), systemImage: sort.icon)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.liftText)
+                Image(systemName: sort.icon)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.liftAccentText)
+                    .frame(width: LiftDesign.minimumTouchTarget, height: LiftDesign.minimumTouchTarget)
+                    .background(Color.liftSurfaceElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            Spacer()
-            Image(systemName: "rectangle.grid.1x2")
-                .foregroundStyle(Color.liftMuted)
+            .accessibilityLabel("Sort discussions by \(sort.title)")
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 11)
-        .background(Color.liftScrim)
+        .padding(.vertical, 8)
+        .background(Color.liftBackground)
     }
 
     private var selectedGroup: ForumCommunity? { groups.first { $0.id == selectedGroupID } }
@@ -874,7 +853,7 @@ private struct ForumPostCard: View {
                 Text(post.body)
                     .font(.subheadline)
                     .foregroundStyle(Color.liftTextSecondary)
-                    .lineLimit(4)
+                    .lineLimit(3)
                 if let tag = post.tag, tag != "demo" {
                     Text(tag.uppercased())
                         .font(.caption.weight(.bold))
@@ -898,7 +877,7 @@ private struct ForumPostCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
-            .padding(.vertical, 15)
+            .padding(.vertical, 12)
             .background(Color.liftBackground)
         }
         .buttonStyle(.plain)
@@ -1433,15 +1412,17 @@ private enum MeRecentVolumeSelection: String, CaseIterable {
 private struct MeHubContentView: View {
     @EnvironmentObject private var appState: AppState
     @State private var weeklyVolumeSelection: MeRecentVolumeSelection = .thisWeek
+    @State private var showsTrainingDetails = false
 
     var body: some View {
         AppBackground {
             ScrollView {
                 let profile = appState.currentProfile
                 let preferredUnit = profile.preferredUnit
-                let bestStrengthLifts = appState.bestStrengthLifts
                 let tierSummary = appState.strengthTierSummary
-                let hasLoggedTopLifts = bestStrengthLifts["bench"] != nil || bestStrengthLifts["squat"] != nil || bestStrengthLifts["deadlift"] != nil
+                let trainingStats = appState.competitiveStatistics
+                let displayName = profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Your profile" : profile.displayName
+                let handle = profile.username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Add a handle in Edit profile" : "@\(profile.username)"
 
                 LazyVStack(alignment: .leading, spacing: 14) {
                     VStack(alignment: .leading, spacing: 12) {
@@ -1449,11 +1430,11 @@ private struct MeHubContentView: View {
                             ProfileAvatar(profile: profile, size: 66)
                                 .accessibilityIdentifier("me.profileHeader")
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(profile.displayName)
+                                Text(displayName)
                                     .font(.title3.weight(.black))
-                                Text("@\(profile.username)")
+                                Text(handle)
                                     .font(.caption)
-                                    .foregroundStyle(Color.liftMuted)
+                                    .foregroundStyle(profile.username.isEmpty ? Color.liftAccentText : Color.liftMuted)
                                 Text("Tier \(tierSummary.overallTier.label)")
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(Color.liftGold)
@@ -1470,6 +1451,10 @@ private struct MeHubContentView: View {
                                     appState.showingEditProfile = true
                                 }
                             }
+                        }
+
+                        if let bio = profile.bio, !bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text(bio).font(.subheadline).lineLimit(3)
                         }
 
                         NavigationLink(value: MeRoute.publicProfile) {
@@ -1490,11 +1475,24 @@ private struct MeHubContentView: View {
                         .buttonStyle(.plain)
                         .foregroundStyle(Color.liftAccentText)
                         .accessibilityIdentifier("me.publicProfile")
+
+                        HStack(spacing: 0) {
+                            meHeaderStat("Workouts", trainingStats.totalWorkouts.formatted())
+                            Divider().frame(height: 28).overlay(Color.liftSeparator)
+                            meHeaderStat("PRs", trainingStats.prCount.formatted())
+                            Divider().frame(height: 28).overlay(Color.liftSeparator)
+                            meHeaderStat("Streak", "\(trainingStats.currentStreak)d")
+                        }
+                        .padding(.top, 2)
                     }
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .liftSurface(radius: 12)
 
+                    DisclosureGroup("Training details", isExpanded: $showsTrainingDetails) {
+                    if showsTrainingDetails {
+                    let bestStrengthLifts = appState.bestStrengthLifts
+                    let hasLoggedTopLifts = bestStrengthLifts["bench"] != nil || bestStrengthLifts["squat"] != nil || bestStrengthLifts["deadlift"] != nil
                     CompactSectionHeader(title: "Strength progress")
                         .accessibilityIdentifier("me.section.strengthProgress")
                     VStack(alignment: .leading, spacing: 12) {
@@ -1574,8 +1572,12 @@ private struct MeHubContentView: View {
                         selection: $weeklyVolumeSelection,
                         preferredUnit: preferredUnit
                     )
+                    }
+                    }
+                    .accessibilityIdentifier("me.trainingDetails")
+                    .tint(Color.liftAccentText)
 
-                    CompactSectionHeader(title: "Awards and history")
+                    CompactSectionHeader(title: "Activity & connections")
                         .accessibilityIdentifier("me.section.awardsHistory")
                     VStack(spacing: 0) {
                         NavigationLink(value: MeRoute.awards) {
@@ -1583,62 +1585,29 @@ private struct MeHubContentView: View {
                         }
                         .accessibilityIdentifier("me.awards")
                         Divider().overlay(Color.liftSeparator).padding(.leading, 66)
-                        Button {
-                            appState.trainingTrackerStartOnProgress = true
-                            appState.requestedTrackerSegment = "Progress"
-                            appState.selectedTab = 2
-                        } label: {
-                            meRow("Training history", "Workouts, bodyweight, and trends", "chart.xyaxis.line", Color.liftGreen)
+                        NavigationLink(value: MeRoute.personalProfile) {
+                            meRow("Your lifts and history", "Submissions, workouts, and personal activity", "chart.xyaxis.line", Color.liftGreen)
                         }
+                        .accessibilityIdentifier("me.personalProfile")
+                        Divider().overlay(Color.liftSeparator).padding(.leading, 66)
+                        NavigationLink(value: MeRoute.gyms) {
+                            meRow(
+                                "Find a gym",
+                                appState.gyms.isEmpty
+                                    ? "Browse locations and choose your primary gym"
+                                    : "\(appState.gyms.count) locations · \(appState.joinedGymCount) joined",
+                                "building.2.fill",
+                                Color.liftBlue,
+                                badge: appState.currentProfile.primaryGymName.isEmpty
+                                    ? nil
+                                    : appState.currentProfile.primaryGymName
+                            )
+                        }
+                        .accessibilityIdentifier("me.gyms")
                     }
                     .buttonStyle(.plain)
                     .liftSurface()
 
-                    CompactSectionHeader(title: "Gyms")
-                        .accessibilityIdentifier("me.section.gyms")
-                    NavigationLink(value: MeRoute.gyms) {
-                        meRow(
-                            "Find a gym",
-                            appState.gyms.isEmpty
-                                ? "Browse locations and choose your primary gym"
-                                : "\(appState.gyms.count) locations · \(appState.joinedGymCount) joined",
-                            "building.2.fill",
-                            Color.liftBlue,
-                            badge: appState.currentProfile.primaryGymName.isEmpty
-                                ? nil
-                                : appState.currentProfile.primaryGymName
-                        )
-                    }
-                    .accessibilityIdentifier("me.gyms")
-                    .buttonStyle(.plain)
-                    .liftSurface(radius: 12)
-
-                    CompactSectionHeader(title: "Account settings")
-                        .accessibilityIdentifier("me.section.accountSettings")
-                    Button { appState.showingSettings = true } label: {
-                        meRow("Settings", "Account preferences, privacy, and legal controls", "gearshape.fill", Color.liftBlue)
-                    }
-                    .buttonStyle(.plain)
-                    .liftSurface(radius: 12)
-
-                    CompactSectionHeader(title: "Account actions")
-                        .accessibilityIdentifier("me.section.accountActions")
-                    VStack(spacing: 0) {
-                        Button(role: .destructive) {
-                            Task { await appState.signOutAccount() }
-                        } label: {
-                            meRow(
-                                "Sign out",
-                                "Open settings to delete, or sign out now",
-                                "rectangle.portrait.and.arrow.right",
-                                Color.liftRed,
-                                isDestructive: true
-                            )
-                        }
-                        .accessibilityIdentifier("me.accountActions.signOut")
-                    }
-                    .buttonStyle(.plain)
-                    .liftSurface(radius: 12)
                 }
                 .padding(14)
                 .padding(.bottom, LiftDesign.floatingTabBarContentClearance)
@@ -1689,6 +1658,18 @@ private struct MeHubContentView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private func meHeaderStat(_ title: String, _ value: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.subheadline.weight(.black))
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Color.liftMuted)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 
     private func topLiftCard(_ title: String, value: Double?, preferredUnit: UnitSystem, suffix: String, showHelp: Bool = false, compact: Bool = false) -> some View {

@@ -11,6 +11,7 @@ extension DemoRepository {
     }
 
     func addCustomTrainingExercise(_ exercise: TrainingExerciseCatalogItem) {
+        guard !trainingExerciseCatalog.contains(where: { $0.id == exercise.id }) else { return }
         customTrainingExercises.insert(exercise, at: 0)
         scheduleWorkoutSnapshotPersistence()
     }

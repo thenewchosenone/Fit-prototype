@@ -3,42 +3,12 @@ import Supabase
 
 struct FeatureAvailability: Equatable, Sendable {
     let pushNotifications: Bool
-    let advertising: Bool
     let forum: Bool
 
     static let focusedProduction = FeatureAvailability(
         pushNotifications: true,
-        advertising: false,
         forum: true
     )
-
-    static let internalFull = FeatureAvailability(
-        pushNotifications: true,
-        advertising: false,
-        forum: true
-    )
-
-    static let deferredFeaturesLaunchArgument = "-enableDeferredFeatures"
-
-    static func resolved(
-        for environment: LiftRankBackendEnvironment?,
-        arguments: [String] = ProcessInfo.processInfo.arguments,
-        processEnvironment: [String: String] = ProcessInfo.processInfo.environment
-    ) -> FeatureAvailability {
-        if environment == .production { return .focusedProduction }
-#if DEBUG
-        let environmentOverride = processEnvironment["LIFTRANK_ENABLE_DEFERRED_FEATURES"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        let hasEnvironmentOverride = environmentOverride.map {
-            ["1", "true", "yes"].contains($0)
-        } ?? false
-        if arguments.contains(deferredFeaturesLaunchArgument) || hasEnvironmentOverride {
-            return .internalFull
-        }
-#endif
-        return .focusedProduction
-    }
 }
 
 @MainActor
@@ -63,7 +33,7 @@ struct AppServiceContainer {
     let accountDeletion: any AccountDeletionService
 
     init(
-        features: FeatureAvailability = .resolved(for: nil),
+        features: FeatureAvailability = .focusedProduction,
         authentication: any AuthenticationService,
         profile: any ProfileService,
         locations: (any LocationService)? = nil,
@@ -109,7 +79,7 @@ struct AppServiceContainer {
             let unavailable = UnavailableLaunchService()
             let unavailableAccountData = UnavailableAccountDataService()
             return AppServiceContainer(
-                features: .resolved(for: nil),
+                features: .focusedProduction,
                 authentication: UnconfiguredAuthenticationService(repository: repository),
                 profile: unavailableAccountData,
                 locations: BundledLocationService(),
@@ -135,7 +105,7 @@ struct AppServiceContainer {
             )
         )
         return AppServiceContainer(
-            features: .resolved(for: configuration.environment),
+            features: .focusedProduction,
             authentication: SupabaseAuthenticationService(client: client),
             profile: SupabaseProfileService(client: client),
             locations: SupabaseLocationService(client: client),
@@ -153,7 +123,7 @@ struct AppServiceContainer {
 #if DEBUG
     static func demo(repository: DemoRepository) -> AppServiceContainer {
         AppServiceContainer(
-            features: .resolved(for: nil),
+            features: .focusedProduction,
             authentication: MockAuthenticationService(repository: repository),
             profile: MockProfileService(repository: repository),
             locations: BundledLocationService(),

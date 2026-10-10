@@ -40,7 +40,19 @@ final class SupabaseLiftService: LiftService {
                 .execute()
                 .value
             let userID = try await client.auth.session.user.id
-            var ownRows: [CompetitiveLiftDTO] = []
+            let ownSubmissions = try await submissions(forUserID: userID)
+            var seenIDs = Set<UUID>()
+            let recentSubmissions = try await restrictingVideoPlayback(recentRows.compactMap(\.submission))
+            return (recentSubmissions + ownSubmissions).filter {
+                seenIDs.insert($0.id).inserted
+            }
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func submissions(forUserID userID: UUID) async throws -> [LiftSubmission] {
+        do {
+            let pageSize = 500
+            var submissions: [LiftSubmission] = []
             var offset = 0
             while true {
                 let page: [CompetitiveLiftDTO] = try await client
@@ -52,17 +64,12 @@ final class SupabaseLiftService: LiftService {
                     .range(from: offset, to: offset + pageSize - 1)
                     .execute()
                     .value
-                ownRows.append(contentsOf: page)
+                submissions.append(contentsOf: page.compactMap(\.submission))
                 guard page.count == pageSize else { break }
                 offset += pageSize
             }
-            var seenIDs = Set<UUID>()
-            return (recentRows + ownRows).compactMap { row in
-                guard seenIDs.insert(row.id).inserted else { return nil }
-                return row.submission
-            }
-        }
-        catch { throw SupabaseServiceErrorMapper.map(error) }
+            return try await restrictingVideoPlayback(submissions)
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
     func submissions(ids: [UUID]) async throws -> [LiftSubmission] {
@@ -74,8 +81,24 @@ final class SupabaseLiftService: LiftService {
                 .in("id", values: ids.map(\.uuidString))
                 .execute()
                 .value
-            return rows.compactMap(\.submission)
+            return try await restrictingVideoPlayback(rows.compactMap(\.submission))
         } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    private func restrictingVideoPlayback(_ submissions: [LiftSubmission]) async throws -> [LiftSubmission] {
+        let assetIDs = Array(Set(submissions.compactMap(\.videoAssetID)))
+        guard !assetIDs.isEmpty else { return submissions }
+        let permitted: [UUID] = try await client.rpc(
+            "get_playable_lift_media_ids", params: ["asset_ids": assetIDs]
+        ).execute().value
+        let allowed = Set(permitted)
+        return submissions.map { submission in
+            var visible = submission
+            if let assetID = visible.videoAssetID, !allowed.contains(assetID) {
+                visible.videoAssetID = nil
+            }
+            return visible
+        }
     }
 
     func submit(_ submission: LiftSubmission) async throws -> LiftSubmission {

@@ -6,8 +6,6 @@ import { estimatedOneRepMax, personalRecords, recommendedNextWeight } from "../s
 import { computedLeaderboardEntries, plateLoadTotal, weightClassFor } from "../src/platform";
 import { workoutProgramTemplates } from "../src/programTemplates";
 import { loadTrackerState, serializeTrackerState, STORAGE_KEY, trackerReducer } from "../src/store";
-import type { TrackerState } from "../src/types";
-
 const fresh = () => structuredClone(seedState);
 const officialGymBrands = [
   "Crunch Fitness",
@@ -384,6 +382,8 @@ describe("platform features", () => {
     expect(gyms.some((gym) => gym.name === "YouFit Gyms - Weston")).toBe(true);
     expect(gyms.find((gym) => gym.name === "YouFit Gyms - Weston")?.memberCount).toBeUndefined();
     expect(gyms.find((gym) => gym.name === "YouFit Gyms - Weston")?.verifiedLiftCount).toBeUndefined();
+    expect(gyms.find((gym) => gym.id === "gym-south-beach")?.memberCount).toBeDefined();
+    expect(gyms.find((gym) => gym.id === "gym-south-beach")?.verifiedLiftCount).toBeDefined();
   });
 
   it("submits lifts only for joined gyms and delays leaderboard eligibility", () => {
