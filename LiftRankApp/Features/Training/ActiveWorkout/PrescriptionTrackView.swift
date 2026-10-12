@@ -19,29 +19,28 @@ struct PrescriptionTrackView: View {
                 }
 
                 ScrollViewReader { proxy in
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 10) {
-                            let logs = activeLogs
-                            let completedLogs = completedLogs(in: logs)
-                            let previousLogs = cachedPreviousLogsBySetNumber
-                            let progress = appState.activeWorkoutDisplayState.progressByExerciseID[exercise.id]
-                                ?? appState.activeWorkoutExerciseProgress(for: exercise)
-                            let restMetric = "\(exercise.restSeconds)s"
-                            let volumeMetric = "\(Int(completedVolume(in: completedLogs))) \(appState.activeWorkout?.unit.shortLabel ?? "lb")"
-                            let activeUnit = appState.activeWorkout?.unit ?? appState.currentProfile.preferredUnit
-                            let targetLoad = exercise.targetLoadKilograms.map {
-                                MeasurementFormatting.formatDisplayedWeight($0, unit: activeUnit)
-                            }
-                            let targetDetails = [
-                                exercise.targetRIR.map { "\($0) reps in reserve" },
-                                exercise.trainingMaxPercentage.map { "\(Int(($0 * 100).rounded()))% of training max" },
-                                targetLoad
-                            ].compactMap { $0 }.joined(separator: " · ")
-                            let targetSummary = "Target: \(progress.plannedWorkingSets) × \(exercise.targetReps)" +
-                                (targetDetails.isEmpty ? "" : " · \(targetDetails)")
-                            let previousMetric = previousLogs[1].map {
-                                "Last \($0.reps ?? 0) × \(RankingCalculator.format($0.weight ?? 0))"
-                            }
+                    let logs = activeLogs
+                    let completedLogs = completedLogs(in: logs)
+                    let previousLogs = cachedPreviousLogsBySetNumber
+                    let progress = appState.activeWorkoutDisplayState.progressByExerciseID[exercise.id]
+                        ?? appState.activeWorkoutExerciseProgress(for: exercise)
+                    let restMetric = "\(exercise.restSeconds)s"
+                    let volumeMetric = "\(Int(completedVolume(in: completedLogs))) \(appState.activeWorkout?.unit.shortLabel ?? "lb")"
+                    let activeUnit = appState.activeWorkout?.unit ?? appState.currentProfile.preferredUnit
+                    let targetLoad = exercise.targetLoadKilograms.map {
+                        MeasurementFormatting.formatDisplayedWeight($0, unit: activeUnit)
+                    }
+                    let targetDetails = [
+                        exercise.targetRIR.map { "\($0) reps in reserve" },
+                        exercise.trainingMaxPercentage.map { "\(Int(($0 * 100).rounded()))% of training max" },
+                        targetLoad
+                    ].compactMap { $0 }.joined(separator: " · ")
+                    let targetSummary = "Target: \(progress.plannedWorkingSets) × \(exercise.targetReps)" +
+                        (targetDetails.isEmpty ? "" : " · \(targetDetails)")
+                    let previousMetric = previousLogs[1].map {
+                        "Last \($0.reps ?? 0) × \(RankingCalculator.format($0.weight ?? 0))"
+                    }
+                    List {
                             VStack(alignment: .leading, spacing: 12) {
                                 HStack(spacing: 12) {
                                     ExerciseCatalogIcon(exercise: catalogExercise)
@@ -79,6 +78,9 @@ struct PrescriptionTrackView: View {
                             }
                             .accessibilityAddTraits(.isButton)
                             .accessibilityHint("Shows exercise information")
+                            .listRowInsets(EdgeInsets(top: 8, leading: 18, bottom: 8, trailing: 18))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
 
                             if let substitutionIDs = exercise.substitutionExerciseIDs,
                                !substitutionIDs.isEmpty {
@@ -109,9 +111,15 @@ struct PrescriptionTrackView: View {
                                         }
                                     }
                                 }
+                                .listRowInsets(EdgeInsets(top: 4, leading: 18, bottom: 4, trailing: 18))
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
                             }
 
                             setColumnHeader
+                                .listRowInsets(EdgeInsets(top: 8, leading: 18, bottom: 4, trailing: 18))
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
 
                             ForEach(logs) { log in
                                 WorkoutSetLogRow(
@@ -122,17 +130,29 @@ struct PrescriptionTrackView: View {
                                     onDelete: { appState.deleteSetLog($0) },
                                     onApplyCompletion: { appState.applyWorkoutSetCompletion($0, isComplete: $1, source: .manual) },
                                     onAttemptAutomaticCompletion: { appState.attemptAutomaticCompletion(before: $0) },
-                                    onUpdate: { appState.updateSetLog($0) }
+                                    onUpdate: { appState.updateSetLog($0) },
+                                    onPersistImmediately: { appState.persistLocalWorkoutSnapshot() }
                                 ) {
                                     startRestTimer()
                                 }
                                 .id(log.id)
+                                .listRowInsets(EdgeInsets(top: 5, leading: 18, bottom: 5, trailing: 18))
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                    Button(role: .destructive) {
+                                        focusedInput = nil
+                                        appState.deleteSetLog(log)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash.fill")
+                                    }
+                                    .tint(Color.liftRed)
+                                }
                             }
                         }
-                        .padding(.horizontal, 18)
-                        .padding(.top, 16)
-                        .padding(.bottom, 18)
-                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .contentMargins(.vertical, 8, for: .scrollContent)
                     .scrollDismissesKeyboard(.interactively)
                     .scrollIndicators(.hidden)
                     .onChange(of: focusedInput) { _, focus in

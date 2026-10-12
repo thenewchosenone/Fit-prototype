@@ -589,9 +589,8 @@ final class AppState: ObservableObject {
             activeWorkoutStore.synchronizeAccountScope()
             await synchronizeCompletedWorkoutHistory()
             await synchronizeWorkoutPlans()
-            if let demoPlanID = repository.seedDemoProgramHistoryIfNeeded() {
-                selectedWorkoutPlanID = demoPlanID
-            }
+            _ = repository.seedDemoProgramHistoryIfNeeded()
+            restoreSelectedWorkoutPlanIfNeeded()
             repository.seedDemoLeaderboardDataIfNeeded()
             accountStatus = .demo
         } catch {
@@ -785,6 +784,9 @@ final class AppState: ObservableObject {
         }
         guard accountSession?.userID == accountUserID,
               repository.currentProfile.id == accountUserID else { throw LiftRankServiceError.sessionExpired }
+        if accountStatus == .authenticated {
+            await synchronizeWorkoutPlans()
+        }
         await cacheAuthenticatedProfilePhotoIfNeeded()
         schedulePostAuthenticationRefresh(for: accountUserID)
     }
@@ -911,6 +913,7 @@ final class AppState: ObservableObject {
     func synchronizeWorkoutPlans(force: Bool = true) async {
         guard isAuthenticated, !isDemoMode else { return }
         await workoutSyncStore.synchronizeWorkoutPlans(force: force)
+        restoreSelectedWorkoutPlanIfNeeded()
     }
 
     func refreshProductionLaunchData() async {
@@ -1240,10 +1243,6 @@ extension AppState {
 
     var strengthAttentionInsights: [TrainingAttentionInsight] {
         trainingProgressStore.strengthAttentionInsights(summary: strengthTierSummary)
-    }
-
-    var muscleAttentionInsights: [TrainingAttentionInsight] {
-        trainingProgressStore.muscleAttentionInsights()
     }
 
     func recoverySummaries(referenceDate: Date = .now) -> [TrainingRecoverySummary] {

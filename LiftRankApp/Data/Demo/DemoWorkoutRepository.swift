@@ -377,7 +377,7 @@ extension DemoRepository {
             startedAt: effectiveStartedAt,
             completedAt: safeCompletedAt,
             duration: elapsedDuration,
-            effort: min(max(effort, 1), 5),
+            effort: min(max(effort, 0), 5),
             notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
             gymID: workout.gymID,
             bodyweight: workout.bodyweight,

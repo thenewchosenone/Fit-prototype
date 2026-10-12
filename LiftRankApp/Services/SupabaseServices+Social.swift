@@ -44,7 +44,9 @@ final class SupabaseSocialService: SocialService {
                     avatarPath: $0.avatarPath, ageBand: $0.ageBand,
                     sexCategory: $0.sexCategory.flatMap(SexCategory.init(rawValue:)),
                     city: $0.city, region: $0.region, countryCode: $0.countryCode,
-                    primaryGymID: $0.primaryGymID, primaryGymName: $0.primaryGymName
+                    primaryGymID: $0.primaryGymID, primaryGymName: $0.primaryGymName,
+                    bodyweightPounds: $0.bodyweightPounds,
+                    bodyweightLastUpdatedAt: $0.bodyweightLastUpdatedAt
                 )
             }
         } catch { throw SupabaseServiceErrorMapper.map(error) }

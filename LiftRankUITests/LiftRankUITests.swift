@@ -400,7 +400,7 @@ final class LiftRankUITests: XCTestCase {
             categories.buttons["Strength"].tap()
             XCTAssertTrue(app.staticTexts["Strength"].exists)
             categories.buttons["Muscle"].tap()
-            XCTAssertTrue(app.staticTexts["Four-week working sets by muscle"].exists)
+            XCTAssertTrue(app.staticTexts["Muscle workload"].exists)
             categories.buttons["Consistency"].tap()
             XCTAssertTrue(app.staticTexts["Program consistency"].exists)
         }
@@ -417,7 +417,7 @@ final class LiftRankUITests: XCTestCase {
         categories.buttons["Strength"].tap()
         let firstMuscleSwitch = Date()
         categories.buttons["Muscle"].tap()
-        XCTAssertTrue(app.staticTexts["Four-week working sets by muscle"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Muscle workload"].waitForExistence(timeout: 5))
         print("First Muscle switch: \(Date().timeIntervalSince(firstMuscleSwitch)) seconds")
 
         for _ in 0..<5 {
@@ -425,18 +425,57 @@ final class LiftRankUITests: XCTestCase {
             XCTAssertTrue(app.staticTexts["Strength"].waitForExistence(timeout: 5))
 
             categories.buttons["Muscle"].tap()
-            XCTAssertTrue(app.staticTexts["Four-week working sets by muscle"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts["Muscle workload"].waitForExistence(timeout: 5))
 
             categories.buttons["Consistency"].tap()
             XCTAssertTrue(app.staticTexts["Program consistency"].waitForExistence(timeout: 5))
         }
 
         categories.buttons["Muscle"].tap()
-        let period = app.buttons["Volume period"]
-        for _ in 0..<8 where !period.isHittable { app.swipeUp() }
+        let period = app.buttons["tracker.muscle.period"]
         XCTAssertTrue(period.isHittable)
         period.tap()
-        XCTAssertEqual(period.value as? String, "Last week")
+        app.buttons["Last week"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label ENDSWITH %@", "Completed week")).firstMatch.exists)
+    }
+
+    func testMuscleWorkloadFiltersAndExerciseBreakdown() {
+        let app = launchDemo()
+        XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
+        tab("track", in: app).tap()
+        app.buttons["tracker.segment.progress"].tap()
+        app.segmentedControls["tracker.progress.category"].buttons["Muscle"].tap()
+        let filter = app.buttons["tracker.muscle.filter"]
+        for _ in 0..<5 where !filter.isHittable { app.swipeUp() }
+        XCTAssertTrue(filter.isHittable)
+        filter.tap()
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "No primary sets (")).firstMatch.tap()
+        XCTAssertFalse(app.staticTexts["Below target"].exists)
+        filter.tap()
+        app.buttons["Logged work"].tap()
+        let overview = XCTAttachment(screenshot: app.screenshot())
+        overview.name = "Muscle workload overview"
+        overview.lifetime = .keepAlways
+        add(overview)
+
+        let muscle = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@ AND identifier != %@ AND identifier != %@",
+            "tracker.muscle.", "tracker.muscle.period", "tracker.muscle.filter"
+        )).firstMatch
+        for _ in 0..<5 where !muscle.isHittable { app.swipeUp() }
+        XCTAssertTrue(muscle.isHittable)
+        muscle.tap()
+        XCTAssertTrue(app.staticTexts["Four-week workload"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Contributing exercises · selected week"].exists)
+        let detail = XCTAttachment(screenshot: app.screenshot())
+        detail.name = "Muscle exercise breakdown"
+        detail.lifetime = .keepAlways
+        add(detail)
+        let workout = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Open workout ·")).firstMatch
+        for _ in 0..<5 where !workout.isHittable { app.swipeUp() }
+        XCTAssertTrue(workout.isHittable)
+        workout.tap()
+        XCTAssertTrue(app.buttons["Repeat workout"].waitForExistence(timeout: 5))
     }
 
     func testFirstProgressOpenWithMuscleFocus() {
@@ -466,7 +505,7 @@ final class LiftRankUITests: XCTestCase {
         let started = Date()
         app.buttons["tracker.segment.progress"].tap()
         XCTAssertTrue(app.staticTexts["Bodybuilding"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Four-week working sets by muscle"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Muscle workload"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["What are you training for?"].exists)
         print("First Progress open with Muscle focus: \(Date().timeIntervalSince(started)) seconds")
     }

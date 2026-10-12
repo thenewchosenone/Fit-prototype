@@ -1413,6 +1413,7 @@ private struct MeHubContentView: View {
     @EnvironmentObject private var appState: AppState
     @State private var weeklyVolumeSelection: MeRecentVolumeSelection = .thisWeek
     @State private var showsTrainingDetails = false
+    @State private var selectedTopLiftCard: TopLiftCardDestination?
 
     var body: some View {
         AppBackground {
@@ -1530,14 +1531,22 @@ private struct MeHubContentView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .liftSurface(radius: 12)
 
-                    CompactSectionHeader(title: "Top lifts")
+                    CompactSectionHeader(title: "Top submitted lifts")
                         .accessibilityIdentifier("me.section.topLifts")
                     if hasLoggedTopLifts {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                            topLiftCard("Bench", lift: bestStrengthLifts["bench"], preferredUnit: preferredUnit, suffix: "", compact: true)
-                            topLiftCard("Squat", lift: bestStrengthLifts["squat"], preferredUnit: preferredUnit, suffix: "", compact: true)
-                            topLiftCard("Deadlift", lift: bestStrengthLifts["deadlift"], preferredUnit: preferredUnit, suffix: "", compact: true)
-                            topLiftCard("Total strength", value: RankingCalculator.poundsToKilograms(appState.powerliftingTotal), preferredUnit: preferredUnit, suffix: "total", compact: true)
+                            topLiftCardButton("Bench", exerciseID: "bench", lift: bestStrengthLifts["bench"], preferredUnit: preferredUnit)
+                            topLiftCardButton("Squat", exerciseID: "squat", lift: bestStrengthLifts["squat"], preferredUnit: preferredUnit)
+                            topLiftCardButton("Deadlift", exerciseID: "deadlift", lift: bestStrengthLifts["deadlift"], preferredUnit: preferredUnit)
+                            let breakdown = RankingCalculator.powerliftingBreakdown(for: profile.id, lifts: appState.currentUserLifts)
+                            Button {
+                                selectedTopLiftCard = .totalStrength(breakdown)
+                            } label: {
+                                topLiftCard("Total strength", value: breakdown.totalKilograms, preferredUnit: preferredUnit, suffix: "total", compact: true)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("View total strength breakdown")
+                            .accessibilityHint("Shows the submitted one-rep-max lifts included in your total")
                         }
                     } else {
                         VStack(spacing: 10) {
@@ -1546,7 +1555,7 @@ private struct MeHubContentView: View {
                             } label: {
                                 HStack {
                                     Image(systemName: "plus.circle.fill")
-                                    Text("Log your first lift")
+                                    Text("Submit a new lift")
                                         .font(.subheadline.weight(.bold))
                                     Spacer()
                                     Image(systemName: "arrow.right")
@@ -1561,9 +1570,9 @@ private struct MeHubContentView: View {
                             .buttonStyle(.plain)
 
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                                topLiftCard("Bench", lift: nil, preferredUnit: preferredUnit, suffix: "", showHelp: true, compact: true)
-                                topLiftCard("Squat", lift: nil, preferredUnit: preferredUnit, suffix: "", showHelp: true, compact: true)
-                                topLiftCard("Deadlift", lift: nil, preferredUnit: preferredUnit, suffix: "", showHelp: true, compact: true)
+                                topLiftCardButton("Bench", exerciseID: "bench", lift: nil, preferredUnit: preferredUnit)
+                                topLiftCardButton("Squat", exerciseID: "squat", lift: nil, preferredUnit: preferredUnit)
+                                topLiftCardButton("Deadlift", exerciseID: "deadlift", lift: nil, preferredUnit: preferredUnit)
                             }
                         }
                     }
@@ -1621,6 +1630,28 @@ private struct MeHubContentView: View {
         .task {
             await appState.refreshProductionLifts()
         }
+        .sheet(item: $selectedTopLiftCard) { destination in
+            TopLiftCardDetailSheet(destination: destination)
+                .environmentObject(appState)
+                .presentationDetents([.large])
+        }
+    }
+
+    private func topLiftCardButton(
+        _ title: String,
+        exerciseID: String,
+        lift: LiftSubmission?,
+        preferredUnit: UnitSystem
+    ) -> some View {
+        Button {
+            selectedTopLiftCard = lift.map(TopLiftCardDestination.submitted)
+                ?? .exerciseHistory(id: exerciseID, name: title)
+        } label: {
+            topLiftCard(title, lift: lift, preferredUnit: preferredUnit, suffix: "", compact: true)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(lift == nil ? "View past \(title.lowercased()) workout lifts" : "View submitted \(title.lowercased()) lift")
+        .accessibilityHint(lift == nil ? "Shows matching workout sets and lets you submit one" : "Shows details for this submitted lift")
     }
 
     private func topLiftCard(
@@ -1683,7 +1714,7 @@ private struct MeHubContentView: View {
                 value.map { "\(MeasurementFormatting.formatDisplayedWeight($0, unit: preferredUnit))\(suffix.isEmpty ? "" : " \(suffix)")" } ?? "—"
             )
                 .font(.subheadline.weight(.black))
-            Text(showHelp ? "Log lifts to establish your best" : "Best logged lift")
+            Text(showHelp ? "No lift submission yet" : "Best submitted lift")
                 .font(.caption)
                 .foregroundStyle(Color.liftMuted)
         }

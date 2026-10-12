@@ -6,6 +6,9 @@ struct ProgramPlanDetailView: View {
     @Binding var detailTab: String
     @Binding var selectedSessionForAdd: WorkoutSession?
     @Binding var selectedSessionToRun: WorkoutSession?
+    @State private var weekToDelete: WorkoutWeek?
+    @State private var sessionToDelete: WorkoutSession?
+    @State private var showingDeleteConfirmation = false
     @State private var showingAddSession = false
     @State private var newSessionName = "Strength Workout"
     @State private var newSessionDay = "Monday"
@@ -16,8 +19,13 @@ struct ProgramPlanDetailView: View {
         let weeks = appState.selectedPlanWeeks
         let selectedWeek = selectedWeekID.flatMap { id in weeks.first { $0.id == id } } ?? weeks.first
         let selectedWeekPosition = selectedWeek.flatMap { selected in weeks.firstIndex { $0.id == selected.id } }
-        let phaseName = appState.selectedPlanPhases.first?.name ?? "Base Phase"
         let selectedPhase = selectedWeek.flatMap { appState.phase(for: $0) }
+        let selectedPhaseWeeks = selectedPhase.map { phase in
+            weeks.filter { $0.phaseID == phase.id }.sorted { $0.weekNumber < $1.weekNumber }
+        } ?? []
+        let selectedPhaseWeekNumber = selectedWeek.flatMap { week in
+            selectedPhaseWeeks.firstIndex(where: { $0.id == week.id }).map { $0 + 1 }
+        }
         let isRecoveryWeek = selectedWeek.map { week in
             let text = "\(week.title) \(week.notes)".lowercased()
             return text.contains("deload") || text.contains("rest") || text.contains("recovery")
@@ -25,10 +33,10 @@ struct ProgramPlanDetailView: View {
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(appState.selectedWorkoutPlan?.name ?? "Workout Plan")
+                    Text("Program details")
                         .font(.headline.weight(.bold))
                         .lineLimit(1)
-                    Text("\(phaseName) • \(weeks.count) weeks")
+                    Text("\(weeks.count) scheduled weeks")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
@@ -57,6 +65,7 @@ struct ProgramPlanDetailView: View {
                     } label: {
                         Label("Add Week", systemImage: "calendar.badge.plus")
                     }
+                    .disabled(appState.activeWorkout != nil)
                     if let selectedWeek {
                         Button {
                             let clone = appState.cloneWeek(selectedWeek)
@@ -65,12 +74,14 @@ struct ProgramPlanDetailView: View {
                         } label: {
                             Label("Clone Week", systemImage: "doc.on.doc")
                         }
+                        .disabled(appState.activeWorkout != nil)
                         Button(role: .destructive) {
-                            appState.deleteWeek(selectedWeek)
-                            selectedWeekID = appState.selectedPlanWeeks.first?.id
+                            weekToDelete = selectedWeek
+                            showingDeleteConfirmation = true
                         } label: {
                             Label("Delete Week", systemImage: "trash")
                         }
+                        .disabled(appState.activeWorkout != nil)
                     }
                     Divider()
                     Button {
@@ -81,6 +92,7 @@ struct ProgramPlanDetailView: View {
                             systemImage: appState.selectedPlanQueueEnabled ? "list.number" : "play.list"
                         )
                     }
+                    .disabled(appState.activeWorkout != nil)
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.headline.weight(.bold))
@@ -104,11 +116,11 @@ struct ProgramPlanDetailView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(selectedPhase?.name ?? "Base Phase")
                                 .font(.subheadline.weight(.bold))
-                            Text(isRecoveryWeek ? "Recovery-focused week" : (selectedPhase?.goal ?? "Build consistent training momentum."))
+                            Text(isRecoveryWeek ? "Recovery week within this phase" : (selectedPhase?.goal ?? "Build consistent training momentum."))
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
                                 .fixedSize(horizontal: false, vertical: true)
-                            Text("Week \(selectedWeek.weekNumber)\(selectedPhase.map { " of \($0.durationWeeks)" } ?? "")")
+                            Text(selectedPhaseWeekNumber.map { "Phase week \($0) of \(selectedPhaseWeeks.count) · Program week \(selectedWeek.weekNumber)" } ?? "Program week \(selectedWeek.weekNumber)")
                                 .font(.caption2.weight(.semibold))
                                 .foregroundStyle(isRecoveryWeek ? Color.liftGold : Color.liftMuted)
                         }
@@ -129,6 +141,28 @@ struct ProgramPlanDetailView: View {
             } else {
                 notes
             }
+        }
+        .confirmationDialog("Remove from the plan?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                if let weekToDelete {
+                    let previousPosition = appState.selectedPlanWeeks.firstIndex { $0.id == weekToDelete.id } ?? 0
+                    appState.deleteWeek(weekToDelete)
+                    let remainingWeeks = appState.selectedPlanWeeks
+                    selectedWeekID = remainingWeeks.isEmpty
+                        ? nil
+                        : remainingWeeks[min(previousPosition, remainingWeeks.count - 1)].id
+                } else if let sessionToDelete {
+                    appState.deleteSession(sessionToDelete)
+                }
+                weekToDelete = nil
+                sessionToDelete = nil
+            }
+            Button("Cancel", role: .cancel) {
+                weekToDelete = nil
+                sessionToDelete = nil
+            }
+        } message: {
+            Text("This removes scheduled training. Saved workout history and submitted lifts remain.")
         }
         .sheet(isPresented: $showingAddSession) {
             NavigationStack {
@@ -203,6 +237,9 @@ struct ProgramPlanDetailView: View {
                     Text(selectedWeek?.title ?? "Select week")
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(Color.liftText)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                     if let selectedWeekPosition {
                         Text("\(selectedWeekPosition + 1) of \(weeks.count)")
                             .font(.caption2)
@@ -210,7 +247,7 @@ struct ProgramPlanDetailView: View {
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 44)
+                .frame(minHeight: 56)
             }
             .accessibilityLabel("Selected workout week")
 
@@ -302,7 +339,8 @@ struct ProgramPlanDetailView: View {
                         }, onAddExercise: {
                             selectedSessionForAdd = session
                         }, onDelete: {
-                            appState.deleteSession(session)
+                            sessionToDelete = session
+                            showingDeleteConfirmation = true
                         })
                     }
                 }
@@ -313,6 +351,7 @@ struct ProgramPlanDetailView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(LiftCompactProminentButtonStyle())
+                .disabled(appState.activeWorkout != nil)
             }
         }
     }
@@ -350,7 +389,8 @@ struct ProgramPlanDetailView: View {
                                 } label: {
                                     Image(systemName: "chevron.up")
                                 }
-                                .disabled(index == 0)
+                                .disabled(index == 0 || appState.activeWorkout != nil)
+                                .accessibilityLabel("Move \(session.name) earlier in queue")
                                 Button {
                                     var ids = appState.selectedPlanQueuedSessions.map(\.id)
                                     ids.swapAt(index, index + 1)
@@ -358,7 +398,8 @@ struct ProgramPlanDetailView: View {
                                 } label: {
                                     Image(systemName: "chevron.down")
                                 }
-                                .disabled(index == appState.selectedPlanQueuedSessions.count - 1)
+                                .disabled(index == appState.selectedPlanQueuedSessions.count - 1 || appState.activeWorkout != nil)
+                                .accessibilityLabel("Move \(session.name) later in queue")
                             }
                             .foregroundStyle(Color.liftMuted)
                         }
@@ -375,8 +416,8 @@ struct ProgramPlanDetailView: View {
                 }
             } else if appState.selectedPlanQueueEnabled {
                 TrackerMessageCard(
-                    title: "Session queue is clear",
-                    message: "Enable more sessions or finish the current plan to refill your next workout."
+                    title: "No queued workout is ready",
+                    message: "Add a workout day or clone a week to refill the queue."
                 )
             }
             if let selectedWeek {
@@ -386,16 +427,10 @@ struct ProgramPlanDetailView: View {
                     !(presentation.prescriptionsBySessionID[session.id] ?? []).isEmpty
                 }
                 let completedSessions = plannedSessions.filter { session in
-                    let prescriptions = presentation.prescriptionsBySessionID[session.id] ?? []
-                    return prescriptions.allSatisfy {
-                        presentation.completedPrescriptionIDs.contains($0.id)
-                    }
+                    presentation.completedSessionIDs.contains(session.id)
                 }
-                let nextSession = plannedSessions.first { session in
-                    let prescriptions = presentation.prescriptionsBySessionID[session.id] ?? []
-                    return !prescriptions.allSatisfy {
-                        presentation.completedPrescriptionIDs.contains($0.id)
-                    }
+                let nextSession = appState.selectedPlanQueueEnabled ? nil : plannedSessions.first { session in
+                    !presentation.completedSessionIDs.contains(session.id)
                 }
                 let plannedPlanSessions = appState.selectedPlanWeeks
                     .flatMap(appState.sessions(for:))
@@ -414,7 +449,7 @@ struct ProgramPlanDetailView: View {
                         Text("Current week · \(selectedWeek.title)")
                             .font(.headline.weight(.bold))
                         if !plannedSessions.isEmpty {
-                            Text("\(completedSessions.count) of \(plannedSessions.count) workouts have every exercise logged")
+                            Text("\(completedSessions.count) of \(plannedSessions.count) workouts have all planned sets completed")
                                 .foregroundStyle(Color.liftMuted)
                         } else {
                             Text("No workouts with exercises are planned for this week yet.")
@@ -423,7 +458,11 @@ struct ProgramPlanDetailView: View {
                         Text("\(presentation.completedSetCount) of \(presentation.plannedSetCount) planned sets logged")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
-                        ProgressView(value: presentation.completion)
+                        ProgressView(
+                            value: plannedSessions.isEmpty
+                                ? 0
+                                : Double(completedSessions.count) / Double(plannedSessions.count)
+                        )
                             .tint(Color.liftGreen)
                         if let nextSession {
                             Button {
@@ -449,6 +488,7 @@ struct ProgramPlanDetailView: View {
                             }
                             .buttonStyle(.plain)
                             .foregroundStyle(Color.liftAccentText)
+                            .disabled(appState.activeWorkout != nil)
                         } else if let nextIncompleteWeek, nextIncompleteWeek.id != selectedWeek.id {
                             Button {
                                 selectedWeekID = nextIncompleteWeek.id
@@ -461,7 +501,7 @@ struct ProgramPlanDetailView: View {
                             .buttonStyle(.plain)
                             .foregroundStyle(Color.liftAccentText)
                         } else if !plannedSessions.isEmpty {
-                            Label("Every workout this week has exercises logged", systemImage: "checkmark.circle.fill")
+                            Label("Every workout this week has all planned sets completed", systemImage: "checkmark.circle.fill")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Color.liftGreen)
                         }

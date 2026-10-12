@@ -82,10 +82,12 @@ final class WorkoutPRSubmissionStore {
     func submitVideoBackedPRs(
         for workout: CompletedWorkout,
         videoURLsBySetID: [UUID: URL],
-        existingLifts: [LiftSubmission]
+        existingLifts: [LiftSubmission],
+        selectedSetIDs: Set<UUID>? = nil
     ) async {
-        guard preferences.automaticallySubmitVideoBackedPRs else { return }
+        guard selectedSetIDs != nil || preferences.automaticallySubmitVideoBackedPRs else { return }
         for candidate in candidates(for: workout, existingLifts: existingLifts) {
+            if let selectedSetIDs, !selectedSetIDs.contains(candidate.setID) { continue }
             await submit(candidate, workout: workout, videoURL: videoURLsBySetID[candidate.setID])
         }
     }
@@ -105,7 +107,7 @@ final class WorkoutPRSubmissionStore {
     }
 
     func clearAccountScopedMedia() {
-        repository.pendingWorkoutPRSubmissions.forEach { videoStore.remove($0.localVideoURL) }
+        repository.pendingWorkoutPRSubmissions.compactMap(\.localVideoURL).forEach { videoStore.remove($0) }
         videoStore.prune(retaining: [], olderThan: .distantFuture)
     }
 
@@ -116,19 +118,6 @@ final class WorkoutPRSubmissionStore {
     ) async {
         resetAccountScopedQueueIfNeeded()
         let userID = repository.currentProfile.id
-        if videoURL == nil {
-            guard let rankingExercise = exercise(candidate.rankingExerciseID) else { return }
-            if let submission = await liftSubmitter.submitWorkoutPR(
-                candidate: candidate,
-                exercise: rankingExercise,
-                workout: workout,
-                profile: repository.currentProfile,
-                videoURL: nil
-            ) {
-                repository.linkSubmission(submission.id, to: workout.id)
-            }
-            return
-        }
         if pendingSubmissions.contains(where: {
             $0.candidate.setID == candidate.setID &&
                 ($0.state == .submitted || $0.state == .uploading)
@@ -140,7 +129,7 @@ final class WorkoutPRSubmissionStore {
             PendingWorkoutPRSubmission(
                 id: makeID(),
                 candidate: candidate,
-                localVideoURL: videoURL!,
+                localVideoURL: videoURL,
                 state: .pending,
                 attemptCount: 0,
                 lastError: nil,
@@ -148,10 +137,12 @@ final class WorkoutPRSubmissionStore {
                 updatedAt: now()
             )
         pending.state = .uploading
+        pending.localVideoURL = videoURL
         pending.attemptCount += 1
         pending.lastError = nil
         pending.updatedAt = now()
         repository.upsertPendingPRSubmission(pending)
+        repository.persistWorkoutSnapshot()
 
         guard let rankingExercise = exercise(candidate.rankingExerciseID) else {
             pending.state = .failed
@@ -186,6 +177,7 @@ final class WorkoutPRSubmissionStore {
         }
         pending.updatedAt = now()
         repository.upsertPendingPRSubmission(pending)
+        repository.persistWorkoutSnapshot()
     }
 
     private func resetAccountScopedQueueIfNeeded() {
@@ -208,10 +200,11 @@ final class WorkoutPRSubmissionStore {
         let expired = repository.pendingWorkoutPRSubmissions.filter {
             $0.state != .submitted && $0.updatedAt < retryCutoff
         }
-        expired.forEach { videoStore.remove($0.localVideoURL) }
+        expired.compactMap(\.localVideoURL).forEach { videoStore.remove($0) }
         repository.pendingWorkoutPRSubmissions
             .filter { $0.state == .submitted }
-            .forEach { videoStore.remove($0.localVideoURL) }
+            .compactMap(\.localVideoURL)
+            .forEach { videoStore.remove($0) }
         if !expired.isEmpty {
             repository.removePendingPRSubmissions(ids: Set(expired.map(\.id)))
         }

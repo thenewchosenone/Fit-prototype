@@ -3,13 +3,13 @@ import Foundation
 
 struct ProgramPlanDeletion: Equatable {
     let deletedPlanID: UUID
-    let fallbackPlanID: UUID
 }
 
 struct ProgramWeekPresentation {
     let sessions: [WorkoutSession]
     let prescriptionsBySessionID: [UUID: [WorkoutExercisePrescription]]
     let completedPrescriptionIDs: Set<UUID>
+    let completedSessionIDs: Set<UUID>
     let completedSetCount: Int
     let rirObservations: [(target: Int, estimated: Int)]
     let catalogByID: [String: TrainingExerciseCatalogItem]
@@ -40,13 +40,7 @@ struct ProgramWeekPresentation {
         )
     }
 
-    var completedSessionCount: Int {
-        sessions.filter { session in
-            guard let prescriptions = prescriptionsBySessionID[session.id],
-                  !prescriptions.isEmpty else { return false }
-            return prescriptions.allSatisfy { completedPrescriptionIDs.contains($0.id) }
-        }.count
-    }
+    var completedSessionCount: Int { completedSessionIDs.count }
 
     init(
         sessions: [WorkoutSession],
@@ -56,32 +50,26 @@ struct ProgramWeekPresentation {
         catalog: [TrainingExerciseCatalogItem]
     ) {
         self.sessions = sessions
-        prescriptionsBySessionID = Dictionary(grouping: prescriptions, by: \.sessionID)
+        let prescriptionsBySessionID = Dictionary(grouping: prescriptions, by: \.sessionID)
             .mapValues { $0.sorted { $0.order < $1.order } }
+        self.prescriptionsBySessionID = prescriptionsBySessionID
         let plannedPrescriptionIDs = Set(prescriptions.map(\.id))
-        var completedPrescriptionIDs = Set(workoutSetLogs.lazy.filter {
-            $0.isComplete && !$0.isWarmup && plannedPrescriptionIDs.contains($0.prescriptionID)
-        }.map(\.prescriptionID))
         let sessionIDs = Set(sessions.map(\.id))
-        for workout in completedWorkouts where workout.sourceSessionID.map(sessionIDs.contains) == true {
-            let completedExerciseIDs = Set(workout.completedWorkingSets.map(\.prescriptionID))
-            completedPrescriptionIDs.formUnion(
-                workout.exercises.compactMap { exercise in
-                    guard completedExerciseIDs.contains(exercise.id),
-                          let sourcePrescriptionID = exercise.sourcePrescriptionID,
-                          plannedPrescriptionIDs.contains(sourcePrescriptionID) else {
-                        return nil
-                    }
-                    return sourcePrescriptionID
-                }
-            )
-        }
-        self.completedPrescriptionIDs = completedPrescriptionIDs
         var completedSetNumbersByPrescriptionID: [UUID: Set<Int>] = [:]
+        var attemptsBySessionID: [UUID: [String: [UUID: Set<Int>]]] = [:]
+        let sessionIDByPrescriptionID = Dictionary(uniqueKeysWithValues: prescriptions.map { ($0.id, $0.sessionID) })
+        func attemptKey(for log: WorkoutSetLog) -> String {
+            if let workoutID = log.workoutID { return workoutID.uuidString }
+            return String(Calendar.current.startOfDay(for: log.performedAt).timeIntervalSince1970)
+        }
         for log in workoutSetLogs where log.isComplete && !log.isWarmup && plannedPrescriptionIDs.contains(log.prescriptionID) {
             completedSetNumbersByPrescriptionID[log.prescriptionID, default: []].insert(log.setNumber)
+            if let sessionID = sessionIDByPrescriptionID[log.prescriptionID] {
+                attemptsBySessionID[sessionID, default: [:]][attemptKey(for: log), default: [:]][log.prescriptionID, default: []].insert(log.setNumber)
+            }
         }
         for workout in completedWorkouts where workout.sourceSessionID.map(sessionIDs.contains) == true {
+            guard let sessionID = workout.sourceSessionID else { continue }
             let prescriptionIDByExerciseID = Dictionary(uniqueKeysWithValues: workout.exercises.compactMap { exercise in
                 exercise.sourcePrescriptionID.map { (exercise.id, $0) }
             })
@@ -89,8 +77,25 @@ struct ProgramWeekPresentation {
                 guard let prescriptionID = prescriptionIDByExerciseID[log.prescriptionID],
                       plannedPrescriptionIDs.contains(prescriptionID) else { continue }
                 completedSetNumbersByPrescriptionID[prescriptionID, default: []].insert(log.setNumber)
+                attemptsBySessionID[sessionID, default: [:]][workout.id.uuidString, default: [:]][prescriptionID, default: []].insert(log.setNumber)
             }
         }
+        let completedPrescriptionIDs = Set(prescriptions.filter { prescription in
+            guard prescription.sets > 0, let sessionID = sessionIDByPrescriptionID[prescription.id] else { return false }
+            return attemptsBySessionID[sessionID]?.values.contains(where: {
+                ($0[prescription.id]?.count ?? 0) >= prescription.sets
+            }) == true
+        }.map(\.id))
+        self.completedPrescriptionIDs = completedPrescriptionIDs
+        self.completedSessionIDs = Set(sessions.compactMap { session in
+            guard let sessionPrescriptions = prescriptionsBySessionID[session.id], !sessionPrescriptions.isEmpty else { return nil }
+            let hasCompleteAttempt = attemptsBySessionID[session.id]?.values.contains { attempt in
+                sessionPrescriptions.allSatisfy { prescription in
+                    prescription.sets > 0 && (attempt[prescription.id]?.count ?? 0) >= prescription.sets
+                }
+            } == true
+            return hasCompleteAttempt ? session.id : nil
+        })
         self.completedSetCount = prescriptions.reduce(0) { total, prescription in
             let logged = completedSetNumbersByPrescriptionID[prescription.id]?.count ?? 0
             return total + min(prescription.sets, logged)
@@ -203,7 +208,16 @@ final class ProgramStore {
     @discardableResult
     func setQueue(planID: UUID, enabled: Bool, sessionIDs: [UUID]? = nil) -> Bool {
         let current = plan(id: planID)?.queuedSessionIDs ?? []
-        let resolved = sessionIDs ?? (current.isEmpty ? weeks(planID: planID).flatMap { sessions(week: $0) }.map(\.id) : current)
+        let available = weeks(planID: planID).flatMap { sessions(week: $0) }.map(\.id)
+        let resolved: [UUID]
+        if let sessionIDs {
+            resolved = sessionIDs
+        } else if enabled {
+            let retained = current.filter(available.contains)
+            resolved = retained + available.filter { !retained.contains($0) }
+        } else {
+            resolved = current
+        }
         return repository.updateWorkoutQueue(planID: planID, enabled: enabled, sessionIDs: resolved)
     }
 
@@ -340,13 +354,9 @@ final class ProgramStore {
 
     @discardableResult
     func deletePlan(id: UUID) -> ProgramPlanDeletion? {
-        guard repository.workoutPlans.count > 1,
-              let plan = plan(id: id),
-              let fallback = repository.workoutPlans.first(where: { $0.id != id }) else {
-            return nil
-        }
+        guard let plan = plan(id: id) else { return nil }
         repository.deleteWorkoutPlan(plan)
-        return ProgramPlanDeletion(deletedPlanID: id, fallbackPlanID: fallback.id)
+        return ProgramPlanDeletion(deletedPlanID: id)
     }
 
     @discardableResult
@@ -450,7 +460,9 @@ final class ProgramStore {
         preferredUnit: UnitSystem,
         trainingMaxKilograms: [String: Double]
     ) -> WorkoutPlan? {
-        guard scheduledWeekdays.count == template.sessions.count else { return nil }
+        guard scheduledWeekdays.count == template.sessions.count,
+              Set(scheduledWeekdays).count == scheduledWeekdays.count,
+              scheduledWeekdays.allSatisfy({ (1...7).contains($0) }) else { return nil }
         if method == .percentage {
             guard template.requiredTrainingMaxExerciseIDs.allSatisfy({ (trainingMaxKilograms[$0] ?? 0) > 0 }) else {
                 return nil

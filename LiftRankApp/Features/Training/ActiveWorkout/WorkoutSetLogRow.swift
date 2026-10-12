@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct WorkoutSetLogRow: View {
     @FocusState.Binding var focusedInput: WorkoutSetInputFocus?
@@ -10,12 +11,14 @@ struct WorkoutSetLogRow: View {
     @State private var showingDetails = false
     @State private var pendingPersistTask: Task<Void, Never>?
     @State private var isDeleting = false
+    let log: WorkoutSetLog
     let previousLog: WorkoutSetLog?
     let trackingKind: ExerciseTrackingKind
     let onDelete: (WorkoutSetLog) -> Void
     let onApplyCompletion: (WorkoutSetLog, Bool) -> Bool
     let onAttemptAutomaticCompletion: (WorkoutSetLog) -> Bool
     let onUpdate: (WorkoutSetLog) -> Void
+    let onPersistImmediately: () -> Void
     var onCompleted: (() -> Void)?
 
     init(
@@ -27,6 +30,7 @@ struct WorkoutSetLogRow: View {
         onApplyCompletion: @escaping (WorkoutSetLog, Bool) -> Bool,
         onAttemptAutomaticCompletion: @escaping (WorkoutSetLog) -> Bool,
         onUpdate: @escaping (WorkoutSetLog) -> Void,
+        onPersistImmediately: @escaping () -> Void,
         onCompleted: (() -> Void)? = nil
     ) {
         _focusedInput = focusedInput
@@ -34,12 +38,14 @@ struct WorkoutSetLogRow: View {
         _repsText = State(initialValue: log.reps.map(String.init) ?? "")
         _weightText = State(initialValue: log.weight.map(Self.formatWeight) ?? "")
         _lastPersistedDraft = State(initialValue: log)
+        self.log = log
         self.previousLog = previousLog
         self.trackingKind = trackingKind
         self.onDelete = onDelete
         self.onApplyCompletion = onApplyCompletion
         self.onAttemptAutomaticCompletion = onAttemptAutomaticCompletion
         self.onUpdate = onUpdate
+        self.onPersistImmediately = onPersistImmediately
         self.onCompleted = onCompleted
     }
 
@@ -93,6 +99,7 @@ struct WorkoutSetLogRow: View {
                     .keyboardType(.numberPad)
                     .onChange(of: repsText) { _, _ in
                         draft.reps = parsedReps
+                        invalidateCompletedSetWithoutRequiredInputs()
                         schedulePersistIfIdle()
                     }
 
@@ -101,6 +108,7 @@ struct WorkoutSetLogRow: View {
                         .keyboardType(.decimalPad)
                         .onChange(of: weightText) { _, _ in
                             draft.weight = parsedWeight
+                        invalidateCompletedSetWithoutRequiredInputs()
                             schedulePersistIfIdle()
                         }
                 }
@@ -228,6 +236,27 @@ struct WorkoutSetLogRow: View {
             guard isInputFocus(oldValue), !isInputFocus(newValue), !isDeleting else { return }
             persistImmediately()
         }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            cancelPendingPersist()
+            persistDraft()
+            onPersistImmediately()
+        }
+        .onChange(of: log) { _, updated in
+            guard updated.id == draft.id, !isDeleting else { return }
+            let editingThisSet = isInputFocus(focusedInput)
+            var refreshed = updated
+            if editingThisSet {
+                refreshed.reps = draft.reps
+                refreshed.weight = draft.weight
+                refreshed.rpe = draft.rpe
+            }
+            draft = refreshed
+            if !editingThisSet {
+                repsText = updated.reps.map(String.init) ?? ""
+                weightText = updated.weight.map(Self.formatWeight) ?? ""
+            }
+            lastPersistedDraft = updated
+        }
     }
 
     private var previousSummary: String {
@@ -304,6 +333,13 @@ struct WorkoutSetLogRow: View {
             Haptics.success()
             if triggerTimer { onCompleted?() }
         }
+    }
+
+    private func invalidateCompletedSetWithoutRequiredInputs() {
+        guard draft.isComplete, !hasRequiredInputs else { return }
+        draft.isComplete = false
+        draft.completionSource = nil
+        draft.hasTriggeredRestTimer = false
     }
 
     private func schedulePersist() {

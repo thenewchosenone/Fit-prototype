@@ -115,7 +115,9 @@ final class MockProfileService: ProfileService {
             sexCategory: profile.sexCategory, city: profile.hideCity ? nil : profile.city,
             region: profile.hideCity ? nil : profile.state, countryCode: nil,
             primaryGymID: profile.hideGym ? nil : profile.primaryGymID,
-            primaryGymName: profile.hideGym ? nil : profile.primaryGymName
+            primaryGymName: profile.hideGym ? nil : profile.primaryGymName,
+            bodyweightPounds: profile.hideBodyweight ? nil : profile.bodyweightPounds,
+            bodyweightLastUpdatedAt: profile.hideBodyweight ? nil : profile.bodyweightLastUpdatedAt
         )
     }
     func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String { avatarPath }
@@ -205,7 +207,9 @@ final class MockSocialService: SocialService {
                 sexCategory: $0.sexCategory, city: $0.hideCity ? nil : $0.city,
                 region: $0.hideCity ? nil : $0.state, countryCode: nil,
                 primaryGymID: $0.hideGym ? nil : $0.primaryGymID,
-                primaryGymName: $0.hideGym ? nil : $0.primaryGymName
+                primaryGymName: $0.hideGym ? nil : $0.primaryGymName,
+                bodyweightPounds: $0.hideBodyweight ? nil : $0.bodyweightPounds,
+                bodyweightLastUpdatedAt: $0.hideBodyweight ? nil : $0.bodyweightLastUpdatedAt
             )
         }
     }
@@ -372,6 +376,8 @@ final class MockWorkoutSyncService: WorkoutSyncService {
         if let current = planDocuments.first(where: { $0.id == document.id }), current.revision != expectedRevision {
             var conflict = document
             conflict.id = UUID(); conflict.isConflictCopy = true; conflict.conflictOfRevision = expectedRevision
+            let payload = try JSONDecoder().decode(WorkoutPlanSyncPayload.self, from: document.payload)
+            conflict.payload = try JSONEncoder().encode(payload.conflictCopy(documentID: conflict.id))
             planDocuments.append(conflict)
             return .conflict(server: current, localCopy: conflict)
         }

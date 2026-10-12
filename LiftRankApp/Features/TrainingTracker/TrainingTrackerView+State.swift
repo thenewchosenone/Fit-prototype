@@ -106,8 +106,7 @@ extension TrainingTrackerView {
     }
 
     func isWorkoutSessionComplete(_ session: WorkoutSession) -> Bool {
-        let prescriptionCount = appState.prescriptions(for: session).count
-        return prescriptionCount > 0 && appState.completedPrescriptionCount(for: session) >= prescriptionCount
+        session.outcome == .rest || appState.isFullyCompletedPlanSession(session)
     }
 
 }

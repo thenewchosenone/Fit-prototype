@@ -175,6 +175,8 @@ struct ProfileCardDTO: Codable {
     let countryCode: String?
     let primaryGymID: UUID?
     let primaryGymName: String?
+    let bodyweightPounds: Double?
+    let bodyweightLastUpdatedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id, username, bio, city, region
@@ -185,6 +187,8 @@ struct ProfileCardDTO: Codable {
         case countryCode = "country_code"
         case primaryGymID = "primary_gym_id"
         case primaryGymName = "primary_gym_name"
+        case bodyweightPounds = "bodyweight_pounds"
+        case bodyweightLastUpdatedAt = "bodyweight_last_updated_at"
     }
 }
 
@@ -367,7 +371,9 @@ final class SupabaseProfileService: ProfileService {
                 avatarPath: dto.avatarPath, ageBand: dto.ageBand,
                 sexCategory: sex(dto.sexCategory), city: dto.city, region: dto.region,
                 countryCode: dto.countryCode, primaryGymID: dto.primaryGymID,
-                primaryGymName: dto.primaryGymName
+                primaryGymName: dto.primaryGymName,
+                bodyweightPounds: dto.bodyweightPounds,
+                bodyweightLastUpdatedAt: dto.bodyweightLastUpdatedAt
             )
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }

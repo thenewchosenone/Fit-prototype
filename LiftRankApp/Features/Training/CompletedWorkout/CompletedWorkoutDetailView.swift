@@ -210,7 +210,16 @@ private struct CompletedWorkoutEditView: View {
     let onSave: (CompletedWorkout) -> Void
 
     init(workout: CompletedWorkout, onSave: @escaping (CompletedWorkout) -> Void) {
-        _draft = State(initialValue: workout)
+        var normalizedWorkout = workout
+        normalizedWorkout.sets = workout.sets.map { set in
+            var normalized = set
+            if let weight = set.weight {
+                normalized.weight = MeasurementFormatting.convert(weight, from: set.recordedUnit, to: workout.unit)
+            }
+            normalized.recordedUnit = workout.unit
+            return normalized
+        }
+        _draft = State(initialValue: normalizedWorkout)
         _notes = State(initialValue: workout.notes)
         self.onSave = onSave
     }
@@ -265,7 +274,13 @@ private struct CompletedWorkoutEditView: View {
     }
 
     private var canSave: Bool {
-        draft.sets.contains { $0.isComplete && !$0.isWarmup }
+        let completedSets = draft.sets.filter { $0.isComplete && !$0.isWarmup }
+        return !completedSets.isEmpty && completedSets.allSatisfy { set in
+            guard let exercise = draft.exercises.first(where: { $0.id == set.prescriptionID }) else { return false }
+            let trackingKind = ExerciseTrackingKind(exercise.trackingType ?? "Weight + Reps")
+            guard let reps = set.reps, reps > 0 else { return false }
+            return !trackingKind.requiresWeight || set.weight != nil
+        }
     }
 
     private var detailsSection: some View {
@@ -276,7 +291,7 @@ private struct CompletedWorkoutEditView: View {
             DatePicker("Completed", selection: $draft.completedAt, displayedComponents: [.date, .hourAndMinute])
                 .font(.subheadline.weight(.semibold))
 
-            Stepper("Effort \(draft.effort)/5", value: $draft.effort, in: 1...5)
+            Stepper(draft.effort == 0 ? "Effort: Not recorded" : "Effort \(draft.effort)/5", value: $draft.effort, in: 0...5)
                 .font(.subheadline.weight(.semibold))
 
             TextField("Notes", text: $notes, axis: .vertical)
@@ -318,6 +333,11 @@ private struct CompletedWorkoutEditView: View {
                     setRow(at: index, exercise: exercise)
                 }
             }
+            if !canSave {
+                Text("Complete sets need valid reps or duration and any required load before saving.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+            }
         }
         .padding(14)
         .liftSurface()
@@ -339,8 +359,14 @@ private struct CompletedWorkoutEditView: View {
             }
 
             HStack(spacing: 8) {
-                editableField("Reps", value: intBinding(at: index, keyPath: \.reps))
-                editableField(draft.unit.shortLabel.uppercased(), value: doubleBinding(at: index, keyPath: \.weight))
+                let trackingKind = ExerciseTrackingKind(exercise.trackingType ?? "Weight + Reps")
+                editableField(trackingKind.usesDuration ? "Sec" : "Reps", value: intBinding(at: index, keyPath: \.reps))
+                if trackingKind.requiresWeight {
+                    editableField(
+                        trackingKind == .assistedBodyweight ? "Assist" : draft.unit.shortLabel.uppercased(),
+                        value: doubleBinding(at: index, keyPath: \.weight)
+                    )
+                }
                 editableField("RPE", value: intBinding(at: index, keyPath: \.rpe))
             }
         }
@@ -437,6 +463,9 @@ private struct CompletedWorkoutEditView: View {
             var normalized = set
             normalized.workoutID = workout.id
             normalized.performedAt = min(max(set.performedAt, workout.startedAt), workout.completedAt)
+            if let weight = set.weight {
+                normalized.weight = MeasurementFormatting.convert(weight, from: set.recordedUnit, to: workout.unit)
+            }
             normalized.recordedUnit = workout.unit
             normalized.completionSource = normalized.completionSource ?? .manual
             return normalized

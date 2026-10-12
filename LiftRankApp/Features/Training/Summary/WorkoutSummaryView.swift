@@ -4,23 +4,23 @@ import SwiftUI
 struct WorkoutSummaryView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
-    let summary: WorkoutSummary
-    let prCandidates: [WorkoutPRCandidate]
-    let didExplainAutomaticSubmission: Bool
-    let onAutomaticSubmissionChanged: (Bool) -> Void
-    let onExplanationShown: () -> Void
-    let onComplete: (Int, String, [UUID: URL], Bool) -> Bool
-    @State private var effort = 3
+    private let initialSummary: WorkoutSummary
+    let onComplete: (Int, String, [UUID: URL], Set<UUID>) -> Bool
+    @State private var effort = 0
     @State private var notes = ""
-    @State private var automaticSubmissionEnabled: Bool
+    @State private var sharePRs: Bool
+    @State private var selectedPRSetIDs: Set<UUID>
     @State private var selectedVideoItems: [UUID: PhotosPickerItem] = [:]
     @State private var videoURLsBySetID: [UUID: URL] = [:]
     @State private var loadingVideoSetIDs: Set<UUID> = []
     @State private var videoError: String?
-    @State private var showingAutomaticSubmissionExplanation = false
     @State private var hasSavedWorkout = false
+    @State private var savedSummary: WorkoutSummary?
     @State private var completionHighlights: [String] = []
+    @State private var savedAchievementBadges: [Achievement] = []
+    @State private var savedAchievementProgress: (title: String, progress: Double, status: String)?
     @State private var showsAllAchievements = false
+    @State private var showsNotes = false
     @State private var finishedDuration: TimeInterval?
     @State private var finishedUnit: UnitSystem?
 
@@ -28,18 +28,21 @@ struct WorkoutSummaryView: View {
         summary: WorkoutSummary,
         prCandidates: [WorkoutPRCandidate],
         automaticSubmissionEnabled: Bool,
-        didExplainAutomaticSubmission: Bool,
-        onAutomaticSubmissionChanged: @escaping (Bool) -> Void,
-        onExplanationShown: @escaping () -> Void,
-        onComplete: @escaping (Int, String, [UUID: URL], Bool) -> Bool
+        onComplete: @escaping (Int, String, [UUID: URL], Set<UUID>) -> Bool
     ) {
-        self.summary = summary
-        self.prCandidates = prCandidates
-        self.didExplainAutomaticSubmission = didExplainAutomaticSubmission
-        self.onAutomaticSubmissionChanged = onAutomaticSubmissionChanged
-        self.onExplanationShown = onExplanationShown
+        self.initialSummary = summary
         self.onComplete = onComplete
-        _automaticSubmissionEnabled = State(initialValue: automaticSubmissionEnabled)
+        _sharePRs = State(initialValue: automaticSubmissionEnabled)
+        _selectedPRSetIDs = State(initialValue: Set(prCandidates.map(\.setID)))
+    }
+
+    private var summary: WorkoutSummary {
+        if hasSavedWorkout { return savedSummary ?? initialSummary }
+        return appState.activeWorkoutSummary() ?? initialSummary
+    }
+
+    private var prCandidates: [WorkoutPRCandidate] {
+        appState.activeWorkoutPRCandidates()
     }
 
     private var activeDuration: TimeInterval {
@@ -47,15 +50,25 @@ struct WorkoutSummaryView: View {
     }
 
     private var plannedSessionProgress: (plannedSets: Int, isComplete: Bool)? {
-        guard let sessionID = appState.activeWorkout?.sourceSessionID,
+        guard let activeWorkout = appState.activeWorkout,
+              let sessionID = activeWorkout.sourceSessionID,
               let session = appState.workoutSessions.first(where: { $0.id == sessionID }) else { return nil }
-        let plannedSets = appState.prescriptions(for: session).reduce(0) { $0 + $1.sets }
+        let prescriptions = appState.prescriptions(for: session)
+        let plannedSets = prescriptions.reduce(0) { $0 + $1.sets }
         guard plannedSets > 0 else { return nil }
-        return (plannedSets, summary.totalSets >= plannedSets)
+        let isComplete = prescriptions.allSatisfy { prescription in
+            guard let exercise = activeWorkout.exercises.first(where: { $0.sourcePrescriptionID == prescription.id }) else {
+                return false
+            }
+            let progress = appState.activeWorkoutExerciseProgress(for: exercise)
+            return progress.completedWorkingSets >= prescription.sets
+        }
+        return (plannedSets, isComplete)
     }
 
     private var plannedProgramMilestone: String? {
-        guard let activeWorkout = appState.activeWorkout,
+        guard plannedSessionProgress?.isComplete == true,
+              let activeWorkout = appState.activeWorkout,
               let sessionID = activeWorkout.sourceSessionID,
               let session = appState.workoutSessions.first(where: { $0.id == sessionID }),
               let week = appState.workoutWeeks.first(where: { $0.id == session.weekID }),
@@ -65,10 +78,10 @@ struct WorkoutSummaryView: View {
             planWeekIDs.contains($0.weekID) && !appState.prescriptions(for: $0).isEmpty
         }.count
         guard plannedSessionCount > 0 else { return nil }
-        let priorCompletedSessionIDs: Set<UUID> = Set(appState.completedWorkouts.compactMap { workout in
-            guard workout.sourcePlanID == plan.id, !workout.completedWorkingSets.isEmpty else { return nil }
-            return workout.sourceSessionID
-        })
+        let priorCompletedSessionIDs = Set(appState.workoutSessions.filter {
+            planWeekIDs.contains($0.weekID) && appState.isFullyCompletedPlanSession($0)
+        }.map(\.id))
+        guard !priorCompletedSessionIDs.contains(sessionID) else { return nil }
         let priorCompletedCount = priorCompletedSessionIDs.count
         let completedCount = priorCompletedCount + 1
         if completedCount == 1 { return "First planned session complete" }
@@ -79,18 +92,6 @@ struct WorkoutSummaryView: View {
 
     private var previousComparableWorkout: CompletedWorkout? {
         appState.previousComparableWorkout(for: summary)
-    }
-
-    private var projectedWorkoutCount: Int {
-        appState.competitiveStatistics.totalWorkouts + 1
-    }
-
-    private var projectedStreak: Int {
-        Self.projectedWorkoutStreak(
-            currentStreak: appState.competitiveStatistics.currentStreak,
-            completedWorkouts: appState.completedWorkouts,
-            completingAt: .now
-        )
     }
 
     static func projectedWorkoutStreak(
@@ -147,6 +148,51 @@ struct WorkoutSummaryView: View {
             }
     }
 
+    private func nextAchievementProgress(
+        workingSets: [WorkoutSetLog],
+        activeDuration: TimeInterval,
+        newlyUnlocked: [AchievementUnlock]
+    ) -> (title: String, progress: Double, status: String)? {
+        let stats = appState.competitiveStatistics
+        let unlockedTitles = Set(appState.achievementUnlocks.map(\.title))
+            .union(newlyUnlocked.map(\.title))
+        let projected = [
+            (suffix: " Workouts", current: Double(stats.totalWorkouts + 1), unit: "workouts"),
+            (suffix: " Reps", current: Double(stats.totalWorkingSetRepetitions + currentWorkoutWorkingSetRepetitions(workingSets)), unit: "reps"),
+            (suffix: " Training Hours", current: (stats.totalActiveTrainingTime + activeDuration) / 3600, unit: "hrs"),
+            (suffix: " kg Lifted Volume", current: stats.lifetimeWorkingSetVolume + currentWorkoutVolumeKilograms(workingSets), unit: "")
+        ]
+
+        return appState.achievements.compactMap { achievement in
+            guard !unlockedTitles.contains(achievement.title) else { return nil }
+            for item in projected where achievement.title.hasSuffix(item.suffix) {
+                let prefix = String(achievement.title.dropLast(item.suffix.count))
+                    .replacingOccurrences(of: ",", with: "")
+                guard let target = Double(prefix), target > 0 else { continue }
+                let progress = min(1, max(0, item.current / target))
+                guard progress > 0, progress < 1 else { continue }
+                let status: String
+                if item.suffix == " kg Lifted Volume" {
+                    status = "\(formattedAchievementVolume(item.current)) / \(formattedAchievementVolume(target))"
+                } else if item.unit == "hrs" {
+                    status = "\(String(format: "%.1f", item.current)) / \(Int(target)) hrs"
+                } else {
+                    status = "\(Int(item.current)) / \(Int(target)) \(item.unit)"
+                }
+                return (title: displayAchievementTitle(achievement.title), progress: progress, status: status)
+            }
+            return nil
+        }
+        .max { $0.progress < $1.progress }
+    }
+
+    private func formattedAchievementVolume(_ kilograms: Double) -> String {
+        MeasurementFormatting.formatDisplayedWeight(
+            kilograms,
+            unit: appState.currentProfile.preferredUnit
+        ) { Int($0.rounded()).formatted() }
+    }
+
     static func newlyUnlockedTitles(
         projected: [String],
         alreadyEarned: Set<String>
@@ -189,6 +235,11 @@ struct WorkoutSummaryView: View {
             workingSets: workingSets,
             activeDuration: activeDuration
         )
+        let nextAchievementProgress = nextAchievementProgress(
+            workingSets: workingSets,
+            activeDuration: activeDuration,
+            newlyUnlocked: newlyUnlockedAchievements
+        )
 
         NavigationStack {
             AppBackground {
@@ -197,103 +248,106 @@ struct WorkoutSummaryView: View {
                 } else {
                     ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
-                        VStack(spacing: 10) {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 34, weight: .black))
-                                .foregroundStyle(Color.liftOnAccent)
-                                .frame(width: 72, height: 72)
-                                .background(Color.liftGreen)
-                                .clipShape(Circle())
-                            Text("Review workout")
-                                .font(.largeTitle.weight(.black))
+                        VStack(alignment: .leading, spacing: 10) {
                             Text(summary.workoutName)
-                                .font(.headline)
+                                .font(.title2.weight(.black))
+                            Text((appState.activeWorkout?.startedAt ?? .now).formatted(date: .abbreviated, time: .omitted))
+                                .font(.subheadline)
                                 .foregroundStyle(Color.liftMuted)
+                            Text("\(summary.completedExercises)/\(summary.totalExercises) exercises · \(summary.totalSets) working \(summary.totalSets == 1 ? "set" : "sets") · \(durationText(activeDuration))")
+                                .font(.subheadline.weight(.semibold))
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text("Total volume: \(formattedVolume(summary.totalVolume, unit: summaryUnit))")
+                                .font(.headline.weight(.bold).monospacedDigit())
                             if let plannedSessionProgress {
                                 Label(
                                     plannedSessionProgress.isComplete ? "Will complete planned session" : "Will save shortened session",
-                                    systemImage: plannedSessionProgress.isComplete ? "checkmark.circle.fill" : "minus.circle.fill"
+                                    systemImage: plannedSessionProgress.isComplete ? "checkmark.circle" : "minus.circle"
                                 )
-                                .font(.subheadline.weight(.bold))
+                                .font(.caption.weight(.semibold))
                                 .foregroundStyle(plannedSessionProgress.isComplete ? Color.liftGreen : Color.liftGold)
                                 Text("\(summary.totalSets) of \(plannedSessionProgress.plannedSets) planned working sets logged")
-                                    .font(.caption.weight(.semibold))
+                                    .font(.caption)
                                     .foregroundStyle(Color.liftMuted)
                             }
                         }
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(Color.liftCard)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                        HStack(spacing: 10) {
-                            summaryMetric("Exercises", "\(summary.completedExercises)/\(summary.totalExercises)", "dumbbell.fill")
-                            summaryMetric("Sets", "\(summary.totalSets)", "checkmark.circle.fill")
-                            summaryMetric("Volume", MeasurementFormatting.formatRecordedWeight(summary.totalVolume, unit: appState.activeWorkout?.unit ?? appState.currentProfile.preferredUnit), "scalemass.fill")
+                        if !prCandidates.isEmpty || volumePRDetails != nil || !advancedStrengthLifts.isEmpty || !newlyUnlockedAchievements.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Workout highlights")
+                                    .font(.title3.weight(.black))
+                                if !prCandidates.isEmpty {
+                                    prSubmissionSection
+                                }
+                                if let volumePRDetails {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Label("Highest recorded workout volume", systemImage: "chart.bar.fill")
+                                            .font(.headline.weight(.bold))
+                                            .foregroundStyle(Color.liftGreen)
+                                        Text("\(formattedVolume(volumePRDetails.current - volumePRDetails.previous, unit: volumePRDetails.unit)) above your previous highest. Exercise selection affects total volume.")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(Color.liftMuted)
+                                    }
+                                    .padding(14)
+                                    .background(Color.liftGreen.opacity(0.10))
+                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                            .stroke(Color.liftGreen.opacity(0.28), lineWidth: 1)
+                                    }
+                                }
+
+                                if !advancedStrengthLifts.isEmpty {
+                                    rivalTierProgressSection(
+                                        advancedStrengthLifts: advancedStrengthLifts,
+                                        projectedStrengthTierSummary: projectedStrengthTierSummary
+                                    )
+                                }
+
+                                if !newlyUnlockedAchievements.isEmpty {
+                                    VStack(alignment: .leading, spacing: 10) {
+                                        Text("Badge unlocked on saving")
+                                            .font(.headline.weight(.bold))
+                                        ForEach(newlyUnlockedAchievements.prefix(3)) { unlock in
+                                            achievementBadgeRow(
+                                                appState.achievements.first { $0.title == unlock.title },
+                                                fallbackTitle: unlock.title
+                                            )
+                                        }
+                                    }
+                                    .padding(14)
+                                    .background(Color.liftGold.opacity(0.08))
+                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                            .stroke(Color.liftGold.opacity(0.28), lineWidth: 1)
+                                    }
+                                }
+
+                                if let nextAchievementProgress {
+                                    achievementProgressCard(nextAchievementProgress)
+                                }
+
+                            }
                         }
 
-                        HStack(spacing: 10) {
-                            summaryMetric("Duration", durationText(activeDuration), "timer")
-                            summaryMetric("Projected streak", "\(projectedStreak)d", "flame.fill")
-                            summaryMetric("Lifetime workouts", "\(projectedWorkoutCount)", "calendar")
-                        }
+                        exerciseReviewSection
 
                         if let previous = previousComparableWorkout {
                             comparisonSection(previous)
                         }
 
-                        if !prCandidates.isEmpty {
-                            prSubmissionSection
-                        }
-
-                        if let volumePRDetails {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Label("New volume PR", systemImage: "chart.bar.fill")
-                                    .font(.headline.weight(.bold))
-                                    .foregroundStyle(Color.liftGreen)
-                                Text("You moved \(MeasurementFormatting.formatRecordedWeight(volumePRDetails.current, unit: volumePRDetails.unit)) total volume — \(MeasurementFormatting.formatRecordedWeight(volumePRDetails.current - volumePRDetails.previous, unit: volumePRDetails.unit)) more than your previous best.")
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(Color.liftMuted)
-                            }
-                            .padding(14)
-                            .background(Color.liftGreen.opacity(0.10))
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .stroke(Color.liftGreen.opacity(0.28), lineWidth: 1)
-                            }
-                        }
-
-                        if !advancedStrengthLifts.isEmpty {
-                            rivalTierProgressSection(
-                                advancedStrengthLifts: advancedStrengthLifts,
-                                projectedStrengthTierSummary: projectedStrengthTierSummary
-                            )
-                        }
-
-                        if !newlyUnlockedAchievements.isEmpty {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("Unlocked achievements")
-                                    .font(.headline.weight(.bold))
-                                ForEach(newlyUnlockedAchievements.prefix(3)) { unlock in
-                                    HStack(spacing: 10) {
-                                        Image(systemName: "medal.fill")
-                                            .foregroundStyle(Color.liftGold)
-                                        Text(unlock.title)
-                                            .font(.subheadline.weight(.semibold))
-                                        Spacer()
-                                    }
-                                }
-                            }
-                            .padding(14)
-                            .background(Color.liftCard)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        }
-
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("How hard did this workout feel?")
+                            Text("Workout effort · Optional")
                                 .font(.title3.weight(.black))
                             HStack(spacing: 8) {
                                 ForEach(1...5, id: \.self) { value in
                                     Button {
-                                        effort = value
+                                        effort = effort == value ? 0 : value
                                         Haptics.light()
                                     } label: {
                                         VStack(spacing: 5) {
@@ -310,13 +364,13 @@ struct WorkoutSummaryView: View {
                                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                                     }
                                     .buttonStyle(.plain)
+                                    .accessibilityLabel("\(value) of 5, \(effortLabel(value))")
+                                    .accessibilityAddTraits(effort == value ? .isSelected : [])
                                 }
                             }
                         }
 
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Workout notes")
-                                .font(.headline.weight(.bold))
+                        DisclosureGroup("Add a note · Optional", isExpanded: $showsNotes) {
                             TextEditor(text: $notes)
                                 .frame(minHeight: 90)
                                 .padding(10)
@@ -335,6 +389,11 @@ struct WorkoutSummaryView: View {
                                 }
                         }
 
+                    }
+                    .padding(18)
+                    }
+                    .scrollDismissesKeyboard(.interactively)
+                    .safeAreaInset(edge: .bottom) {
                         PrimaryButton(title: "Save & finish", symbolName: "checkmark.circle.fill") {
                             let prHighlights = prCandidates.prefix(2).map { candidate in
                                 "New \(candidate.exerciseName) PR: \(MeasurementFormatting.recordedLiftSetText(weight: candidate.weight, unit: candidate.unit, repetitions: candidate.repetitions))"
@@ -344,47 +403,39 @@ struct WorkoutSummaryView: View {
                                 hasVolumePR: volumePRDetails != nil,
                                 plannedSessionComplete: plannedSessionProgress?.isComplete == true,
                                 programMilestone: plannedProgramMilestone,
-                                achievements: newlyUnlockedAchievements.prefix(2).map { "Achievement: \($0.title)" }
+                                achievements: []
                             )
-                            if onComplete(effort, notes, videoURLsBySetID, false) {
+                            let reviewedSummary = summary
+                            let eligibleIDs = Set(prCandidates.map(\.setID))
+                            let sharedIDs = sharePRs ? selectedPRSetIDs.intersection(eligibleIDs) : []
+                            if onComplete(effort, notes, videoURLsBySetID.filter { sharedIDs.contains($0.key) }, sharedIDs) {
+                                savedSummary = reviewedSummary
                                 completionHighlights = highlights
+                                savedAchievementBadges = newlyUnlockedAchievements.prefix(3).compactMap { unlock in
+                                    appState.achievements.first { $0.title == unlock.title }
+                                }
+                                savedAchievementProgress = nextAchievementProgress
                                 finishedDuration = activeDuration
                                 finishedUnit = summaryUnit
                                 hasSavedWorkout = true
                             }
                         }
                         .accessibilityIdentifier("workout.finish.save")
+                        .disabled(!loadingVideoSetIDs.isEmpty || appState.activeWorkoutFinishReadiness == .empty)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 12)
+                        .background(.ultraThinMaterial)
                     }
-                    .padding(18)
-                }
-                .scrollIndicators(.hidden)
                 }
             }
-            .navigationTitle(hasSavedWorkout ? "Workout saved" : "Summary")
+            .navigationTitle(hasSavedWorkout ? "Workout saved" : "Review workout")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(hasSavedWorkout ? "Done" : "Back") { dismiss() }
                 }
             }
-            .onAppear {
-                if !prCandidates.isEmpty && !didExplainAutomaticSubmission {
-                    onExplanationShown()
-                    showingAutomaticSubmissionExplanation = true
-                }
-            }
-            .alert("Share eligible PRs automatically?", isPresented: $showingAutomaticSubmissionExplanation) {
-                Button("Enable") {
-                    automaticSubmissionEnabled = true
-                    onAutomaticSubmissionChanged(true)
-                }
-                Button("Keep Private", role: .cancel) {
-                    automaticSubmissionEnabled = false
-                    onAutomaticSubmissionChanged(false)
-                }
-            } message: {
-                Text("When enabled, eligible PRs are posted publicly as self-reported without a video, or video-backed when you attach one.")
-            }
+
         }
     }
 
@@ -408,11 +459,11 @@ struct WorkoutSummaryView: View {
 
             HStack(spacing: 10) {
                 summaryMetric("Sets", "\(summary.totalSets)", "checkmark.circle.fill")
-                summaryMetric("Volume", MeasurementFormatting.formatRecordedWeight(summary.totalVolume, unit: finishedUnit ?? appState.currentProfile.preferredUnit), "scalemass.fill")
+                summaryMetric("Volume", formattedVolume(summary.totalVolume, unit: finishedUnit ?? appState.currentProfile.preferredUnit), "scalemass.fill")
                 summaryMetric("Duration", durationText(finishedDuration ?? activeDuration), "timer")
             }
 
-            if completionHighlights.isEmpty {
+            if completionHighlights.isEmpty && savedAchievementBadges.isEmpty {
                 Text("Session saved. Keep building toward your next milestone.")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.liftMuted)
@@ -436,6 +487,27 @@ struct WorkoutSummaryView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
 
+            if !savedAchievementBadges.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(savedAchievementBadges.count == 1 ? "Badge earned" : "Badges earned")
+                        .font(.headline.weight(.bold))
+                    ForEach(savedAchievementBadges) { achievement in
+                        achievementBadgeRow(achievement, fallbackTitle: achievement.title)
+                    }
+                }
+                .padding(14)
+                .background(Color.liftGold.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.liftGold.opacity(0.28), lineWidth: 1)
+                }
+            }
+
+            if let savedAchievementProgress {
+                achievementProgressCard(savedAchievementProgress)
+            }
+
             Button {
                 showsAllAchievements.toggle()
             } label: {
@@ -456,7 +528,7 @@ struct WorkoutSummaryView: View {
                         .font(.headline.weight(.bold))
                     ForEach(appState.achievements) { achievement in
                         let isUnlocked = appState.achievementUnlocks.contains { $0.title == achievement.title }
-                        Label(achievement.title, systemImage: isUnlocked ? achievement.symbolName : "lock.fill")
+                        Label(displayAchievementTitle(achievement.title), systemImage: isUnlocked ? achievement.symbolName : "lock.fill")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(isUnlocked ? Color.liftGold : Color.liftMuted)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -467,6 +539,15 @@ struct WorkoutSummaryView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
 
+            if appState.selectedPlanQueueEnabled,
+               let session = appState.nextQueuedWorkoutSession,
+               let week = appState.selectedPlanWeeks.first(where: { $0.id == session.weekID }) {
+                Text("Next: \(session.name) · Week \(week.weekNumber)")
+                    .font(.subheadline).foregroundStyle(Color.liftMuted)
+            } else if let next = appState.nextScheduledWorkout() {
+                Text("Next: \(next.session.name) · \(LiftTimeFormatter.shortDateNoTime(next.date))")
+                    .font(.subheadline).foregroundStyle(Color.liftMuted)
+            }
             PrimaryButton(title: "Done", symbolName: "checkmark") { dismiss() }
                 .accessibilityIdentifier("workout.finish.saved.done")
             }
@@ -475,17 +556,51 @@ struct WorkoutSummaryView: View {
         .scrollIndicators(.hidden)
     }
 
+    private func achievementBadgeRow(_ achievement: Achievement?, fallbackTitle: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: achievement?.symbolName ?? "medal.fill")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(Color.liftGold)
+                .frame(width: 38, height: 38)
+                .background(Color.liftGold.opacity(0.14))
+                .clipShape(Circle())
+            Text(displayAchievementTitle(fallbackTitle))
+                .font(.subheadline.weight(.semibold))
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func achievementProgressCard(
+        _ progress: (title: String, progress: Double, status: String)
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Next achievement", systemImage: "sparkles")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(Color.liftAccentText)
+            Text(progress.title)
+                .font(.subheadline.weight(.semibold))
+            ProgressView(value: progress.progress)
+                .tint(Color.liftAccentText)
+            Text(progress.status)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Color.liftMuted)
+        }
+        .padding(14)
+        .background(Color.liftCard)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
     private func rivalTierProgressSection(
         advancedStrengthLifts: [LiftTierProgress],
         projectedStrengthTierSummary: StrengthTierSummary
     ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Rival Tier progress", systemImage: "medal.fill")
+            Label("Projected Rival Tiers", systemImage: "medal.fill")
                 .font(.headline.weight(.bold))
                 .foregroundStyle(Color.liftGold)
             ForEach(advancedStrengthLifts) { lift in
                 HStack {
-                    Text(lift.exerciseName)
+                    Text("\(lift.exerciseName) tier")
                         .font(.subheadline.weight(.semibold))
                     Spacer()
                     Text(lift.currentTier.label)
@@ -494,7 +609,7 @@ struct WorkoutSummaryView: View {
                 }
             }
             if projectedStrengthTierSummary.overallTier > appState.strengthTierSummary.overallTier {
-                Text("Overall Rival Tier advanced to \(projectedStrengthTierSummary.overallTier.label).")
+                Text("Overall tier on saving: \(projectedStrengthTierSummary.overallTier.label)")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.liftText)
             }
@@ -507,86 +622,82 @@ struct WorkoutSummaryView: View {
 
     private var prSubmissionSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Personal records")
-                        .font(.title3.weight(.black))
-                    Text("Enable automatic sharing to publish these PRs; attach video to mark one video-backed.")
-                        .font(.caption)
-                        .foregroundStyle(Color.liftMuted)
-                }
-                Spacer()
-                Image(systemName: "trophy.fill")
-                    .foregroundStyle(Color.liftGold)
-            }
+            Toggle("Share these PRs publicly", isOn: $sharePRs)
+                .font(.subheadline.weight(.bold))
+                .tint(Color.liftAccentText)
+            Text(sharePRs ? "\(selectedPRSetIDs.intersection(Set(prCandidates.map(\.setID))).count) selected · Submitted when you save. Video evidence is not verification." : "No PRs will be published from this workout.")
+                .font(.caption)
+                .foregroundStyle(Color.liftMuted)
 
-            Toggle(isOn: Binding(
-                get: { automaticSubmissionEnabled },
-                set: { enabled in
-                    automaticSubmissionEnabled = enabled
-                    onAutomaticSubmissionChanged(enabled)
-                }
-            )) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Automatically share eligible PRs")
-                        .font(.subheadline.weight(.bold))
-                    Text("Public • Self-reported or video-backed • next daily ranking update")
-                        .font(.caption2)
-                        .foregroundStyle(Color.liftMuted)
-                }
-            }
-            .tint(Color.liftAccentText)
-
-            ForEach(prCandidates) { candidate in
+            let groupedRecords = Dictionary(grouping: prCandidates, by: \.rankingExerciseID)
+            ForEach(groupedRecords.keys.sorted(), id: \.self) { exerciseID in
+                let records = (groupedRecords[exerciseID] ?? []).sorted { $0.repetitions < $1.repetitions }
                 VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(candidate.exerciseName)
-                                .font(.subheadline.weight(.bold))
-                            Text(MeasurementFormatting.recordedLiftSetText(weight: candidate.weight, unit: candidate.unit, repetitions: candidate.repetitions))
-                                .font(.headline.weight(.black).monospacedDigit())
-                                .foregroundStyle(Color.liftGold)
-                        }
-                        Spacer()
-                        Text("NEW PR")
-                            .font(.caption2.weight(.black))
-                            .tracking(0.7)
-                            .foregroundStyle(Color.liftGold)
-                    }
-
-                    PhotosPicker(
-                        selection: Binding(
-                            get: { selectedVideoItems[candidate.setID] },
-                            set: { item in
-                                selectedVideoItems[candidate.setID] = item
-                                guard let item else {
-                                    videoURLsBySetID.removeValue(forKey: candidate.setID)
-                                    return
+                    Text(records.first?.exerciseName ?? exerciseID)
+                        .font(.headline.weight(.bold))
+                    ForEach(records) { candidate in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(MeasurementFormatting.recordedLiftSetText(weight: candidate.weight, unit: candidate.unit, repetitions: candidate.repetitions))
+                                        .font(.headline.weight(.black).monospacedDigit())
+                                        .foregroundStyle(Color.liftGold)
+                                    Text(candidate.previousBestKilograms == nil ? "First recorded \(candidate.repetitions)-rep best" : "New \(candidate.repetitions)-rep best")
+                                        .font(.caption)
+                                        .foregroundStyle(Color.liftMuted)
                                 }
-                                loadVideo(item, for: candidate)
+                                Spacer()
+                                if sharePRs {
+                                    Button {
+                                        if !selectedPRSetIDs.insert(candidate.setID).inserted {
+                                            selectedPRSetIDs.remove(candidate.setID)
+                                        }
+                                    } label: {
+                                        Image(systemName: selectedPRSetIDs.contains(candidate.setID) ? "checkmark.circle.fill" : "circle")
+                                            .font(.title3)
+                                            .foregroundStyle(Color.liftAccentText)
+                                            .frame(minWidth: 44, minHeight: 44)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("Share \(candidate.exerciseName), \(candidate.repetitions)-rep record")
+                                    .accessibilityValue(selectedPRSetIDs.contains(candidate.setID) ? "Selected" : "Not selected")
+                                }
                             }
-                        ),
-                        matching: .videos
-                    ) {
-                        HStack {
-                            if loadingVideoSetIDs.contains(candidate.setID) {
-                                ProgressView()
-                            } else {
-                                Image(systemName: videoURLsBySetID[candidate.setID] == nil ? "video.badge.plus" : "checkmark.circle.fill")
-                            }
-                            Text(videoURLsBySetID[candidate.setID] == nil ? "Attach lift video" : "Video attached")
-                            Spacer()
-                            if videoURLsBySetID[candidate.setID] != nil {
-                                Text("Ready")
-                                    .foregroundStyle(Color.liftGreen)
+                            if sharePRs && selectedPRSetIDs.contains(candidate.setID) {
+                                PhotosPicker(
+                                    selection: Binding(
+                                        get: { selectedVideoItems[candidate.setID] },
+                                        set: { item in
+                                            selectedVideoItems[candidate.setID] = item
+                                            guard let item else {
+                                                videoURLsBySetID.removeValue(forKey: candidate.setID)
+                                                return
+                                            }
+                                            loadVideo(item, for: candidate)
+                                        }
+                                    ),
+                                    matching: .videos
+                                ) {
+                                    HStack {
+                                        if loadingVideoSetIDs.contains(candidate.setID) {
+                                            ProgressView()
+                                        } else {
+                                            Image(systemName: videoURLsBySetID[candidate.setID] == nil ? "video.badge.plus" : "checkmark.circle.fill")
+                                        }
+                                        Text(videoURLsBySetID[candidate.setID] == nil ? "Attach lift video" : "Video attached")
+                                        Spacer()
+                                        if videoURLsBySetID[candidate.setID] != nil {
+                                            Text("Ready")
+                                                .foregroundStyle(Color.liftGreen)
+                                        }
+                                    }
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(Color.liftAccentText)
+                                    .frame(minHeight: 44)
+                                }
                             }
                         }
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(Color.liftAccentText)
-                        .padding(.horizontal, 12)
-                        .frame(minHeight: 44)
-                        .background(Color.liftBlue.opacity(0.10))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        if candidate.id != records.last?.id { Divider() }
                     }
                 }
                 .padding(12)
@@ -594,11 +705,6 @@ struct WorkoutSummaryView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
 
-            if !automaticSubmissionEnabled {
-                Label("These PRs remain private until you enable automatic sharing.", systemImage: "lock.fill")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.liftMuted)
-            }
             if let videoError {
                 Label(videoError, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption.weight(.semibold))
@@ -631,17 +737,50 @@ struct WorkoutSummaryView: View {
         let volumeDelta = currentVolume - previousVolume
         let setDelta = summary.totalSets - previousSets
         let durationDelta = activeDuration - previous.duration
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("Compared with last \(previous.name)")
-                .font(.headline.weight(.bold))
-            HStack(spacing: 10) {
-                summaryMetric("Volume", "\(signedValue(volumeDelta)) \(displayUnit.shortLabel)", "chart.bar.fill")
-                summaryMetric("Sets", signedValue(Double(setDelta)), "plusminus")
-                summaryMetric("Time", signedDuration(durationDelta), "clock.arrow.circlepath")
+        let exercises = appState.activeWorkout?.exercises ?? []
+        let previousExerciseIDs = Set(previous.exercises.map(\.exerciseID))
+        let weightedExerciseIDs = Set(currentWorkoutWorkingSets.map(\.prescriptionID))
+        let matchingExercises = exercises.filter {
+            previousExerciseIDs.contains($0.exerciseID) && weightedExerciseIDs.contains($0.id)
+        }
+        return DisclosureGroup("View comparison") {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Last \(previous.name) · \(previous.completedAt.formatted(date: .abbreviated, time: .omitted))")
+                    .font(.subheadline.weight(.semibold))
+                Text("Session totals; more volume or time does not necessarily mean better performance.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+                LabeledContent("Volume change", value: "\(signedValue(volumeDelta)) \(displayUnit.shortLabel)")
+                LabeledContent("Working set change", value: signedValue(Double(setDelta)))
+                LabeledContent("Duration", value: "\(durationText(abs(durationDelta))) \(durationDelta >= 0 ? "longer" : "shorter")")
+                Text("Previous: \(formattedVolume(previousVolume, unit: displayUnit)) in \(previousSets) sets")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+                if matchingExercises.isEmpty {
+                    Text("No matching weighted exercises to compare. Session totals may reflect different exercises.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                } else {
+                    Text("Matching weighted exercises · Volume")
+                        .font(.subheadline.weight(.bold))
+                    ForEach(matchingExercises) { exercise in
+                        let currentSets = currentWorkoutWorkingSets.filter { $0.prescriptionID == exercise.id }
+                        let priorIDs = Set(previous.exercises.filter { $0.exerciseID == exercise.exerciseID }.map(\.id))
+                        let priorSets = previous.completedWorkingSets.filter { priorIDs.contains($0.prescriptionID) }
+                        let current = currentSets.reduce(0) { $0 + $1.volume(in: displayUnit) }
+                        let prior = priorSets.reduce(0) { $0 + $1.volume(in: displayUnit) }
+                        if !currentSets.isEmpty && !priorSets.isEmpty {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(exercise.exerciseName)
+                                    .font(.subheadline.weight(.semibold))
+                                Text("\(formattedVolume(prior, unit: displayUnit)) → \(formattedVolume(current, unit: displayUnit))")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                        }
+                    }
+                }
             }
-            Text("Previous: \(Int(previousVolume)) \(displayUnit.shortLabel) in \(previousSets) sets")
-                .font(.caption)
-                .foregroundStyle(Color.liftMuted)
         }
         .padding(14)
         .background(Color.liftCard)
@@ -649,16 +788,63 @@ struct WorkoutSummaryView: View {
     }
 
     private func durationText(_ duration: TimeInterval) -> String {
-        MeasurementFormatting.shortClockText(duration)
+        let seconds = max(0, Int(duration))
+        if seconds >= 3_600 { return "\(seconds / 3_600)h \((seconds % 3_600) / 60)m" }
+        if seconds >= 60 { return "\(seconds / 60)m \(seconds % 60)s" }
+        return "\(seconds)s"
     }
 
     private func signedValue(_ value: Double) -> String {
         let rounded = Int(value.rounded())
-        return rounded >= 0 ? "+\(rounded)" : "\(rounded)"
+        return rounded >= 0 ? "+\(rounded.formatted())" : rounded.formatted()
     }
 
-    private func signedDuration(_ value: TimeInterval) -> String {
-        MeasurementFormatting.signedShortClockText(seconds: Int(value.rounded()))
+    private func formattedVolume(_ value: Double, unit: UnitSystem) -> String {
+        "\(Int(value.rounded()).formatted()) \(unit.shortLabel)"
+    }
+
+    private var exerciseReviewSection: some View {
+        DisclosureGroup("Review exercises & sets") {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Tap an exercise to review or edit its sets.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+                ForEach((appState.activeWorkout?.exercises ?? []).sorted { $0.order < $1.order }) { exercise in
+                    let catalog = appState.trainingExerciseLibrary.first(where: { $0.id == exercise.exerciseID }) ?? TrainingExerciseCatalogItem(
+                        id: exercise.exerciseID,
+                        name: exercise.exerciseName,
+                        bodyPart: exercise.bodyPart,
+                        workoutCategory: exercise.bodyPart,
+                        defaultSets: exercise.targetSets,
+                        defaultReps: exercise.targetReps,
+                        symbolName: "figure.strengthtraining.traditional",
+                        equipment: exercise.equipment,
+                        muscleProfile: exercise.muscleProfile,
+                        rankingExerciseID: exercise.rankingExerciseID
+                    )
+                    NavigationLink {
+                        PrescriptionTrackView(exercise: exercise, catalogExercise: catalog)
+                            .environmentObject(appState)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(exercise.exerciseName)
+                                .font(.subheadline.weight(.bold))
+                            let progress = appState.activeWorkoutExerciseProgress(for: exercise)
+                            Text("\(progress.completedWorkingSets)/\(progress.plannedWorkingSets) working sets")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.top, 8)
+        }
+        .font(.subheadline.weight(.semibold))
+        .padding(14)
+        .background(Color.liftCard)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private func projectedAchievementTitles(
@@ -782,6 +968,21 @@ struct WorkoutSummaryView: View {
         for milestone in [10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000] where kilograms >= Double(milestone) {
             titles.append("\(milestone.formatted()) kg Lifted Volume")
         }
+    }
+
+    private func displayAchievementTitle(_ title: String) -> String {
+        let suffix = " kg Lifted Volume"
+        guard title.hasSuffix(suffix),
+              let kilograms = Double(title.dropLast(suffix.count).replacingOccurrences(of: ",", with: "")) else {
+            return title
+        }
+        let formattedVolume = MeasurementFormatting.formatDisplayedWeight(
+            kilograms,
+            unit: appState.currentProfile.preferredUnit
+        ) { value in
+            Int(value.rounded()).formatted()
+        }
+        return "\(formattedVolume) Lifted Volume"
     }
 
     private func loadVideo(_ item: PhotosPickerItem, for candidate: WorkoutPRCandidate) {

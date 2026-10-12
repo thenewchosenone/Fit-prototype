@@ -171,12 +171,7 @@ extension ProfileView {
                         .foregroundStyle(Color.liftText)
                 }
                 if isCurrentUser || profile.yearsExperience > 0 {
-                    let trainingDetails = [
-                        isCurrentUser || profile.hideBodyweight || profile.bodyweightPounds > 0
-                            ? (profile.hideBodyweight ? "Weight class hidden" : weightClassName)
-                            : nil,
-                        displayedExperienceLevel.rawValue
-                    ].compactMap { $0 }.joined(separator: " • ")
+                    let trainingDetails = displayedExperienceLevel.rawValue
                     if !trainingDetails.isEmpty {
                         Text(trainingDetails)
                             .font(.caption)
@@ -185,6 +180,16 @@ extension ProfileView {
                     Text("\(profile.yearsExperience) \(profile.yearsExperience == 1 ? "year" : "years") training")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
+                }
+                if (isCurrentUser || !profile.hideBodyweight), let loggedWeight = displayedLoggedBodyweight {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Logged weight · \(MeasurementFormatting.formatBodyweight(loggedWeight.pounds, preferredUnit: profile.preferredUnit))")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                        Text("Last updated \(loggedWeight.date.formatted(date: .abbreviated, time: .omitted))")
+                            .font(.caption2)
+                            .foregroundStyle(Color.liftMuted)
+                    }
                 }
                 if isCurrentUser && (profile.displayName.isEmpty || profile.username.isEmpty) {
                     Button("Complete profile") {
@@ -389,12 +394,17 @@ extension ProfileView {
             CompactSectionHeader(title: "Achievements")
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                 ForEach(profileAchievementPreview) { achievement in
+                    let isUnlocked = unlocked(achievement)
                     HStack(spacing: 9) {
                         Image(systemName: achievement.symbolName)
-                            .foregroundStyle(unlocked(achievement) ? Color.liftGold : Color.liftMuted)
-                        Text(achievement.title)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(isUnlocked ? Color.liftGold : Color.liftMuted)
+                            .frame(width: 28, height: 28)
+                            .background(Color.liftGold.opacity(isUnlocked ? 0.14 : 0))
+                            .clipShape(Circle())
+                        Text(profileAchievementTitle(achievement.title))
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(unlocked(achievement) ? Color.liftText : Color.liftMuted)
+                            .foregroundStyle(isUnlocked ? Color.liftText : Color.liftMuted)
                     }
                     .padding(10)
                     .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
@@ -409,6 +419,19 @@ extension ProfileView {
         let unlockedAchievements = appState.achievements.filter(unlocked)
         let lockedAchievements = appState.achievements.filter { !unlocked($0) }
         return unlockedAchievements + Array(lockedAchievements.prefix(4))
+    }
+
+    private func profileAchievementTitle(_ title: String) -> String {
+        let suffix = " kg Lifted Volume"
+        guard title.hasSuffix(suffix),
+              let kilograms = Double(title.dropLast(suffix.count).replacingOccurrences(of: ",", with: "")) else {
+            return title
+        }
+        let formatted = MeasurementFormatting.formatDisplayedWeight(
+            kilograms,
+            unit: profile.preferredUnit
+        ) { Int($0.rounded()).formatted() }
+        return "\(formatted) Lifted Volume"
     }
 
     func recentSubmissions(profileLifts: [LiftSubmission]) -> some View {
@@ -700,17 +723,21 @@ extension ProfileView {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    var weightClassName: String {
-        guard let weightClass = RankingCalculator.weightClass(
-            for: displayedBodyweightPounds,
-            sexCategory: profile.sexCategory,
-            classes: WeightClassCatalog.all
-        ) else { return "Bodyweight needed" }
-        return RankingFormatting.weightClassDisplayName(weightClass, preferredUnit: profile.preferredUnit)
+    private var displayedLoggedBodyweight: (pounds: Double, date: Date)? {
+        if profile.id == appState.currentProfile.id {
+            guard let entry = appState.bodyweightEntries
+                .filter({ ($0.actual ?? 0) > 0 })
+                .max(by: { $0.targetDate < $1.targetDate }),
+                  let pounds = entry.actual else { return nil }
+            return (pounds, entry.targetDate)
+        }
+        guard profile.bodyweightPounds > 0,
+              let date = profile.bodyweightLastUpdatedAt else { return nil }
+        return (profile.bodyweightPounds, date)
     }
 
     private var displayedBodyweightPounds: Double {
-        guard isCurrentUser else { return profile.bodyweightPounds }
+        guard profile.id == appState.currentProfile.id else { return profile.bodyweightPounds }
         return ProfileDataAuthority.latestLoggedBodyweight(
             profilePounds: profile.bodyweightPounds,
             entries: appState.bodyweightEntries

@@ -50,6 +50,7 @@ struct UserProfile: Identifiable, Codable, Hashable {
     var sexCategory: SexCategory
     var heightInches: Double
     var bodyweightPounds: Double
+    var bodyweightLastUpdatedAt: Date? = nil
     var preferredUnit: UnitSystem
     var city: String
     var state: String

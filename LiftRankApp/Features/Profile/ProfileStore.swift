@@ -294,8 +294,10 @@ final class ProfileStore: ObservableObject {
         profile.state = card.region ?? ""
         profile.primaryGymID = card.primaryGymID ?? UUID()
         profile.primaryGymName = card.primaryGymName ?? "Hidden"
-        profile.bodyweightPounds = 0
+        profile.bodyweightPounds = card.bodyweightPounds ?? 0
+        profile.bodyweightLastUpdatedAt = card.bodyweightLastUpdatedAt
         profile.hideExactAge = card.ageBand == nil
+        profile.hideBodyweight = card.bodyweightPounds == nil
         profile.hideCity = card.city == nil
         profile.hideGym = card.primaryGymID == nil
 

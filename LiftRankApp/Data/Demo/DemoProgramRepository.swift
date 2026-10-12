@@ -284,17 +284,15 @@ extension DemoRepository {
         workoutPlanProgressionSettings[settingsIndex].method = method
         workoutPlanProgressionSettings[settingsIndex].trainingMaxKilograms = trainingMaxKilograms
 
-        let completedWeekIDs = Set(completedWorkouts.filter { $0.sourcePlanID == planID }.compactMap { workout in
-            workout.sourceSessionID.flatMap { sessionID in workoutSessions.first(where: { $0.id == sessionID })?.weekID }
-        })
-        let activeWeekID = activeWorkout?.sourcePlanID == planID ? activeWorkout?.sourceWeekID : nil
+        let recordedSessionIDs = Set(completedWorkouts.filter { $0.sourcePlanID == planID }.compactMap(\.sourceSessionID))
+        let activeSessionID = activeWorkout?.sourceSessionID
         let currentNumber = currentProgramWeek(planID: planID, at: date)?.weekNumber ?? 1
-        let eligibleWeeks = workoutWeeks.filter {
-            $0.planID == planID && $0.weekNumber >= currentNumber && !completedWeekIDs.contains($0.id) && $0.id != activeWeekID
-        }
+        let eligibleWeeks = workoutWeeks.filter { $0.planID == planID && $0.weekNumber >= currentNumber }
 
         for week in eligibleWeeks {
             for session in workoutSessions.filter({ $0.weekID == week.id }) {
+                guard !recordedSessionIDs.contains(session.id), session.id != activeSessionID,
+                      session.outcome == nil else { continue }
                 guard let sessionTemplate = template.sessions.first(where: { $0.name == session.name }) else { continue }
                 for index in workoutPrescriptions.indices where workoutPrescriptions[index].sessionID == session.id {
                     guard let base = sessionTemplate.exercises.first(where: { $0.exerciseID == workoutPrescriptions[index].exerciseID }),
@@ -339,8 +337,8 @@ extension DemoRepository {
         let start = calendar.startOfDay(for: settings.startedAt)
         let today = calendar.startOfDay(for: date)
         let elapsedDays = max(0, calendar.dateComponents([.day], from: start, to: today).day ?? 0)
-        let number = min(weeks.count, elapsedDays / 7 + 1)
-        return weeks.first { $0.weekNumber == number } ?? weeks.last
+        let number = elapsedDays / 7 + 1
+        return weeks.first { $0.weekNumber >= number } ?? weeks.last
     }
 
     func duplicateWorkoutPlan(_ plan: WorkoutPlan) -> WorkoutPlan {
@@ -607,7 +605,7 @@ extension DemoRepository {
         workoutSessions.append(WorkoutSession(id: UUID(), weekID: week.id, day: "Monday", name: "Freestyle Workout", order: 0, notes: ""))
     }
 
-    private func programPrescription(
+    func programPrescription(
         _ template: WorkoutProgramExerciseTemplate,
         sessionID: UUID,
         order: Int,
@@ -636,8 +634,7 @@ extension DemoRepository {
             week: week
         )
         let percentage = method == .percentage ? trainingMaxKilograms[exercise.id].map { _ in WorkoutProgramCatalog.percentage(for: week, exerciseID: exercise.id) } : nil
-        let percentageReps = [6, 6, 5, 5, 5, 4, 3, 5, 3, 2, 1, 5][max(0, min(11, week - 1))]
-        let reps = percentage == nil ? effectiveTemplate.reps : "\(percentageReps)"
+        let reps = effectiveTemplate.reps
         let targetRIR = method == .rirRepRange || (method == .percentage && percentage == nil)
             ? WorkoutProgramCatalog.rirTarget(for: week)
             : nil

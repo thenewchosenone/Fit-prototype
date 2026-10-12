@@ -42,8 +42,8 @@ struct WorkoutSessionRunView: View {
                     let displayState = appState.activeWorkoutDisplayState
                     VStack(spacing: 0) {
                         activeHeader(workout, displayState: displayState)
-                        ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 16) {
+                        List {
+                            Group {
                                 if displayState.exercises.isEmpty {
                                     emptyCard
                                 } else {
@@ -67,31 +67,36 @@ struct WorkoutSessionRunView: View {
                                             ?? fallbackCatalogExercise(for: exercise)
                                         let progress = displayState.progressByExerciseID[exercise.id]
                                             ?? appState.activeWorkoutExerciseProgress(for: exercise)
-                                        ExerciseSwipeActionRow(
-                                            isEnabled: true,
-                                            showsSubstituteAction: !progress.isComplete,
-                                            substituteAction: {
-                                                presentedSheet = .substitute(exercise)
-                                            },
-                                            removeAction: {
+                                        NavigationLink {
+                                            PrescriptionTrackView(
+                                                exercise: exercise,
+                                                catalogExercise: catalogExercise
+                                            )
+                                            .environmentObject(appState)
+                                        } label: {
+                                            exerciseCard(
+                                                exercise,
+                                                progress: progress,
+                                                catalogExercise: catalogExercise
+                                            )
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityIdentifier("workout.exercise.\(exercise.id.uuidString)")
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                            Button(role: .destructive) {
                                                 appState.removeExerciseFromActiveWorkout(exercise)
-                                            }
-                                        ) {
-                                            NavigationLink {
-                                                PrescriptionTrackView(
-                                                    exercise: exercise,
-                                                    catalogExercise: catalogExercise
-                                                )
-                                                .environmentObject(appState)
                                             } label: {
-                                                exerciseCard(
-                                                    exercise,
-                                                    progress: progress,
-                                                    catalogExercise: catalogExercise
-                                                )
+                                                Label(progress.isComplete ? "Delete" : "Remove", systemImage: "trash.fill")
                                             }
-                                            .buttonStyle(.plain)
-                                            .accessibilityIdentifier("workout.exercise.\(exercise.id.uuidString)")
+                                            .tint(Color.liftRed)
+                                            if !progress.isComplete {
+                                                Button {
+                                                    presentedSheet = .substitute(exercise)
+                                                } label: {
+                                                    Label("Substitute", systemImage: "arrow.triangle.2.circlepath")
+                                                }
+                                                .tint(Color.liftBlue)
+                                            }
                                         }
                                         .contextMenu {
                                             Button {
@@ -120,11 +125,13 @@ struct WorkoutSessionRunView: View {
                                     }
                                 }
                             }
-                            .padding(.horizontal, 18)
-                            .padding(.top, 18)
-                            .padding(.bottom, 20)
+                            .listRowInsets(EdgeInsets(top: 8, leading: 18, bottom: 8, trailing: 18))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                         }
-                        .scrollIndicators(.hidden)
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
+                        .contentMargins(.vertical, 10, for: .scrollContent)
                         workoutControls
                     }
                 } else {
@@ -164,15 +171,12 @@ struct WorkoutSessionRunView: View {
                         WorkoutSummaryView(
                             summary: summary,
                             prCandidates: appState.activeWorkoutPRCandidates(),
-                            automaticSubmissionEnabled: appState.workoutPreferences.automaticallySubmitVideoBackedPRs,
-                            didExplainAutomaticSubmission: appState.workoutPreferences.didExplainAutomaticPRs,
-                            onAutomaticSubmissionChanged: appState.setAutomaticVideoPRSubmission,
-                            onExplanationShown: appState.markAutomaticVideoPRExplanationShown
-                        ) { effort, notes, videos, _ in
+                            automaticSubmissionEnabled: appState.workoutPreferences.automaticallySubmitVideoBackedPRs
+                        ) { effort, notes, videos, selectedSetIDs in
                             guard let completed = appState.finishActiveWorkout(effort: effort, notes: notes) else { return false }
                             dismissAfterSummary = true
                             Task {
-                                await appState.submitVideoBackedPRs(for: completed, videoURLsBySetID: videos)
+                                await appState.submitVideoBackedPRs(for: completed, videoURLsBySetID: videos, selectedSetIDs: selectedSetIDs)
                             }
                             return true
                         }
@@ -419,9 +423,6 @@ struct WorkoutSessionRunView: View {
                 Text(progress.isComplete ? "Done" : "\(progress.completedWorkingSets)/\(progress.plannedWorkingSets)")
                     .font(.caption.weight(.black))
                     .foregroundStyle(progress.isComplete ? Color.liftGreen : Color.liftMuted)
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.liftMuted)
             }
         }
         .padding(12)
@@ -507,131 +508,6 @@ struct WorkoutSessionRunView: View {
             muscleProfile: exercise.muscleProfile,
             rankingExerciseID: exercise.rankingExerciseID
         )
-    }
-}
-
-private struct ExerciseSwipeActionRow<Content: View>: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isOpen = false
-    @State private var dragOffset: CGFloat = 0
-    let isEnabled: Bool
-    let showsSubstituteAction: Bool
-    let substituteAction: () -> Void
-    let removeAction: () -> Void
-    @ViewBuilder let content: () -> Content
-
-    private let substituteWidth: CGFloat = 104
-    private let removeWidth: CGFloat = 88
-
-    private var actionWidth: CGFloat { (showsSubstituteAction ? substituteWidth : 0) + removeWidth }
-
-    var body: some View {
-        ZStack(alignment: .trailing) {
-            HStack(spacing: 0) {
-                if showsSubstituteAction {
-                    Button {
-                        close()
-                        substituteAction()
-                    } label: {
-                        VStack(spacing: 5) {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                            Text("Substitute")
-                                .font(.caption2.weight(.bold))
-                        }
-                        .foregroundStyle(Color.liftOnAccent)
-                        .frame(width: substituteWidth)
-                        .frame(maxHeight: .infinity)
-                        .background(Color.liftBlue)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Find a substitute")
-                }
-
-                Button(role: .destructive) {
-                    close()
-                    removeAction()
-                } label: {
-                    VStack(spacing: 5) {
-                        Image(systemName: "trash.fill")
-                        Text(showsSubstituteAction ? "Remove" : "Delete")
-                            .font(.caption2.weight(.bold))
-                    }
-                    .foregroundStyle(.white)
-                    .frame(width: removeWidth)
-                    .frame(maxHeight: .infinity)
-                    .background(Color.liftRed)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(showsSubstituteAction ? "Remove exercise" : "Delete finished exercise")
-            }
-            .opacity(actionsAreVisible ? 1 : 0)
-            .allowsHitTesting(actionsAreVisible)
-
-            content()
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
-                .offset(x: displayedOffset)
-                .simultaneousGesture(swipeGesture)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .onAppear {
-            if !isEnabled { close() }
-        }
-        .onChange(of: isEnabled) { _, enabled in
-            if !enabled { close() }
-        }
-        .accessibilityAction(named: "Find substitute") {
-            guard isEnabled, showsSubstituteAction else { return }
-            substituteAction()
-        }
-        .accessibilityAction(named: showsSubstituteAction ? "Remove exercise" : "Delete finished exercise") {
-            guard isEnabled else { return }
-            removeAction()
-        }
-    }
-
-    private var displayedOffset: CGFloat {
-        guard isEnabled else { return 0 }
-        return min(0, max(-actionWidth, (isOpen ? -actionWidth : 0) + dragOffset))
-    }
-
-    private var actionsAreVisible: Bool {
-        displayedOffset < -1
-    }
-
-    private var swipeGesture: some Gesture {
-        DragGesture(minimumDistance: 14)
-            .onChanged { value in
-                guard isEnabled else { return }
-                guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                dragOffset = value.translation.width
-            }
-            .onEnded { value in
-                guard isEnabled else {
-                    close()
-                    return
-                }
-                guard abs(value.translation.width) > abs(value.translation.height) else {
-                    dragOffset = 0
-                    return
-                }
-                let projectedOffset = (isOpen ? -actionWidth : 0) + value.predictedEndTranslation.width
-                animate { isOpen = projectedOffset < -(actionWidth * 0.35) }
-                dragOffset = 0
-            }
-    }
-
-    private func close() {
-        animate { isOpen = false }
-        dragOffset = 0
-    }
-
-    private func animate(_ changes: @escaping () -> Void) {
-        if reduceMotion {
-            changes()
-        } else {
-            withAnimation(.snappy(duration: 0.22), changes)
-        }
     }
 }
 

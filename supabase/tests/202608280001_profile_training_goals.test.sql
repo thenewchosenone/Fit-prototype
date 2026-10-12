@@ -3,12 +3,16 @@ create schema if not exists extensions;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(8);
+select plan(12);
 select has_table('public', 'profile_training_goals', 'profile goals are stored separately');
 select has_function('public', 'replace_own_training_goals', array['text[]'], 'goal replacement RPC exists');
 select is_definer('public', 'replace_own_training_goals', array['text[]'], 'goal replacement uses server authority');
 select ok(has_function_privilege('authenticated', 'public.replace_own_training_goals(text[])', 'EXECUTE'), 'authenticated users can save goals');
 select ok(not has_function_privilege('anon', 'public.replace_own_training_goals(text[])', 'EXECUTE'), 'anonymous users cannot save goals');
+select ok(not has_table_privilege('anon', 'public.profile_training_goals', 'SELECT'), 'anonymous users cannot read goals');
+select ok(not has_table_privilege('anon', 'public.profile_training_goals', 'TRUNCATE'), 'anonymous users cannot truncate goals');
+select ok(not has_table_privilege('authenticated', 'public.profile_training_goals', 'TRUNCATE'), 'authenticated users cannot truncate goals');
+select ok(not has_table_privilege('authenticated', 'public.profile_training_goals', 'INSERT,UPDATE,DELETE'), 'direct goal writes are denied');
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values

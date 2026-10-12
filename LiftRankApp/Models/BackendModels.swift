@@ -126,6 +126,8 @@ struct PublicProfileCard: Equatable, Identifiable {
     let countryCode: String?
     let primaryGymID: UUID?
     let primaryGymName: String?
+    let bodyweightPounds: Double?
+    let bodyweightLastUpdatedAt: Date?
 }
 
 struct GymMembershipRecord: Equatable, Identifiable {

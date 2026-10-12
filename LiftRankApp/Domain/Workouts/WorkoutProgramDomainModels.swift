@@ -283,7 +283,7 @@ struct CompletedWorkout: Identifiable, Codable, Hashable {
     var startedAt: Date
     var completedAt: Date
     var duration: TimeInterval
-    var effort: Int
+    var effort: Int // 0 means unrecorded; 1–5 is the user's workout effort.
     var notes: String
     var gymID: UUID?
     var bodyweight: Double?
@@ -337,6 +337,55 @@ enum WorkoutSyncResult: Codable, Hashable {
     case conflict(server: WorkoutPlanDocument, localCopy: WorkoutPlanDocument)
 }
 
+extension WorkoutPlanSyncPayload {
+    func conflictCopy(documentID: UUID, makeUUID: () -> UUID = UUID.init) -> WorkoutPlanSyncPayload {
+        let payload = self
+        let phaseIDs = Dictionary(uniqueKeysWithValues: payload.phases.map { ($0.id, makeUUID()) })
+        let weekIDs = Dictionary(uniqueKeysWithValues: payload.weeks.map { ($0.id, makeUUID()) })
+        let sessionIDs = Dictionary(uniqueKeysWithValues: payload.sessions.map { ($0.id, makeUUID()) })
+        var plan = payload.plan
+        plan.id = documentID
+        plan.name += " (Conflict copy)"
+        plan.isActive = false
+        plan.queuedSessionIDs = plan.queuedSessionIDs.compactMap { sessionIDs[$0] }
+        let phases = payload.phases.map { value -> WorkoutPhase in
+            var copy = value
+            copy.id = phaseIDs[value.id]!
+            copy.planID = documentID
+            return copy
+        }
+        let weeks = payload.weeks.map { value -> WorkoutWeek in
+            var copy = value
+            copy.id = weekIDs[value.id]!
+            copy.planID = documentID
+            copy.phaseID = phaseIDs[value.phaseID] ?? value.phaseID
+            return copy
+        }
+        let sessions = payload.sessions.map { value -> WorkoutSession in
+            var copy = value
+            copy.id = sessionIDs[value.id]!
+            copy.weekID = weekIDs[value.weekID] ?? value.weekID
+            return copy
+        }
+        let prescriptions = payload.prescriptions.map { value -> WorkoutExercisePrescription in
+            var copy = value
+            copy.id = makeUUID()
+            copy.sessionID = sessionIDs[value.sessionID] ?? value.sessionID
+            return copy
+        }
+        var progression = payload.progression
+        progression?.planID = documentID
+        return WorkoutPlanSyncPayload(
+            plan: plan,
+            phases: phases,
+            weeks: weeks,
+            sessions: sessions,
+            prescriptions: prescriptions,
+            progression: progression
+        )
+    }
+}
+
 struct CompletedWorkoutSnapshot: Identifiable, Codable, Hashable {
     var id: UUID
     var ownerID: UUID
@@ -373,7 +422,7 @@ struct WorkoutPRCandidate: Identifiable, Codable, Hashable {
 struct PendingWorkoutPRSubmission: Identifiable, Codable, Hashable {
     var id: UUID
     var candidate: WorkoutPRCandidate
-    var localVideoURL: URL
+    var localVideoURL: URL?
     var state: WorkoutPRSubmissionState
     var attemptCount: Int
     var lastError: String?

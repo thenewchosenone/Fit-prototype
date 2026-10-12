@@ -371,6 +371,19 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
+    func testStartingSkippedSessionClearsItsOutcome() throws {
+        let repository = makePlannedRepository()
+        let session = try XCTUnwrap(repository.workoutSessions.first)
+        repository.setWorkoutSessionOutcome(session, outcome: .skipped)
+        let skippedSession = try XCTUnwrap(repository.workoutSessions.first(where: { $0.id == session.id }))
+        let appState = AppState(repository: repository, serviceContainer: .demo(repository: repository))
+        appState.selectedWorkoutPlanID = try XCTUnwrap(repository.workoutPlans.first?.id)
+
+        XCTAssertTrue(appState.startWorkout(skippedSession))
+        XCTAssertNil(repository.workoutSessions.first(where: { $0.id == session.id })?.outcome)
+    }
+
+    @MainActor
     func testSkippedPlannedSessionsDoNotResurfaceAsMissed() {
         let repository = makePlannedRepository()
         let sessions = repository.workoutSessions
@@ -4322,9 +4335,8 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(copy.name, "Updated Prep Copy")
         let deletion = try XCTUnwrap(store.deletePlan(id: created.id))
         XCTAssertEqual(deletion.deletedPlanID, created.id)
-        XCTAssertNotEqual(deletion.fallbackPlanID, created.id)
         XCTAssertNil(store.plan(id: created.id))
-        XCTAssertNotNil(store.plan(id: deletion.fallbackPlanID))
+        XCTAssertNotNil(store.plan(id: copy.id))
     }
 
     @MainActor
@@ -4380,6 +4392,14 @@ final class RankingCalculatorTests: XCTestCase {
 
         repository.setWorkoutSessionOutcome(sessions[1], outcome: .skipped)
         XCTAssertEqual(store.nextQueuedSession(planID: plan.id, completedWorkouts: [completed])?.id, sessions[0].id)
+
+        XCTAssertTrue(store.setQueue(planID: plan.id, enabled: false))
+        let addedSession = store.addSession(to: try XCTUnwrap(store.weeks(planID: plan.id).first), day: "Sunday", name: "Added day")
+        XCTAssertTrue(store.setQueue(planID: plan.id, enabled: true))
+        let reenabledQueue = store.queuedSessions(planID: plan.id).map(\.id)
+        XCTAssertEqual(Array(reenabledQueue.prefix(3)), queuedIDs)
+        XCTAssertEqual(Set(reenabledQueue), Set(store.weeks(planID: plan.id).flatMap { store.sessions(week: $0) }.map(\.id)))
+        XCTAssertTrue(reenabledQueue.contains(addedSession.id))
     }
 
     @MainActor
@@ -4656,7 +4676,7 @@ final class RankingCalculatorTests: XCTestCase {
             weight: 100, reps: 5, rpe: 8, isWarmup: false, isComplete: true
         )]
         let completed = appState.programWeekPresentation(for: week)
-        XCTAssertTrue(completed.completedPrescriptionIDs.contains(prescription.id))
+        XCTAssertFalse(completed.completedPrescriptionIDs.contains(prescription.id))
         XCTAssertEqual(completed.completedSetCount, 1)
         XCTAssertEqual(completed.rirSummary?.target, 2)
         XCTAssertEqual(completed.rirSummary?.estimated, 2)
@@ -4704,10 +4724,27 @@ final class RankingCalculatorTests: XCTestCase {
             linkedSubmissionIDs: []
         )]
         let completedFromHistory = appState.programWeekPresentation(for: week)
-        XCTAssertTrue(completedFromHistory.completedPrescriptionIDs.contains(prescription.id))
-        XCTAssertEqual(completedFromHistory.completion, 1)
-        XCTAssertEqual(completedFromHistory.completedSessionCount, 1)
+        XCTAssertFalse(completedFromHistory.completedPrescriptionIDs.contains(prescription.id))
+        XCTAssertEqual(completedFromHistory.completion, 0)
+        XCTAssertEqual(completedFromHistory.completedSessionCount, 0)
         XCTAssertEqual(completedFromHistory.completedSetCount, 2)
+        let secondPartialID = UUID()
+        var secondPartial = repository.completedWorkouts[0]
+        secondPartial.id = secondPartialID
+        secondPartial.sets = [WorkoutSetLog(
+            id: UUID(), prescriptionID: completedExerciseID, performedAt: .now, setNumber: 3,
+            weight: 100, reps: 5, rpe: 8, isWarmup: false, isComplete: true, workoutID: secondPartialID
+        )]
+        repository.completedWorkouts.append(secondPartial)
+        let splitAcrossSessions = appState.programWeekPresentation(for: week)
+        XCTAssertFalse(splitAcrossSessions.completedPrescriptionIDs.contains(prescription.id))
+        repository.completedWorkouts[0].sets.append(WorkoutSetLog(
+            id: UUID(), prescriptionID: completedExerciseID, performedAt: .now, setNumber: 3,
+            weight: 100, reps: 5, rpe: 8, isWarmup: false, isComplete: true, workoutID: completedWorkoutID
+        ))
+        let completeFromOneSession = appState.programWeekPresentation(for: week)
+        XCTAssertTrue(completeFromOneSession.completedPrescriptionIDs.contains(prescription.id))
+        XCTAssertEqual(completeFromOneSession.completedSessionCount, 1)
         XCTAssertEqual(completedFromHistory.rirSummary?.target, 2)
         XCTAssertEqual(completedFromHistory.rirSummary?.estimated, 1.5)
         XCTAssertEqual(completedFromHistory.rirSummary?.setCount, 2)
@@ -4722,7 +4759,7 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(updated.prescriptionsBySessionID[session.id]?.count, 2)
         XCTAssertEqual(updated.completedSessionCount, 0)
         XCTAssertEqual(updated.plannedSetCount, 6)
-        XCTAssertEqual(updated.completedSetCount, 2)
+        XCTAssertEqual(updated.completedSetCount, 3)
     }
 
     @MainActor
@@ -4983,9 +5020,121 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(weeks[2].counts[.chest], 1)
         XCTAssertEqual(weeks[2].counts[.triceps], 1)
         XCTAssertNil(weeks[2].counts[.frontDelts])
+        XCTAssertEqual(weeks[2].secondaryCounts[.frontDelts], 1)
         XCTAssertEqual(weeks[3].counts[.chest], 1)
         XCTAssertEqual(weeks[2].weekStart, calendar.dateInterval(of: .weekOfYear, for: previousWeekWorkout.completedAt)?.start)
         XCTAssertEqual(weeks[3].weekStart, calendar.dateInterval(of: .weekOfYear, for: referenceDate)?.start)
+    }
+
+    @MainActor
+    func testMuscleWorkloadDeduplicatesChestAndTrainingDaysAtWeekBoundary() throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let referenceDate = calendar.date(from: DateComponents(year: 2026, month: 10, day: 4, hour: 12))!
+        let start = try XCTUnwrap(calendar.dateInterval(of: .weekOfYear, for: referenceDate)?.start)
+        var workouts = [start.addingTimeInterval(-1), start, start.addingTimeInterval(3_600)].map(makeCompletedWorkout)
+        for index in workouts.indices {
+            workouts[index].exercises[0].muscleProfile = ExerciseMuscleProfile(
+                primary: [.chest, .upperChest, .lowerChest, .triceps],
+                secondary: [.upperChest, .frontDelts, .frontDelts], orientation: .front
+            )
+        }
+        repository.completedWorkouts = workouts
+        let store = TrainingProgressStore(repository: repository, calendar: calendar)
+        let weeks = store.weeklyWorkingSetsByMuscle(referenceDate: referenceDate)
+
+        XCTAssertEqual(weeks[2].counts[.chest], 1)
+        XCTAssertEqual(weeks[3].counts[.chest], 2)
+        XCTAssertNil(weeks[3].counts[.upperChest])
+        XCTAssertNil(weeks[3].secondaryCounts[.chest])
+        XCTAssertEqual(weeks[3].secondaryCounts[.frontDelts], 2)
+        XCTAssertEqual(weeks[3].trainingDays[.chest], 1)
+        XCTAssertEqual(weeks[3].completedSetCount, 2)
+        XCTAssertEqual(weeks[3].trainingDayCount, 1)
+        XCTAssertFalse(weeks[1].hasHistory)
+        XCTAssertTrue(weeks[2].hasHistory)
+        XCTAssertFalse(weeks[2].hasFullHistory)
+        XCTAssertTrue(weeks[3].hasFullHistory)
+        XCTAssertEqual(store.weeklyWorkingSetsByMuscle(referenceDate: referenceDate), weeks)
+        repository.completedWorkouts.removeLast()
+        XCTAssertEqual(store.weeklyWorkingSetsByMuscle(referenceDate: referenceDate).last?.counts[.chest], 1)
+    }
+
+    @MainActor
+    func testMuscleContributionsMatchPrimaryAndSecondaryTotalsAndSelectedWeek() {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let referenceDate = calendar.date(from: DateComponents(year: 2026, month: 10, day: 10, hour: 12))!
+        var workout = makeCompletedWorkout(completedAt: referenceDate)
+        workout.exercises[0].muscleProfile = ExerciseMuscleProfile(
+            primary: [.upperChest, .chest], secondary: [.triceps, .frontDelts], orientation: .front
+        )
+        var warmup = workout.sets[0]
+        warmup.id = UUID()
+        warmup.isWarmup = true
+        workout.sets.append(warmup)
+        var incomplete = workout.sets[0]
+        incomplete.id = UUID()
+        incomplete.isComplete = false
+        workout.sets.append(incomplete)
+        let previous = makeCompletedWorkout(completedAt: referenceDate.addingTimeInterval(-7 * 86_400))
+        repository.completedWorkouts = [workout, previous]
+        let store = TrainingProgressStore(repository: repository, calendar: calendar)
+        let chest = store.muscleContributions(for: .chest, referenceDate: referenceDate)
+        let triceps = store.muscleContributions(for: .triceps, referenceDate: referenceDate)
+
+        XCTAssertEqual(chest.map(\.workout.id), [workout.id])
+        XCTAssertEqual(chest.first?.sets.count, 1)
+        XCTAssertEqual(chest.first?.isPrimary, true)
+        XCTAssertEqual(triceps.first?.isPrimary, false)
+        XCTAssertEqual(triceps.first?.sets.count, 1)
+        let week = store.weeklyWorkingSetsByMuscle(referenceDate: referenceDate).last
+        XCTAssertEqual(week?.counts[.chest], chest.reduce(0) { $0 + $1.sets.count })
+        XCTAssertEqual(week?.secondaryCounts[.triceps], triceps.reduce(0) { $0 + $1.sets.count })
+        XCTAssertEqual(store.muscleContributions(for: .chest, referenceDate: previous.completedAt).first?.workout.id, previous.id)
+    }
+
+    @MainActor
+    func testMuscleAttentionExcludesPartialHistoryAndRanksLargestDifferences() {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let referenceDate = calendar.date(from: DateComponents(year: 2026, month: 10, day: 25, hour: 12))!
+        var arms = makeCompletedWorkout(completedAt: referenceDate.addingTimeInterval(-7 * 86_400))
+        arms.exercises[0].muscleProfile = ExerciseMuscleProfile(primary: [.biceps], secondary: [], orientation: .front)
+        arms.sets = (1...20).map { number in
+            var set = arms.sets[0]
+            set.id = UUID()
+            set.setNumber = number
+            return set
+        }
+        repository.completedWorkouts = [arms]
+        let store = TrainingProgressStore(repository: repository, calendar: calendar)
+        XCTAssertTrue(store.muscleAttentionInsights(referenceDate: referenceDate).isEmpty)
+
+        let first = makeCompletedWorkout(completedAt: referenceDate.addingTimeInterval(-28 * 86_400))
+        var legs = makeCompletedWorkout(completedAt: referenceDate.addingTimeInterval(-14 * 86_400))
+        legs.exercises[0].muscleProfile = ExerciseMuscleProfile(primary: [.quads], secondary: [], orientation: .front)
+        legs.sets = (1...8).map { number in
+            var set = legs.sets[0]
+            set.id = UUID()
+            set.setNumber = number
+            return set
+        }
+        var current = arms
+        current.id = UUID()
+        current.completedAt = referenceDate
+        current.exercises[0].muscleProfile = ExerciseMuscleProfile(primary: [.triceps], secondary: [], orientation: .front)
+        repository.completedWorkouts = [first, legs, arms, current]
+        let insights = store.muscleAttentionInsights(referenceDate: referenceDate)
+        XCTAssertEqual(insights.map(\.id), ["emphasis-biceps-triceps", "emphasis-quads-hamstrings"])
+        XCTAssertTrue(insights[0].evidence.contains("3 full logged weeks"))
+        XCTAssertEqual(
+            store.muscleAttentionInsights(referenceDate: arms.completedAt, includeReferenceWeek: true).map(\.id),
+            insights.map(\.id)
+        )
     }
 
     @MainActor
@@ -6513,7 +6662,7 @@ final class RankingCalculatorTests: XCTestCase {
         })
         XCTAssertEqual(mirroredEntry.targetSets, updatedPrescription.sets)
         XCTAssertEqual(mirroredEntry.targetReps, updatedPrescription.reps)
-        XCTAssertNotEqual(mirroredEntry.targetReps, originalMirroredEntry.targetReps)
+        XCTAssertEqual(mirroredEntry.targetReps, originalMirroredEntry.targetReps)
     }
 
     @MainActor

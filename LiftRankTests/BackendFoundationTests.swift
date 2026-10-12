@@ -1756,7 +1756,9 @@ final class BackendFoundationTests: XCTestCase {
             region: nil,
             countryCode: nil,
             primaryGymID: nil,
-            primaryGymName: nil
+            primaryGymName: nil,
+            bodyweightPounds: nil,
+            bodyweightLastUpdatedAt: nil
         )
 
         let profile = SupabaseProfileMapper.leaderboard(
@@ -2080,7 +2082,9 @@ final class BackendFoundationTests: XCTestCase {
             region: nil,
             countryCode: nil,
             primaryGymID: nil,
-            primaryGymName: nil
+            primaryGymName: nil,
+            bodyweightPounds: nil,
+            bodyweightLastUpdatedAt: nil
         ))
         let state = AppState(repository: repository, serviceContainer: AppServiceContainer(
             authentication: TestAuthenticationService(session: AccountSession(
@@ -3283,7 +3287,7 @@ private final class TestProfileService: ProfileService {
         return normalized
     }
     func profileCard(userID: UUID) async throws -> PublicProfileCard {
-        PublicProfileCard(id: userID, username: profile.username, displayName: profile.displayName, bio: profile.bio, avatarPath: nil, ageBand: nil, sexCategory: profile.sexCategory, city: nil, region: nil, countryCode: nil, primaryGymID: nil, primaryGymName: nil)
+        PublicProfileCard(id: userID, username: profile.username, displayName: profile.displayName, bio: profile.bio, avatarPath: nil, ageBand: nil, sexCategory: profile.sexCategory, city: nil, region: nil, countryCode: nil, primaryGymID: nil, primaryGymName: nil, bodyweightPounds: nil, bodyweightLastUpdatedAt: nil)
     }
     func currentProfile() async throws -> UserProfile { MockData.demoProfile }
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {

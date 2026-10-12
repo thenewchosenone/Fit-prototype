@@ -7,6 +7,7 @@ import UserNotifications
 struct TrainingTrackerView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) var dismiss
+    @Environment(\.dynamicTypeSize) var dynamicTypeSize
     @State var segment: TrackerSegment
     @State var selectedWeekID: UUID?
     @State var selectedSessionForAdd: WorkoutSession?
@@ -19,6 +20,7 @@ struct TrainingTrackerView: View {
     @State var showingActiveWorkout = false
     @State var showingWorkoutConflict = false
     @State var showingCreatePlan = false
+    @State var showingDeletePlan = false
     @State var showingRenamePlan = false
     @State var renamePlanName = ""
     @State var planDetailTab = "Weeks"
@@ -28,7 +30,7 @@ struct TrainingTrackerView: View {
     @State var selectedLibraryExercise: TrainingExerciseCatalogItem?
     @State var showingCreateLibraryExercise = false
     @State var selectedProgramTemplate: WorkoutProgramTemplate?
-    @State var isProgramLibraryExpanded = true
+    @State var isProgramLibraryExpanded = false
     @State var showingProgressionEditor = false
     @State var selectedBodyweightEntry: BodyweightEntry?
     @State var selectedCompletedWorkout: CompletedWorkout?
@@ -40,6 +42,9 @@ struct TrainingTrackerView: View {
     @State var selectedProgressCategory: TrackerProgressCategory = .consistency
     @State var showAllMuscleSetRows = false
     @State var showAllMuscleVolumeRows = false
+    @State var muscleWorkloadFilter: MuscleWorkloadFilter = .logged
+    @State var selectedProgressMuscle: ExerciseMuscleRegion?
+    @State var selectedProgressMuscleDate = Date.now
     @State var didLoadTrainingFocus = false
     @State var dismissedTrainingFocusPrompt = false
     @State var selectedExerciseWeightTrendDate: Date?

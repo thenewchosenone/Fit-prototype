@@ -301,6 +301,13 @@ enum ExerciseMuscleRegion: String, CaseIterable, Codable, Hashable, Identifiable
 
     var id: String { rawValue }
 
+    var trainingSummaryRegion: ExerciseMuscleRegion {
+        switch self {
+        case .upperChest, .lowerChest: .chest
+        default: self
+        }
+    }
+
     var displayName: String {
         switch self {
         case .upperChest: "Upper chest"

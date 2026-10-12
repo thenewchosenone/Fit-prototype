@@ -34,6 +34,9 @@ struct ActiveWorkoutDisplayState: Equatable {
 private struct ActiveWorkoutDisplayStateSignature: Equatable {
     struct ExerciseSignature: Equatable {
         let id: UUID
+        let exerciseID: String
+        let exerciseName: String
+        let trackingType: String?
         let order: Int
         let targetSets: Int
     }
@@ -138,6 +141,9 @@ final class ActiveWorkoutStore {
             exercises: exercises.map {
                 ActiveWorkoutDisplayStateSignature.ExerciseSignature(
                     id: $0.id,
+                    exerciseID: $0.exerciseID,
+                    exerciseName: $0.exerciseName,
+                    trackingType: $0.trackingType,
                     order: $0.order,
                     targetSets: $0.targetSets
                 )
@@ -161,7 +167,7 @@ final class ActiveWorkoutStore {
             let completed = workingLogs.filter(\.isComplete).count
             completedWorkingSets += completed
             plannedWorkingSets += planned
-            if completed > 0 { completedExerciseIDs.insert(exercise.id) }
+            if planned > 0 && completed >= planned { completedExerciseIDs.insert(exercise.id) }
             totalVolume += workingLogs.filter(\.isComplete).reduce(0) { total, log in
                 total + trackingAwareVolume(for: log, workout: workout)
             }
@@ -345,19 +351,22 @@ final class ActiveWorkoutStore {
             return cachedPreviousWorkoutSetLookup
         }
 
-        let needed = Set(neededSetNumbers)
-        var lookup: [Int: (date: Date, log: WorkoutSetLog)] = [:]
-        for workout in repository.completedWorkouts {
-            guard let previousExercise = workout.exercises.first(where: { $0.exerciseID == exercise.exerciseID }) else { continue }
-            for log in workout.sets where log.prescriptionID == previousExercise.id && log.isComplete {
-                guard needed.contains(log.setNumber) else { continue }
-                if lookup[log.setNumber]?.date ?? .distantPast < workout.completedAt {
-                    lookup[log.setNumber] = (workout.completedAt, log)
+        let previousWorkout = repository.completedWorkouts
+            .compactMap { workout -> (CompletedWorkout, WorkoutExerciseSnapshot, [WorkoutSetLog])? in
+                guard let previousExercise = workout.exercises.first(where: { $0.exerciseID == exercise.exerciseID }) else {
+                    return nil
                 }
+                let workingLogs = workout.sets.filter {
+                    $0.prescriptionID == previousExercise.id && $0.isComplete && !$0.isWarmup
+                }
+                guard !workingLogs.isEmpty else { return nil }
+                return (workout, previousExercise, workingLogs)
             }
-        }
-
-        let result = lookup.mapValues(\.log)
+            .max { $0.0.completedAt < $1.0.completedAt }
+        let needed = Set(neededSetNumbers)
+        let result = Dictionary(uniqueKeysWithValues: (previousWorkout?.2 ?? []).compactMap { log in
+            needed.contains(log.setNumber) ? (log.setNumber, log) : nil
+        })
         cachedPreviousWorkoutSetLookup = result
         cachedPreviousWorkoutSetLookupSignature = signature
         return result
@@ -535,10 +544,7 @@ final class ActiveWorkoutStore {
         }
         guard let previous else { return false }
         let exerciseSnapshot = workout.exercises.first { $0.id == previous.prescriptionID }
-        let catalogExercise = exerciseSnapshot.flatMap { snapshot in
-            MockData.trainingExerciseLibrary.first { $0.id == snapshot.exerciseID }
-        }
-        let trackingKind = ExerciseTrackingKind(catalogExercise?.trackingType ?? "Weight + Reps")
+        let trackingKind = ExerciseTrackingKind(exerciseSnapshot?.trackingType ?? "Weight + Reps")
         guard !previous.isComplete,
               !previous.isWarmup,
               !previous.suppressAutoCompletion,

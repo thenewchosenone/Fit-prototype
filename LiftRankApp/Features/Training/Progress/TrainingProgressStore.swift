@@ -53,6 +53,29 @@ struct TrainingAttentionInsight: Identifiable {
     let nextStep: String
 }
 
+struct MuscleTrainingWeek: Equatable {
+    let weekStart: Date
+    let weekEnd: Date
+    let historyStart: Date?
+    let counts: [ExerciseMuscleRegion: Int]
+    let secondaryCounts: [ExerciseMuscleRegion: Int]
+    let trainingDays: [ExerciseMuscleRegion: Int]
+    let completedSetCount: Int
+    let trainingDayCount: Int
+
+    var hasHistory: Bool { historyStart.map { $0 < weekEnd } ?? false }
+    var hasFullHistory: Bool { historyStart.map { $0 <= weekStart } ?? false }
+}
+
+struct MuscleTrainingContribution: Identifiable {
+    var id: String { "\(workout.id)-\(exercise.id)" }
+    let workout: CompletedWorkout
+    let exercise: WorkoutExerciseSnapshot
+    let sets: [WorkoutSetLog]
+    let isPrimary: Bool
+    let trackingKind: ExerciseTrackingKind
+}
+
 struct CompletedWorkoutPresentation {
     let workout: CompletedWorkout
     let exercises: [WorkoutExerciseSnapshot]
@@ -173,8 +196,10 @@ final class TrainingProgressStore {
     private var cachedHomeWeeklySummarySignature: HomeWeeklySummarySignature?
     private var cachedWeeklyVolumeByBodyPart: [String: Double]?
     private var cachedWeeklyVolumeByBodyPartSignature: WeeklyVolumeByBodyPartSignature?
-    private var cachedWeeklyWorkingSetsByMuscle: [(weekStart: Date, counts: [ExerciseMuscleRegion: Int])]?
+    private var cachedWeeklyWorkingSetsByMuscle: [MuscleTrainingWeek]?
     private var cachedWeeklyWorkingSetsByMuscleSignature: WeeklyWorkingSetsByMuscleSignature?
+    private var cachedMuscleContributions: [MuscleTrainingContribution]?
+    private var cachedMuscleContributionsSignature: MuscleContributionsSignature?
     private var cachedExerciseHistory: [ExerciseHistoryEntry]?
     private var cachedExerciseHistorySignature: ExerciseHistorySignature?
     private var cachedExerciseProgressPoints: [ExerciseProgressPoint]?
@@ -309,6 +334,8 @@ final class TrainingProgressStore {
         cachedWeeklyVolumeByBodyPartSignature = nil
         cachedWeeklyWorkingSetsByMuscle = nil
         cachedWeeklyWorkingSetsByMuscleSignature = nil
+        cachedMuscleContributions = nil
+        cachedMuscleContributionsSignature = nil
         cachedExerciseHistory = nil
         cachedExerciseHistorySignature = nil
         cachedExerciseProgressPoints = nil
@@ -446,7 +473,7 @@ final class TrainingProgressStore {
         let weekAgo = calendar.date(byAdding: .day, value: -7, to: referenceDate) ?? referenceDate
         var workingSets: [ExerciseMuscleRegion: (lastTrained: Date, setCount: Int)] = [:]
 
-        for workout in repository.completedWorkouts where workout.completedAt >= weekAgo {
+        for workout in repository.completedWorkouts where workout.completedAt >= weekAgo && workout.completedAt <= referenceDate {
             let workingSetCounts = Dictionary(
                 grouping: workout.sets.lazy.filter { $0.isComplete && !$0.isWarmup },
                 by: \.prescriptionID
@@ -455,7 +482,11 @@ final class TrainingProgressStore {
                 let count = workingSetCounts[exercise.id] ?? 0
                 guard count > 0 else { continue }
 
-                for muscle in exercise.muscleProfile?.primary ?? [] {
+                let profile = exercise.muscleProfile ?? ExerciseMuscleProfileResolver.profile(
+                    name: exercise.exerciseName,
+                    bodyPart: exercise.bodyPart
+                )
+                for muscle in Set(profile.primary.map(\.trainingSummaryRegion)) {
                     let existing = workingSets[muscle]
                     workingSets[muscle] = (
                         max(existing?.lastTrained ?? workout.completedAt, workout.completedAt),
@@ -528,25 +559,14 @@ final class TrainingProgressStore {
     }
 
     private func completedPrescriptionIDs(for sessionIDs: Set<UUID>, within plannedPrescriptionIDs: Set<UUID>) -> Set<UUID> {
-        var completedIDs = Set(repository.workoutSetLogs.compactMap { log in
-            log.isComplete && !log.isWarmup && plannedPrescriptionIDs.contains(log.prescriptionID)
-                ? log.prescriptionID
-                : nil
-        })
-        for workout in repository.completedWorkouts where workout.sourceSessionID.map(sessionIDs.contains) == true {
-            let completedExerciseIDs = Set(workout.completedWorkingSets.map(\.prescriptionID))
-            completedIDs.formUnion(
-                workout.exercises.compactMap { exercise in
-                    guard completedExerciseIDs.contains(exercise.id),
-                          let sourcePrescriptionID = exercise.sourcePrescriptionID,
-                          plannedPrescriptionIDs.contains(sourcePrescriptionID) else {
-                        return nil
-                    }
-                    return sourcePrescriptionID
-                }
-            )
-        }
-        return completedIDs
+        let prescriptions = repository.workoutPrescriptions.filter { plannedPrescriptionIDs.contains($0.id) }
+        return ProgramWeekPresentation(
+            sessions: repository.workoutSessions.filter { sessionIDs.contains($0.id) },
+            prescriptions: prescriptions,
+            workoutSetLogs: repository.workoutSetLogs,
+            completedWorkouts: repository.completedWorkouts,
+            catalog: []
+        ).completedPrescriptionIDs
     }
 
     func lastCompletedWorkoutDate() -> Date? {
@@ -603,6 +623,19 @@ final class TrainingProgressStore {
         )
     }
 
+    func hasFourFullWeeksOfHistory(referenceDate: Date = .now) -> Bool {
+        guard let firstWorkout = repository.completedWorkouts
+            .filter({ !$0.completedWorkingSets.isEmpty })
+            .map(\.completedAt).min(),
+              let firstWeek = calendar.dateInterval(of: .weekOfYear, for: firstWorkout),
+              let currentWeek = calendar.dateInterval(of: .weekOfYear, for: referenceDate),
+              let baselineStart = calendar.date(byAdding: .weekOfYear, value: -4, to: currentWeek.start) else {
+            return false
+        }
+        // Exclude the first, potentially partial week of logging.
+        return firstWeek.end <= baselineStart
+    }
+
     func weeklyVolumeByBodyPart(referenceDate: Date = .now, preferredUnit: UnitSystem) -> [String: Double] {
         guard let week = calendar.dateInterval(of: .weekOfYear, for: referenceDate) else {
             return volumeByBodyPart(workouts: repository.completedWorkouts, preferredUnit: preferredUnit)
@@ -630,7 +663,7 @@ final class TrainingProgressStore {
     func weeklyWorkingSetsByMuscle(
         referenceDate: Date = .now,
         weekCount: Int = 4
-    ) -> [(weekStart: Date, counts: [ExerciseMuscleRegion: Int])] {
+    ) -> [MuscleTrainingWeek] {
         resetAccountScopedEntriesIfNeeded()
         guard weekCount > 0,
               let currentWeek = calendar.dateInterval(of: .weekOfYear, for: referenceDate) else { return [] }
@@ -648,7 +681,10 @@ final class TrainingProgressStore {
         let recentWorkouts = repository.completedWorkouts.filter {
             $0.completedAt >= oldestWeekStart && $0.completedAt < currentWeek.end
         }
-        let weeks: [(weekStart: Date, counts: [ExerciseMuscleRegion: Int])] = (0..<weekCount).reversed().compactMap { offset in
+        let historyStart = repository.completedWorkouts
+            .filter { !$0.completedWorkingSets.isEmpty }
+            .map(\.completedAt).min()
+        let weeks: [MuscleTrainingWeek] = (0..<weekCount).reversed().compactMap { offset in
             guard let weekStart = calendar.date(
                 byAdding: .weekOfYear,
                 value: -offset,
@@ -656,11 +692,19 @@ final class TrainingProgressStore {
             ), let week = calendar.dateInterval(of: .weekOfYear, for: weekStart) else { return nil }
 
             var totals: [ExerciseMuscleRegion: Int] = [:]
-            for workout in recentWorkouts where week.contains(workout.completedAt) {
+            var secondaryTotals: [ExerciseMuscleRegion: Int] = [:]
+            var daysByMuscle: [ExerciseMuscleRegion: Set<Date>] = [:]
+            var trainingDays: Set<Date> = []
+            var completedSetCount = 0
+            for workout in recentWorkouts where workout.completedAt >= week.start && workout.completedAt < week.end {
                 let countsByExercise = Dictionary(
                     grouping: workout.sets.lazy.filter { $0.isComplete && !$0.isWarmup },
                     by: { $0.prescriptionID }
                 ).mapValues { $0.count }
+                let day = calendar.startOfDay(for: workout.completedAt)
+                let setCount = countsByExercise.values.reduce(0, +)
+                completedSetCount += setCount
+                if setCount > 0 { trainingDays.insert(day) }
 
                 for exercise in workout.exercises {
                     let count = countsByExercise[exercise.id] ?? 0
@@ -669,17 +713,94 @@ final class TrainingProgressStore {
                         name: exercise.exerciseName,
                         bodyPart: exercise.bodyPart
                     )
-                    for muscle in Set(profile.primary) {
+                    let primary = Set(profile.primary.map(\.trainingSummaryRegion))
+                    for muscle in primary {
                         totals[muscle, default: 0] += count
+                        daysByMuscle[muscle, default: []].insert(day)
+                    }
+                    for muscle in Set(profile.secondary.map(\.trainingSummaryRegion)).subtracting(primary) {
+                        secondaryTotals[muscle, default: 0] += count
                     }
                 }
             }
 
-            return (weekStart, totals)
+            return MuscleTrainingWeek(
+                weekStart: weekStart,
+                weekEnd: week.end,
+                historyStart: historyStart,
+                counts: totals,
+                secondaryCounts: secondaryTotals,
+                trainingDays: daysByMuscle.mapValues(\.count),
+                completedSetCount: completedSetCount,
+                trainingDayCount: trainingDays.count
+            )
         }
         cachedWeeklyWorkingSetsByMuscle = weeks
         cachedWeeklyWorkingSetsByMuscleSignature = signature
         return weeks
+    }
+
+    func completedMuscleSetComparison(
+        weeks: [MuscleTrainingWeek],
+        referenceDate: Date = .now
+    ) -> (earlierWeek: Date, laterWeek: Date, changes: [ExerciseMuscleRegion: Int])? {
+        let completedWeeks = weeks.filter { $0.weekEnd <= referenceDate }.suffix(2)
+        guard completedWeeks.count == 2,
+              let earlier = completedWeeks.first, let later = completedWeeks.last,
+              earlier.hasFullHistory, later.hasFullHistory,
+              earlier.weekEnd == later.weekStart else { return nil }
+        let muscles = Set(earlier.counts.keys).union(later.counts.keys)
+        let changes = Dictionary(uniqueKeysWithValues: muscles.map { muscle in
+            (muscle, later.counts[muscle, default: 0] - earlier.counts[muscle, default: 0])
+        })
+        return (earlier.weekStart, later.weekStart, changes)
+    }
+
+    func muscleContributions(
+        for muscle: ExerciseMuscleRegion,
+        referenceDate: Date = .now,
+        customTrainingExercisesRevision: Int = 0
+    ) -> [MuscleTrainingContribution] {
+        resetAccountScopedEntriesIfNeeded()
+        guard let week = calendar.dateInterval(of: .weekOfYear, for: referenceDate) else { return [] }
+        let signature = MuscleContributionsSignature(
+            accountID: repository.currentProfile.id,
+            muscle: muscle,
+            weekStart: week.start,
+            completedWorkoutsRevision: repository.completedWorkoutsRevision,
+            customTrainingExercisesRevision: customTrainingExercisesRevision
+        )
+        if let cachedMuscleContributions, cachedMuscleContributionsSignature == signature {
+            return cachedMuscleContributions
+        }
+        let trackingKinds = Dictionary(uniqueKeysWithValues: repository.trainingExerciseCatalog.map {
+            ($0.id, ExerciseTrackingKind($0.trackingType))
+        })
+        let contributions = repository.completedWorkouts
+            .filter { $0.completedAt >= week.start && $0.completedAt < week.end }
+            .sorted { $0.completedAt > $1.completedAt }
+            .flatMap { workout in
+                let setsByExercise = Dictionary(grouping: workout.completedWorkingSets, by: \.prescriptionID)
+                return workout.exercises.sorted { $0.order < $1.order }.compactMap { exercise -> MuscleTrainingContribution? in
+                    let profile = exercise.muscleProfile ?? ExerciseMuscleProfileResolver.profile(
+                        name: exercise.exerciseName, bodyPart: exercise.bodyPart
+                    )
+                    let isPrimary = profile.primary.contains { $0.trainingSummaryRegion == muscle }
+                    guard isPrimary || profile.secondary.contains(where: { $0.trainingSummaryRegion == muscle }),
+                          let sets = setsByExercise[exercise.id], !sets.isEmpty else { return nil }
+                    return MuscleTrainingContribution(
+                        workout: workout,
+                        exercise: exercise,
+                        sets: sets.sorted { $0.setNumber < $1.setNumber },
+                        isPrimary: isPrimary,
+                        trackingKind: exercise.trackingType.map { ExerciseTrackingKind($0) }
+                            ?? trackingKinds[exercise.exerciseID] ?? .weightReps
+                    )
+                }
+            }
+        cachedMuscleContributions = contributions
+        cachedMuscleContributionsSignature = signature
+        return contributions
     }
 
     func strengthAttentionInsights(
@@ -717,9 +838,15 @@ final class TrainingProgressStore {
         return Array(insights.prefix(2))
     }
 
-    func muscleAttentionInsights(referenceDate: Date = .now) -> [TrainingAttentionInsight] {
-        let completedWeeks = Array(weeklyWorkingSetsByMuscle(referenceDate: referenceDate).dropLast())
-        guard completedWeeks.filter({ !$0.counts.isEmpty }).count >= 2 else { return [] }
+    func muscleAttentionInsights(
+        referenceDate: Date = .now,
+        includeReferenceWeek: Bool = false,
+        trainingFocus: TrainingFocus? = nil
+    ) -> [TrainingAttentionInsight] {
+        let weeks = weeklyWorkingSetsByMuscle(referenceDate: referenceDate)
+        let completedWeeks = Array(includeReferenceWeek ? weeks.suffix(3) : weeks.dropLast())
+            .filter(\.hasFullHistory)
+        guard completedWeeks.count >= 2 else { return [] }
 
         var totals: [ExerciseMuscleRegion: Int] = [:]
         for week in completedWeeks {
@@ -731,7 +858,7 @@ final class TrainingProgressStore {
         let pairs: [(ExerciseMuscleRegion, ExerciseMuscleRegion)] = [
             (.quads, .hamstrings), (.biceps, .triceps), (.frontDelts, .rearDelts)
         ]
-        let insights: [TrainingAttentionInsight] = pairs.compactMap { first, second in
+        let insights: [(priority: Bool, gap: Int, insight: TrainingAttentionInsight)] = pairs.compactMap { first, second in
             let firstCount = totals[first, default: 0]
             let secondCount = totals[second, default: 0]
             let higher = firstCount >= secondCount ? first : second
@@ -739,14 +866,32 @@ final class TrainingProgressStore {
             let higherCount = max(firstCount, secondCount)
             let lowerCount = min(firstCount, secondCount)
             guard higherCount >= 8, higherCount - lowerCount >= 6, higherCount >= lowerCount * 2 else { return nil }
-            return TrainingAttentionInsight(
+            let dates = "\(completedWeeks[0].weekStart.formatted(.dateTime.month(.abbreviated).day()))–\(completedWeeks[completedWeeks.count - 1].weekEnd.addingTimeInterval(-1).formatted(.dateTime.month(.abbreviated).day()))"
+            let nextStep: String
+            switch trainingFocus {
+            case .powerlifting:
+                nextStep = "Review this against your squat, bench, and deadlift priorities. Equal muscle set counts aren’t required."
+            case .bodybuilding:
+                nextStep = "If \(lower.displayName.lowercased()) is a growth priority, review its primary and secondary work in your plan."
+            case .generalFitness:
+                nextStep = "Review coverage across your routine, including secondary work, before changing your plan."
+            case .mixed:
+                nextStep = "Review this distribution against your current strength and muscle priorities."
+            case nil:
+                nextStep = "Review this distribution against your training priorities before changing your plan."
+            }
+            return (trainingFocus == .powerlifting && first == .quads, higherCount - lowerCount, TrainingAttentionInsight(
                 id: "emphasis-\(first.rawValue)-\(second.rawValue)",
-                title: "\(lower.displayName) received less work",
-                evidence: "\(lower.displayName): \(lowerCount) primary sets; \(higher.displayName): \(higherCount) across the last three completed weeks.",
-                nextStep: "If balanced development is a goal, check whether your next plan week includes work focused on \(lower.displayName.lowercased())."
-            )
+                title: "Less primary work for \(lower.displayName.lowercased())",
+                evidence: "\(lower.displayName): \(lowerCount) sets; \(higher.displayName): \(higherCount). \(completedWeeks.count) full logged weeks · \(dates).",
+                nextStep: nextStep
+            ))
         }
-        return Array(insights.prefix(2))
+        return insights.sorted {
+            if $0.priority != $1.priority { return $0.priority }
+            if $0.gap == $1.gap { return $0.insight.id < $1.insight.id }
+            return $0.gap > $1.gap
+        }.map(\.insight)
     }
 
     func homeWeeklySummary(
@@ -838,8 +983,15 @@ final class TrainingProgressStore {
                     name: exercise.exerciseName,
                     bodyPart: exercise.bodyPart
                 )
-                let muscleGroup = profile.primary.map(\.displayName).sorted().joined(separator: ", ")
-                totals[muscleGroup.isEmpty ? exercise.bodyPart : muscleGroup, default: 0] += volume
+                let muscles = Set(profile.primary.map(\.trainingSummaryRegion))
+                guard !muscles.isEmpty else {
+                    totals[exercise.bodyPart, default: 0] += volume
+                    continue
+                }
+                let volumePerMuscle = volume / Double(muscles.count)
+                for muscle in muscles {
+                    totals[muscle.displayName, default: 0] += volumePerMuscle
+                }
             }
         }
         return totals
@@ -1219,6 +1371,14 @@ private struct WeeklyVolumeByBodyPartSignature: Equatable {
         self.preferredUnit = preferredUnit
         self.completedWorkoutsRevision = completedWorkoutsRevision
     }
+}
+
+private struct MuscleContributionsSignature: Equatable {
+    let accountID: UUID
+    let muscle: ExerciseMuscleRegion
+    let weekStart: Date
+    let completedWorkoutsRevision: Int
+    let customTrainingExercisesRevision: Int
 }
 
 private struct WeeklyWorkingSetsByMuscleSignature: Equatable {

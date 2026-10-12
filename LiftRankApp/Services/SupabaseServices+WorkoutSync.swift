@@ -121,6 +121,8 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
         localCopy.conflictOfRevision = expectedRevision
         localCopy.isConflictCopy = true
         localCopy.updatedAt = .now
+        let payload = try JSONDecoder().decode(WorkoutPlanSyncPayload.self, from: document.payload)
+        localCopy.payload = try JSONEncoder().encode(payload.conflictCopy(documentID: localCopy.id))
         let copyRow = WorkoutPlanDocumentDTO(document: localCopy, ownerID: ownerID, revision: 1)
         let inserted: WorkoutPlanDocumentDTO = try await client.from("workout_plan_documents").insert(copyRow).select().single().execute().value
         guard let savedCopy = inserted.document else { throw LiftRankServiceError.server("The conflict copy could not be read.") }

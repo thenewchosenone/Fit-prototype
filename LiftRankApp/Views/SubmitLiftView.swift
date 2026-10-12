@@ -2,6 +2,31 @@ import PhotosUI
 import SwiftData
 import SwiftUI
 
+struct LiftSubmissionPrefill: Identifiable {
+    let id: UUID
+    let exerciseID: String
+    let weight: Double?
+    let unit: UnitSystem?
+    let repetitions: Int?
+    let performedAt: Date?
+
+    init(
+        id: UUID = UUID(),
+        exerciseID: String,
+        weight: Double? = nil,
+        unit: UnitSystem? = nil,
+        repetitions: Int? = nil,
+        performedAt: Date? = nil
+    ) {
+        self.id = id
+        self.exerciseID = exerciseID
+        self.weight = weight
+        self.unit = unit
+        self.repetitions = repetitions
+        self.performedAt = performedAt
+    }
+}
+
 private enum SubmitLiftSelector: String, Identifiable {
     case exercise, gym, equipment, visibility
 
@@ -20,13 +45,14 @@ private enum SubmitLiftSelector: String, Identifiable {
 struct SubmitLiftView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
-    @State private var exercise = MockData.exercises[2]
-    @State private var weight = 315.0
-    @State private var unit: UnitSystem = .pounds
-    @State private var repetitions = 1
-    @State private var isActualOneRepMax = true
+    private let prefill: LiftSubmissionPrefill?
+    @State private var exercise: Exercise
+    @State private var weight: Double
+    @State private var unit: UnitSystem
+    @State private var repetitions: Int
+    @State private var isActualOneRepMax: Bool
     @State private var bodyweight = 0.0
-    @State private var performedAt = Date()
+    @State private var performedAt: Date
     @State private var gymID: UUID?
     @State private var equipment = EquipmentType.raw
     @State private var caption = ""
@@ -53,6 +79,19 @@ struct SubmitLiftView: View {
     @State private var isMoreDetailsExpanded = false
     @State private var activeSelector: SubmitLiftSelector?
     @State private var isRefreshingGyms = false
+
+    init(prefill: LiftSubmissionPrefill? = nil) {
+        self.prefill = prefill
+        let selectedExercise = prefill.flatMap { prefill in
+            MockData.exercises.first { $0.id == prefill.exerciseID }
+        } ?? MockData.exercises[2]
+        _exercise = State(initialValue: selectedExercise)
+        _weight = State(initialValue: prefill?.weight ?? 315)
+        _unit = State(initialValue: prefill?.unit ?? .pounds)
+        _repetitions = State(initialValue: prefill?.repetitions ?? 1)
+        _isActualOneRepMax = State(initialValue: prefill.map { $0.repetitions == 1 } ?? true)
+        _performedAt = State(initialValue: prefill?.performedAt ?? .now)
+    }
 
     private var estimate: Double {
         isActualOneRepMax ? weight : RankingCalculator.epleyOneRepMax(weight: weight, repetitions: repetitions)
@@ -159,7 +198,7 @@ struct SubmitLiftView: View {
             }
             .onAppear {
                 bodyweight = appState.currentProfile.bodyweightPounds
-                unit = appState.currentProfile.preferredUnit
+                if prefill == nil { unit = appState.currentProfile.preferredUnit }
                 selectDefaultGymIfNeeded()
                 resetPlateLoadingFromWeight()
                 prepareVideoPickerAfterPresentation()

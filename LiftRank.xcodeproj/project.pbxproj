@@ -43,6 +43,7 @@
 		100000000000000000000038 /* Features/Training/Plans/ProgramPlanDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000041 /* Features/Training/Plans/ProgramPlanDetailView.swift */; };
 		100000000000000000000039 /* Features/Training/Progress/WorkoutHistoryCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000042 /* Features/Training/Progress/WorkoutHistoryCalendar.swift */; };
 		100000000000000000000040 /* Features/Training/Progress/TrainingProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000043 /* Features/Training/Progress/TrainingProgressView.swift */; };
+		D41B897A7AF84B999F000001 /* Features/Training/Progress/TrainingProgressMuscleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D41B897A7AF84B999F000002 /* Features/Training/Progress/TrainingProgressMuscleView.swift */; };
 		100000000000000000000041 /* Features/Training/Library/TrainingLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000044 /* Features/Training/Library/TrainingLibraryView.swift */; };
 		100000000000000000000042 /* Features/Training/Summary/WorkoutSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000045 /* Features/Training/Summary/WorkoutSummaryView.swift */; };
 		100000000000000000000043 /* Features/Training/CompletedWorkout/CompletedWorkoutDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000046 /* Features/Training/CompletedWorkout/CompletedWorkoutDetailView.swift */; };
@@ -115,6 +116,7 @@
 		100000000000000000000154 /* Features/TrainingTracker/TrainingTrackerLibraryComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000298 /* Features/TrainingTracker/TrainingTrackerLibraryComponents.swift */; };
 		100000000000000000000155 /* Features/Profile/ProfileLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000299 /* Features/Profile/ProfileLogic.swift */; };
 		100000000000000000000156 /* Features/Leaderboard/LeaderboardsLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000300 /* Features/Leaderboard/LeaderboardsLogic.swift */; };
+		100000000000000000000163 /* Features/Profile/TopLiftCardDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000306 /* Features/Profile/TopLiftCardDetails.swift */; };
 		100000000000000000000161 /* Features/Community/ForumStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000304 /* Features/Community/ForumStore.swift */; };
 		100000000000000000000162 /* Features/Community/ReportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000305 /* Features/Community/ReportViews.swift */; };
 		100000000000000000000157 /* Features/Training/Library/ExerciseCatalogIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000301 /* Features/Training/Library/ExerciseCatalogIcon.swift */; };
@@ -196,6 +198,7 @@
 		200000000000000000000041 /* Features/Training/Plans/ProgramPlanDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Plans/ProgramPlanDetailView.swift; sourceTree = "<group>"; };
 		200000000000000000000042 /* Features/Training/Progress/WorkoutHistoryCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Progress/WorkoutHistoryCalendar.swift; sourceTree = "<group>"; };
 		200000000000000000000043 /* Features/Training/Progress/TrainingProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Progress/TrainingProgressView.swift; sourceTree = "<group>"; };
+		D41B897A7AF84B999F000002 /* Features/Training/Progress/TrainingProgressMuscleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Progress/TrainingProgressMuscleView.swift; sourceTree = "<group>"; };
 		200000000000000000000044 /* Features/Training/Library/TrainingLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Library/TrainingLibraryView.swift; sourceTree = "<group>"; };
 		200000000000000000000045 /* Features/Training/Summary/WorkoutSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Summary/WorkoutSummaryView.swift; sourceTree = "<group>"; };
 		200000000000000000000046 /* Features/Training/CompletedWorkout/CompletedWorkoutDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/CompletedWorkout/CompletedWorkoutDetailView.swift; sourceTree = "<group>"; };
@@ -282,6 +285,7 @@
 		200000000000000000000303 /* Features/Training/Library/ExerciseMuscleMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Library/ExerciseMuscleMapView.swift; sourceTree = "<group>"; };
 		200000000000000000000304 /* Features/Community/ForumStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/ForumStore.swift; sourceTree = "<group>"; };
 		200000000000000000000305 /* Features/Community/ReportViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/ReportViews.swift; sourceTree = "<group>"; };
+		200000000000000000000306 /* Features/Profile/TopLiftCardDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Profile/TopLiftCardDetails.swift; sourceTree = "<group>"; };
 		200000000000000000000311 /* WorkoutPresentationFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPresentationFormattingTests.swift; sourceTree = "<group>"; };
 		200000000000000000000312 /* Core/DesignSystem/MeasurementFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DesignSystem/MeasurementFormatting.swift; sourceTree = "<group>"; };
 		200000000000000000000313 /* Core/DesignSystem/RankingFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/DesignSystem/RankingFormatting.swift; sourceTree = "<group>"; };
@@ -372,6 +376,7 @@
 				200000000000000000000016 /* Views/ProfileView.swift */,
 				200000000000000000000270 /* Features/Profile/ProfileViewSections.swift */,
 				200000000000000000000297 /* Features/Profile/ProfileContentViews.swift */,
+				200000000000000000000306 /* Features/Profile/TopLiftCardDetails.swift */,
 				200000000000000000000299 /* Features/Profile/ProfileLogic.swift */,
 				200000000000000000000017 /* Views/ModeratorReviewView.swift */,
 				200000000000000000000018 /* Views/SettingsView.swift */,
@@ -388,6 +393,7 @@
 				200000000000000000000041 /* Features/Training/Plans/ProgramPlanDetailView.swift */,
 				200000000000000000000042 /* Features/Training/Progress/WorkoutHistoryCalendar.swift */,
 				200000000000000000000043 /* Features/Training/Progress/TrainingProgressView.swift */,
+				D41B897A7AF84B999F000002 /* Features/Training/Progress/TrainingProgressMuscleView.swift */,
 				200000000000000000000044 /* Features/Training/Library/TrainingLibraryView.swift */,
 				200000000000000000000301 /* Features/Training/Library/ExerciseCatalogIcon.swift */,
 				200000000000000000000302 /* Features/Training/Library/ExerciseLibraryDetailView.swift */,
@@ -667,6 +673,7 @@
 				100000000000000000000016 /* Views/ProfileView.swift in Sources */,
 				100000000000000000000131 /* Features/Profile/ProfileViewSections.swift in Sources */,
 				100000000000000000000153 /* Features/Profile/ProfileContentViews.swift in Sources */,
+				100000000000000000000163 /* Features/Profile/TopLiftCardDetails.swift in Sources */,
 				100000000000000000000155 /* Features/Profile/ProfileLogic.swift in Sources */,
 				100000000000000000000017 /* Views/ModeratorReviewView.swift in Sources */,
 				100000000000000000000018 /* Views/SettingsView.swift in Sources */,
@@ -683,6 +690,7 @@
 				100000000000000000000038 /* Features/Training/Plans/ProgramPlanDetailView.swift in Sources */,
 				100000000000000000000039 /* Features/Training/Progress/WorkoutHistoryCalendar.swift in Sources */,
 				100000000000000000000040 /* Features/Training/Progress/TrainingProgressView.swift in Sources */,
+				D41B897A7AF84B999F000001 /* Features/Training/Progress/TrainingProgressMuscleView.swift in Sources */,
 				100000000000000000000041 /* Features/Training/Library/TrainingLibraryView.swift in Sources */,
 				100000000000000000000157 /* Features/Training/Library/ExerciseCatalogIcon.swift in Sources */,
 				100000000000000000000158 /* Features/Training/Library/ExerciseLibraryDetailView.swift in Sources */,
@@ -910,7 +918,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = LiftRankApp/LiftRankDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 22;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 32TGWTQNP8;
 				ENABLE_PREVIEWS = YES;
@@ -943,7 +951,7 @@
 				CODE_SIGN_ENTITLEMENTS = LiftRankApp/LiftRank.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 22;
+				CURRENT_PROJECT_VERSION = 23;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 32TGWTQNP8;
 				ENABLE_CODE_COVERAGE = NO;

@@ -118,13 +118,14 @@ extension HomeView {
                 .filter { $0.hoursSinceTraining < 48 }
                 .prefix(2)
         )
-        let thisWeekVolume = appState.weeklyVolumeByBodyPart().values.reduce(0, +)
+        let thisWeekVolume = appState.homeWeeklySummary().volume
         let priorWeekVolumes = (1...4).compactMap { offset -> Double? in
             guard let date = Calendar.current.date(byAdding: .weekOfYear, value: -offset, to: .now) else { return nil }
-            return appState.weeklyVolumeByBodyPart(referenceDate: date).values.reduce(0, +)
+            return appState.homeWeeklySummary(referenceDate: date).volume
         }
         let baselineVolume = priorWeekVolumes.isEmpty ? 0 : priorWeekVolumes.reduce(0, +) / Double(priorWeekVolumes.count)
-        let unusualVolume = baselineVolume > 0 && thisWeekVolume >= baselineVolume * 1.5
+        let unusualVolume = appState.trainingProgressStore.hasFourFullWeeksOfHistory()
+            && baselineVolume > 0 && thisWeekVolume >= baselineVolume * 1.5
         let signalCount = (missedWorkout == nil ? 0 : 1)
             + (stalledLifts.isEmpty ? 0 : 1)
             + (recoveringMuscles.isEmpty ? 0 : 1)
@@ -173,7 +174,7 @@ extension HomeView {
                         if unusualVolume {
                             Text("Unusual volume")
                                 .font(.caption.weight(.bold))
-                            Text("\(Int((thisWeekVolume / baselineVolume) * 100))% of your prior four-week average · Review volume")
+                            Text("Volume is \(Int(((thisWeekVolume - baselineVolume) / baselineVolume * 100).rounded()))% above your prior four-week average · Review volume")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
                                 .lineLimit(2)

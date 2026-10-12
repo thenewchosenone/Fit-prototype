@@ -22,6 +22,8 @@ final class WorkoutSyncStore: ObservableObject {
     private var lastPassivePlanSyncAt: Date?
     private var historySyncInFlight = false
     private var planSyncInFlight = false
+    private var planSyncRequested = false
+    @Published private(set) var planSyncState: WorkoutHistorySyncState = .local
     @Published private(set) var historySyncState: WorkoutHistorySyncState = .synced
 
     init(
@@ -156,14 +158,26 @@ final class WorkoutSyncStore: ObservableObject {
     func synchronizeWorkoutPlans(force: Bool = true) async {
         resetAccountScopedDataIfNeeded()
         let userID = repository.currentProfile.id
-        guard !planSyncInFlight else { return }
+        guard !planSyncInFlight else {
+            planSyncRequested = planSyncRequested || force
+            return
+        }
         if !force,
            let lastPassivePlanSyncAt,
            Date.now.timeIntervalSince(lastPassivePlanSyncAt) < passiveSyncInterval {
             return
         }
         planSyncInFlight = true
+        planSyncState = .syncing
+        var syncFailed = false
         defer {
+            if repository.currentProfile.id == userID {
+                planSyncState = syncFailed ? .needsAttention : .synced
+            }
+            if planSyncRequested {
+                planSyncRequested = false
+                Task { await self.synchronizeWorkoutPlans() }
+            }
             planSyncInFlight = false
             if repository.currentProfile.id == userID, !force {
                 lastPassivePlanSyncAt = .now
@@ -177,6 +191,7 @@ final class WorkoutSyncStore: ObservableObject {
                 guard repository.currentProfile.id == userID else { return }
                 repository.pendingRemoteWorkoutPlanDeletions.remove(planID)
             } catch {
+                syncFailed = true
                 guard repository.currentProfile.id == userID else { return }
             }
         }
@@ -189,6 +204,7 @@ final class WorkoutSyncStore: ObservableObject {
                 }
             }
         ) else {
+            syncFailed = true
             return
         }
         guard repository.currentProfile.id == userID else { return }
@@ -204,9 +220,11 @@ final class WorkoutSyncStore: ObservableObject {
                     if remote.payload == data {
                         remember(remote)
                     } else if let serverPayload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: remote.payload) {
-                        let conflict = remappedConflictPayload(payload, documentID: makeUUID())
+                        let conflict = payload.conflictCopy(documentID: makeUUID(), makeUUID: makeUUID)
                         apply(serverPayload, replacing: plan.id)
                         apply(conflict, replacing: nil)
+                        remember(remote)
+                        syncFailed = true
                     }
                     continue
                 }
@@ -234,9 +252,10 @@ final class WorkoutSyncStore: ObservableObject {
                 )
                 guard repository.currentProfile.id == userID else { return }
                 if let result {
+                    if case .conflict = result { syncFailed = true }
                     apply(result)
                     if case let .saved(saved) = result { remoteByID[saved.id] = saved }
-                }
+                } else { syncFailed = true }
             } else {
                 let document = WorkoutPlanDocument(
                     id: plan.id,
@@ -249,8 +268,9 @@ final class WorkoutSyncStore: ObservableObject {
                 let result = try? await service.savePlan(document, expectedRevision: 0)
                 guard repository.currentProfile.id == userID else { return }
                 if let result {
+                    if case .conflict = result { syncFailed = true }
                     apply(result)
-                }
+                } else { syncFailed = true }
             }
         }
 
@@ -261,6 +281,7 @@ final class WorkoutSyncStore: ObservableObject {
             apply(payload, replacing: nil)
             remember(document)
         }
+        if repository.workoutPlans.filter(\.isActive).count > 1 { syncFailed = true }
         repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
@@ -306,6 +327,7 @@ final class WorkoutSyncStore: ObservableObject {
             repository.pendingRemoteWorkoutPlanDeletions.remove(planID)
         } catch {
             guard repository.currentProfile.id == userID else { return }
+            planSyncState = .needsAttention
         }
         repository.persistWorkoutSnapshot()
     }
@@ -336,7 +358,7 @@ final class WorkoutSyncStore: ObservableObject {
                 apply(payload, replacing: server.id)
             }
             if let payload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: localCopy.payload) {
-                apply(remappedConflictPayload(payload, documentID: localCopy.id), replacing: nil)
+                apply(payload.plan.id == localCopy.id ? payload : payload.conflictCopy(documentID: localCopy.id, makeUUID: makeUUID), replacing: nil)
             }
             remember(server)
             repository.workoutPlanSyncRevisions[localCopy.id] = localCopy.revision
@@ -369,50 +391,4 @@ final class WorkoutSyncStore: ObservableObject {
         }
     }
 
-    private func remappedConflictPayload(
-        _ payload: WorkoutPlanSyncPayload,
-        documentID: UUID
-    ) -> WorkoutPlanSyncPayload {
-        let phaseIDs = Dictionary(uniqueKeysWithValues: payload.phases.map { ($0.id, makeUUID()) })
-        let weekIDs = Dictionary(uniqueKeysWithValues: payload.weeks.map { ($0.id, makeUUID()) })
-        let sessionIDs = Dictionary(uniqueKeysWithValues: payload.sessions.map { ($0.id, makeUUID()) })
-        var plan = payload.plan
-        plan.id = documentID
-        plan.name += " (Conflict copy)"
-        let phases = payload.phases.map { value -> WorkoutPhase in
-            var copy = value
-            copy.id = phaseIDs[value.id]!
-            copy.planID = documentID
-            return copy
-        }
-        let weeks = payload.weeks.map { value -> WorkoutWeek in
-            var copy = value
-            copy.id = weekIDs[value.id]!
-            copy.planID = documentID
-            copy.phaseID = phaseIDs[value.phaseID] ?? value.phaseID
-            return copy
-        }
-        let sessions = payload.sessions.map { value -> WorkoutSession in
-            var copy = value
-            copy.id = sessionIDs[value.id]!
-            copy.weekID = weekIDs[value.weekID] ?? value.weekID
-            return copy
-        }
-        let prescriptions = payload.prescriptions.map { value -> WorkoutExercisePrescription in
-            var copy = value
-            copy.id = makeUUID()
-            copy.sessionID = sessionIDs[value.sessionID] ?? value.sessionID
-            return copy
-        }
-        var progression = payload.progression
-        progression?.planID = documentID
-        return WorkoutPlanSyncPayload(
-            plan: plan,
-            phases: phases,
-            weeks: weeks,
-            sessions: sessions,
-            prescriptions: prescriptions,
-            progression: progression
-        )
-    }
 }

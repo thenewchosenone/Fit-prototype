@@ -77,7 +77,10 @@ struct LiftRankApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                Task { await appState.synchronizeCompletedWorkoutHistory(force: true) }
+                Task {
+                    await appState.synchronizeCompletedWorkoutHistory(force: true)
+                    await appState.synchronizeWorkoutPlans(force: true)
+                }
             } else {
                 appState.persistLocalWorkoutSnapshot()
             }

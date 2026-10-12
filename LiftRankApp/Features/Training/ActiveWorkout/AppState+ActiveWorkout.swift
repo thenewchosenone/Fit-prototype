@@ -68,6 +68,10 @@ extension AppState {
             historyDate: historyDate
         ) != nil
         if started {
+            if session.outcome != nil {
+                programStore.setSessionOutcome(session, outcome: nil)
+                Task { await synchronizeWorkoutPlans() }
+            }
             Haptics.success()
             if isFirstWorkout { Task { await track(.firstWorkoutStarted) } }
         }
@@ -319,11 +323,12 @@ extension AppState {
         activeWorkoutStore.prCandidates(existingLifts: currentUserLifts, liftsRevision: repository.liftsRevision)
     }
 
-    func submitVideoBackedPRs(for workout: CompletedWorkout, videoURLsBySetID: [UUID: URL]) async {
+    func submitVideoBackedPRs(for workout: CompletedWorkout, videoURLsBySetID: [UUID: URL], selectedSetIDs: Set<UUID>? = nil) async {
         await workoutPRSubmissionStore.submitVideoBackedPRs(
             for: workout,
             videoURLsBySetID: videoURLsBySetID,
-            existingLifts: currentUserLifts
+            existingLifts: currentUserLifts,
+            selectedSetIDs: selectedSetIDs
         )
     }
 

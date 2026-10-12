@@ -14,7 +14,7 @@ struct BodyweightEntry: Identifiable, Codable, Hashable {
         now: Date = .now
     ) -> BodyweightEntry {
         if let currentWeekEntry = entries.first(where: {
-            calendar.isDate($0.targetDate, equalTo: now, toGranularity: .weekOfYear)
+            calendar.isDate($0.targetDate, inSameDayAs: now)
         }) {
             return currentWeekEntry
         }
