@@ -20,6 +20,7 @@ struct TrackerMessageCard: View {
 
 struct TodayWorkoutLaunchCard: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let planName: String
     let week: WorkoutWeek
     let session: WorkoutSession
@@ -63,13 +64,17 @@ struct TodayWorkoutLaunchCard: View {
                     Text(planName)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.liftMuted)
-                        .lineLimit(1)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(session.name)
                         .font(.headline.weight(.bold))
-                        .lineLimit(1)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Spacer()
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Spacer()
+                }
             }
 
             if prescriptions.isEmpty {
@@ -106,7 +111,6 @@ struct TodayWorkoutLaunchCard: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.liftOverlay, lineWidth: 1)
         }
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 }
 

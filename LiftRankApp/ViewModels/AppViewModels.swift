@@ -272,11 +272,14 @@ final class AppState: ObservableObject {
         }
         if ProcessInfo.processInfo.arguments.contains("-uiTestingOnboarding") {
             installServiceContainer(.demo(repository: repository))
-            repository.currentProfile = MockData.demoProfile
-            profileStore.saveProfile(repository.currentProfile)
+            var profile = MockData.demoProfile
+            profile.trainingFocus = nil
+            profile.yearsExperience = 0
+            repository.currentProfile = profile
+            profileStore.saveProfile(profile)
             activeWorkoutStore.synchronizeAccountScope()
             accountSession = AccountSession(
-                userID: repository.currentProfile.id,
+                userID: profile.id,
                 email: "onboarding@example.test",
                 expiresAt: .now.addingTimeInterval(3_600)
             )
@@ -285,6 +288,9 @@ final class AppState: ObservableObject {
         }
         if ProcessInfo.processInfo.arguments.contains("-uiTestingDemoMode") {
             await enterDemoMode()
+            if ProcessInfo.processInfo.arguments.contains("-uiTestingEmptyRecentPRs") {
+                repository.lifts.removeAll { $0.userID == repository.currentProfile.id }
+            }
             if ProcessInfo.processInfo.arguments.contains("-uiTestingGymFixture") {
                 let gym = Self.uiTestGymFixture
                 repository.gyms = [gym, Self.uiTestSearchGymFixture]

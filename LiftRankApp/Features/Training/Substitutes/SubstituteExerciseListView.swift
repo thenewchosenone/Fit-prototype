@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SubstituteExerciseListView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let sourceExercise: TrainingExerciseCatalogItem
     let recommendations: [ExerciseSubstitutionRecommendation]
 
@@ -25,22 +26,45 @@ struct SubstituteExerciseListView: View {
                             NavigationLink {
                                 ExerciseLibraryDetailView(exercise: recommendation.exercise)
                             } label: {
-                                HStack(spacing: 13) {
-                                    ExerciseCatalogIcon(exercise: recommendation.exercise)
-                                        .frame(width: 48, height: 48)
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(recommendation.exercise.name)
-                                            .font(.subheadline.weight(.bold))
-                                            .foregroundStyle(Color.liftText)
-                                        Text(recommendation.reasons.joined(separator: " • "))
-                                            .font(.caption)
-                                            .foregroundStyle(Color.liftMuted)
-                                            .lineLimit(2)
+                                Group {
+                                    if dynamicTypeSize.isAccessibilitySize {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            HStack {
+                                                ExerciseCatalogIcon(exercise: recommendation.exercise)
+                                                    .frame(width: 48, height: 48)
+                                                Spacer()
+                                                Image(systemName: "chevron.right")
+                                                    .font(.caption.weight(.bold))
+                                                    .foregroundStyle(Color.liftMuted)
+                                            }
+                                            Text(recommendation.exercise.name)
+                                                .font(.subheadline.weight(.bold))
+                                                .foregroundStyle(Color.liftText)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                            Text(recommendation.reasons.joined(separator: " • "))
+                                                .font(.caption)
+                                                .foregroundStyle(Color.liftMuted)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                        }
+                                    } else {
+                                        HStack(spacing: 13) {
+                                            ExerciseCatalogIcon(exercise: recommendation.exercise)
+                                                .frame(width: 48, height: 48)
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(recommendation.exercise.name)
+                                                    .font(.subheadline.weight(.bold))
+                                                    .foregroundStyle(Color.liftText)
+                                                Text(recommendation.reasons.joined(separator: " • "))
+                                                    .font(.caption)
+                                                    .foregroundStyle(Color.liftMuted)
+                                                    .lineLimit(2)
+                                            }
+                                            Spacer(minLength: 8)
+                                            Image(systemName: "chevron.right")
+                                                .font(.caption.weight(.bold))
+                                                .foregroundStyle(Color.liftMuted)
+                                        }
                                     }
-                                    Spacer(minLength: 8)
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption.weight(.bold))
-                                        .foregroundStyle(Color.liftMuted)
                                 }
                                 .padding(14)
                                 .contentShape(Rectangle())

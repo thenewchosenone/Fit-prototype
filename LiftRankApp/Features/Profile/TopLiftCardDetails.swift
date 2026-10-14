@@ -81,7 +81,7 @@ struct TopLiftCardDetailSheet: View {
             }
             LiftCard {
                 VStack(alignment: .leading, spacing: 10) {
-                    detailRow("Estimated 1RM", "\(MeasurementFormatting.formatDisplayedWeight(lift.estimatedOneRepMax, unit: appState.currentProfile.preferredUnit)) · \(lift.isActualOneRepMax ? "actual" : "estimated")")
+                    detailRow(lift.isActualOneRepMax ? "Actual 1RM" : "Estimated 1RM", MeasurementFormatting.formatBodyweight(lift.estimatedOneRepMax, preferredUnit: appState.currentProfile.preferredUnit))
                     detailRow("Created", LiftTimeFormatter.shortDateTime(lift.createdAt))
                     detailRow("Equipment", lift.equipmentType.rawValue)
                     if !lift.variation.isEmpty { detailRow("Variation", lift.variation) }
@@ -184,7 +184,7 @@ struct TopLiftCardDetailSheet: View {
         return VStack(alignment: .leading, spacing: 12) {
             LiftCard {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("\(MeasurementFormatting.formatDisplayedWeight(breakdown.totalKilograms, unit: unit)) \(unit.shortLabel)")
+                    Text(MeasurementFormatting.formatDisplayedWeight(breakdown.totalKilograms, unit: unit))
                         .font(.title2.weight(.black))
                     Text("Sum of submitted one-rep-max squat, bench, and deadlift records.")
                         .font(.subheadline)
@@ -214,7 +214,7 @@ struct TopLiftCardDetailSheet: View {
         HStack {
             Text(title)
             Spacer()
-            Text(kilograms.map { "\(MeasurementFormatting.formatDisplayedWeight($0, unit: unit)) \(unit.shortLabel)" } ?? "Not included")
+            Text(kilograms.map { MeasurementFormatting.formatDisplayedWeight($0, unit: unit) } ?? "Not included")
                 .foregroundStyle(kilograms == nil ? Color.liftMuted : Color.liftText)
                 .monospacedDigit()
         }

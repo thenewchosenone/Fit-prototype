@@ -69,10 +69,6 @@ struct LeaderboardRow: View {
                                 Label("\(entry.rankMovement)", systemImage: "arrow.down")
                                     .font(.caption.bold())
                                     .foregroundStyle(Color.liftRed)
-                            } else {
-                                Label("—", systemImage: "minus")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(Color.liftMuted)
                             }
                     }
                 }
@@ -93,7 +89,7 @@ struct LeaderboardRow: View {
                         }
                         Text(entry.lift.exerciseName)
                     }
-                    Label(entry.profile.hideBodyweight ? "Hidden BW" : "\(MeasurementFormatting.formatBodyweightOrDash(entry.lift.bodyweightAtLift, preferredUnit: appState.currentProfile.preferredUnit)) BW", systemImage: "scalemass.fill")
+                    Label(entry.profile.hideBodyweight ? "Bodyweight hidden" : "\(MeasurementFormatting.formatBodyweightOrDash(entry.lift.bodyweightAtLift, preferredUnit: appState.currentProfile.preferredUnit)) BW", systemImage: "scalemass.fill")
                     Label(
                         ProfileDisplayFormatting.location(
                             city: entry.profile.city,
@@ -180,14 +176,7 @@ struct LeaderboardFiltersView: View {
                         quickFilters
 
                         if !isLocationSearchActive {
-                            filterGroup("Ranking", symbol: "list.number") {
-                                optionRow("Ranking type") {
-                                    ForEach(appState.leaderboardFilters.exerciseID == nil ? RankingType.allCases : [.absolute, .poundForPound, .mostImproved]) { type in
-                                        optionButton(type.rawValue, isActive: appState.leaderboardFilters.rankingType == type) {
-                                            appState.leaderboardFilters.rankingType = type
-                                        }
-                                    }
-                                }
+                            filterGroup("Exercise and reps", symbol: "dumbbell.fill") {
                                 optionRow("Exercise") {
                                     optionButton("All", isActive: appState.leaderboardFilters.exerciseID == nil) {
                                         appState.selectLeaderboardExercise(nil)
@@ -201,13 +190,13 @@ struct LeaderboardFiltersView: View {
                                 if appState.leaderboardFilters.exerciseID != nil {
                                     optionRow("Rep count") {
                                         ForEach([nil, 1, 3, 5, 8, 10], id: \.self) { count in
-                                            optionButton(count.map { "\($0) reps" } ?? "All", isActive: appState.leaderboardFilters.repetitionCount == count) {
+                                            optionButton(count.map { "\($0) \($0 == 1 ? "rep" : "reps")" } ?? "All", isActive: appState.leaderboardFilters.repetitionCount == count) {
                                                 appState.leaderboardFilters.repetitionCount = count
                                             }
                                         }
                                     }
                                     HStack {
-                                        TextField("Custom exact reps", text: $customRepText)
+                                        TextField("Exact rep count", text: $customRepText)
                                             .keyboardType(.numberPad)
                                         Button("Apply") {
                                             if let reps = Int(customRepText), reps > 0 {
@@ -288,7 +277,7 @@ struct LeaderboardFiltersView: View {
                             }
 
                             if locationQuery.isEmpty, !locationOptions.isEmpty {
-                                optionRow("Popular cities") {
+                                optionRow("Available cities") {
                                     ForEach(locationOptions.prefix(5), id: \.self) { location in
                                         let parts = location.split(separator: ",", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                                         let city = parts.first ?? location
@@ -464,18 +453,10 @@ struct LeaderboardFiltersView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("\(resultCount) matching \(resultCount == 1 ? "lifter" : "lifters")")
                         .font(.headline)
-                    Text("Filters apply immediately to the current daily snapshot.")
+                    Text("Results update as you change filters.")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
-                Spacer()
-                Button("Reset") {
-                    appState.leaderboardFilters = LeaderboardFilters(exerciseID: nil)
-                    appState.verifiedOnly = true
-                    Haptics.light()
-                }
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.liftAccentText)
             }
         }
         .accessibilityIdentifier("leaderboard.filters.results")
@@ -504,7 +485,7 @@ struct LeaderboardFiltersView: View {
                                 )
                             }
                         default:
-                            quickFilterButton("My class", symbol: "person.crop.rectangle.stack") {
+                            quickFilterButton("My weight class", symbol: "person.crop.rectangle.stack") {
                                 appState.leaderboardFilters.sexCategory = appState.currentProfile.sexCategory
                                 appState.leaderboardFilters.weightClassID = bodyweightClass?.id
                             }
@@ -625,8 +606,14 @@ struct LeaderboardFiltersView: View {
             if let sex = appState.leaderboardFilters.sexCategory {
                 weightClassGroup(sex.rawValue, classes: WeightClassCatalog.all.filter { $0.sexCategory == sex })
             } else {
-                weightClassGroup("Men", classes: WeightClassCatalog.male)
-                weightClassGroup("Women", classes: WeightClassCatalog.female)
+                DisclosureGroup("Men") {
+                    weightClassChips(WeightClassCatalog.male)
+                }
+                .tint(Color.liftAccentText)
+                DisclosureGroup("Women") {
+                    weightClassChips(WeightClassCatalog.female)
+                }
+                .tint(Color.liftAccentText)
             }
         }
     }
@@ -636,12 +623,16 @@ struct LeaderboardFiltersView: View {
             Text(title)
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(Color.liftMuted)
-            LeaderboardChipFlowLayout(spacing: 8) {
-                ForEach(classes) { weightClass in
-                    optionButton(weightClass.name, isActive: appState.leaderboardFilters.weightClassID == weightClass.id) {
-                        appState.leaderboardFilters.sexCategory = weightClass.sexCategory
-                        appState.leaderboardFilters.weightClassID = weightClass.id
-                    }
+            weightClassChips(classes)
+        }
+    }
+
+    private func weightClassChips(_ classes: [WeightClass]) -> some View {
+        LeaderboardChipFlowLayout(spacing: 8) {
+            ForEach(classes) { weightClass in
+                optionButton(weightClass.name, isActive: appState.leaderboardFilters.weightClassID == weightClass.id) {
+                    appState.leaderboardFilters.sexCategory = weightClass.sexCategory
+                    appState.leaderboardFilters.weightClassID = weightClass.id
                 }
             }
         }

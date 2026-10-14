@@ -3,7 +3,7 @@ import SwiftUI
 enum LeaderboardMovementPresentation: Equatable {
     case up(Int)
     case down(Int)
-    case unchanged
+    case unavailable
 
     init(_ movement: Int) {
         if movement > 0 {
@@ -11,7 +11,7 @@ enum LeaderboardMovementPresentation: Equatable {
         } else if movement < 0 {
             self = .down(abs(movement))
         } else {
-            self = .unchanged
+            self = .unavailable
         }
     }
 }
@@ -41,7 +41,12 @@ enum LeaderboardIdentityPresentation {
 
 enum LeaderboardAgeGroupPresentation {
     static func groups(from profiles: [UserProfile]) -> [String] {
-        let legacy = Set(profiles.map(\.ageGroup)).subtracting(MockData.standardAgeGroups)
+        let legacy = Set(profiles.map(\.ageGroup))
+            .subtracting(MockData.standardAgeGroups)
+            .filter { group in
+                let value = group.trimmingCharacters(in: .whitespacesAndNewlines)
+                return !value.isEmpty && value.caseInsensitiveCompare("Hidden") != .orderedSame
+            }
         return MockData.standardAgeGroups + legacy.sorted()
     }
 
@@ -56,14 +61,16 @@ struct LeaderboardOption: Identifiable {
     var subtitle: String?
     var symbol: String?
     var exerciseCatalogID: String?
+    var sectionTitle: String?
     fileprivate let searchableText: String
 
-    init(id: String, title: String, subtitle: String? = nil, symbol: String? = nil, exerciseCatalogID: String? = nil) {
+    init(id: String, title: String, subtitle: String? = nil, symbol: String? = nil, exerciseCatalogID: String? = nil, sectionTitle: String? = nil) {
         self.id = id
         self.title = title
         self.subtitle = subtitle
         self.symbol = symbol
         self.exerciseCatalogID = exerciseCatalogID
+        self.sectionTitle = sectionTitle
         self.searchableText = LeaderboardOptionSearch.normalizedText(
             [title, subtitle].compactMap { $0 }.joined(separator: " ")
         )
@@ -111,24 +118,49 @@ enum LeaderboardSelector: String, Identifiable {
 }
 
 struct LeaderboardMetricStrip: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let rank: String
     let lifters: Int
     let ranking: String
+    var rankTitle = "Your rank"
 
     var body: some View {
-        HStack(spacing: 0) {
-            metric("Your rank", rank, tint: .liftBlue)
-            divider
-            metric("Lifters", "\(lifters)")
-            divider
-            metric("Ranking", ranking)
-            divider
-            metric("Updates", "Live", tint: .liftGreen)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 10) {
+                    metricRow(rankTitle, rank, tint: .liftBlue)
+                    metricRow("Lifters", "\(lifters)")
+                    metricRow("Ranking", ranking)
+                }
+                .padding(.horizontal, 14)
+            } else {
+                HStack(spacing: 0) {
+                    metric(rankTitle, rank, tint: .liftBlue)
+                    divider
+                    metric("Lifters", "\(lifters)")
+                    divider
+                    metric("Ranking", ranking)
+                }
+            }
         }
         .padding(.vertical, 12)
         .liftSurface(radius: 12, raised: true)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Your rank \(rank), \(lifters) lifters, \(ranking), updates live")
+        .accessibilityLabel("\(rankTitle) \(rank), \(lifters) lifters, ranking by \(ranking)")
+    }
+
+    private func metricRow(_ title: String, _ value: String, tint: Color = .white) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(Color.liftMuted)
+            Spacer(minLength: 8)
+            Text(value)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.58)
+        }
     }
 
     private func metric(_ title: String, _ value: String, tint: Color = .white) -> some View {
@@ -154,40 +186,63 @@ struct LeaderboardMetricStrip: View {
 }
 
 struct LeaderboardTabBar: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var selection: RankingType
     var types: [RankingType] = RankingType.allCases
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 26) {
-                ForEach(types) { type in
-                    Button {
-                        Haptics.light()
-                        selection = type
-                    } label: {
-                        VStack(spacing: 9) {
-                            Text(type.rawValue)
-                                .font(.subheadline.weight(selection == type ? .bold : .medium))
-                                .foregroundStyle(selection == type ? Color.liftText : Color.liftMuted)
-                                .lineLimit(1)
-                            Rectangle()
-                                .fill(selection == type ? Color.liftBlue : .clear)
-                                .frame(height: 2)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 8) {
+                    ForEach(types) { type in
+                        tabButton(type)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 26) {
+                        ForEach(types) { type in
+                            tabButton(type)
                         }
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(selection == type ? .isSelected : [])
+                    .padding(.horizontal, 16)
                 }
             }
-            .padding(.horizontal, 16)
         }
         .overlay(alignment: .bottom) {
             Rectangle().fill(Color.liftOverlay).frame(height: 1)
         }
     }
+
+    private func tabButton(_ type: RankingType) -> some View {
+        Button {
+            Haptics.light()
+            selection = type
+        } label: {
+            VStack(spacing: 9) {
+                Text(type.rawValue)
+                    .font(.subheadline.weight(selection == type ? .bold : .medium))
+                    .foregroundStyle(selection == type ? Color.liftText : Color.liftMuted)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                Rectangle()
+                    .fill(selection == type ? Color.liftBlue : .clear)
+                    .frame(height: 2)
+            }
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("leaderboard.ranking.\(type.rawValue.lowercased().replacingOccurrences(of: " ", with: "-"))")
+        .accessibilityAddTraits(selection == type ? .isSelected : [])
+    }
 }
 
 struct LeaderboardFilterControl: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let title: String
     let value: String
     let symbol: String
@@ -203,7 +258,11 @@ struct LeaderboardFilterControl: View {
                     .foregroundStyle(Color.liftAccentText)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).font(.caption2).foregroundStyle(Color.liftMuted)
-                    Text(value).font(.caption.weight(.semibold)).foregroundStyle(Color.liftText).lineLimit(1)
+                    Text(value)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.liftText)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.bold))
@@ -220,14 +279,22 @@ struct LeaderboardFilterControl: View {
 }
 
 struct LeaderboardTableHeader: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let resultCount: Int
     var valueTitle = "Total"
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text("#  Lifter").frame(maxWidth: .infinity, alignment: .leading)
-            Text(valueTitle).frame(width: 76, alignment: .trailing)
-            Text("Move").frame(width: 48, alignment: .trailing)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                Text("\(resultCount) ranked \(resultCount == 1 ? "lifter" : "lifters")")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                HStack(spacing: 8) {
+                    Text("#  Lifter").frame(maxWidth: .infinity, alignment: .leading)
+                    Text(valueTitle).frame(width: 76, alignment: .trailing)
+                    Text("Move").frame(width: 48, alignment: .trailing)
+                }
+            }
         }
         .font(.caption2.weight(.semibold))
         .textCase(.uppercase)
@@ -243,6 +310,7 @@ struct LeaderboardTableHeader: View {
 }
 
 struct CompactLeaderboardRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let entry: LeaderboardEntry
     var rankingType: RankingType = .absolute
     var isCurrentUser = false
@@ -261,7 +329,26 @@ struct CompactLeaderboardRow: View {
             preferredUnit: preferredUnit
         )
         let movement = LeaderboardMovementPresentation(entry.rankMovement)
-        return HStack(spacing: 8) {
+        return Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                accessibleRow(valueText: valueText, movement: movement)
+            } else {
+                compactRow(valueText: valueText, movement: movement)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 14 : 10)
+        .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 120 : 68)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(isCurrentUser ? Color.liftBlue.opacity(0.09) : Color.clear)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Rank \(entry.rank), \(entry.profile.displayName), at \(entry.profile.username), \(isCurrentUser ? "you, " : "")\(entry.lift.resolvedEvidenceStatus.displayName), \(valueText), \(movementAccessibility(movement))")
+        .accessibilityHint("Opens lifter profile")
+    }
+
+    private func compactRow(valueText: String, movement: LeaderboardMovementPresentation) -> some View {
+        HStack(spacing: 8) {
             Text("\(entry.rank)")
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(rankColor)
@@ -300,16 +387,42 @@ struct CompactLeaderboardRow: View {
                 .frame(width: 76, alignment: .trailing)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            movementLabel(movement).frame(width: 48, alignment: .trailing)
+            if movement != .unavailable {
+                movementLabel(movement).frame(width: 48, alignment: .trailing)
+            }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .frame(minHeight: 68)
-        .background(isCurrentUser ? Color.liftBlue.opacity(0.09) : Color.clear)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Rank \(entry.rank), \(entry.profile.displayName), at \(entry.profile.username), \(valueText), \(movementAccessibility(movement))")
-        .accessibilityHint("Opens lifter profile")
+    }
+
+    private func accessibleRow(valueText: String, movement: LeaderboardMovementPresentation) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 12) {
+                Text("\(entry.rank)")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(rankColor)
+                    .frame(minWidth: 36, minHeight: 44, alignment: .leading)
+                ProfileAvatar(profile: entry.profile, size: 44)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(entry.profile.displayName)
+                            .font(.headline.weight(.semibold))
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(valueText)
+                    .font(.headline.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                if movement != .unavailable {
+                    movementLabel(movement)
+                }
+            }
+
+        }
     }
 
     private func movementLabel(_ movement: LeaderboardMovementPresentation) -> some View {
@@ -319,8 +432,8 @@ struct CompactLeaderboardRow: View {
                 Label("\(amount)", systemImage: "arrow.up").foregroundStyle(Color.liftGreen)
             case .down(let amount):
                 Label("\(amount)", systemImage: "arrow.down").foregroundStyle(Color.liftRed)
-            case .unchanged:
-                Label("0", systemImage: "minus").foregroundStyle(Color.liftMuted)
+            case .unavailable:
+                EmptyView()
             }
         }
         .font(.caption.weight(.bold))
@@ -331,7 +444,7 @@ struct CompactLeaderboardRow: View {
         switch movement {
         case .up(let amount): return "up \(amount)"
         case .down(let amount): return "down \(amount)"
-        case .unchanged: return "unchanged"
+        case .unavailable: return "rank movement unavailable"
         }
     }
 
@@ -364,6 +477,7 @@ struct CompactLeaderboardRow: View {
 
 struct LeaderboardOptionSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let title: String
     let options: [LeaderboardOption]
     let selectedID: String
@@ -463,8 +577,17 @@ struct LeaderboardOptionSheet: View {
                         .padding(.top, 48)
                         .padding(.horizontal, 20)
                     } else {
-                        LazyVStack(spacing: 0) {
-                            ForEach(visibleOptions) { option in
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(visibleOptions.enumerated()), id: \.element.id) { index, option in
+                                if let sectionTitle = option.sectionTitle,
+                                   index == 0 || visibleOptions[index - 1].sectionTitle != sectionTitle {
+                                    Text(sectionTitle)
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(Color.liftMuted)
+                                        .padding(.horizontal, 20)
+                                        .padding(.top, 14)
+                                        .padding(.bottom, 6)
+                                }
                                 Button {
                                     onSelect(option.id)
                                     if dismissOnSelection {
@@ -483,9 +606,16 @@ struct LeaderboardOptionSheet: View {
                                                 .frame(width: 24)
                                         }
                                         VStack(alignment: .leading, spacing: 3) {
-                                            Text(option.title).font(.body.weight(.medium)).foregroundStyle(Color.liftText)
+                                            Text(option.title)
+                                                .font(.body.weight(.medium))
+                                                .foregroundStyle(Color.liftText)
+                                                .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
                                             if let subtitle = option.subtitle {
-                                                Text(subtitle).font(.caption).foregroundStyle(Color.liftMuted).lineLimit(1)
+                                                Text(subtitle)
+                                                    .font(.caption)
+                                                    .foregroundStyle(Color.liftMuted)
+                                                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                                                    .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
                                             }
                                         }
                                         Spacer()

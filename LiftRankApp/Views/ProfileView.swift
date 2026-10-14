@@ -40,6 +40,7 @@ struct ProfileView: View {
     @State var profileHistoryType: ProfileHistoryType = .all
     @State var profileHistoryExercise = ""
     @State var selectedTimelineWorkout: CompletedWorkout?
+    @State var selectedProfileLiftHistory: TopLiftCardDestination?
 
     init(profile: UserProfile, surface: ProfileSurface, viewerID: UUID? = nil) {
         self.initialProfile = profile

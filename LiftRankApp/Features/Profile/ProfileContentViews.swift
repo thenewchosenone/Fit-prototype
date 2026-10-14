@@ -55,7 +55,7 @@ struct ProfileLiftVideosSection: View {
         var bestByExercise: [String: LiftSubmission] = [:]
         for lift in candidates where isCurrentUser || lift.resolvedModerationStatus == .clear {
             let key = lift.exerciseName.lowercased()
-            if bestByExercise[key] == nil || lift.weight > bestByExercise[key]!.weight {
+            if bestByExercise[key] == nil || lift.estimatedOneRepMax > bestByExercise[key]!.estimatedOneRepMax {
                 bestByExercise[key] = lift
             }
         }
@@ -66,6 +66,7 @@ struct ProfileLiftVideosSection: View {
         let videoLifts = videoLifts
         VStack(alignment: .leading, spacing: 10) {
             CompactSectionHeader(title: "PR videos")
+                .id(ProfileSection.prVideos.id)
             if profile.hideLiftVideos && !isCurrentUser {
                 LiftEmptyState(
                     title: "PR videos hidden",
@@ -133,6 +134,20 @@ private struct ProfileVideoThumbnail: View {
                 .font(.headline.weight(.bold))
                 .foregroundStyle(.white)
                 .shadow(radius: 3)
+        }
+        .overlay(alignment: .bottomLeading) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(lift.exerciseName)
+                    .font(.caption2.weight(.bold))
+                    .lineLimit(2)
+                Text(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true))
+                    .font(.caption2)
+                    .lineLimit(1)
+            }
+            .foregroundStyle(.white)
+            .padding(6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.black.opacity(0.55))
         }
         .clipped()
         .task(id: lift.id) {
@@ -265,6 +280,7 @@ private struct EditProfileLocation: Identifiable, Hashable {
 struct EditProfileView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var draft = MockData.emptyProfile
     @State private var showingPhotoManager = false
     @State private var activeSelector: EditProfileSelector?
@@ -325,6 +341,33 @@ struct EditProfileView: View {
         })
     }
 
+    private var profilePhotoDescription: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Profile photo")
+                .font(.headline)
+            Text("Photo changes save separately from this form")
+                .font(.caption)
+                .foregroundStyle(Color.liftMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private func profileField<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title)
+                content()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } else {
+            LabeledContent(title, content: content)
+        }
+    }
+
     var body: some View {
         NavigationStack {
             AppBackground {
@@ -333,25 +376,29 @@ struct EditProfileView: View {
                         Button {
                             showingPhotoManager = true
                         } label: {
-                            HStack(spacing: 14) {
-                                ProfileAvatar(profile: draft, size: 76)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Profile photo")
-                                        .font(.headline)
-                                    Text("Photo changes save separately from this form")
-                                        .font(.caption)
-                                        .foregroundStyle(Color.liftMuted)
+                            Group {
+                                if dynamicTypeSize.isAccessibilitySize {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        ProfileAvatar(profile: draft, size: 76)
+                                        profilePhotoDescription
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                } else {
+                                    HStack(spacing: 14) {
+                                        ProfileAvatar(profile: draft, size: 76)
+                                        profilePhotoDescription
+                                    }
                                 }
                             }
                         }
-                        LabeledContent("Username") {
+                        profileField("Username") {
                             TextField("Username", text: $draft.username)
                                 .textContentType(.none)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                                 .multilineTextAlignment(.trailing)
                         }
-                        LabeledContent("Display name") {
+                        profileField("Display name") {
                             TextField("Display name", text: $draft.displayName)
                                 .multilineTextAlignment(.trailing)
                                 .accessibilityIdentifier("editProfile.displayName")
@@ -361,11 +408,16 @@ struct EditProfileView: View {
                             TextField("Tell athletes about your training", text: bioBinding, axis: .vertical)
                                 .lineLimit(2...4)
                         }
-                        LabeledContent("Age group", value: draft.ageGroup)
-                        Picker("Gender", selection: $draft.sexCategory) {
-                            ForEach(SexCategory.allCases) { Text($0.rawValue).tag($0) }
+                        profileField("Age group") {
+                            Text(draft.ageGroup)
                         }
-                        LabeledContent("Experience") {
+                        profileField("Gender") {
+                            Picker("Gender", selection: $draft.sexCategory) {
+                                ForEach(SexCategory.allCases) { Text($0.rawValue).tag($0) }
+                            }
+                            .labelsHidden()
+                        }
+                        profileField("Experience") {
                             VStack(alignment: .trailing, spacing: 2) {
                                 Text(appState.earnedExperienceLevel.rawValue)
                                     .foregroundStyle(Color.liftAccentText)
@@ -374,20 +426,53 @@ struct EditProfileView: View {
                                     .foregroundStyle(Color.liftMuted)
                             }
                         }
-                        Stepper("Years training: \(draft.yearsExperience)", value: $draft.yearsExperience, in: 0...100)
+                        if dynamicTypeSize.isAccessibilitySize {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Years training")
+                                HStack {
+                                    Text("\(draft.yearsExperience)")
+                                    Spacer()
+                                    Stepper("Years training", value: $draft.yearsExperience, in: 0...100)
+                                        .labelsHidden()
+                                        .fixedSize()
+                                }
+                            }
+                        } else {
+                            Stepper("Years training: \(draft.yearsExperience)", value: $draft.yearsExperience, in: 0...100)
+                        }
                     }
                     Section("Body") {
-                        NumericInputField(title: "Height", value: $draft.heightInches, unit: "in", presentation: .formRow)
+                        if dynamicTypeSize.isAccessibilitySize {
+                            profileField("Height") {
+                                HStack {
+                                    TextField("Height", value: $draft.heightInches, format: .number.precision(.fractionLength(0...1)))
+                                        .keyboardType(.decimalPad)
+                                        .multilineTextAlignment(.trailing)
+                                    Text("in").foregroundStyle(Color.liftMuted)
+                                }
+                            }
+                        } else {
+                            NumericInputField(title: "Height", value: $draft.heightInches, unit: "in", presentation: .formRow)
+                        }
                         Button {
                             selectedBodyweightEntry = BodyweightEntry.draftForCurrentWeek(
                                 entries: appState.bodyweightEntries,
                                 currentBodyweightPounds: draft.bodyweightPounds
                             )
                         } label: {
-                            LabeledContent("Log bodyweight", value: MeasurementFormatting.formatRecordedWeight(
+                            let value = MeasurementFormatting.formatRecordedWeight(
                                 MeasurementFormatting.convert(draft.bodyweightPounds, from: .pounds, to: draft.preferredUnit),
                                 unit: draft.preferredUnit
-                            ))
+                            )
+                            if dynamicTypeSize.isAccessibilitySize {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Bodyweight")
+                                    Text(value)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            } else {
+                                LabeledContent("Bodyweight", value: value)
+                            }
                         }
                         .accessibilityIdentifier("editProfile.logBodyweight")
                     }
@@ -444,6 +529,8 @@ struct EditProfileView: View {
             .sheet(item: $selectedBodyweightEntry) { entry in
                 BodyweightEntryEditor(entry: entry) { updatedEntry in
                     appState.updateBodyweight(updatedEntry)
+                } onDelete: { entry in
+                    appState.deleteBodyweight(entry)
                 }
                 .environmentObject(appState)
             }
@@ -462,7 +549,7 @@ struct EditProfileView: View {
                     saveDraft(allowUsernameChange: true)
                 }
             } message: {
-                Text("This changes the username shown on your profile. Other profile and settings saves will not change it.")
+                Text("Your new username will appear on your profile and submissions.")
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -515,24 +602,39 @@ struct EditProfileView: View {
 
     private func profileSelectionRow(title: String, value: String, symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: symbol)
-                    .foregroundStyle(Color.liftAccentText)
-                    .frame(width: 24)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.caption)
-                        .foregroundStyle(Color.liftMuted)
-                    Text(value)
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label(title, systemImage: symbol)
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                        Text(value)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 8)
+                } else {
+                    HStack(spacing: 12) {
+                        Image(systemName: symbol)
+                            .foregroundStyle(Color.liftAccentText)
+                            .frame(width: 24)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(title)
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                            Text(value)
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.liftMuted)
+                    }
+                    .frame(minHeight: 44)
                 }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.liftMuted)
             }
-            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -719,7 +821,7 @@ struct ProfilePhotoManagerView: View {
                     appState.removeProfilePhoto()
                 }
             } message: {
-                Text("The current photo will be removed after confirmation.")
+                Text("This removes your profile photo. You can add a new photo later.")
             }
             .fullScreenCover(isPresented: $showingCropEditor) {
                 if let selectedSourceImage {

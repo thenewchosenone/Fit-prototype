@@ -83,11 +83,20 @@ enum MockData {
 
     private static func movementPattern(for exercise: TrainingExerciseCatalogItem) -> ExerciseMovementPattern {
         let name = exercise.name.lowercased()
+        if name.contains("muscle-up") || name.contains("muscle up") {
+            return .verticalPull
+        }
+        if name.contains("burpee") || name.contains("turkish get-up") || name.contains("turkish get up") {
+            return .other
+        }
         if name.contains("back extension") || name.contains("hyperextension") {
             return .hinge
         }
         if name.contains("extension") && exercise.bodyPart.localizedCaseInsensitiveContains("triceps") {
             return .elbowExtension
+        }
+        if name.contains("rear delt") || name.contains("reverse pec deck") {
+            return .shoulderIsolation
         }
         if name.contains("bench") || name.contains("chest press") || name.contains("pec deck") || name.contains("dip") || name.contains("fly") || name.contains("push-up") || name.contains("push up") || name.contains("floor press") {
             return .horizontalPress
@@ -125,9 +134,7 @@ enum MockData {
         if name.contains("crunch") || name.contains("plank") || name.contains("leg raise") || name.contains("rollout") || name.contains("dead bug") || name.contains("bird dog") || name.contains("hollow") || name.contains("pallof") || name.contains("wood chop") || name.contains("twist") || name.contains("windmill") {
             return .core
         }
-        if name.contains("carry") || name.contains("crawl") || name.contains("burpee") || name.contains("turkish get-up") || name.contains("muscle-up") {
-            return .carry
-        }
+        if name.contains("carry") { return .carry }
         return .other
     }
 
@@ -147,6 +154,7 @@ enum MockData {
     }
 
     private static func movementType(for exercise: TrainingExerciseCatalogItem) -> String {
+        if ["cardio", "conditioning"].contains(exercise.workoutCategory.lowercased()) { return "Conditioning" }
         switch exercise.movementPattern {
         case .curl, .elbowExtension, .shoulderIsolation, .calf, .core:
             return "Accessory"
@@ -162,6 +170,7 @@ enum MockData {
     private static func trackingType(for exercise: TrainingExerciseCatalogItem) -> String {
         let name = exercise.name.lowercased()
         let reps = exercise.defaultReps.lowercased()
+        if ["cardio", "conditioning"].contains(exercise.workoutCategory.lowercased()) { return "Time" }
         if exercise.movementPattern == .carry { return "Weight + Time" }
         if reps.contains("sec") || exercise.movementPattern == .core && name.contains("plank") { return "Time" }
         if name.contains("assisted") { return "Assisted Bodyweight" }
@@ -353,14 +362,12 @@ enum MockData {
         ("18 Bodyweight Logs", "Log eighteen bodyweight entries.", "calendar.badge.exclamationmark"),
         ("26 Bodyweight Logs", "Log twenty-six bodyweight entries.", "calendar.badge.plus"),
         ("52 Bodyweight Logs", "Log fifty-two bodyweight entries.", "calendar.badge.clock"),
-        ("3-Day Workout Streak", "Train three days in a row.", "flame.circle.fill"),
-        ("7-Day Workout Streak", "Train seven days in a row.", "flame.fill"),
-        ("14-Day Workout Streak", "Train fourteen days in a row.", "flame.circle"),
-        ("30-Day Workout Streak", "Train thirty days in a row.", "30.circle.fill"),
-        ("60-Day Workout Streak", "Train sixty days in a row.", "60.circle.fill"),
-        ("90-Day Workout Streak", "Train ninety days in a row.", "calendar.badge.clock"),
-        ("180-Day Workout Streak", "Train one hundred eighty days in a row.", "calendar.circle"),
-        ("365-Day Workout Streak", "Train every day for a year.", "calendar.circle.fill"),
+        ("3-Week Workout Streak", "Train on at least three days each week for three weeks in a row.", "flame.circle.fill"),
+        ("7-Week Workout Streak", "Train on at least three days each week for seven weeks in a row.", "flame.fill"),
+        ("14-Week Workout Streak", "Train on at least three days each week for fourteen weeks in a row.", "flame.circle"),
+        ("26-Week Workout Streak", "Train on at least three days each week for twenty-six weeks in a row.", "calendar.badge.clock"),
+        ("52-Week Workout Streak", "Train on at least three days each week for a year.", "calendar.circle"),
+        ("104-Week Workout Streak", "Train on at least three days each week for two years.", "calendar.circle.fill"),
         ("10,000 kg Lifted Volume", "Move 10,000 kg of lifted working-set volume.", "gauge.with.dots.needle.67percent"),
         ("50,000 kg Lifted Volume", "Move 50,000 kg of lifted working-set volume.", "shippingbox.fill"),
         ("100,000 kg Lifted Volume", "Move 100,000 kg of lifted working-set volume.", "cube.box.fill"),
@@ -420,9 +427,6 @@ enum MockData {
         ] { add(title, description, "person.crop.circle.badge.plus") }
         for milestone in [2, 8, 24, 104, 208] {
             add("\(milestone) Bodyweight Logs", "Log \(milestone) bodyweight entries.", "calendar.circle.fill")
-        }
-        for milestone in [5, 10, 21, 45, 120, 240] {
-            add("\(milestone)-Day Workout Streak", "Train \(milestone) days in a row.", "flame.fill")
         }
         for milestone in [25_000, 75_000, 150_000, 750_000, 1_500_000, 10_000_000] {
             add("\(milestone.formatted()) kg Lifted Volume", "Move \(milestone.formatted()) kg of lifted working-set volume.", "gauge.with.dots.needle.67percent")

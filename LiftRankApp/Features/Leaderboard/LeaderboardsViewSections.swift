@@ -26,7 +26,8 @@ extension LeaderboardsView {
                             LeaderboardMetricStrip(
                                 rank: RankingFormatting.leaderboardRankText(rank: currentEntry?.rank),
                                 lifters: matchingEntries.count,
-                                ranking: appState.leaderboardFilters.rankingType.rawValue
+                                ranking: appState.leaderboardFilters.rankingType.rawValue,
+                                rankTitle: rankScopeTitle
                             )
                             .padding(.horizontal, 16)
                             .padding(.top, 8)
@@ -35,8 +36,7 @@ extension LeaderboardsView {
                             LeaderboardTabBar(selection: rankingTypeBinding, types: availableRankingTypes)
                             filterBar.padding(.vertical, 10)
 
-                            if appState.leaderboardFilters.exerciseID == nil,
-                               [.total, .relativeTotal, .absolute].contains(appState.leaderboardFilters.rankingType) {
+                            Group {
                                 Button {
                                     showsRankingExplanation.toggle()
                                 } label: {
@@ -49,9 +49,11 @@ extension LeaderboardsView {
                                 .padding(.bottom, 8)
                                 if showsRankingExplanation {
                                     let explanation = switch appState.leaderboardFilters.rankingType {
-                                    case .relativeTotal: "Relative total compares best bench, squat, and deadlift to bodyweight."
-                                    case .total: "Total combines each lifter’s best bench, squat, and deadlift."
-                                    default: "All exercises ranks each athlete by their best eligible single lift. Choose an exercise for an exercise-specific ranking."
+                                    case .relativeTotal: "Relative total divides each lifter’s best bench press, squat, and deadlift total by their bodyweight."
+                                    case .total: "Total adds each lifter’s best eligible bench press, squat, and deadlift."
+                                    case .absolute: "Absolute ranks lifters by the heaviest eligible lift. Choose an exercise to compare the same movement."
+                                    case .poundForPound: "Pound-for-pound divides the lifted weight by bodyweight. A higher multiple ranks higher."
+                                    case .mostImproved: "Most improved ranks percentage gains over each lifter’s earlier best for the same exercise. It compares eligible lifts within the selected time range: \(appState.leaderboardFilters.timeRange.lowercased()). At least two results are needed for a comparison."
                                     }
                                     Text(explanation)
                                         .font(.caption)
@@ -143,7 +145,7 @@ extension LeaderboardsView {
                                             Button {
                                                 leaderboardPage += 1
                                             } label: {
-                                                Text("Load next 100")
+                                                Text("Load more lifters")
                                                     .font(.subheadline.weight(.bold))
                                                     .frame(maxWidth: .infinity, minHeight: 48)
                                             }

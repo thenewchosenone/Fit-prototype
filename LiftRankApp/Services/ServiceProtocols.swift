@@ -32,6 +32,7 @@ protocol ProfileService {
     func removeProfileAvatar(avatarPath: String?) async throws
     func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry]) async throws -> [BodyweightEntry]
     func saveBodyweightEntry(_ entry: BodyweightEntry) async throws
+    func deleteBodyweightEntry(id: UUID) async throws
 }
 
 struct ProfileAvatarDownload: Equatable {
@@ -178,6 +179,10 @@ protocol ForumService {
     func leave(communityID: UUID) async throws
     func createPost(_ draft: ForumPostDraft) async throws -> ForumPost
     func createComment(postID: UUID, body: String, parentCommentID: UUID?) async throws -> ForumComment
+    func updatePost(postID: UUID, title: String, body: String) async throws -> ForumPost
+    func updateComment(commentID: UUID, body: String) async throws -> ForumComment
+    func deletePost(postID: UUID) async throws
+    func deleteComment(commentID: UUID) async throws
     func vote(postID: UUID, value: Int?) async throws
     func vote(commentID: UUID, value: Int?) async throws
     func watch(postID: UUID, watched: Bool) async throws

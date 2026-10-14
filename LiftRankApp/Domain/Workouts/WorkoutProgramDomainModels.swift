@@ -88,6 +88,7 @@ enum WorkoutProgramLevel: String, CaseIterable, Codable, Hashable, Identifiable 
     case beginner = "Beginner"
     case intermediate = "Intermediate"
     case intermediateAdvanced = "Intermediate–Advanced"
+    case advanced = "Advanced"
 
     var id: String { rawValue }
 }

@@ -198,8 +198,8 @@ struct RecentPRDetailView: View {
                 .font(.headline.weight(.bold))
             detailRow("Bodyweight", MeasurementFormatting.formatBodyweight(lift.bodyweightAtLift, preferredUnit: appState.currentProfile.preferredUnit))
             detailRow("Relative strength", RankingFormatting.ratioText(lift.bodyweightMultiple))
-            detailRow("Evidence", lift.resolvedEvidenceStatus.rawValue)
-            detailRow("Review status", lift.resolvedModerationStatus.rawValue)
+            detailRow("Evidence", lift.resolvedEvidenceStatus.displayName)
+            detailRow("Review status", lift.resolvedModerationStatus.displayName)
         }
         .padding(14)
         .liftSurface()
@@ -329,7 +329,7 @@ struct HomeNotificationCenterView: View {
                 }
                 if appState.unreadNotificationCount > 0 {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Read all") {
+                        Button("Mark all as read") {
                             appState.markAllNotificationsRead()
                         }
                     }
@@ -421,7 +421,9 @@ struct HomeNotificationCenterView: View {
 
 struct StreakDetailView: View {
     @Environment(\.dismiss) private var dismiss
-    let streakDays: Int
+    let streakWeeks: Int
+    let trainingDaysThisWeek: Int
+    private let weeklyTrainingDayTarget = 3
 
     var body: some View {
         AppBackground {
@@ -457,29 +459,32 @@ struct StreakDetailView: View {
                         .foregroundStyle(
                                 LinearGradient(colors: [Color.liftGold, Color.liftOrange, Color.liftRed], startPoint: .top, endPoint: .bottom)
                         )
-                    Text("\(streakDays)")
+                    Text("\(streakWeeks)")
                         .font(.system(size: 36, weight: .black, design: .rounded))
                         .offset(y: 65)
                 }
                 .padding(.bottom, 12)
 
-                Text(streakDays == 1 ? "1 day streak" : "\(streakDays) day streak")
+                Text(streakWeeks == 1 ? "1 week streak" : "\(streakWeeks) week streak")
                     .font(.title.weight(.black))
+                Text("\(min(trainingDaysThisWeek, weeklyTrainingDayTarget)) of \(weeklyTrainingDayTarget) training days this week")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.liftText)
                 Text(streakMessage)
                     .font(.subheadline)
                     .foregroundStyle(Color.liftMuted)
                     .multilineTextAlignment(.center)
 
                 HStack(spacing: 7) {
-                    ForEach(1...7, id: \.self) { day in
+                    ForEach(1...weeklyTrainingDayTarget, id: \.self) { day in
                         VStack(spacing: 7) {
                             Circle()
-                                .fill(day <= streakDays ? Color.orange : Color.liftSeparator)
+                                .fill(day <= trainingDaysThisWeek ? Color.orange : Color.liftSeparator)
                                 .frame(width: 30, height: 30)
                                 .overlay {
-                                    Image(systemName: day <= streakDays ? "checkmark" : "circle")
+                                    Image(systemName: day <= trainingDaysThisWeek ? "checkmark" : "circle")
                                         .font(.caption2.weight(.black))
-                                        .foregroundStyle(day <= streakDays ? Color.liftBackground : Color.liftMuted)
+                                        .foregroundStyle(day <= trainingDaysThisWeek ? Color.liftBackground : Color.liftMuted)
                                 }
                             Text("\(day)")
                                 .font(.caption2.weight(.bold))
@@ -496,12 +501,13 @@ struct StreakDetailView: View {
     }
 
     private var streakMessage: String {
-        if streakDays == 0 {
-            return "Complete a workout today to begin a new streak."
+        if trainingDaysThisWeek < weeklyTrainingDayTarget {
+            let daysRemaining = weeklyTrainingDayTarget - trainingDaysThisWeek
+            if streakWeeks == 0 {
+                return "Train on \(daysRemaining) more day\(daysRemaining == 1 ? "" : "s") this week to start a streak."
+            }
+            return "Train on \(daysRemaining) more day\(daysRemaining == 1 ? "" : "s") this week to keep your streak active."
         }
-        if streakDays < 7 {
-            return "Keep training consistently. Your next milestone unlocks at 7 days."
-        }
-        return "Your streak is active. Complete another workout by tomorrow to keep it going."
+        return "This week qualifies. Keep training on three different days next week to extend your streak."
     }
 }

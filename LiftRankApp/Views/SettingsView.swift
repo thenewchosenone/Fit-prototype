@@ -63,10 +63,10 @@ struct SettingsView: View {
                     Section("Privacy") {
                         audiencePicker("Profile visibility", selection: $privacy.profileAudience)
                         audiencePicker("Bodyweight", selection: $privacy.bodyweightAudience)
-                        audiencePicker("Age band", selection: $privacy.ageBandAudience)
+                        audiencePicker("Age group", selection: $privacy.ageBandAudience)
                         audiencePicker("Location", selection: $privacy.locationAudience)
                         audiencePicker("Gym", selection: $privacy.gymAudience)
-                        audiencePicker("Division", selection: $privacy.divisionAudience)
+                        audiencePicker("Gender category", selection: $privacy.divisionAudience)
                         audiencePicker("Friend list", selection: $privacy.friendListAudience)
                         Toggle("Show lift videos", isOn: $privacy.showLiftVideos)
                         DisclosureGroup("How visibility works") {
@@ -105,14 +105,14 @@ struct SettingsView: View {
                             }
                         }
                         .accessibilityIdentifier("settings.trainingFocus")
-                        Text("Sets the first Progress view. All views and your workout history remain available.")
+                        Text("Chooses which category opens first in Progress. You can still view every category and your workout history.")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                         Toggle("Automatically share workout PRs", isOn: Binding(
                             get: { appState.workoutPreferences.automaticallySubmitVideoBackedPRs },
                             set: { appState.setAutomaticVideoPRSubmission($0) }
                         ))
-                        Text("With automatic sharing enabled, eligible PRs can appear publicly as self-reported without video or as video-backed when you attach one. Ordinary workout logs and private PRs stay private.")
+                        Text("Personal records (PRs) can be shared publicly as self-reported without video or as video-backed when you attach one. Automatic sharing applies to eligible PRs; ordinary workout logs and private PRs stay private.")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                         Toggle("Start rest timer after completed sets", isOn: Binding(
@@ -232,8 +232,8 @@ struct SettingsView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text(appState.hasAppleAuthorization
-                    ? "For security, the server requires a recently authenticated session. Your account data, workout backup, and local training data will be removed. After deletion, also remove Lift Rivals from Settings > your name > Sign in with Apple to revoke Apple authorization. This cannot be undone."
-                    : "For security, the server requires a recently authenticated session. Your account data, workout backup, and local training data will be removed. This cannot be undone.")
+                    ? "For security, you may need to sign in again before deleting your account. Your account data, workout backup, and local training data will be removed. After deletion, also remove Lift Rivals from Settings > your name > Sign in with Apple to revoke Apple authorization. This cannot be undone."
+                    : "For security, you may need to sign in again before deleting your account. Your account data, workout backup, and local training data will be removed. This cannot be undone.")
             }
             .confirmationDialog("Reset demo data?", isPresented: $confirmingDemoReset, titleVisibility: .visible) {
                 Button("Reset Demo Data", role: .destructive) { appState.resetDemoData() }
@@ -324,7 +324,7 @@ enum SettingsInfoPage: String, Identifiable {
         switch self {
         case .about:
             return [
-                ("Lift Rivals", "Lift Rivals is a competitive strength platform for tracking workouts, recording true one-rep PRs, and comparing eligible lifts."),
+                ("Lift Rivals", "Lift Rivals is a competitive strength platform for tracking workouts, recording one-rep personal records, and comparing eligible lifts."),
                 ("Evidence labels", "Video-backed means a lift has attached video evidence. It does not mean Lift Rivals approved the athlete’s technique."),
                 ("Support", "For help, bugs, or missing gym and exercise data, open Support in Settings or email support@liftrivals.com. Never send your password, verification code, or payment information.")
             ]
@@ -354,7 +354,7 @@ struct LegalAcceptanceView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     Text("Before you compete")
                         .font(.system(size: 32, weight: .black, design: .rounded))
-                    Text("Review and accept the current policies. We record each document version so future changes can be shown clearly.")
+                    Text("Review and accept the current policies. You can open each document below before accepting.")
                         .foregroundStyle(Color.liftMuted)
 
                     ForEach(documents) { document in

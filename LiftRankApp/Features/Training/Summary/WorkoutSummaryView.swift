@@ -4,6 +4,7 @@ import SwiftUI
 struct WorkoutSummaryView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private let initialSummary: WorkoutSummary
     let onComplete: (Int, String, [UUID: URL], Set<UUID>) -> Bool
     @State private var effort = 0
@@ -95,15 +96,17 @@ struct WorkoutSummaryView: View {
     }
 
     static func projectedWorkoutStreak(
-        currentStreak: Int,
         completedWorkouts: [CompletedWorkout],
         completingAt: Date,
         calendar: Calendar = .current
     ) -> Int {
-        let alreadyTrainedToday = completedWorkouts.contains {
-            !$0.completedWorkingSets.isEmpty && calendar.isDate($0.completedAt, inSameDayAs: completingAt)
-        }
-        return alreadyTrainedToday ? currentStreak : max(currentStreak, 0) + 1
+        WorkoutHistoryCalendarData.workoutStreaks(
+            completedWorkoutDates: completedWorkouts
+                .filter { !$0.completedWorkingSets.isEmpty }
+                .map(\.completedAt) + [completingAt],
+            referenceDate: completingAt,
+            calendar: calendar
+        ).current
     }
 
     private var volumePRDetails: (current: Double, previous: Double, unit: UnitSystem)? {
@@ -310,7 +313,7 @@ struct WorkoutSummaryView: View {
 
                                 if !newlyUnlockedAchievements.isEmpty {
                                     VStack(alignment: .leading, spacing: 10) {
-                                        Text("Badge unlocked on saving")
+                                        Text("Badge earned when you save")
                                             .font(.headline.weight(.bold))
                                         ForEach(newlyUnlockedAchievements.prefix(3)) { unlock in
                                             achievementBadgeRow(
@@ -344,30 +347,7 @@ struct WorkoutSummaryView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Workout effort · Optional")
                                 .font(.title3.weight(.black))
-                            HStack(spacing: 8) {
-                                ForEach(1...5, id: \.self) { value in
-                                    Button {
-                                        effort = effort == value ? 0 : value
-                                        Haptics.light()
-                                    } label: {
-                                        VStack(spacing: 5) {
-                                            Text("\(value)")
-                                                .font(.headline.weight(.black))
-                                            Text(effortLabel(value))
-                                                .font(.system(size: 9, weight: .bold))
-                                                .lineLimit(1)
-                                        }
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 11)
-                                        .background(effort == value ? Color.liftBlue : Color.liftCard)
-                                        .foregroundStyle(effort == value ? Color.liftOnAccent : Color.liftMuted)
-                                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel("\(value) of 5, \(effortLabel(value))")
-                                    .accessibilityAddTraits(effort == value ? .isSelected : [])
-                                }
-                            }
+                            effortSelector
                         }
 
                         DisclosureGroup("Add a note · Optional", isExpanded: $showsNotes) {
@@ -457,11 +437,7 @@ struct WorkoutSummaryView: View {
             }
             .frame(maxWidth: .infinity)
 
-            HStack(spacing: 10) {
-                summaryMetric("Sets", "\(summary.totalSets)", "checkmark.circle.fill")
-                summaryMetric("Volume", formattedVolume(summary.totalVolume, unit: finishedUnit ?? appState.currentProfile.preferredUnit), "scalemass.fill")
-                summaryMetric("Duration", durationText(finishedDuration ?? activeDuration), "timer")
-            }
+            savedSummaryMetrics
 
             if completionHighlights.isEmpty && savedAchievementBadges.isEmpty {
                 Text("Session saved. Keep building toward your next milestone.")
@@ -512,7 +488,7 @@ struct WorkoutSummaryView: View {
                 showsAllAchievements.toggle()
             } label: {
                 Label(
-                    showsAllAchievements ? "Hide all achievements" : "View all achievements",
+                    showsAllAchievements ? "Hide achievements" : "View all achievements",
                     systemImage: showsAllAchievements ? "chevron.up" : "chevron.down"
                 )
                 .font(.subheadline.weight(.bold))
@@ -595,7 +571,7 @@ struct WorkoutSummaryView: View {
         projectedStrengthTierSummary: StrengthTierSummary
     ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Projected Rival Tiers", systemImage: "medal.fill")
+            Label("Rival tiers after saving", systemImage: "medal.fill")
                 .font(.headline.weight(.bold))
                 .foregroundStyle(Color.liftGold)
             ForEach(advancedStrengthLifts) { lift in
@@ -625,7 +601,7 @@ struct WorkoutSummaryView: View {
             Toggle("Share these PRs publicly", isOn: $sharePRs)
                 .font(.subheadline.weight(.bold))
                 .tint(Color.liftAccentText)
-            Text(sharePRs ? "\(selectedPRSetIDs.intersection(Set(prCandidates.map(\.setID))).count) selected · Submitted when you save. Video evidence is not verification." : "No PRs will be published from this workout.")
+            Text(sharePRs ? "\(selectedPRSetIDs.intersection(Set(prCandidates.map(\.setID))).count) selected · Submitted when you save. An attached video does not mean the lift has been reviewed." : "No PRs will be published from this workout.")
                 .font(.caption)
                 .foregroundStyle(Color.liftMuted)
 
@@ -804,7 +780,7 @@ struct WorkoutSummaryView: View {
     }
 
     private var exerciseReviewSection: some View {
-        DisclosureGroup("Review exercises & sets") {
+        DisclosureGroup(dynamicTypeSize.isAccessibilitySize ? "Review sets" : "Review exercises & sets") {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Tap an exercise to review or edit its sets.")
                     .font(.caption)
@@ -1011,6 +987,42 @@ struct WorkoutSummaryView: View {
         ["Easy", "Light", "Solid", "Hard", "Max"][value - 1]
     }
 
+    @ViewBuilder
+    private var effortSelector: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                ForEach(1...5, id: \.self) { value in effortButton(value) }
+            }
+        } else {
+            HStack(spacing: 8) {
+                ForEach(1...5, id: \.self) { value in effortButton(value) }
+            }
+        }
+    }
+
+    private func effortButton(_ value: Int) -> some View {
+        Button {
+            effort = effort == value ? 0 : value
+            Haptics.light()
+        } label: {
+            VStack(spacing: 5) {
+                Text("\(value)")
+                    .font(.headline.weight(.black))
+                Text(effortLabel(value))
+                    .font(.caption.weight(.bold))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 11)
+            .background(effort == value ? Color.liftBlue : Color.liftCard)
+            .foregroundStyle(effort == value ? Color.liftOnAccent : Color.liftMuted)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(value) of 5, \(effortLabel(value))")
+        .accessibilityAddTraits(effort == value ? .isSelected : [])
+    }
+
     private func summaryMetric(_ title: String, _ value: String, _ symbol: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Image(systemName: symbol)
@@ -1026,6 +1038,23 @@ struct WorkoutSummaryView: View {
         .padding(12)
         .background(Color.liftCard)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var savedSummaryMetrics: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: 10) {
+                summaryMetric("Sets", "\(summary.totalSets)", "checkmark.circle.fill")
+                summaryMetric("Volume", formattedVolume(summary.totalVolume, unit: finishedUnit ?? appState.currentProfile.preferredUnit), "scalemass.fill")
+                summaryMetric("Duration", durationText(finishedDuration ?? activeDuration), "timer")
+            }
+        } else {
+            HStack(spacing: 10) {
+                summaryMetric("Sets", "\(summary.totalSets)", "checkmark.circle.fill")
+                summaryMetric("Volume", formattedVolume(summary.totalVolume, unit: finishedUnit ?? appState.currentProfile.preferredUnit), "scalemass.fill")
+                summaryMetric("Duration", durationText(finishedDuration ?? activeDuration), "timer")
+            }
+        }
     }
 
     private func trackingKind(for set: WorkoutSetLog) -> ExerciseTrackingKind {

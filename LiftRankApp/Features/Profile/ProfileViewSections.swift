@@ -102,7 +102,6 @@ extension ProfileView {
                             summary(presentation: liftPresentation)
                                 .id(ProfileSection.overview.id)
                             ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: liftPresentation.lifts)
-                                .id(ProfileSection.prVideos.id)
                             athleteDetails(presentation: liftPresentation)
                                 .id(ProfileSection.training.id)
                             if isCurrentUser {
@@ -140,7 +139,13 @@ extension ProfileView {
                     .environmentObject(appState)
                     .presentationDetents([.large])
             }
+            .sheet(item: $selectedProfileLiftHistory) { destination in
+                TopLiftCardDetailSheet(destination: destination)
+                    .environmentObject(appState)
+                    .presentationDetents([.large])
+            }
             .navigationTitle(isCurrentUser ? "Personal profile" : (profile.username.isEmpty ? "Public profile" : profile.username))
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if isCurrentUser {
                     ToolbarItem(placement: .topBarLeading) {
@@ -200,7 +205,7 @@ extension ProfileView {
         .onChange(of: appState.authenticatedPrivacy) { _, _ in
             Task { await refreshVisibleProfileLifts() }
         }
-        .alert(submissionPendingDeletion?.requiresCoordinatedRemoval == true ? "Remove protected submission?" : "Permanently delete submission?", isPresented: Binding(
+        .alert(submissionPendingDeletion?.requiresCoordinatedRemoval == true ? "Remove submission and video?" : "Permanently delete submission?", isPresented: Binding(
             get: { submissionPendingDeletion != nil },
             set: { if !$0 { submissionPendingDeletion = nil } }
         ), presenting: submissionPendingDeletion) { lift in
@@ -212,7 +217,7 @@ extension ProfileView {
             }
         } message: { lift in
             if lift.requiresCoordinatedRemoval {
-                Text("Remove \(lift.exerciseName)? Its video, proof, moderation state, and ranking record will be cleaned together. This cannot be undone.")
+                Text("Remove \(lift.exerciseName)? This removes the lift, its video, and its ranking record. This cannot be undone.")
             } else {
                 Text("Delete \(lift.exerciseName)? This permanently removes the submission and cannot be undone.")
             }

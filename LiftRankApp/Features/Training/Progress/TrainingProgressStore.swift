@@ -321,6 +321,11 @@ final class TrainingProgressStore {
         repository.updateBodyweight(entry)
     }
 
+    func deleteBodyweight(id: UUID) {
+        resetAccountScopedEntriesIfNeeded()
+        repository.deleteBodyweight(id: id)
+    }
+
     private func resetAccountScopedEntriesIfNeeded() {
         guard cachedUserID != repository.currentProfile.id else { return }
         cachedUserID = repository.currentProfile.id
@@ -586,31 +591,13 @@ final class TrainingProgressStore {
             return cachedWorkoutStreak
         }
 
-        let completedDays = Set(
-            repository.completedWorkouts
+        let streak = WorkoutHistoryCalendarData.workoutStreaks(
+            completedWorkoutDates: repository.completedWorkouts
                 .filter { !$0.completedWorkingSets.isEmpty }
-                .map { calendar.startOfDay(for: $0.completedAt) }
-        )
-        let today = calendar.startOfDay(for: referenceDate)
-        let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
-
-        var cursor: Date
-        if completedDays.contains(today) {
-            cursor = today
-        } else if completedDays.contains(yesterday) {
-            cursor = yesterday
-        } else {
-            cachedWorkoutStreakSignature = signature
-            cachedWorkoutStreak = 0
-            return 0
-        }
-
-        var streak = 0
-        while completedDays.contains(cursor) {
-            streak += 1
-            guard let previousDay = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
-            cursor = previousDay
-        }
+                .map(\.completedAt),
+            referenceDate: referenceDate,
+            calendar: calendar
+        ).current
         cachedWorkoutStreakSignature = signature
         cachedWorkoutStreak = streak
         return streak
@@ -1031,7 +1018,8 @@ final class TrainingProgressStore {
         let maxVolume = nonZero.max() ?? 1
         let minVolume = nonZero.min() ?? 0
         let score = maxVolume == 0 ? 0 : Int((minVolume / maxVolume) * 100)
-        let weakest = volumes.min { $0.value < $1.value }?.key ?? "Core"
+        let minimumVolume = volumes.values.min() ?? 0
+        let weakest = categories.first { volumes[$0] == minimumVolume } ?? "Core"
         let label = score >= 75 ? "Balanced" : score >= 45 ? "Developing" : "Needs attention"
         return StrengthBalance(score: score, label: label, weakest: weakest, volumes: volumes)
     }

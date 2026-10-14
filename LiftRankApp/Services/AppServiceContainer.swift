@@ -132,7 +132,7 @@ struct AppServiceContainer {
             exercises: MockExerciseCatalogService()
             , lifts: MockLiftService(repository: repository), leaderboards: MockLeaderboardService(repository: repository),
             social: MockSocialService(repository: repository),
-            forum: MockForumService(),
+            forum: MockForumService(repository: repository),
             verification: MockVerificationService(repository: repository), media: MockMediaUploadService(), notifications: MockNotificationService(repository: repository),
             workoutSync: MockWorkoutSyncService(), analytics: MockAnalyticsService(), legalAcceptances: MockLegalAcceptanceService(), accountDeletion: MockAccountDeletionService()
         )
@@ -165,6 +165,10 @@ final class UnavailableLaunchService: LiftService, LeaderboardService, SocialSer
     func leave(communityID: UUID) async throws { throw error }
     func createPost(_ draft: ForumPostDraft) async throws -> ForumPost { throw error }
     func createComment(postID: UUID, body: String, parentCommentID: UUID?) async throws -> ForumComment { throw error }
+    func updatePost(postID: UUID, title: String, body: String) async throws -> ForumPost { throw error }
+    func updateComment(commentID: UUID, body: String) async throws -> ForumComment { throw error }
+    func deletePost(postID: UUID) async throws { throw error }
+    func deleteComment(commentID: UUID) async throws { throw error }
     func vote(postID: UUID, value: Int?) async throws { throw error }
     func vote(commentID: UUID, value: Int?) async throws { throw error }
     func watch(postID: UUID, watched: Bool) async throws { throw error }
@@ -211,6 +215,7 @@ final class UnavailableAccountDataService: ProfileService, GymService, GymMember
     func removeProfileAvatar(avatarPath: String?) async throws { throw error }
     func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry]) async throws -> [BodyweightEntry] { throw error }
     func saveBodyweightEntry(_ entry: BodyweightEntry) async throws { throw error }
+    func deleteBodyweightEntry(id: UUID) async throws { throw error }
 
     func gyms() async throws -> [Gym] { throw error }
     func memberships() async throws -> [GymMembershipRecord] { throw error }

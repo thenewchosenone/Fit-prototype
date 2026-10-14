@@ -48,6 +48,22 @@ final class ForumStore {
         try await service.createComment(postID: postID, body: body, parentCommentID: parentCommentID)
     }
 
+    func updatePost(postID: UUID, title: String, body: String) async throws -> ForumPost {
+        try await service.updatePost(postID: postID, title: title, body: body)
+    }
+
+    func updateComment(commentID: UUID, body: String) async throws -> ForumComment {
+        try await service.updateComment(commentID: commentID, body: body)
+    }
+
+    func deletePost(postID: UUID) async throws {
+        try await service.deletePost(postID: postID)
+    }
+
+    func deleteComment(commentID: UUID) async throws {
+        try await service.deleteComment(commentID: commentID)
+    }
+
     func vote(postID: UUID, value: Int?) async throws {
         try await service.vote(postID: postID, value: value)
     }

@@ -227,7 +227,10 @@ final class ExerciseLibraryStore {
         if let cachedSearchSections {
             return ExerciseLibraryPresentation(results: results, sections: cachedSearchSections)
         }
-        let sections = ExerciseLibrarySectioning.sections(for: results)
+        let cleanQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sections = cleanQuery.isEmpty
+            ? ExerciseLibrarySectioning.sections(for: results)
+            : (results.isEmpty ? [] : [ExerciseLibrarySection(letter: "Search results", results: results)])
         cachedSearchSections = sections
         return ExerciseLibraryPresentation(results: results, sections: sections)
     }
@@ -259,7 +262,7 @@ final class ExerciseLibraryStore {
                     exercise.resolvedMuscleProfile.secondary,
                     candidate.resolvedMuscleProfile.secondary
                 )
-                let movementMatch = exercise.movementPattern == candidate.movementPattern ? 1.0 : 0.0
+                let movementMatch = exercise.movementPattern == candidate.movementPattern && exercise.movementPattern != .other ? 1.0 : 0.0
                 let equipmentMatch = exercise.equipment == candidate.equipment ? 1.0 : 0.0
                 let trackingMatch = trackingCompatibility(base: exercise.trackingType, candidate: candidate.trackingType)
                 let rankingMatch = rankingCompatibility(base: exercise.rankingExerciseID, candidate: candidate.rankingExerciseID)
@@ -414,8 +417,8 @@ final class ExerciseLibraryStore {
             .intersection(candidate.resolvedMuscleProfile.secondary)
         if !primaryOverlap.isEmpty { reasons.append("same primary muscles") }
         if movementMatch { reasons.append("same \(base.movementPattern.rawValue.lowercased()) pattern") }
-        if equipmentMatch { reasons.append("same equipment") }
-        if trackingMatch { reasons.append("same tracking") }
+        if equipmentMatch { reasons.append("Equipment: \(candidate.equipment)") }
+        if trackingMatch { reasons.append("same logging method") }
         if rankingMatch { reasons.append("same ranking movement") }
         if !secondaryOverlap.isEmpty { reasons.append("similar assisting muscles") }
         if reasons.isEmpty && abs(base.difficulty.rawValue - candidate.difficulty.rawValue) <= 1 {

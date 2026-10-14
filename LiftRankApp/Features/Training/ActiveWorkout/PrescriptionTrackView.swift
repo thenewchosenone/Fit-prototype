@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PrescriptionTrackView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let exercise: WorkoutExerciseSnapshot
     let catalogExercise: TrainingExerciseCatalogItem
     @State private var restEndsAt: Date?
@@ -42,26 +43,45 @@ struct PrescriptionTrackView: View {
                     }
                     List {
                             VStack(alignment: .leading, spacing: 12) {
-                                HStack(spacing: 12) {
-                                    ExerciseCatalogIcon(exercise: catalogExercise)
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(exercise.exerciseName)
-                                            .font(.title3.weight(.black))
-                                        Text(targetSummary)
-                                            .font(.caption)
-                                            .foregroundStyle(Color.liftMuted)
+                                if dynamicTypeSize.isAccessibilitySize {
+                                    HStack(alignment: .center, spacing: 12) {
+                                        ExerciseCatalogIcon(exercise: catalogExercise)
+                                        Spacer(minLength: 0)
+                                        Text("\(progress.completedWorkingSets)/\(progress.plannedWorkingSets)")
+                                            .font(.headline.weight(.black).monospacedDigit())
+                                            .foregroundStyle(progress.isComplete ? Color.liftGreen : Color.liftAccentText)
                                     }
-                                    Spacer()
-                                    Text("\(progress.completedWorkingSets)/\(progress.plannedWorkingSets)")
-                                        .font(.headline.weight(.black).monospacedDigit())
-                                        .foregroundStyle(progress.isComplete ? Color.liftGreen : Color.liftAccentText)
+                                    Text(exercise.exerciseName)
+                                        .font(.title3.weight(.black))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    Text(targetSummary)
+                                        .font(.caption)
+                                        .foregroundStyle(Color.liftMuted)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                } else {
+                                    HStack(spacing: 12) {
+                                        ExerciseCatalogIcon(exercise: catalogExercise)
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(exercise.exerciseName)
+                                                .font(.title3.weight(.black))
+                                            Text(targetSummary)
+                                                .font(.caption)
+                                                .foregroundStyle(Color.liftMuted)
+                                        }
+                                        Spacer()
+                                        Text("\(progress.completedWorkingSets)/\(progress.plannedWorkingSets)")
+                                            .font(.headline.weight(.black).monospacedDigit())
+                                            .foregroundStyle(progress.isComplete ? Color.liftGreen : Color.liftAccentText)
+                                    }
                                 }
 
-                                HStack(spacing: 8) {
-                                    compactExerciseMetric(restMetric, "timer")
-                                    compactExerciseMetric(volumeMetric, "scalemass")
-                                    if let previousMetric {
-                                        compactExerciseMetric(previousMetric, "clock.arrow.circlepath")
+                                if !dynamicTypeSize.isAccessibilitySize {
+                                    HStack(spacing: 8) {
+                                        compactExerciseMetric(restMetric, "timer")
+                                        compactExerciseMetric(volumeMetric, "scalemass")
+                                        if let previousMetric {
+                                            compactExerciseMetric(previousMetric, "clock.arrow.circlepath")
+                                        }
                                     }
                                 }
                             }
@@ -163,6 +183,16 @@ struct PrescriptionTrackView: View {
                             }
                         }
                     }
+                    .toolbar {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button(keyboardActionTitle) {
+                                advanceKeyboardFocus(using: proxy)
+                            }
+                            .font(.headline.weight(.bold))
+                            .accessibilityIdentifier("workout.setInput.keyboardAction")
+                        }
+                    }
                 }
 
                 Button {
@@ -193,16 +223,6 @@ struct PrescriptionTrackView: View {
         } message: {
             Text(exerciseDescription(for: catalogExercise))
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button(keyboardActionTitle) {
-                    advanceKeyboardFocus()
-                }
-                .font(.headline.weight(.bold))
-                .accessibilityIdentifier("workout.setInput.keyboardAction")
-            }
-        }
         .onAppear {
             ensureTargetSetsExist()
             refreshActiveLogs()
@@ -225,14 +245,20 @@ struct PrescriptionTrackView: View {
         return WorkoutSetInputNavigator.next(after: focusedInput, in: activeLogs, trackingKind: trackingKind, alreadyOrdered: true) == nil ? "Done" : "Next"
     }
 
-    private func advanceKeyboardFocus() {
+    private func advanceKeyboardFocus(using proxy: ScrollViewProxy) {
         guard let focusedInput else { return }
         guard let nextInput = WorkoutSetInputNavigator.next(after: focusedInput, in: activeLogs, trackingKind: trackingKind, alreadyOrdered: true) else {
             self.focusedInput = nil
             Haptics.light()
             return
         }
-        self.focusedInput = nextInput
+        withAnimation(.easeInOut(duration: 0.25)) {
+            proxy.scrollTo(nextInput.logID, anchor: .center)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            guard self.focusedInput == focusedInput else { return }
+            self.focusedInput = nextInput
+        }
         Haptics.light()
     }
 
@@ -301,20 +327,23 @@ struct PrescriptionTrackView: View {
         return "\(guidance.summary)\n\nCues: \(guidance.cues.joined(separator: " • "))"
     }
 
+    @ViewBuilder
     private var setColumnHeader: some View {
-        HStack(spacing: 8) {
-            Text("SET").frame(width: 34)
-            Text("PREVIOUS").frame(maxWidth: .infinity)
-            Text(trackingKind.repsHeader).frame(width: 64)
-            if trackingKind.requiresWeight {
-                Text(weightHeader).frame(width: 72)
+        if !dynamicTypeSize.isAccessibilitySize {
+            HStack(spacing: 8) {
+                Text("SET").frame(width: 34)
+                Text("PREVIOUS").frame(maxWidth: .infinity)
+                Text(trackingKind.repsHeader).frame(width: 64)
+                if trackingKind.requiresWeight {
+                    Text(weightHeader).frame(width: 72)
+                }
+                Color.clear.frame(width: 38, height: 1)
             }
-            Color.clear.frame(width: 38, height: 1)
+            .font(.caption2.weight(.black))
+            .tracking(0.7)
+            .foregroundStyle(Color.liftMuted)
+            .padding(.horizontal, 10)
         }
-        .font(.caption2.weight(.black))
-        .tracking(0.7)
-        .foregroundStyle(Color.liftMuted)
-        .padding(.horizontal, 10)
     }
 
     private var weightHeader: String {

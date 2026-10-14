@@ -18,4 +18,9 @@ extension DemoRepository {
         scheduleWorkoutSnapshotPersistence()
     }
 
+    func deleteBodyweight(id: UUID) {
+        bodyweightEntries.removeAll { $0.id == id }
+        scheduleWorkoutSnapshotPersistence()
+    }
+
 }

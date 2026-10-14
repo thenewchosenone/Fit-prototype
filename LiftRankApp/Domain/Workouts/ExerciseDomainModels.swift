@@ -456,6 +456,9 @@ enum ExerciseMuscleProfileResolver {
         if movement.contains("dip") {
             return profile(primary: [.chest, .triceps], secondary: [.frontDelts], orientation: .split)
         }
+        if movement.contains("rear delt") || movement.contains("reverse pec deck") || movement.contains("face pull") {
+            return profile(primary: [.rearDelts], secondary: [.upperBack, .traps], orientation: .back)
+        }
         if movement.contains("fly") || movement.contains("pec deck") {
             let primary: [ExerciseMuscleRegion] = movement.contains("incline") ? [.upperChest] : [.chest]
             return profile(primary: primary, secondary: [.frontDelts], orientation: .front)
@@ -469,9 +472,6 @@ enum ExerciseMuscleProfileResolver {
         }
         if movement.contains("lateral raise") {
             return profile(primary: [.sideDelts], secondary: [.traps], orientation: .split)
-        }
-        if movement.contains("rear delt") || movement.contains("reverse pec deck") || movement.contains("face pull") {
-            return profile(primary: [.rearDelts], secondary: [.upperBack, .traps], orientation: .back)
         }
         if movement.contains("upright row") {
             return profile(primary: [.sideDelts, .traps], secondary: [.biceps], orientation: .split)

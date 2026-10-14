@@ -22,7 +22,7 @@ struct ExerciseCatalogIcon: View {
                 }
 
             VStack(spacing: 2) {
-                Image(systemName: iconGroup.symbol)
+                Image(systemName: exercise.symbolName)
                     .font(.system(size: 23, weight: .semibold))
                     .frame(height: 27)
                 Text(iconGroup.rawValue)

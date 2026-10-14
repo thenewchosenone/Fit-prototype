@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ExerciseLibraryDetailView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let exercise: TrainingExerciseCatalogItem
     @State private var selectedTab: ExerciseDetailTab = .about
     @State private var chartMetric: ExerciseChartMetric = .estimatedMax
@@ -40,49 +41,21 @@ struct ExerciseLibraryDetailView: View {
         AppBackground {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if let repDBImageURL {
-                        VStack(alignment: .leading, spacing: 6) {
-                            AsyncImage(url: repDBImageURL) { phase in
-                                if let image = phase.image {
-                                    image
-                                        .resizable()
-                                        .scaledToFit()
-                                } else if phase.error != nil {
-                                    ExerciseCatalogIcon(exercise: exercise)
-                                } else {
-                                    ProgressView()
-                                        .frame(maxWidth: .infinity, minHeight: 180)
-                                }
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 180, maxHeight: 240)
-                            .background(Color.liftCard)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            Link(RepDBExerciseMedia.attribution, destination: URL(string: "https://repdb.co")!)
-                                .font(.caption2)
-                                .foregroundStyle(Color.liftMuted)
-                        }
+                    if dynamicTypeSize.isAccessibilitySize {
+                        Text(exercise.name)
+                            .font(.title2.weight(.bold))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    VStack(alignment: .leading, spacing: 10) {
-                        ExerciseMuscleMap(profile: splitProfile, displayStyle: .hero)
-                            .frame(height: 230)
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel(anatomyAccessibilityLabel)
-                        Text("Muscles worked")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
-                    }
-                    .padding(14)
-                    .liftSurface()
-
                     detailTabs
+                    if selectedTab == .about { exerciseMedia }
                     selectedTabContent
                 }
                 .padding(16)
-                .padding(.bottom, 24)
+                .padding(.bottom, 140)
             }
             .scrollIndicators(.hidden)
         }
-        .navigationTitle(exercise.name)
+        .navigationTitle(dynamicTypeSize.isAccessibilitySize ? "Exercise" : exercise.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .sheet(item: $selectedWorkout) { workout in
@@ -92,24 +65,76 @@ struct ExerciseLibraryDetailView: View {
         }
     }
 
-    private var detailTabs: some View {
-        HStack(spacing: 4) {
-            ForEach(ExerciseDetailTab.allCases) { tab in
-                Button(tab.rawValue) {
-                    withAnimation(.easeInOut(duration: 0.18)) { selectedTab = tab }
+    private var exerciseMedia: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Muscles worked")
+                .font(.headline)
+            if let repDBImageURL {
+                VStack(alignment: .leading, spacing: 6) {
+                    AsyncImage(url: repDBImageURL) { phase in
+                        if let image = phase.image {
+                            image.resizable().scaledToFit()
+                        } else if phase.error != nil {
+                            ExerciseCatalogIcon(exercise: exercise)
+                        } else {
+                            ProgressView().frame(maxWidth: .infinity, minHeight: 180)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 180, maxHeight: 240)
+                    .background(Color.liftCard)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    Link(RepDBExerciseMedia.attribution, destination: URL(string: "https://repdb.co")!)
+                        .font(.caption2)
+                        .foregroundStyle(Color.liftMuted)
                 }
-                .font(.subheadline.weight(selectedTab == tab ? .bold : .medium))
-                .foregroundStyle(selectedTab == tab ? Color.liftText : Color.liftMuted)
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .background(selectedTab == tab ? Color.liftCardRaised : Color.clear)
-                .clipShape(Capsule())
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                ExerciseMuscleMap(profile: splitProfile, displayStyle: .hero)
+                    .frame(height: 230)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(anatomyAccessibilityLabel)
+                muscleChipGroup("Primary", regions: profile.primary, color: Color.liftBlue)
+                if !profile.secondary.isEmpty {
+                    muscleChipGroup("Secondary", regions: profile.secondary, color: Color.liftGreen)
+                }
+            }
+            .padding(14)
+            .liftSurface()
+        }
+    }
+
+    private var detailTabs: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+                    ForEach(ExerciseDetailTab.allCases) { tab in
+                        detailTabButton(tab)
+                    }
+                }
+            } else {
+                HStack(spacing: 4) {
+                    ForEach(ExerciseDetailTab.allCases) { tab in
+                        detailTabButton(tab)
+                    }
+                }
             }
         }
         .padding(4)
         .background(Color.liftCard)
+        .clipShape(RoundedRectangle(cornerRadius: dynamicTypeSize.isAccessibilitySize ? 18 : 40, style: .continuous))
+    }
+
+    private func detailTabButton(_ tab: ExerciseDetailTab) -> some View {
+        Button(tab.rawValue) {
+            withAnimation(.easeInOut(duration: 0.18)) { selectedTab = tab }
+        }
+        .font(.subheadline.weight(selectedTab == tab ? .bold : .medium))
+        .foregroundStyle(selectedTab == tab ? Color.liftText : Color.liftMuted)
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .background(selectedTab == tab ? Color.liftCardRaised : Color.clear)
         .clipShape(Capsule())
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
     }
 
     @ViewBuilder
@@ -124,13 +149,6 @@ struct ExerciseLibraryDetailView: View {
 
     private var aboutTab: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 10) {
-                compactFact("Muscle group", profile.primaryDescription, symbol: "figure.arms.open")
-                compactFact("Equipment", exercise.equipment, symbol: "dumbbell.fill")
-            }
-
-            musclesWorkedSection
-
             if let guidance = exercise.guidance {
                 VStack(alignment: .leading, spacing: 14) {
                     Text(guidance.summary)
@@ -163,7 +181,7 @@ struct ExerciseLibraryDetailView: View {
             } else {
                 LiftCard {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Technique guidance in review")
+                        Text("Technique guide unavailable")
                             .font(.headline)
                         Text("Use the anatomy, movement details, and your coach’s guidance for this exercise.")
                             .font(.subheadline)
@@ -172,21 +190,26 @@ struct ExerciseLibraryDetailView: View {
                 }
             }
 
-            VStack(spacing: 0) {
-                detailRow("Movement", exercise.movementType)
-                Divider().overlay(Color.liftSeparator)
-                detailRow("Pattern", exercise.movementPattern.rawValue)
-                Divider().overlay(Color.liftSeparator)
-                detailRow("Difficulty", exercise.difficulty.title)
-                Divider().overlay(Color.liftSeparator)
-                detailRow("Tracking", exercise.trackingType)
-                Divider().overlay(Color.liftSeparator)
-                detailRow("Ranking", exercise.rankingEligibilityLabel)
-                Divider().overlay(Color.liftSeparator)
-                detailRow("Default", "\(exercise.defaultSets) sets × \(exercise.defaultReps)")
+            DisclosureGroup("Exercise details") {
+                VStack(spacing: 0) {
+                    detailRow("Pattern", exercise.movementPattern.rawValue)
+                    Divider().overlay(Color.liftSeparator)
+                    detailRow("Equipment", exercise.equipment)
+                    Divider().overlay(Color.liftSeparator)
+                    detailRow("Difficulty", exercise.difficulty.title)
+                    Divider().overlay(Color.liftSeparator)
+                    detailRow("Tracking", exercise.trackingType)
+                    Divider().overlay(Color.liftSeparator)
+                    detailRow("Ranking", exercise.rankingEligibilityLabel)
+                    Divider().overlay(Color.liftSeparator)
+                    detailRow("Suggested sets and reps", "\(exercise.defaultSets) sets × \(exercise.defaultReps)")
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 4)
+                .liftSurface()
             }
-            .padding(.horizontal, 14)
-            .liftSurface()
+            .font(.headline)
+            .tint(Color.liftAccentText)
 
             if !substitutes.isEmpty { substitutesSection }
         }
@@ -346,24 +369,20 @@ struct ExerciseLibraryDetailView: View {
         switch chartMetric {
         case .estimatedMax: return displayWeight(entry.estimatedOneRepMaxKilograms ?? 0)
         case .volume: return displayWeight(entry.sessionVolumeKilograms)
-        case .heaviest: return displayWeight(entry.bestWeightKilograms ?? 0)
+        case .heaviest: return displayWeight(heaviestWeight(in: entry) ?? 0)
         }
     }
 
     private func chartDisplayValue(_ entry: ExerciseHistoryEntry) -> String {
         guard trackingKind == .weightReps else { return repOrDurationText(entry.bestRepetitions) }
-        return chartMetric == .volume ? volumeText(entry.sessionVolumeKilograms) : weightText(chartMetric == .estimatedMax ? entry.estimatedOneRepMaxKilograms : entry.bestWeightKilograms)
+        return chartMetric == .volume ? volumeText(entry.sessionVolumeKilograms) : weightText(chartMetric == .estimatedMax ? entry.estimatedOneRepMaxKilograms : heaviestWeight(in: entry))
     }
 
-    private func compactFact(_ title: String, _ value: String, symbol: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: symbol).foregroundStyle(Color.liftAccentText)
-            Text(title).font(.caption).foregroundStyle(Color.liftMuted)
-            Text(value).font(.subheadline.weight(.bold)).lineLimit(2)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
-        .liftSurface()
+    private func heaviestWeight(in entry: ExerciseHistoryEntry) -> Double? {
+        entry.sets.compactMap { set -> Double? in
+            guard let weight = set.weight, weight > 0 else { return nil }
+            return set.recordedUnit == .kilograms ? weight : RankingCalculator.poundsToKilograms(weight)
+        }.max()
     }
 
     private var substitutesSection: some View {
@@ -443,22 +462,7 @@ struct ExerciseLibraryDetailView: View {
     private var recordsFootnote: String {
         trackingKind == .weightReps
             ? "Records use completed working sets only. Estimated 1RM is informational and is not a recommendation to attempt that weight."
-            : "Records use completed working sets only. Time-based exercises store duration in seconds."
-    }
-
-    private var musclesWorkedSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Muscles worked")
-                .font(.headline)
-            muscleChipGroup("Primary", regions: profile.primary, color: Color.liftBlue)
-            if !profile.secondary.isEmpty {
-                muscleChipGroup("Secondary", regions: profile.secondary, color: Color.liftGreen)
-            }
-        }
-        .padding(14)
-        .liftSurface()
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(anatomyAccessibilityLabel)
+            : "Records use completed working sets only. For timed exercises, duration is shown as minutes and seconds."
     }
 
     private func muscleChipGroup(_ title: String, regions: [ExerciseMuscleRegion], color: Color) -> some View {

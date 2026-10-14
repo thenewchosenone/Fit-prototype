@@ -163,6 +163,7 @@ protocol TrainingProgressRepository: AnyObject {
     var injuryEntries: [InjuryEntry] { get }
 
     func updateBodyweight(_ entry: BodyweightEntry)
+    func deleteBodyweight(id: UUID)
     func clearTrainingHealthEntries()
 }
 

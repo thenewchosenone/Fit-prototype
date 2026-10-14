@@ -1093,15 +1093,36 @@ final class BackendFoundationTests: XCTestCase {
         ))
 
         let deadline = Date().addingTimeInterval(1)
-        while service.updateProfileCount == 0 && Date() < deadline {
+        while service.savedBodyweightEntries.isEmpty && Date() < deadline {
             try await Task.sleep(nanoseconds: 20_000_000)
         }
 
         XCTAssertEqual(appState.currentProfile.bodyweightPounds, 211)
         XCTAssertEqual(appState.bodyweightEntries.last?.actual, 211)
         XCTAssertEqual(service.profile.bodyweightPounds, 211)
-        XCTAssertEqual(service.updateProfileCount, 1)
+        XCTAssertEqual(service.updateProfileCount, 0)
         XCTAssertEqual(service.savedBodyweightEntries.last?.actual, 211)
+
+        let savedEntry = try XCTUnwrap(service.savedBodyweightEntries.last)
+        service.bodyweightDeleteError = LiftRankServiceError.server("Bodyweight delete unavailable")
+        appState.deleteBodyweight(savedEntry)
+        let failureDeadline = Date().addingTimeInterval(1)
+        while appState.accountMessage == nil && Date() < failureDeadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertTrue(appState.bodyweightEntries.contains(where: { $0.id == savedEntry.id }))
+        XCTAssertTrue(service.deletedBodyweightIDs.isEmpty)
+
+        service.bodyweightDeleteError = nil
+        appState.deleteBodyweight(savedEntry)
+        let deleteDeadline = Date().addingTimeInterval(1)
+        while service.deletedBodyweightIDs.isEmpty && Date() < deleteDeadline {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertEqual(service.deletedBodyweightIDs, [savedEntry.id])
+        XCTAssertFalse(appState.bodyweightEntries.contains(where: { $0.id == savedEntry.id }))
+        XCTAssertEqual(appState.currentProfile.bodyweightPounds, 0)
+        XCTAssertEqual(service.profile.bodyweightPounds, 0)
     }
 
     func testBodyweightHistorySyncFailureDoesNotSignOutAuthenticatedAccount() async {
@@ -1296,7 +1317,7 @@ final class BackendFoundationTests: XCTestCase {
         ))
 
         let deadline = Date().addingTimeInterval(1)
-        while service.updateProfileCount == 0 && Date() < deadline {
+        while service.savedBodyweightEntries.isEmpty && Date() < deadline {
             try await Task.sleep(nanoseconds: 20_000_000)
         }
 
@@ -2358,15 +2379,26 @@ final class BackendFoundationTests: XCTestCase {
 
     func testWorkoutSyncPreservesAConflictCopy() async throws {
         let service = MockWorkoutSyncService()
+        let plan = WorkoutPlan(id: UUID(), name: "Strength", createdAt: .now)
+        let payload = WorkoutPlanSyncPayload(
+            plan: plan,
+            phases: [],
+            weeks: [],
+            sessions: [],
+            prescriptions: [],
+            progression: nil
+        )
         let original = WorkoutPlanDocument(
             id: UUID(), ownerID: session.userID, revision: 0, name: "Strength",
-            payload: Data("first".utf8), updatedAt: .now
+            payload: try JSONEncoder().encode(payload), updatedAt: .now
         )
         guard case let .saved(saved) = try await service.savePlan(original, expectedRevision: 0) else {
             return XCTFail("Expected initial save")
         }
         var stale = original
-        stale.payload = Data("stale edit".utf8)
+        var stalePayload = payload
+        stalePayload.plan.notes = "Stale edit"
+        stale.payload = try JSONEncoder().encode(stalePayload)
         guard case let .conflict(server, localCopy) = try await service.savePlan(stale, expectedRevision: 0) else {
             return XCTFail("Expected a conflict")
         }
@@ -2402,9 +2434,10 @@ final class BackendFoundationTests: XCTestCase {
     }
 
     @MainActor
-    func testWorkoutSyncStoreSurfacesNeedsAttentionAfterUploadFailure() async {
+    func testWorkoutSyncStoreSurfacesNeedsAttentionAfterUploadFailure() async throws {
         let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
-        let store = WorkoutSyncStore(repository: repository, service: FailingCompletedWorkoutSyncService())
+        let service = FailingCompletedWorkoutSyncService()
+        let store = WorkoutSyncStore(repository: repository, service: service)
         let snapshot = CompletedWorkoutSnapshot(
             id: UUID(),
             ownerID: repository.currentProfile.id,
@@ -2417,6 +2450,14 @@ final class BackendFoundationTests: XCTestCase {
 
         XCTAssertEqual(store.historySyncState, .needsAttention)
         XCTAssertEqual(store.pendingCompletedWorkoutUploads.map(\.id), [snapshot.id])
+
+        service.shouldFailUploads = false
+        await store.synchronizeCompletedWorkoutHistory()
+
+        XCTAssertEqual(store.historySyncState, .synced)
+        XCTAssertTrue(store.pendingCompletedWorkoutUploads.isEmpty)
+        let uploadedWorkoutIDs = try await service.completedWorkouts(since: nil).map(\.id)
+        XCTAssertEqual(uploadedWorkoutIDs, [snapshot.id])
     }
 
     @MainActor
@@ -3065,17 +3106,24 @@ private final class GatedCompletedWorkoutUploadService: WorkoutSyncService {
 }
 
 @MainActor
-private struct FailingCompletedWorkoutSyncService: WorkoutSyncService {
+private final class FailingCompletedWorkoutSyncService: WorkoutSyncService {
+    var shouldFailUploads = true
+    private var snapshots: [CompletedWorkoutSnapshot] = []
+
     func plans() async throws -> [WorkoutPlanDocument] { [] }
     func savePlan(_ document: WorkoutPlanDocument, expectedRevision: Int) async throws -> WorkoutSyncResult {
         throw LiftRankServiceError.configurationMissing
     }
     func deletePlan(id: UUID) async throws {}
-    func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot] { [] }
-    func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws {
-        throw LiftRankServiceError.server("Sync failed")
+    func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot] {
+        snapshots.filter { since == nil || $0.completedAt > since! }
     }
-    func deleteCompletedWorkout(id: UUID) async throws {}
+    func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws {
+        if shouldFailUploads { throw LiftRankServiceError.server("Sync failed") }
+        snapshots.removeAll { $0.id == snapshot.id }
+        snapshots.append(snapshot)
+    }
+    func deleteCompletedWorkout(id: UUID) async throws { snapshots.removeAll { $0.id == id } }
 }
 
 @MainActor
@@ -3225,6 +3273,8 @@ private final class TestProfileService: ProfileService {
     private(set) var savedBodyweightEntries: [BodyweightEntry] = []
     var bodyweightSyncError: Error?
     var bodyweightSaveError: Error?
+    var bodyweightDeleteError: Error?
+    private(set) var deletedBodyweightIDs: [UUID] = []
     var holdBodyweightSave = false
     private(set) var bodyweightSaveStarted = false
     private var bodyweightSaveRelease: CheckedContinuation<Void, Never>?
@@ -3353,9 +3403,20 @@ private final class TestProfileService: ProfileService {
         if let bodyweightSaveError { throw bodyweightSaveError }
         savedBodyweightEntries.removeAll { $0.id == entry.id }
         savedBodyweightEntries.append(entry)
-        if let actual = entry.actual, actual > 0 {
+        if let latest = savedBodyweightEntries
+            .filter({ ($0.actual ?? 0) > 0 })
+            .max(by: { $0.targetDate < $1.targetDate }),
+           let actual = latest.actual {
             profile.bodyweightPounds = actual
         }
+    }
+    func deleteBodyweightEntry(id: UUID) async throws {
+        if let bodyweightDeleteError { throw bodyweightDeleteError }
+        deletedBodyweightIDs.append(id)
+        savedBodyweightEntries.removeAll { $0.id == id }
+        profile.bodyweightPounds = savedBodyweightEntries
+            .filter { ($0.actual ?? 0) > 0 }
+            .max(by: { $0.targetDate < $1.targetDate })?.actual ?? 0
     }
     func saveTrainingGoals(_ goalIDs: [String]) async throws {}
     func releaseBodyweightSave() {

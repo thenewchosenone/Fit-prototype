@@ -47,7 +47,7 @@ struct OnboardingView: View {
     private var goalOptions: [(id: String, title: String, symbol: String, subtitle: String)] {
         let base = [
             ("get_stronger", "Get stronger", "bolt.fill", "Build measurable strength"),
-            ("compete_locally", "Compete locally", "medal.fill", "Prepare for the platform"),
+            ("compete_locally", "Compete locally", "medal.fill", "Compare with nearby lifters"),
             ("track_personal_records", "Track personal records", "chart.line.uptrend.xyaxis", "See progress over time"),
             ("compare_weight_class", "Compare with my weight class", "person.2.fill", "Rank against similar lifters"),
             ("prepare_powerlifting", "Prepare for powerlifting", "figure.strengthtraining.traditional", "Train the competition lifts")
@@ -135,7 +135,6 @@ struct OnboardingView: View {
             }
         }
         .interactiveDismissDisabled()
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .onAppear {
             profile = appState.currentProfile
             profile.username = AppleIdentityStore.usernameSuggestion(from: appState.pendingAppleFullName) ?? ""
@@ -290,17 +289,17 @@ struct OnboardingView: View {
                         .foregroundStyle(Color.liftAccentText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.65)
-                    Text("Turn every lift into a ranking.")
+                    Text("Track your lifts. See your progress.")
                         .font(.system(size: 40, weight: .black, design: .rounded))
                         .fixedSize(horizontal: false, vertical: true)
-                    Text("Track your best lifts, compare with lifters like you, and see exactly what to improve next.")
+                    Text("Track your best lifts, compare with lifters like you, and follow your progress over time.")
                         .font(.title3)
                         .foregroundStyle(Color.liftMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 HStack(spacing: 10) {
-                    onboardingStat("bolt.fill", "Strength score")
+                    onboardingStat("bolt.fill", "Strength progress")
                     onboardingStat("trophy.fill", "Real rankings")
                     onboardingStat("chart.bar.fill", "Clear progress")
                 }
@@ -681,8 +680,8 @@ struct OnboardingView: View {
 
                 profileSection("Location") {
                     locationPickerRow("Country", value: selectedCountry?.name ?? "Select country", symbol: "globe.americas.fill", picker: .country)
-                    locationPickerRow("State / province", value: selectedCountry == nil ? "Choose country first" : (selectedRegionName.isEmpty ? "Select state" : selectedRegionName), symbol: "map.fill", picker: .region, disabled: selectedCountry == nil)
-                    locationPickerRow("City", value: selectedRegion == nil ? "Choose state first" : (selectedCity.isEmpty ? "Select city" : selectedCity), symbol: "mappin.and.ellipse", picker: .city, disabled: selectedRegion == nil)
+                    locationPickerRow("State / province", value: selectedCountry == nil ? "Choose country first" : (selectedRegionName.isEmpty ? "Select state or province" : selectedRegionName), symbol: "map.fill", picker: .region, disabled: selectedCountry == nil)
+                    locationPickerRow("City", value: selectedRegion == nil ? "Choose state or province first" : (selectedCity.isEmpty ? "Select city" : selectedCity), symbol: "mappin.and.ellipse", picker: .city, disabled: selectedRegion == nil)
                     labeledPicker("Primary gym (optional)", symbol: "building.2.fill") {
                         if selectedCity.isEmpty {
                             Text("Choose your city first")
@@ -784,7 +783,7 @@ struct OnboardingView: View {
                     }
                 case .region:
                     Picker("State or province", selection: $selectedRegionName) {
-                        Text("Select state").tag("")
+                        Text("Select state or province").tag("")
                         ForEach(selectedCountry?.regions ?? []) { Text($0.name).tag($0.name) }
                     }
                     .pickerStyle(.wheel)
@@ -855,7 +854,7 @@ struct OnboardingView: View {
                     Text("City")
                         .foregroundStyle(Color.liftMuted)
                     Spacer()
-                    Text("Choose state first")
+                    Text("Choose state or province first")
                         .font(.subheadline)
                         .foregroundStyle(Color.liftMuted)
                 } else {
@@ -1010,9 +1009,9 @@ struct OnboardingView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 screenHeader(
-                    eyebrow: "FIRST RANK",
+                    eyebrow: "STARTING LIFTS",
                     title: "What are your best lifts?",
-                    subtitle: "Enter a current one-rep max. Leave anything blank if you don’t know it yet."
+                    subtitle: "Enter the most weight you can lift once (your one-rep max, or 1RM). Leave a lift blank if you don’t know it yet."
                 )
 
                 recordField("Bench press", text: $bench, badge: "BP", tint: .liftAccentText)
@@ -1023,7 +1022,7 @@ struct OnboardingView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "lock.shield.fill")
                         .foregroundStyle(Color.liftAccentText)
-                    Text("These starting numbers are private until you choose to share or verify a lift.")
+                    Text("These starting lifts stay private. Submit a lift later to share it and check ranking eligibility.")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
@@ -1051,7 +1050,7 @@ struct OnboardingView: View {
                     Text("You’re ready to compete.")
                         .font(.system(size: 34, weight: .black, design: .rounded))
                         .multilineTextAlignment(.center)
-                    Text("This is your starting point. Every verified lift can move you up.")
+                    Text("This is your starting point. Submit eligible public lifts to join the leaderboards.")
                         .foregroundStyle(Color.liftMuted)
                         .multilineTextAlignment(.center)
                 }
@@ -1073,7 +1072,7 @@ struct OnboardingView: View {
                         VStack(spacing: 2) {
                             Text("\(Int(appState.overallScore))")
                                 .font(.system(size: 58, weight: .black, design: .rounded))
-                            Text("STRENGTH SCORE")
+                            Text("STARTING STRENGTH")
                                 .font(.caption2.weight(.bold))
                                 .tracking(1)
                                 .foregroundStyle(Color.liftMuted)
@@ -1137,10 +1136,10 @@ struct OnboardingView: View {
     private var onboardingComparisonCard: some View {
         LiftCard {
             VStack(alignment: .leading, spacing: 14) {
-                Label("Unverified starting comparison", systemImage: "chart.bar.xaxis")
+                Label("Estimated starting comparison", systemImage: "chart.bar.xaxis")
                     .font(.headline.weight(.bold))
                     .foregroundStyle(Color.liftAccentText)
-                Text("Estimated standing from your starting lifts. These numbers do not affect official rankings until your lifts are verified.")
+                Text("This comparison uses your private starting lifts. It does not give you a leaderboard rank. Submit eligible public lifts to compete.")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
 
@@ -1419,7 +1418,7 @@ struct OnboardingView: View {
 
     private var nextButtonTitle: String {
         switch step {
-        case 0: return "Build My Lift Rivals"
+        case 0: return "Get started"
         case 1: return "Continue"
         case 2: return "Continue"
         case 3: return "Continue"

@@ -9,6 +9,7 @@ enum WorkoutProgramCatalog {
         bodybuildingPushPullLegs,
         beginnerPowerlifting,
         intermediatePowerlifting,
+        advancedPowerlifting,
         cablesOnlyFoundation,
         freeWeightsOnlyFoundation
     ]
@@ -60,6 +61,38 @@ enum WorkoutProgramCatalog {
         }
     }
 
+    static func percentage(for week: Int, exerciseID: String, templateID: String, sessionIndex: Int) -> Double {
+        if templateID == "intermediate_powerlifting_12" {
+            let techniqueDay = (exerciseID == "barbell_bench_press" && sessionIndex == 1) ||
+                (exerciseID == "conventional_deadlift" && sessionIndex == 3)
+            let volumeDay = (exerciseID == "back_squat" && sessionIndex == 2) ||
+                (exerciseID == "barbell_bench_press" && sessionIndex == 0)
+            let base = percentage(for: week, exerciseID: exerciseID)
+            return max(0.50, base - (techniqueDay ? 0.15 : volumeDay ? 0.10 : 0))
+        }
+        guard templateID == "advanced_powerlifting_peak_12" else {
+            return percentage(for: week, exerciseID: exerciseID)
+        }
+
+        let index = max(0, min(11, week - 1))
+        let base: Double
+        let sessionOffset: Double
+        switch exerciseID {
+        case "back_squat":
+            base = [0.775, 0.80, 0.825, 0.65, 0.825, 0.85, 0.875, 0.675, 0.90, 0.95, 1.0, 0.65][index]
+            sessionOffset = sessionIndex == 0 ? 0.10 : 0
+        case "barbell_bench_press":
+            base = [0.80, 0.825, 0.85, 0.675, 0.85, 0.875, 0.90, 0.70, 0.925, 0.975, 1.0, 0.675][index]
+            sessionOffset = sessionIndex == 0 ? 0.10 : sessionIndex == 3 ? 0.15 : 0
+        case "conventional_deadlift":
+            base = [0.75, 0.775, 0.80, 0.625, 0.80, 0.825, 0.85, 0.65, 0.875, 0.925, 0.975, 0.625][index]
+            sessionOffset = sessionIndex == 1 ? 0.15 : 0
+        default:
+            return percentage(for: week, exerciseID: exerciseID)
+        }
+        return max(0.50, base - sessionOffset)
+    }
+
     static func phaseSummary(for template: WorkoutProgramTemplate) -> [String] {
         switch template.id {
         case "three_month_foundation_shape_12":
@@ -85,6 +118,15 @@ enum WorkoutProgramCatalog {
                 "Weeks 9–11 · Peak practice",
                 "Week 12 · Recovery and performance check"
             ]
+        case "advanced_powerlifting_peak_12":
+            return [
+                "Weeks 1–3 · Competition-lift base",
+                "Week 4 · Deload",
+                "Weeks 5–7 · Strength intensification",
+                "Week 8 · Deload",
+                "Weeks 9–11 · Heavy practice",
+                "Week 12 · Recovery"
+            ]
         default:
             return [
                 "Weeks 1–3 · Foundation",
@@ -104,6 +146,26 @@ enum WorkoutProgramCatalog {
         exerciseIndex: Int,
         week: Int
     ) -> WorkoutProgramExerciseTemplate {
+        if templateID == "advanced_powerlifting_peak_12" {
+            var adjusted = template
+            let isPrimaryIntensityLift =
+                (sessionIndex == 2 && template.exerciseID == "back_squat") ||
+                (sessionIndex == 1 && template.exerciseID == "barbell_bench_press") ||
+                (sessionIndex == 3 && template.exerciseID == "conventional_deadlift")
+            if isPrimaryIntensityLift {
+                adjusted.sets = week == 11 ? 2 : week >= 9 && week <= 10 ? 3 : 4
+                adjusted.reps = switch week {
+                case 1...3: "4-5"
+                case 4: "3"
+                case 5...7: "3-4"
+                case 8: "2-3"
+                case 9...10: "2"
+                case 11: "1"
+                default: "3"
+                }
+            }
+            return adjusted
+        }
         if templateID == "three_month_foundation_shape_12" {
             var adjusted = template
             let month = min(2, max(0, (week - 1) / 4))
@@ -137,6 +199,9 @@ enum WorkoutProgramCatalog {
     ) -> Int {
         if templateID == "three_month_foundation_shape_12" { return baseSets }
         guard templateID == "bodybuilding_transformation_intermediate_advanced_12" else {
+            if (9...11).contains(week) {
+                return max(1, Int((Double(baseSets) * volumeMultiplier(for: week)).rounded(.down)))
+            }
             return max(1, Int((Double(baseSets) * volumeMultiplier(for: week)).rounded()))
         }
         if week <= 2 || week == 6 { return 1 }
@@ -417,6 +482,44 @@ enum WorkoutProgramCatalog {
         requiredTrainingMaxExerciseIDs: ["back_squat", "barbell_bench_press", "conventional_deadlift"]
     )
 
+    private static let advancedPowerlifting = WorkoutProgramTemplate(
+        id: "advanced_powerlifting_peak_12",
+        version: 1,
+        name: "Advanced Powerlifting Peak",
+        summary: "A four-day, 12-week competition-lift cycle with distinct volume, technique, and heavy-practice sessions. Uses conservative training maxes and does not prescribe max attempts.",
+        category: .powerlifting,
+        level: .advanced,
+        daysPerWeek: 4,
+        defaultProgression: .percentage,
+        sessions: [
+            .init(dayIndex: 2, name: "Squat + Bench Volume", exercises: [
+                exercise("back_squat", 4, "5-6", 210, "Keep 2-3 reps in reserve; use this lighter day to reinforce consistent depth."),
+                exercise("barbell_bench_press", 4, "5-6", 180, "Controlled touch and pause; keep every rep repeatable."),
+                exercise("chest_supported_row", 3, "8-12", 120),
+                exercise("cable_crunch", 3, "10-15", 60)
+            ]),
+            .init(dayIndex: 4, name: "Bench Intensity + Deadlift Technique", exercises: [
+                exercise("barbell_bench_press", 4, "4-5", 210, "Use competition pauses and stop before reps slow into a grind."),
+                exercise("conventional_deadlift", 3, "3", 240, "Technique pulls: reset each rep and keep the load clearly submaximal."),
+                exercise("lat_pulldown", 3, "8-12", 120),
+                exercise("lying_leg_curl", 3, "10-15", 90)
+            ]),
+            .init(dayIndex: 6, name: "Squat Intensity + Assistance", exercises: [
+                exercise("back_squat", 4, "4-5", 240, "Competition stance. Keep heavy practice technically clean; no missed reps."),
+                exercise("romanian_deadlift", 3, "6-8", 150),
+                exercise("leg_press", 3, "8-12", 150),
+                exercise("cable_crunch", 3, "10-15", 60)
+            ]),
+            .init(dayIndex: 1, name: "Deadlift Intensity + Bench Technique", exercises: [
+                exercise("conventional_deadlift", 4, "4-5", 270, "Competition setup. Stop if bar speed or position deteriorates."),
+                exercise("barbell_bench_press", 3, "5", 180, "Light paused practice; keep this easier than the intensity day."),
+                exercise("seated_cable_row", 3, "8-12", 120),
+                exercise("triceps_pressdown", 2, "10-15", 75)
+            ])
+        ],
+        requiredTrainingMaxExerciseIDs: ["back_squat", "barbell_bench_press", "conventional_deadlift"]
+    )
+
     private static let cablesOnlyFoundation = WorkoutProgramTemplate(
         id: "cables_only_foundation_12", version: 1, name: "Cables Only",
         summary: "A four-day hypertrophy plan built entirely around cable stations.",
@@ -424,7 +527,7 @@ enum WorkoutProgramCatalog {
         sessions: [
             .init(dayIndex: 2, name: "Upper A", exercises: [exercise("cable_fly", 3, "8-12"), exercise("seated_cable_row", 3, "8-12"), exercise("cable_lateral_raise", 3, "12-20", 60), exercise("triceps_pressdown", 3, "10-15", 75)]),
             .init(dayIndex: 3, name: "Lower A", exercises: [exercise("cable_squat", 3, "8-12", 150), exercise("cable_pull_through", 3, "10-15", 90), exercise("cable_lunge", 3, "8-12", 120), exercise("cable_kickback", 2, "10-15", 75), exercise("cable_crunch", 3, "10-15", 60)]),
-            .init(dayIndex: 5, name: "Upper B", exercises: [exercise("cable_fly", 3, "10-15"), exercise("lat_pulldown", 3, "8-12"), exercise("cable_pullover", 3, "10-15", 75), exercise("rear_delt_fly", 3, "12-20", 60), exercise("overhead_triceps_extension", 3, "10-15", 75)]),
+            .init(dayIndex: 5, name: "Upper B", exercises: [exercise("cable_fly", 3, "10-15"), exercise("lat_pulldown", 3, "8-12"), exercise("cable_pullover", 3, "10-15", 75), exercise("cable_rear_delt_fly", 3, "12-20", 60), exercise("overhead_triceps_extension", 3, "10-15", 75)]),
             .init(dayIndex: 6, name: "Lower B", exercises: [exercise("cable_squat", 3, "10-15", 150), exercise("cable_romanian_deadlift", 3, "8-12", 120), exercise("cable_lunge", 3, "10-15", 120), exercise("cable_kickback", 2, "12-20", 75), exercise("cable_crunch", 3, "12-20", 60)])
         ], requiredTrainingMaxExerciseIDs: []
     )

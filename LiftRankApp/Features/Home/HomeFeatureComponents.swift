@@ -4,35 +4,54 @@ extension HomeView {
     @ViewBuilder
     var workoutStatus: some View {
         if let active = appState.activeWorkout {
+            let workoutIcon = Image(systemName: active.pausedAt == nil ? "dumbbell.fill" : "pause.fill")
+                .font(.title3.weight(.black))
+                .foregroundStyle(Color.liftOnAccent)
+                .frame(width: 48, height: 48)
+                .background(Color.liftGold)
+                .clipShape(Circle())
+            let workoutDetails = VStack(alignment: .leading, spacing: 4) {
+                Text("WORKOUT IN PROGRESS")
+                    .font(.caption2.weight(.black))
+                    .tracking(1.1)
+                    .foregroundStyle(Color.liftGold)
+                Text(active.name)
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(Color.liftText)
+                Text(active.pausedAt == nil ? "Continue logging your sets" : "Paused — ready when you are")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+            }
+            let resumeAction = HStack(spacing: 8) {
+                Text("Resume")
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(Color.liftGold)
+                Image(systemName: "arrow.right")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(Color.liftGold)
+            }
             Button {
                 showingActiveWorkout = true
             } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: active.pausedAt == nil ? "dumbbell.fill" : "pause.fill")
-                        .font(.title3.weight(.black))
-                        .foregroundStyle(Color.liftOnAccent)
-                        .frame(width: 48, height: 48)
-                        .background(Color.liftGold)
-                        .clipShape(Circle())
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("WORKOUT IN PROGRESS")
-                            .font(.caption2.weight(.black))
-                            .tracking(1.1)
-                            .foregroundStyle(Color.liftGold)
-                        Text(active.name)
-                            .font(.headline.weight(.black))
-                            .foregroundStyle(Color.liftText)
-                        Text(active.pausedAt == nil ? "Keep your sets and timer moving" : "Paused — ready when you are")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 12) {
+                                workoutIcon
+                                workoutDetails
+                            }
+                            resumeAction
+                                .fixedSize(horizontal: true, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    } else {
+                        HStack(spacing: 14) {
+                            workoutIcon
+                            workoutDetails
+                            Spacer(minLength: 8)
+                            resumeAction
+                        }
                     }
-                    Spacer(minLength: 8)
-                    Text("Resume")
-                        .font(.subheadline.weight(.black))
-                        .foregroundStyle(Color.liftGold)
-                    Image(systemName: "arrow.right")
-                        .font(.caption.weight(.black))
-                        .foregroundStyle(Color.liftGold)
                 }
                 .padding(16)
                 .contentShape(Rectangle())
@@ -60,9 +79,9 @@ extension HomeView {
                 case .syncing:
                     ("Syncing workout history", "Keeping this workout available across your devices.", "arrow.triangle.2.circlepath", .liftAccentText)
                 case .stale:
-                    ("Workout history may be stale", "Refresh to make Home metrics current.", "clock.arrow.circlepath", .orange)
+                    ("Workout history may be out of date", "Refresh to update your Home stats.", "clock.arrow.circlepath", .orange)
                 case .needsAttention:
-                    ("Workout sync needs attention", "Your workout is safe locally. Try again when you’re online.", "exclamationmark.triangle.fill", .orange)
+                    ("Workout sync needs attention", "Your workout is saved on this device. Try again when you’re online.", "exclamationmark.triangle.fill", .orange)
                 case .synced:
                     ("", "", "", .clear)
                 }
@@ -141,7 +160,7 @@ extension HomeView {
                         HStack(spacing: 8) {
                             Image(systemName: "equal.circle.fill")
                                 .foregroundStyle(Color.liftGold)
-                            Text(signalCount == 1 ? "Training signal" : "Training signals")
+                            Text(signalCount == 1 ? "Training alert" : "Training alerts")
                                 .font(.subheadline.weight(.bold))
                             Text("\(signalCount)")
                                 .font(.caption.weight(.black))
@@ -164,7 +183,7 @@ extension HomeView {
                                 .lineLimit(2)
                         }
                         if !recoveringMuscles.isEmpty {
-                            Text("Recovery context")
+                            Text("Recently trained muscles")
                                 .font(.caption.weight(.bold))
                             Text("\(recoveringMuscles.map { $0.muscle.displayName }.joined(separator: ", ")) · Review recovery")
                                 .font(.caption)
@@ -205,7 +224,8 @@ extension HomeView {
                 VStack(alignment: .leading, spacing: 14) {
                     headerIdentity
                     headerActions
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else {
                 HStack(spacing: 12) {
@@ -215,7 +235,6 @@ extension HomeView {
                 }
             }
         }
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
     var headerIdentity: some View {
@@ -255,7 +274,7 @@ extension HomeView {
                 statusPill(symbol: "flame.fill", value: "\(streak)", tint: .orange)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Open \(streak) day streak details")
+            .accessibilityLabel("Open \(streak) week streak details")
 
             NativeIconButton(
                 symbolName: "bell.fill",
@@ -286,7 +305,7 @@ extension HomeView {
             Capsule()
                 .stroke(Color.liftSeparator, lineWidth: 1)
         }
-        .accessibilityLabel("\(value) day streak")
+        .accessibilityLabel("\(value) week streak")
     }
 
     var balancedOverview: some View {
@@ -498,7 +517,7 @@ extension HomeView {
         } label: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("STRENGTH")
+                    Text("AWARDS")
                         .font(.caption2.weight(.black))
                         .tracking(1)
                         .foregroundStyle(Color.liftAccentText)
@@ -512,6 +531,8 @@ extension HomeView {
                     Text(summary.overallTier.label)
                         .font(.title2.weight(.black))
                         .foregroundStyle(Color.liftText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
 
                 Text("\(summary.completedRequiredLiftCount) of \(summary.requiredLiftCount) lifts logged")
@@ -537,7 +558,7 @@ extension HomeView {
             .liftSurface()
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Open strength milestones, \(summary.overallTier.label), \(summary.completedRequiredLiftCount) of \(summary.requiredLiftCount) lifts logged")
+        .accessibilityLabel("Open awards, \(summary.overallTier.label), \(summary.completedRequiredLiftCount) of \(summary.requiredLiftCount) lifts logged")
     }
 
     @ViewBuilder
@@ -553,7 +574,7 @@ extension HomeView {
         let primaryStrengthPounds = totalPounds > 0 ? totalPounds : topTrackedOneRepMaxPounds
         if primaryStrengthPounds > 0 {
             VStack(alignment: .leading, spacing: 2) {
-                Text(totalPounds > 0 ? "Total" : "Top estimated 1RM")
+                Text(totalPounds > 0 ? "Personal 3-lift total" : "Top estimated 1RM")
                     .font(.caption2)
                     .foregroundStyle(Color.liftMuted)
                 Text("\(Int(MeasurementFormatting.convert(primaryStrengthPounds, from: .pounds, to: preferredUnit))) \(preferredUnit.shortLabel)")
@@ -608,7 +629,10 @@ extension HomeView {
     }
 
     var recentPRs: some View {
-        let recentLifts = Array(appState.currentUserLifts.prefix(3))
+        let recentLifts = Array(appState.currentUserLifts.sorted {
+            if $0.performedAt != $1.performedAt { return $0.performedAt > $1.performedAt }
+            return $0.createdAt > $1.createdAt
+        }.prefix(3))
         return VStack(alignment: .leading, spacing: 12) {
             dashboardSectionHeader("Recent submitted PRs", actionTitle: "Submit lift") {
                 appState.showingSubmitSheet = true
@@ -806,6 +830,7 @@ struct WeeklyTrainingDayGoalCard: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Weekly training-day goal")
                 .accessibilityValue("\(min(completedDays, goal)) of \(goal) days")
+                .accessibilityIdentifier("weeklyTrainingGoal.card")
             } else {
                 Button {
                     appState.setWeeklyTrainingDayGoal(3)
@@ -817,7 +842,7 @@ struct WeeklyTrainingDayGoalCard: View {
                             Text("Set a weekly training goal")
                                 .font(.subheadline.weight(.bold))
                                 .foregroundStyle(Color.liftText)
-                            Text("Counts distinct training days")
+                            Text("Each day you train counts once")
                                 .font(.caption2)
                                 .foregroundStyle(Color.liftMuted)
                         }
@@ -898,12 +923,17 @@ extension HomeView {
                 .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showingStreak) {
-            StreakDetailView(streakDays: appState.workoutStreak())
+            StreakDetailView(
+                streakWeeks: appState.workoutStreak(),
+                trainingDaysThisWeek: appState.homeWeeklySummary().completedTrainingDayCount
+            )
                 .presentationDetents([.medium])
         }
         .sheet(item: $selectedBodyweightEntry) { entry in
             BodyweightEntryEditor(entry: entry) { updatedEntry in
                 appState.updateBodyweight(updatedEntry)
+            } onDelete: { entry in
+                appState.deleteBodyweight(entry)
             }
             .presentationDetents([.medium])
         }

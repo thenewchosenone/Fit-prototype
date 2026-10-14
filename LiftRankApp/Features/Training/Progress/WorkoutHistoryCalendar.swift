@@ -17,6 +17,52 @@ struct WorkoutHistoryCalendarPresentation {
 }
 
 enum WorkoutHistoryCalendarData {
+    static func workoutStreaks(
+        completedWorkoutDates: [Date],
+        referenceDate: Date,
+        minimumTrainingDaysPerWeek: Int = 3,
+        calendar: Calendar = .current
+    ) -> (current: Int, longest: Int) {
+        guard minimumTrainingDaysPerWeek > 0,
+              let currentWeek = calendar.dateInterval(of: .weekOfYear, for: referenceDate) else {
+            return (0, 0)
+        }
+
+        let trainingDaysByWeek = Dictionary(grouping: completedWorkoutDates.filter { $0 <= referenceDate }) {
+            calendar.dateInterval(of: .weekOfYear, for: $0)?.start ?? calendar.startOfDay(for: $0)
+        }.mapValues { dates in
+            Set(dates.map { calendar.startOfDay(for: $0) }).count
+        }
+        let qualifyingWeeks = Set(trainingDaysByWeek.compactMap { week, dayCount in
+            dayCount >= minimumTrainingDaysPerWeek ? week : nil
+        })
+        guard !qualifyingWeeks.isEmpty else { return (0, 0) }
+
+        let orderedWeeks = qualifyingWeeks.sorted()
+        var longest = 1
+        var run = 1
+        for index in 1..<orderedWeeks.count {
+            let previousWeek = orderedWeeks[index - 1]
+            let currentWeek = orderedWeeks[index]
+            if calendar.date(byAdding: .weekOfYear, value: 1, to: previousWeek) == currentWeek {
+                run += 1
+                longest = max(longest, run)
+            } else {
+                run = 1
+            }
+        }
+
+        var cursor = qualifyingWeeks.contains(currentWeek.start)
+            ? currentWeek.start
+            : calendar.date(byAdding: .weekOfYear, value: -1, to: currentWeek.start)
+        var current = 0
+        while let week = cursor, qualifyingWeeks.contains(week) {
+            current += 1
+            cursor = calendar.date(byAdding: .weekOfYear, value: -1, to: week)
+        }
+        return (current, longest)
+    }
+
     static func monthStart(for date: Date, calendar: Calendar = .current) -> Date {
         let components = calendar.dateComponents([.year, .month], from: date)
         guard let firstDay = calendar.date(from: DateComponents(
@@ -96,6 +142,7 @@ enum WorkoutHistoryCalendarData {
 }
 
 struct WorkoutHistoryCalendar: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let presentation: WorkoutHistoryCalendarPresentation
     @Binding var displayedMonth: Date
     @Binding var selectedDate: Date?
@@ -169,7 +216,6 @@ struct WorkoutHistoryCalendar: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.liftOverlay, lineWidth: 1)
         }
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
     private func calendarDay(_ day: WorkoutHistoryCalendarDay) -> some View {
@@ -192,7 +238,7 @@ struct WorkoutHistoryCalendar: View {
                     .frame(width: 5, height: 5)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 40)
+            .frame(maxWidth: .infinity, minHeight: dynamicTypeSize.isAccessibilitySize ? 64 : 40)
             .background(isSelected ? Color.liftBlue : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             .overlay {
@@ -227,25 +273,46 @@ struct WorkoutHistoryCalendar: View {
                         Button {
                             onSelectWorkout(workout)
                         } label: {
-                            HStack(spacing: 10) {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(workout.name)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(Color.liftText)
-                                        .lineLimit(1)
-                                    Text("\(workout.completedWorkingSets.count) sets • \(LiftTimeFormatter.shortDateCompactTime(workout.completedAt))")
-                                        .font(.caption)
-                                        .foregroundStyle(Color.liftMuted)
+                            Group {
+                                if dynamicTypeSize.isAccessibilitySize {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(workout.name)
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(Color.liftText)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                        HStack {
+                                            Text("\(workout.completedWorkingSets.count) sets • \(LiftTimeFormatter.shortDateCompactTime(workout.completedAt))")
+                                                .font(.caption)
+                                                .foregroundStyle(Color.liftMuted)
+                                            Spacer()
+                                            Image(systemName: "chevron.right")
+                                                .font(.caption.weight(.bold))
+                                                .foregroundStyle(Color.liftMuted)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                } else {
+                                    HStack(spacing: 10) {
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(workout.name)
+                                                .font(.subheadline.weight(.semibold))
+                                                .foregroundStyle(Color.liftText)
+                                                .lineLimit(1)
+                                            Text("\(workout.completedWorkingSets.count) sets • \(LiftTimeFormatter.shortDateCompactTime(workout.completedAt))")
+                                                .font(.caption)
+                                                .foregroundStyle(Color.liftMuted)
+                                        }
+                                        Spacer()
+                                        Text(MeasurementFormatting.shortDurationText(workout.duration))
+                                            .font(.caption.weight(.bold).monospacedDigit())
+                                            .foregroundStyle(Color.liftAccentText)
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption.weight(.bold))
+                                            .foregroundStyle(Color.liftMuted)
+                                    }
                                 }
-                                Spacer()
-                                Text(MeasurementFormatting.shortDurationText(workout.duration))
-                                    .font(.caption.weight(.bold).monospacedDigit())
-                                    .foregroundStyle(Color.liftAccentText)
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(Color.liftMuted)
                             }
-                            .frame(minHeight: 52)
+                            .frame(maxWidth: .infinity, minHeight: dynamicTypeSize.isAccessibilitySize ? 88 : 52, alignment: .leading)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)

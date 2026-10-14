@@ -66,7 +66,7 @@ struct CompletedWorkoutDetailView: View {
                                         }
                                         ForEach(sets) { set in
                                             HStack {
-                                                Text(set.isWarmup ? "Warmup \(set.setNumber)" : "Set \(set.setNumber)")
+                                                Text(set.isWarmup ? "Warm-up \(set.setNumber)" : "Set \(set.setNumber)")
                                                     .foregroundStyle(set.isWarmup ? Color.liftGold : Color.liftMuted)
                                                 Spacer()
                                                 Text(MeasurementFormatting.workoutSetText(set: set, trackingKind: trackingKind))
@@ -111,7 +111,7 @@ struct CompletedWorkoutDetailView: View {
                             }
 
                             if !displayedWorkout.linkedSubmissionIDs.isEmpty {
-                                Label("\(displayedWorkout.linkedSubmissionIDs.count) public lift submission linked. Deleting this history entry will not delete it.", systemImage: "link")
+                                Label("\(displayedWorkout.linkedSubmissionIDs.count) linked public lift \(displayedWorkout.linkedSubmissionIDs.count == 1 ? "submission" : "submissions"). Deleting this workout keeps linked submissions public.", systemImage: "link")
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(Color.liftMuted)
                                     .padding(14)
@@ -174,13 +174,13 @@ struct CompletedWorkoutDetailView: View {
                 }
             }
             .confirmationDialog("Delete this workout from history?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
-                Button("Delete History", role: .destructive) {
+                Button("Delete workout", role: .destructive) {
                     appState.deleteCompletedWorkout(displayedWorkout)
                     dismiss()
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("The workout snapshot is removed. Any public lift submissions already created remain public.")
+                Text("This removes the workout from your history. Any linked public lift submissions stay public.")
             }
             .sheet(item: $editingWorkout) { workout in
                 CompletedWorkoutEditView(workout: workout) { updated in
@@ -334,7 +334,7 @@ private struct CompletedWorkoutEditView: View {
                 }
             }
             if !canSave {
-                Text("Complete sets need valid reps or duration and any required load before saving.")
+                Text("Before saving, enter valid reps or duration and any required weight for each completed set.")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
             }
@@ -347,7 +347,7 @@ private struct CompletedWorkoutEditView: View {
         let set = draft.sets[index]
         return VStack(spacing: 8) {
             HStack {
-                Toggle(set.isWarmup ? "Warmup \(set.setNumber)" : "Set \(set.setNumber)", isOn: $draft.sets[index].isComplete)
+                Toggle(set.isWarmup ? "Warm-up \(set.setNumber)" : "Set \(set.setNumber)", isOn: $draft.sets[index].isComplete)
                     .font(.subheadline.weight(.bold))
                 Button(role: .destructive) {
                     deleteSet(set, from: exercise)

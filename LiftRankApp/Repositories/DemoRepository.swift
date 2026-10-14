@@ -45,7 +45,9 @@ final class DemoRepository: ObservableObject {
     private var pendingPersistenceTask: Task<Void, Never>?
     private var isRestoringWorkoutSnapshot = false
     private var isUITesting: Bool {
-        ProcessInfo.processInfo.arguments.contains { $0.hasPrefix("-uiTesting") }
+        let arguments = ProcessInfo.processInfo.arguments
+        return !arguments.contains("-uiTestingPersistWorkoutSnapshots") &&
+            arguments.contains { $0.hasPrefix("-uiTesting") }
     }
     private(set) var liftsRevision = 0
     private(set) var profilesRevision = 0

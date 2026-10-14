@@ -44,7 +44,7 @@ enum ProfileHistoryType: String, CaseIterable, Identifiable {
 struct ProfileLiftPresentation {
     let lifts: [LiftSubmission]
     let threeLiftTotalPounds: Double
-    let bestEstimatedOneRepMaxByExerciseID: [String: Double]
+    let bestSubmittedOneRepMaxByExerciseID: [String: Double]
     let chartLifts: [LiftSubmission]
     let bestSubmittedLift: LiftSubmission?
     let latestSubmittedLift: LiftSubmission?
@@ -53,10 +53,13 @@ struct ProfileLiftPresentation {
 
     init(profileID: UUID, lifts: [LiftSubmission]) {
         self.lifts = lifts
-        threeLiftTotalPounds = RankingCalculator.totalForUser(profileID, lifts: lifts)
-        bestEstimatedOneRepMaxByExerciseID = Dictionary(uniqueKeysWithValues: ["bench", "squat", "deadlift"].map {
-            ($0, RankingCalculator.bestLift(exerciseID: $0, submissions: lifts)?.estimatedOneRepMax ?? 0)
-        })
+        let submittedTotal = RankingCalculator.powerliftingBreakdown(for: profileID, lifts: lifts)
+        threeLiftTotalPounds = RankingCalculator.kilogramsToPounds(submittedTotal.totalKilograms)
+        bestSubmittedOneRepMaxByExerciseID = [
+            "bench": submittedTotal.benchKilograms,
+            "squat": submittedTotal.squatKilograms,
+            "deadlift": submittedTotal.deadliftKilograms
+        ].compactMapValues { $0.map(RankingCalculator.kilogramsToPounds) }
         let latestExerciseID = lifts.max { $0.performedAt < $1.performedAt }?.exerciseID
         chartLifts = Array(lifts.filter { $0.exerciseID == latestExerciseID }
             .sorted { $0.performedAt < $1.performedAt }.suffix(6))
@@ -117,8 +120,9 @@ extension ProfileView {
             viewerID: viewerID ?? appState.currentProfile.id,
             includeLiftsWithoutVideo: true
         )
+        let profileID = profile.id
         let presentation = await Task.detached(priority: .userInitiated) {
-            ProfileLiftPresentation(profileID: profile.id, lifts: lifts)
+            ProfileLiftPresentation(profileID: profileID, lifts: lifts)
         }.value
         guard !Task.isCancelled else { return }
         liftPresentation = presentation
@@ -173,7 +177,7 @@ extension ProfileView {
                 if isCurrentUser || profile.yearsExperience > 0 {
                     let trainingDetails = displayedExperienceLevel.rawValue
                     if !trainingDetails.isEmpty {
-                        Text(trainingDetails)
+                        Text("Rival tier · \(trainingDetails)")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                     }
@@ -216,7 +220,7 @@ extension ProfileView {
                 .padding(.top, 18)
             } label: {
                 VStack(alignment: .leading, spacing: 3) {
-                        Text("Training profile")
+                        Text(isCurrentUser ? "Strength, rankings & awards" : "Strength & rankings")
                         .font(.headline)
                         .foregroundStyle(Color.liftText)
                         Text(isCurrentUser ? "Strength progress, rankings, and achievements" : "Strength progress and rankings")
@@ -273,7 +277,7 @@ extension ProfileView {
                     VStack(spacing: 12) {
                         HStack(alignment: .firstTextBaseline) {
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("THREE-LIFT TOTAL")
+                                Text("SUBMITTED THREE-LIFT TOTAL")
                                     .font(.caption2.weight(.bold))
                                     .tracking(0.8)
                                     .foregroundStyle(Color.liftMuted)
@@ -282,15 +286,22 @@ extension ProfileView {
                             }
                             Spacer()
                             VStack(alignment: .trailing, spacing: 3) {
-                                Text("SCORE")
-                                    .font(.caption2.weight(.bold))
-                                    .foregroundStyle(Color.liftMuted)
-                                Text(canonicalScoreText)
-                                    .font(.headline.weight(.bold))
-                                    .foregroundStyle(Color.liftAccentText)
+                                if isCurrentUser {
+                                    Text("SCORE")
+                                        .font(.caption2.weight(.bold))
+                                        .foregroundStyle(Color.liftMuted)
+                                    Text(canonicalScoreText)
+                                        .font(.headline.weight(.bold))
+                                        .foregroundStyle(Color.liftAccentText)
+                                        .accessibilityIdentifier("profile.strength.score")
+                                }
                             }
                         }
                         Divider().overlay(Color.liftSeparator)
+                        Text("Best submitted 1RM")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color.liftMuted)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         HStack(spacing: 0) {
                             strengthMetric("Bench", liftValue("bench", presentation: presentation))
                             profileDivider
@@ -317,19 +328,24 @@ extension ProfileView {
         return VStack(alignment: .leading, spacing: 10) {
             CompactSectionHeader(title: "Rankings")
             LiftCard {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                    ForEach(["global", "city", "state", "age"], id: \.self) { metric in
-                        switch metric {
-                        case "global":
-                            rankingMetric("Global", canonicalRankText, canonicalRankSubtitle, .liftGold)
-                        case "city":
-                            rankingMetric("City", profile.hideCity ? "Hidden" : CanonicalRankingPresentation.text(rank: nil), profile.hideCity ? "Location hidden" : "No city rank yet", .liftBlue)
-                        case "state":
-                            rankingMetric("State", profile.hideCity ? "Hidden" : CanonicalRankingPresentation.text(rank: nil), profile.hideCity ? "Location hidden" : "No state rank yet", .liftBlue)
-                        default:
-                            rankingMetric("Age group", profile.hideExactAge ? "Hidden" : CanonicalRankingPresentation.text(rank: nil), profile.hideExactAge ? "Age hidden" : "No age rank yet", .liftGreen)
-                        }
+                HStack(spacing: 12) {
+                    Image(systemName: "list.number")
+                        .foregroundStyle(Color.liftAccentText)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(isCurrentUser
+                             ? (appState.currentUserTotalRankingEntry != nil ? "Global total · \(canonicalRankText)" : "No leaderboard rank yet")
+                             : "Rankings are not shown here")
+                            .font(.subheadline.weight(.semibold))
+                        Text(isCurrentUser
+                             ? (appState.currentUserTotalRankingEntry == nil ? "Submit eligible lifts to appear on the leaderboard." : "Video-backed total leaderboard")
+                             : "Open Leaderboards for current rankings.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
                     }
+                    Spacer(minLength: 4)
+                    Button("View") { appState.selectedTab = 1 }
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Color.liftAccentText)
                 }
             }
         }
@@ -338,7 +354,7 @@ extension ProfileView {
     func progress(presentation: ProfileLiftPresentation) -> some View {
         let chartPoints = chartPoints(lifts: presentation.chartLifts)
         return VStack(alignment: .leading, spacing: 10) {
-            CompactSectionHeader(title: isCurrentUser ? "Progress" : "Submitted-lift progress")
+            CompactSectionHeader(title: "Lift submission progress")
             LiftCard {
                 if chartPoints.isEmpty {
                     HStack(spacing: 12) {
@@ -349,9 +365,11 @@ extension ProfileView {
                             .background(Color.liftBlue.opacity(0.14))
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(isCurrentUser ? "No strength history yet" : "No submitted-lift history yet")
+                            Text("No lift submission history yet")
                                 .font(.subheadline.weight(.bold))
-                            Text("Submit verified lifts to build this progress chart.")
+                            Text(isCurrentUser
+                                 ? "Workout history is available below. Submit lifts to build this chart."
+                                 : "No submitted lifts are available to show.")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
                         }
@@ -367,11 +385,21 @@ extension ProfileView {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
+                    let values = chartPoints.map(\.value)
+                    let minimum = values.min() ?? 0
+                    let maximum = values.max() ?? minimum
+                    let minimumPadding = MeasurementFormatting.convert(5, from: .pounds, to: profile.preferredUnit)
+                    let padding = max(minimumPadding, (maximum - minimum) * 0.15)
                     Text(presentation.chartLifts.last?.exerciseName ?? "Submitted lift")
                         .font(.subheadline.weight(.semibold))
                     Text("Estimated 1RM · \(profile.preferredUnit.shortLabel)")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
+                    if chartPoints.count == 1 {
+                        Text(isCurrentUser ? "One lift shown; add another submission to see a trend." : "Only one submitted lift is available to show.")
+                            .font(.caption2)
+                            .foregroundStyle(Color.liftMuted)
+                    }
                     Chart(chartPoints) { point in
                         LineMark(x: .value("Date", point.date), y: .value("Estimated 1RM", point.value))
                             .foregroundStyle(Color.liftAccentText)
@@ -379,10 +407,18 @@ extension ProfileView {
                             .foregroundStyle(Color.liftGreen)
                     }
                     .frame(height: 190)
+                    .chartYScale(domain: max(0, minimum - padding)...(maximum + padding))
+                    .chartXAxis {
+                        AxisMarks {
+                            AxisValueLabel(format: .dateTime.month(.abbreviated).day())
+                        }
+                    }
                     HStack {
+                        let best = presentation.chartLifts.max { $0.estimatedOneRepMax < $1.estimatedOneRepMax }
+                        let latest = presentation.chartLifts.last
                         metric("Lifts shown", "\(presentation.chartLifts.count)")
-                        metric("Best shown", bestSubmittedLiftText(presentation.chartLifts.max { $0.estimatedOneRepMax < $1.estimatedOneRepMax }))
-                        metric("Latest", latestSubmittedLiftText(presentation.chartLifts.last))
+                        metric(best.map { "Best · \($0.performedAt.formatted(.dateTime.month(.abbreviated).day()))" } ?? "Best shown", bestSubmittedLiftText(best))
+                        metric(latest.map { "Latest · \($0.performedAt.formatted(.dateTime.month(.abbreviated).day()))" } ?? "Latest", latestSubmittedLiftText(latest))
                     }
                 }
             }
@@ -422,6 +458,25 @@ extension ProfileView {
     }
 
     private func profileAchievementTitle(_ title: String) -> String {
+        if title == "1 Training Hours" { return "1 Training Hour" }
+        for exercise in ["Bench", "Squat", "Deadlift"] where title.hasSuffix(" \(exercise)") {
+            let valueText = title.replacingOccurrences(of: " \(exercise)", with: "").replacingOccurrences(of: ",", with: "")
+            if let pounds = Double(valueText) {
+                let weight = MeasurementFormatting.formatDisplayedWeight(
+                    RankingCalculator.poundsToKilograms(pounds),
+                    unit: profile.preferredUnit
+                ) { Int($0.rounded()).formatted() }
+                return "\(weight) \(exercise)"
+            }
+        }
+        if title.hasSuffix(" lb Total"),
+           let pounds = Double(title.replacingOccurrences(of: " lb Total", with: "").replacingOccurrences(of: ",", with: "")) {
+            let total = MeasurementFormatting.formatDisplayedWeight(
+                RankingCalculator.poundsToKilograms(pounds),
+                unit: profile.preferredUnit
+            ) { Int($0.rounded()).formatted() }
+            return "\(total) Total"
+        }
         let suffix = " kg Lifted Volume"
         guard title.hasSuffix(suffix),
               let kilograms = Double(title.dropLast(suffix.count).replacingOccurrences(of: ",", with: "")) else {
@@ -455,16 +510,18 @@ extension ProfileView {
                                     .font(.headline)
                                 Text(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true))
                                     .foregroundStyle(Color.liftMuted)
-                                Text(profileLiftSourceLabel(lift))
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(Color.liftMuted)
+                                if lift.visibility == .privateLift {
+                                    Text("Private submission")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(Color.liftMuted)
+                                }
                             }
                             Spacer()
                             VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus)
                             if isCurrentUser {
                                 Menu {
                                     if lift.requiresCoordinatedRemoval {
-                                        Button("Request coordinated removal", role: .destructive) {
+                                        Button("Remove submission and video", role: .destructive) {
                                             submissionPendingDeletion = lift
                                         }
                                         .disabled(isDeletingSubmission)
@@ -506,11 +563,6 @@ extension ProfileView {
         }
     }
 
-    private func profileLiftSourceLabel(_ lift: LiftSubmission) -> String {
-        if lift.visibility == .privateLift { return "Private submission" }
-        return lift.resolvedEvidenceStatus == .videoBacked ? "Video-backed submission" : "Self-reported submission"
-    }
-
     var trainingHistory: some View {
         let cutoff = profileHistoryDateRange.startDate()
         let query = profileHistoryExercise.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -529,6 +581,9 @@ extension ProfileView {
                 }
                 .sorted { $0.completedAt > $1.completedAt }
             : []
+        let workoutDatesWithMultipleSessions = Set(Dictionary(grouping: workouts) {
+            Calendar.current.startOfDay(for: $0.completedAt)
+        }.filter { $0.value.count > 1 }.keys)
         return VStack(alignment: .leading, spacing: 10) {
             CompactSectionHeader(title: "Training history")
             if isCurrentUser {
@@ -581,12 +636,16 @@ extension ProfileView {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(workout.name.isEmpty ? workout.dayLabel : workout.name)
                                     .font(.subheadline.weight(.semibold))
-                                Text(workout.completedAt.formatted(.dateTime.month(.abbreviated).day().year()))
+                                Text(workoutDatesWithMultipleSessions.contains(Calendar.current.startOfDay(for: workout.completedAt))
+                                     ? workout.completedAt.formatted(.dateTime.month(.abbreviated).day().year().hour().minute())
+                                     : workout.completedAt.formatted(.dateTime.month(.abbreviated).day().year()))
                                     .font(.caption)
                                     .foregroundStyle(Color.liftMuted)
-                                Text(workout.sourcePlanID == nil ? "Freestyle" : "Program")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(Color.liftAccentText)
+                                if workout.sourcePlanID != nil {
+                                    Text("Program")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(Color.liftAccentText)
+                                }
                             }
                             Spacer()
                             Text("\(workout.completedWorkingSets.count) sets")
@@ -609,6 +668,9 @@ extension ProfileView {
     var profileTimeline: some View {
         let workouts = appState.completedWorkouts.sorted { $0.completedAt < $1.completedAt }
         let events = profileTimelineEvents(from: workouts)
+        let recentEvents = Array(events.reversed().prefix(12))
+        let eventGroups = Dictionary(grouping: recentEvents) { Calendar.current.startOfDay(for: $0.date) }
+            .sorted { $0.key > $1.key }
         return VStack(alignment: .leading, spacing: 10) {
             CompactSectionHeader(title: "Progress timeline")
             if events.isEmpty {
@@ -619,40 +681,52 @@ extension ProfileView {
                 )
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(events.reversed().prefix(12).enumerated()), id: \.offset) { index, event in
-                        Button {
-                            if let workout = event.workout { selectedTimelineWorkout = workout }
-                        } label: {
-                            HStack(alignment: .top, spacing: 12) {
-                                Image(systemName: event.workout == nil ? "flag.fill" : "dumbbell.fill")
-                                    .foregroundStyle(Color.liftGold)
-                                    .frame(width: 22)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(event.title)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(Color.liftText)
-                                    Text(event.detail)
-                                        .font(.caption)
-                                        .foregroundStyle(Color.liftMuted)
-                                    Text(event.date.formatted(.dateTime.month(.abbreviated).day().year()))
-                                        .font(.caption2)
-                                        .foregroundStyle(Color.liftMuted)
+                    ForEach(Array(eventGroups.enumerated()), id: \.offset) { groupIndex, group in
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(group.key.formatted(.dateTime.month(.abbreviated).day().year()))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.liftMuted)
+                                .padding(.horizontal, 14)
+                                .padding(.top, groupIndex == 0 ? 12 : 8)
+                                .padding(.bottom, 4)
+                            ForEach(Array(group.value.enumerated()), id: \.element.id) { eventIndex, event in
+                                Button {
+                                    if let workout = event.workout { selectedTimelineWorkout = workout }
+                                } label: {
+                                    HStack(alignment: .top, spacing: 12) {
+                                        Image(systemName: event.workout == nil ? "flag.fill" : "dumbbell.fill")
+                                            .foregroundStyle(Color.liftGold)
+                                            .frame(width: 22)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(event.title)
+                                                .font(.subheadline.weight(.semibold))
+                                                .foregroundStyle(Color.liftText)
+                                            if !event.detail.isEmpty && event.detail != "Training milestone" {
+                                                Text(event.detail)
+                                                    .font(.caption)
+                                                    .foregroundStyle(Color.liftMuted)
+                                            }
+                                        }
+                                        Spacer()
+                                        if event.workout != nil {
+                                            Image(systemName: "chevron.right")
+                                                .font(.caption.weight(.bold))
+                                                .foregroundStyle(Color.liftMuted)
+                                        }
+                                    }
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 9)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 }
-                                Spacer()
-                                if event.workout != nil {
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption.weight(.bold))
-                                        .foregroundStyle(Color.liftMuted)
+                                .buttonStyle(.plain)
+                                .disabled(event.workout == nil)
+                                if eventIndex < group.value.count - 1 {
+                                    Divider().overlay(Color.liftSeparator).padding(.leading, 48)
                                 }
                             }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 11)
-                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .buttonStyle(.plain)
-                        .disabled(event.workout == nil)
-                        if index < min(11, events.count - 1) {
-                            Divider().overlay(Color.liftSeparator).padding(.leading, 48)
+                        if groupIndex < eventGroups.count - 1 {
+                            Divider().overlay(Color.liftSeparator)
                         }
                     }
                 }
@@ -669,7 +743,7 @@ extension ProfileView {
                 id: "achievement-\(unlock.id)",
                 date: unlock.unlockedAt,
                 title: unlock.title,
-                detail: "Achievement unlocked",
+                detail: "",
                 workout: nil
             )
         })
@@ -677,7 +751,7 @@ extension ProfileView {
         let milestones = [1, 5, 10, 25, 50, 100, 200]
         for milestone in milestones where workouts.count >= milestone {
             let workout = workouts[milestone - 1]
-            let title = milestone == 1 ? "First workout" : "(milestone.formatted()) workouts"
+            let title = milestone == 1 ? "First workout" : "\(milestone.formatted()) workouts"
             events.append(ProfileTimelineEvent(
                 id: "workouts-\(milestone)",
                 date: workout.completedAt,
@@ -706,21 +780,29 @@ extension ProfileView {
     }
 
     func strengthMetric(_ title: String, _ value: String) -> some View {
+        Group {
+            if isCurrentUser, let exerciseID = RankingCalculator.strengthTierExerciseIDs.first(where: { $0 == title.lowercased() }) {
+                Button {
+                    selectedProfileLiftHistory = .exerciseHistory(id: exerciseID, name: title)
+                } label: {
+                    strengthMetricLabel(title, value)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("profile.strength.\(exerciseID)")
+                .accessibilityHint("Opens workout history and lift submission options")
+            } else {
+                strengthMetricLabel(title, value)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: LiftDesign.minimumTouchTarget, alignment: .leading)
+        .padding(.horizontal, 8)
+    }
+
+    private func strengthMetricLabel(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title).font(.caption).foregroundStyle(Color.liftMuted)
             Text(value).font(.subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 8)
-    }
-
-    func rankingMetric(_ title: String, _ value: String, _ subtitle: String, _ tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title).font(.caption).foregroundStyle(Color.liftMuted)
-            Text(value).font(.headline.weight(.bold)).foregroundStyle(tint)
-            Text(subtitle).font(.caption2).foregroundStyle(Color.liftMuted).lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var displayedLoggedBodyweight: (pounds: Double, date: Date)? {
@@ -755,18 +837,14 @@ extension ProfileView {
         )
     }
 
-    private var canonicalRankSubtitle: String {
-        guard isCurrentUser else { return "Not shown on public profiles" }
-        return appState.currentUserTotalRankingEntry == nil ? "No canonical total rank" : "Verified total leaderboard"
-    }
-
     private var canonicalScoreText: String {
         guard isCurrentUser, let entry = appState.currentUserTotalRankingEntry else { return "—" }
-        return entry.score.formatted(.number.precision(.fractionLength(0...2)))
+        return MeasurementFormatting.formatDisplayedWeight(entry.score, unit: profile.preferredUnit)
     }
 
     func liftValue(_ exerciseID: String, presentation: ProfileLiftPresentation) -> String {
-        let best = presentation.bestEstimatedOneRepMaxByExerciseID[exerciseID] ?? 0
+        let best = presentation.bestSubmittedOneRepMaxByExerciseID[exerciseID] ?? 0
+        guard best > 0 else { return "—" }
         return RankingFormatting.threeLiftTotalText(totalPounds: best, preferredUnit: profile.preferredUnit)
     }
 

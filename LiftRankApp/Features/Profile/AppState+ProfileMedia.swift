@@ -7,7 +7,16 @@ extension AppState {
         Haptics.light()
         guard let actual = entry.actual, actual > 0 else { return }
         var profile = currentProfile
-        profile.bodyweightPounds = actual
+        var updatedEntries = repository.bodyweightEntries
+        if let index = updatedEntries.firstIndex(where: { $0.id == entry.id }) {
+            updatedEntries[index] = entry
+        } else {
+            updatedEntries.append(entry)
+        }
+        profile.bodyweightPounds = ProfileDataAuthority.latestLoggedBodyweight(
+            profilePounds: profile.bodyweightPounds,
+            entries: updatedEntries
+        )
         guard isAuthenticated, !isDemoMode else {
             trainingProgressStore.updateBodyweight(entry)
             profileStore.saveProfile(profile)
@@ -20,7 +29,6 @@ extension AppState {
                 guard accountSession?.userID == userID,
                       repository.currentProfile.id == userID else { return }
                 try await profileStore.saveBodyweightEntry(entry)
-                _ = try await profileStore.updateProfile(profile)
                 guard accountSession?.userID == userID,
                       repository.currentProfile.id == userID else { return }
                 trainingProgressStore.updateBodyweight(entry)
@@ -31,6 +39,40 @@ extension AppState {
                 accountMessage = userMessage(error)
             }
         }
+    }
+
+    func deleteBodyweight(_ entry: BodyweightEntry) {
+        Haptics.warning()
+        let userID = currentProfile.id
+        guard isAuthenticated, !isDemoMode else {
+            removeBodyweightLocally(entry, userID: userID)
+            return
+        }
+        Task {
+            do {
+                guard accountSession?.userID == userID,
+                      repository.currentProfile.id == userID else { return }
+                try await profileStore.deleteBodyweightEntry(id: entry.id)
+                guard accountSession?.userID == userID,
+                      repository.currentProfile.id == userID else { return }
+                removeBodyweightLocally(entry, userID: userID)
+            } catch {
+                guard accountSession?.userID == userID else { return }
+                accountMessage = userMessage(error)
+            }
+        }
+    }
+
+    private func removeBodyweightLocally(_ entry: BodyweightEntry, userID: UUID) {
+        guard repository.currentProfile.id == userID else { return }
+        trainingProgressStore.deleteBodyweight(id: entry.id)
+        var profile = currentProfile
+        profile.bodyweightPounds = ProfileDataAuthority.latestLoggedBodyweight(
+            profilePounds: 0,
+            entries: repository.bodyweightEntries
+        )
+        profileStore.saveProfile(profile)
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
     func saveProfilePhoto(_ image: UIImage) async {

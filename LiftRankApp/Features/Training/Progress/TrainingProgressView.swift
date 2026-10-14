@@ -29,21 +29,18 @@ private struct BodyweightChartPoint: Identifiable {
 extension TrainingTrackerView {
     var progress: some View {
         return LazyVStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Progress")
-                    .font(.title3.weight(.black))
-                Spacer()
-                if let focus = appState.currentProfile.trainingFocus {
-                    Label(focus.title, systemImage: focus.symbol)
-                        .font(.caption)
-                        .foregroundStyle(Color.liftMuted)
+            progressSyncStatus
+            Picker("Progress category", selection: $selectedProgressCategory) {
+                ForEach(TrackerProgressCategory.allCases) { category in
+                    Text(category.rawValue).tag(category)
                 }
             }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("tracker.progress.category")
 
-            progressSyncStatus
             if appState.currentProfile.trainingFocus == nil && !dismissedTrainingFocusPrompt {
-                HStack {
-                    Button("Choose a training focus in Settings") {
+                HStack(spacing: 8) {
+                    Button("Set training focus") {
                         appState.router.sheet = .settings(.training)
                     }
                     .font(.caption.weight(.semibold))
@@ -53,18 +50,6 @@ extension TrainingTrackerView {
                         dismissedTrainingFocusPrompt = true
                     }
                 }
-            }
-
-            Picker("Progress category", selection: $selectedProgressCategory) {
-                ForEach(TrackerProgressCategory.allCases) { category in
-                    Text(category.rawValue).tag(category)
-                }
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("tracker.progress.category")
-
-            if selectedProgressCategory == .strength {
-                trainingAttentionSection
             }
 
             if selectedProgressCategory == .consistency {
@@ -88,11 +73,16 @@ extension TrainingTrackerView {
             if selectedProgressCategory == .strength {
                 let exerciseOptions = appState.progressExerciseOptions()
                 let bodyweightEntries = selectedBodyweightEntries
+                let bodyweightReadings = bodyweightEntries
+                    .compactMap { entry in entry.actual.map { (date: entry.targetDate, pounds: $0) } }
+                    .sorted { $0.date < $1.date }
                 strengthProgressSection
 
                 if !exerciseOptions.isEmpty {
                     exerciseProgressSection(options: exerciseOptions)
                 }
+
+                trainingAttentionSection
 
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(alignment: .center) {
@@ -121,6 +111,20 @@ extension TrainingTrackerView {
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Log bodyweight")
+                    }
+
+                    if let latest = bodyweightReadings.last {
+                        HStack(spacing: 6) {
+                            Text("Latest · \(MeasurementFormatting.formatBodyweight(latest.pounds, preferredUnit: appState.currentProfile.preferredUnit)) · \(latest.date.formatted(date: .abbreviated, time: .omitted))")
+                                .font(.caption.weight(.semibold))
+                            if bodyweightReadings.count > 1, let previous = bodyweightReadings.dropLast().last {
+                                let delta = latest.pounds - previous.pounds
+                                let sign = delta > 0 ? "+" : (delta < 0 ? "−" : "")
+                                Text("· \(sign)\(MeasurementFormatting.formatBodyweight(abs(delta), preferredUnit: appState.currentProfile.preferredUnit)) since \(previous.date.formatted(date: .abbreviated, time: .omitted))")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                        }
                     }
 
                     bodyweightChart(entries: bodyweightEntries)
@@ -173,13 +177,13 @@ extension TrainingTrackerView {
                 let pendingCount = appState.workoutSyncStore.pendingCompletedWorkoutUploads.count
                 let copy: (String, String, String, Color) = switch state {
                 case .local:
-                    ("Analytics use device-saved history", "\(pendingCount) workout\(pendingCount == 1 ? "" : "s") safe locally; sync when a connection is available.", "iphone.and.arrow.forward", .orange)
+                    ("Progress uses history saved on this device", "\(pendingCount) workout\(pendingCount == 1 ? "" : "s") saved on this device; sync when you’re online.", "iphone.and.arrow.forward", .orange)
                 case .syncing:
                     ("Refreshing workout history", "Keep this screen open while Progress updates.", "arrow.triangle.2.circlepath", .liftAccentText)
                 case .stale:
-                    ("Analytics may be stale", "Refresh to make Progress metrics current.", "clock.arrow.circlepath", .orange)
+                    ("Progress may be out of date", "Refresh to update your Progress stats.", "clock.arrow.circlepath", .orange)
                 case .needsAttention:
-                    ("Analytics may be incomplete", "Workout history could not refresh. Retry to update Progress.", "exclamationmark.triangle.fill", .orange)
+                    ("Progress may be incomplete", "Workout history could not refresh. Retry to update Progress.", "exclamationmark.triangle.fill", .orange)
                 case .synced:
                     ("", "", "", .clear)
                 }
@@ -627,7 +631,7 @@ extension TrainingTrackerView {
         let summaries = Array(appState.recoverySummaries().prefix(4))
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Recovery context")
+                Text("Recently trained muscles")
                     .font(.headline.weight(.bold))
                 Spacer()
                 Text("last 7 days")
@@ -679,7 +683,7 @@ extension TrainingTrackerView {
                     .accessibilityLabel("\(summary.muscle.displayName), \(summary.setCount) working sets, \(recoveryAgeText(summary.hoursSinceTraining))")
                     .accessibilityHint("Opens the most recent workout for this muscle")
                 }
-                DisclosureGroup("How to read recovery context") {
+                DisclosureGroup("How to read training recency") {
                     Text("Gold means under 48 hours since logged primary work; gray means 48 hours or more. Time alone does not confirm recovery. Soreness, sleep, stress, and readiness are not measured.")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
@@ -729,8 +733,11 @@ extension TrainingTrackerView {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Strength")
                     .font(.headline.weight(.bold))
-                Text("Estimated 1RM from completed working sets · Epley, up to 10 reps")
+                Text("Estimated one-rep max, calculated from completed working sets of up to 10 reps.")
                     .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+                Text("Bars compare your three lifts with your strongest; tiers use bodyweight-based standards.")
+                    .font(.caption2)
                     .foregroundStyle(Color.liftMuted)
             }
 
@@ -744,81 +751,40 @@ extension TrainingTrackerView {
                     compact: true
                 )
             } else {
-                HStack(spacing: 8) {
-                    ForEach(keyLifts, id: \.exerciseID) { lift in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(lift.exerciseName.uppercased())
-                                .font(.system(size: 9, weight: .black, design: .rounded))
-                                .tracking(0.4)
-                                .foregroundStyle(Color.liftMuted)
-                                .lineLimit(1)
-                            Text(lift.estimatedOneRepMaxKilograms.map {
-                                MeasurementFormatting.formatDisplayedWeight($0, unit: appState.currentProfile.preferredUnit)
-                            } ?? "—")
-                                .font(.headline.weight(.black).monospacedDigit())
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.75)
-                            GeometryReader { geometry in
-                                ZStack(alignment: .leading) {
-                                    Capsule().fill(Color.liftOverlay)
-                                    Capsule().fill(Color.liftAccentText)
-                                        .frame(width: geometry.size.width * CGFloat((lift.estimatedOneRepMaxKilograms ?? 0) / highestMax))
-                                }
-                            }
-                            .frame(height: 5)
-                            Text(lift.estimatedOneRepMaxKilograms == nil ? "No data" : lift.currentTier.label)
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(Color.liftMuted)
-                                .lineLimit(1)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
-                        .padding(10)
-                        .background(Color.liftCardRaised.opacity(0.62))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    }
-                }
-
-                HStack(spacing: 10) {
-                    volumeSummary(
-                        title: "THREE-LIFT TOTAL",
-                        value: threeLiftTotal.map {
-                            MeasurementFormatting.formatDisplayedWeight($0, unit: appState.currentProfile.preferredUnit)
-                        } ?? "—",
-                        detail: threeLiftTotal == nil ? "Log all three lifts" : appState.currentProfile.preferredUnit.shortLabel,
-                        symbol: "sum"
-                    )
-                    volumeSummary(
-                        title: "RELATIVE TOTAL",
-                        value: relativeTotal.map { String(format: "%.2f×", $0) } ?? "—",
-                        detail: relativeTotal == nil ? "Needs total and bodyweight" : "of bodyweight",
-                        symbol: "scalemass"
-                    )
-                }
+                strengthLiftCards(keyLifts, highestMax: highestMax)
+                strengthSummaryMetrics(threeLiftTotal: threeLiftTotal, relativeTotal: relativeTotal)
 
                 if !supplementalLifts.isEmpty {
                     Text("Other tracked lifts")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Color.liftMuted)
-                    HStack(spacing: 8) {
-                        ForEach(supplementalLifts, id: \.id) { lift in
-                            let record = appState.exerciseRecords(for: lift.id)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(lift.name)
-                                    .font(.system(size: 9, weight: .black, design: .rounded))
-                                    .foregroundStyle(Color.liftMuted)
-                                    .lineLimit(1)
-                                Text(record.bestEstimatedOneRepMaxKilograms.map {
-                                    MeasurementFormatting.formatDisplayedWeight($0, unit: appState.currentProfile.preferredUnit)
-                                } ?? "—")
-                                    .font(.subheadline.weight(.black).monospacedDigit())
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-                            .padding(.horizontal, 9)
-                            .background(Color.liftCardRaised.opacity(0.62))
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        }
-                    }
+                    supplementalLiftCards(Array(supplementalLifts))
                     .accessibilityElement(children: .contain)
+                }
+
+                if appState.currentProfile.primaryGymID != UUID(uuidString: "00000000-0000-0000-0000-000000000000")!,
+                   !appState.currentProfile.primaryGymName.isEmpty {
+                    let gymID = appState.currentProfile.primaryGymID
+                    Button {
+                        appState.leaderboardFilters = LeaderboardFilters(
+                            exerciseID: nil,
+                            rankingType: .total,
+                            gymID: gymID
+                        )
+                        appState.verifiedOnly = true
+                        appState.leaderboardFocusRequestID = UUID()
+                        appState.selectedTab = 1
+                    } label: {
+                        Label("Compare 3-lift total at \(appState.currentProfile.primaryGymName)", systemImage: "trophy")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.liftAccentText)
+                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.75)
+                            .frame(maxWidth: .infinity, minHeight: LiftDesign.minimumTouchTarget)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("tracker.progress.compareAtGym")
                 }
             }
         }
@@ -829,6 +795,114 @@ extension TrainingTrackerView {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.liftOverlay, lineWidth: 1)
         }
+    }
+
+    @ViewBuilder
+    private func strengthLiftCards(_ lifts: [LiftTierProgress], highestMax: Double) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: 8) {
+                ForEach(lifts, id: \.exerciseID) { lift in strengthLiftCard(lift, highestMax: highestMax) }
+            }
+        } else {
+            HStack(spacing: 8) {
+                ForEach(lifts, id: \.exerciseID) { lift in strengthLiftCard(lift, highestMax: highestMax) }
+            }
+        }
+    }
+
+    private func strengthLiftCard(_ lift: LiftTierProgress, highestMax: Double) -> some View {
+        let liftMax = lift.estimatedOneRepMaxKilograms ?? 0
+        let tierLabel = lift.estimatedOneRepMaxKilograms == nil ? "No data" : lift.currentTier.label
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(lift.exerciseName.uppercased())
+                .font(.caption.weight(.black))
+                .tracking(0.4)
+                .foregroundStyle(Color.liftMuted)
+                .lineLimit(1)
+            Text(lift.estimatedOneRepMaxKilograms.map {
+                MeasurementFormatting.formatDisplayedWeight($0, unit: appState.currentProfile.preferredUnit)
+            } ?? "—")
+                .font(.headline.weight(.black).monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.75)
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.liftOverlay)
+                    Capsule().fill(Color.liftAccentText)
+                        .frame(width: geometry.size.width * CGFloat(liftMax / highestMax))
+                }
+            }
+            .frame(height: 5)
+            Text(tierLabel)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Color.liftMuted)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
+        .padding(10)
+        .background(Color.liftCardRaised.opacity(0.62))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func strengthSummaryMetrics(threeLiftTotal: Double?, relativeTotal: Double?) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: 8) { strengthSummaryCards(threeLiftTotal: threeLiftTotal, relativeTotal: relativeTotal) }
+        } else {
+            HStack(spacing: 10) { strengthSummaryCards(threeLiftTotal: threeLiftTotal, relativeTotal: relativeTotal) }
+        }
+    }
+
+    @ViewBuilder
+    private func strengthSummaryCards(threeLiftTotal: Double?, relativeTotal: Double?) -> some View {
+        volumeSummary(
+            title: "THREE-LIFT TOTAL",
+            value: threeLiftTotal.map {
+                MeasurementFormatting.formatDisplayedWeight($0, unit: appState.currentProfile.preferredUnit)
+            } ?? "—",
+            detail: threeLiftTotal == nil ? "Log all three lifts" : "Squat + bench press + deadlift",
+            symbol: "sum"
+        )
+        volumeSummary(
+            title: "RELATIVE TOTAL",
+            value: relativeTotal.map { String(format: "%.2f×", $0) } ?? "—",
+            detail: relativeTotal == nil ? "Needs total and bodyweight" : "of bodyweight",
+            symbol: "scalemass"
+        )
+    }
+
+    @ViewBuilder
+    private func supplementalLiftCards(_ lifts: [TrainingExerciseCatalogItem]) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: 8) {
+                ForEach(lifts, id: \.id) { lift in supplementalLiftCard(lift) }
+            }
+        } else {
+            HStack(spacing: 8) {
+                ForEach(lifts, id: \.id) { lift in supplementalLiftCard(lift) }
+            }
+        }
+    }
+
+    private func supplementalLiftCard(_ lift: TrainingExerciseCatalogItem) -> some View {
+        let record = appState.exerciseRecords(for: lift.id)
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(lift.name)
+                .font(.caption.weight(.black))
+                .foregroundStyle(Color.liftMuted)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+            Text(record.bestEstimatedOneRepMaxKilograms.map {
+                MeasurementFormatting.formatDisplayedWeight($0, unit: appState.currentProfile.preferredUnit)
+            } ?? "—")
+                .font(.subheadline.weight(.black).monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.7)
+        }
+        .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+        .padding(.horizontal, 9)
+        .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 8 : 0)
+        .background(Color.liftCardRaised.opacity(0.62))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func mostRecentWorkout(for muscle: ExerciseMuscleRegion) -> CompletedWorkout? {
@@ -862,7 +936,7 @@ extension TrainingTrackerView {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.system(size: 9, weight: .black, design: .rounded))
+                    .font(.caption2.weight(.black))
                     .tracking(0.5)
                     .foregroundStyle(Color.liftMuted)
                 Text(value)
@@ -870,7 +944,7 @@ extension TrainingTrackerView {
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                 Text(detail)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(Color.liftMuted)
                     .lineLimit(1)
             }
@@ -936,20 +1010,21 @@ extension TrainingTrackerView {
             Text("Exercise progress")
                 .font(.subheadline.weight(.bold))
                 Spacer()
-                Menu {
-                    ForEach(options) { option in
-                        Button(option.name) {
-                            selectedProgressExerciseID = option.id
-                            selectedExerciseWeightTrendDate = nil
-                            selectedExerciseStrengthTrendDate = nil
-                        }
-                    }
+                Button {
+                    showingProgressExercisePicker = true
                 } label: {
                     Label(exercise?.name ?? "Exercise", systemImage: "chevron.down")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Color.liftAccentText)
                 }
                 .accessibilityIdentifier("tracker.progress.exercisePicker")
+                .sheet(isPresented: $showingProgressExercisePicker) {
+                    ProgressExercisePickerSheet(options: options, selectedID: selectedProgressExerciseID) { exerciseID in
+                        selectedProgressExerciseID = exerciseID
+                        selectedExerciseWeightTrendDate = nil
+                        selectedExerciseStrengthTrendDate = nil
+                    }
+                }
             }
 
             if chartPoints.isEmpty {
@@ -1370,6 +1445,10 @@ extension TrainingTrackerView {
                     )
                 }
             if !chartPoints.isEmpty {
+                let values = chartPoints.flatMap { [$0.actual, $0.average] }
+                let minimum = values.min() ?? 0
+                let maximum = values.max() ?? minimum
+                let padding = max(5, (maximum - minimum) * 0.15)
                 Chart(chartPoints) { point in
                     let actual = MeasurementFormatting.displayBodyweightValue(
                         point.actual,
@@ -1388,6 +1467,8 @@ extension TrainingTrackerView {
                         .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 4]))
                 }
                 .frame(height: 150)
+                .chartYScale(domain: max(0, minimum - padding)...(maximum + padding))
+                .chartYAxisLabel(appState.currentProfile.preferredUnit.shortLabel, position: .trailing)
                 .chartYAxis {
                     AxisMarks(position: .trailing) {
                         AxisGridLine().foregroundStyle(Color.liftSeparator)
@@ -1442,36 +1523,50 @@ extension TrainingTrackerView {
 
     private func bodyweightTable(entries: [BodyweightEntry]) -> some View {
         return VStack(spacing: 0) {
-            HStack {
-                Text("Week").frame(width: 48, alignment: .leading)
-                Text("Date").frame(maxWidth: .infinity, alignment: .leading)
-                Text("Weight").frame(width: 76, alignment: .trailing)
-                Text("").frame(width: 28)
+            if dynamicTypeSize.isAccessibilitySize {
+                Text("Bodyweight history")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.liftMuted)
+                    .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .background(Color.liftCardRaised.opacity(0.7))
+            } else {
+                HStack {
+                    Text("Week").frame(width: 48, alignment: .leading)
+                    Text("Date").frame(maxWidth: .infinity, alignment: .leading)
+                    Text("Weight").frame(width: 76, alignment: .trailing)
+                    Text("").frame(width: 28)
+                }
+                .font(.caption2.weight(.semibold))
+                .textCase(.uppercase)
+                .foregroundStyle(Color.liftMuted)
+                .padding(.horizontal, 12)
+                .frame(height: 34)
+                .background(Color.liftCardRaised.opacity(0.7))
             }
-            .font(.caption2.weight(.semibold))
-            .textCase(.uppercase)
-            .foregroundStyle(Color.liftMuted)
-            .padding(.horizontal, 12)
-            .frame(height: 34)
-            .background(Color.liftCardRaised.opacity(0.7))
 
             if entries.isEmpty {
-                HStack(spacing: 8) {
-                    Text("--")
-                        .frame(width: 48, alignment: .leading)
-                    Text("Log bodyweight to fill this table")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text("--")
-                        .frame(width: 76, alignment: .trailing)
-                    Image(systemName: "minus")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.clear)
-                        .frame(width: 28)
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        Text("Log bodyweight to fill this table")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        HStack(spacing: 8) {
+                            Text("--").frame(width: 48, alignment: .leading)
+                            Text("Log bodyweight to fill this table")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Text("--").frame(width: 76, alignment: .trailing)
+                            Image(systemName: "minus")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Color.clear)
+                                .frame(width: 28)
+                        }
+                    }
                 }
                 .font(.subheadline)
                 .foregroundStyle(Color.liftMuted)
                 .padding(.horizontal, 12)
-                .frame(minHeight: 52)
+                .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
             } else {
                 ForEach(Array(entries.enumerated()), id: \.offset) { index, row in
                     let formattedBodyweight = MeasurementFormatting.formatBodyweightOrDash(
@@ -1482,35 +1577,61 @@ extension TrainingTrackerView {
                     Button {
                         selectedBodyweightEntry = row
                     } label: {
-                        HStack(spacing: 8) {
-                            Text("\(row.week)")
-                                .frame(width: 48, alignment: .leading)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(row.targetDate, style: .date)
-                                    .lineLimit(1)
-                                if !row.notes.isEmpty {
-                                    Text("Has notes")
-                                        .font(.caption2)
-                                        .foregroundStyle(Color.liftAccentText)
+                        Group {
+                            if dynamicTypeSize.isAccessibilitySize {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Text("Week \(row.week)")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(Color.liftMuted)
+                                        Spacer()
+                                        Text(formattedBodyweight)
+                                            .font(.subheadline.weight(.semibold).monospacedDigit())
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption.weight(.bold))
+                                            .foregroundStyle(Color.liftMuted)
+                                    }
+                                    Text(row.targetDate, style: .date)
+                                    if !row.notes.isEmpty {
+                                        Text("Has notes")
+                                            .font(.caption2)
+                                            .foregroundStyle(Color.liftAccentText)
+                                    }
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            } else {
+                                HStack(spacing: 8) {
+                                    Text("\(row.week)")
+                                        .frame(width: 48, alignment: .leading)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(row.targetDate, style: .date)
+                                            .lineLimit(1)
+                                        if !row.notes.isEmpty {
+                                            Text("Has notes")
+                                                .font(.caption2)
+                                                .foregroundStyle(Color.liftAccentText)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    Text(formattedBodyweight)
+                                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                                        .frame(width: 76, alignment: .trailing)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(Color.liftMuted)
+                                        .frame(width: 28)
+                                }
+                                .font(.subheadline)
+                                .foregroundStyle(Color.liftText)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            Text(formattedBodyweight)
-                                .font(.subheadline.weight(.semibold).monospacedDigit())
-                                .frame(width: 76, alignment: .trailing)
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(Color.liftMuted)
-                                .frame(width: 28)
                         }
-                        .font(.subheadline)
                         .foregroundStyle(Color.liftText)
                         .padding(.horizontal, 12)
-                        .frame(minHeight: 56)
+                        .frame(maxWidth: .infinity, minHeight: dynamicTypeSize.isAccessibilitySize ? 88 : 56, alignment: .leading)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Week \(row.week), \(formattedBodyweight), edit")
+                    .accessibilityLabel("Week \(row.week), \(row.targetDate.formatted(date: .abbreviated, time: .omitted)), \(formattedBodyweight), edit")
 
                     if index < entries.count - 1 {
                         Divider()
@@ -1526,7 +1647,6 @@ extension TrainingTrackerView {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.liftOverlay, lineWidth: 1)
         }
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
     private var recentBodyweightEntries: [BodyweightEntry] {
@@ -1552,5 +1672,59 @@ extension TrainingTrackerView {
             .sorted { $0.occurredAt > $1.occurredAt }
             .prefix(5)
             .map { $0 }
+    }
+}
+
+private struct ProgressExercisePickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let options: [TrainingExerciseCatalogItem]
+    let selectedID: String?
+    let onSelect: (String) -> Void
+    @State private var searchText = ""
+
+    private var filteredOptions: [TrainingExerciseCatalogItem] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return options }
+        return options.filter {
+            $0.name.localizedCaseInsensitiveContains(query) ||
+                $0.equipment.localizedCaseInsensitiveContains(query) ||
+                $0.resolvedMuscleProfile.primaryDescription.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List(filteredOptions) { exercise in
+                Button {
+                    onSelect(exercise.id)
+                    dismiss()
+                } label: {
+                    HStack(spacing: 12) {
+                        ExerciseCatalogIcon(exercise: exercise)
+                            .frame(width: 40, height: 40)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(exercise.name).foregroundStyle(Color.liftText)
+                            Text("\(exercise.equipment) · \(exercise.resolvedMuscleProfile.primaryDescription)")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                        }
+                        Spacer()
+                        if exercise.id == selectedID {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(Color.liftAccentText)
+                        }
+                    }
+                }
+                .listRowBackground(Color.liftCard)
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color.liftBackground)
+            .searchable(text: $searchText, prompt: "Search exercises")
+            .navigationTitle("Choose exercise")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+        }
     }
 }

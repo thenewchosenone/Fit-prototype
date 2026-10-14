@@ -12,6 +12,8 @@ struct ProgramPlanDetailView: View {
     @State private var showingAddSession = false
     @State private var newSessionName = "Strength Workout"
     @State private var newSessionDay = "Monday"
+    @State private var showingPlanNotesEditor = false
+    @State private var planNotesDraft = ""
 
     private let days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -163,6 +165,26 @@ struct ProgramPlanDetailView: View {
             }
         } message: {
             Text("This removes scheduled training. Saved workout history and submitted lifts remain.")
+        }
+        .sheet(isPresented: $showingPlanNotesEditor) {
+            NavigationStack {
+                TextEditor(text: $planNotesDraft)
+                    .padding(12)
+                    .navigationTitle("Plan notes")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { showingPlanNotesEditor = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Save") {
+                                appState.updateSelectedWorkoutPlanNotes(planNotesDraft)
+                                showingPlanNotesEditor = false
+                            }
+                        }
+                    }
+            }
+            .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showingAddSession) {
             NavigationStack {
@@ -522,11 +544,20 @@ struct ProgramPlanDetailView: View {
     }
 
     private var notes: some View {
-        TrackerMessageCard(
-            title: "Plan notes",
-            message: appState.selectedWorkoutPlan?.notes.isEmpty == false
-                ? appState.selectedWorkoutPlan?.notes ?? ""
-                : "No notes added."
-        )
+        let currentNotes = appState.selectedWorkoutPlan?.notes ?? ""
+        return LiftCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Plan notes").font(.headline)
+                Text(currentNotes.isEmpty ? "No notes added yet." : currentNotes)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.liftMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button(currentNotes.isEmpty ? "Add notes" : "Edit notes") {
+                planNotesDraft = currentNotes
+                showingPlanNotesEditor = true
+            }
+            .buttonStyle(LiftSecondaryButtonStyle())
+            }
+        }
     }
 }

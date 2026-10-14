@@ -258,12 +258,12 @@ struct SubmitLiftView: View {
                         IntegerInputField(title: "Reps", value: $repetitions, presentation: .inset)
                     }
                 }
-                Picker("Maximum type", selection: $isActualOneRepMax) {
-                    Text("Actual 1RM").tag(true)
+                Picker("One-rep max type", selection: $isActualOneRepMax) {
+                    Text("Actual").tag(true)
                     Text("Estimated").tag(false)
                 }
                 .pickerStyle(.segmented)
-                .accessibilityLabel("Maximum type")
+                .accessibilityLabel("One-rep max type")
                 if selectedMovement == .dumbbellBenchPress {
                     Toggle("Matched dumbbell pair", isOn: $confirmsMatchedDumbbells)
                         .tint(Color.liftAccentText)
@@ -321,12 +321,12 @@ struct SubmitLiftView: View {
                         .background(Color.liftGreen.opacity(0.14))
                         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Estimated max")
+                        Text("Estimated one-rep max")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(Color.liftTextSecondary)
                         Text("\(RankingCalculator.format(estimate)) \(unit.shortLabel)")
                             .font(.system(.title3, design: .rounded).weight(.black))
-                        Text("\(MeasurementFormatting.recordedLiftSetTextWithX(weight: weight, unit: unit, repetitions: repetitions)) one-rep max")
+                        Text("Based on \(MeasurementFormatting.recordedLiftSetTextWithX(weight: weight, unit: unit, repetitions: repetitions, includeRepLabel: true))")
                             .font(.caption2)
                             .foregroundStyle(Color.liftTextSecondary)
                             .lineLimit(1)
@@ -335,7 +335,7 @@ struct SubmitLiftView: View {
                 }
                 .padding(.top, 10)
             } label: {
-                Label("Estimated max", systemImage: "chart.line.uptrend.xyaxis")
+                Label("Estimated one-rep max", systemImage: "chart.line.uptrend.xyaxis")
                     .font(.subheadline.weight(.bold))
             }
             .tint(Color.liftAccentText)
@@ -450,7 +450,7 @@ struct SubmitLiftView: View {
     private var submissionConsequence: String {
         switch visibility {
         case .publicLift:
-            return "Public lifts appear on your profile and eligible results enter rankings immediately."
+            return "Public lifts appear on your profile. Eligible public lifts can appear on leaderboards."
         case .friendsLift:
             return "Friends-only lifts are visible to accepted friends and stay out of public leaderboards."
         case .privateLift:
@@ -648,7 +648,7 @@ struct SubmitLiftView: View {
         LiftCard(padding: 14, radius: 16) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text("Video & verification")
+                    Text("Video evidence")
                         .font(.headline)
                     Spacer()
                     if selectedVideoURL != nil {
@@ -696,9 +696,12 @@ struct SubmitLiftView: View {
                     }
                 }
 
-                Toggle("Request verification", isOn: $requestVerification)
+                Toggle("Require lift video", isOn: $requestVerification)
                     .tint(Color.liftAccentText)
                     .frame(minHeight: LiftDesign.minimumTouchTarget)
+                Text("Video-backed means a video is attached. It does not mean the lift has been reviewed.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
 
                 if requestVerification {
                     DisclosureGroup("Recording guidance") {
@@ -777,7 +780,7 @@ struct SubmitLiftView: View {
         if isSubmitting { return "Submitting your lift..." }
         if isPreparingVideo { return "Preparing the selected video..." }
         if let gymID, !appState.isGymJoined(gymID) { return "Choose a joined gym or clear the selection." }
-        if requestVerification && selectedVideoURL == nil { return "Add a lift video or turn off verification." }
+        if requestVerification && selectedVideoURL == nil { return "Add a video or turn off “Require lift video”." }
         if selectedMovement == .dumbbellBenchPress && !confirmsMatchedDumbbells { return "Confirm that both dumbbells match." }
         return nil
     }
@@ -870,13 +873,13 @@ struct LiftSubmissionResultView: View {
                 Text("Lift submitted")
                     .font(.title.bold())
                     .accessibilityIdentifier("lift.submissionResult")
-                Text("Your result is ready for the leaderboard.")
+                Text("Your lift is saved. Leaderboard placement depends on eligibility and the selected filters.")
                     .font(.subheadline)
                     .foregroundStyle(Color.liftMuted)
 
                 SubmissionSummaryRow(
-                    title: "New max",
-                    value: "\(RankingCalculator.format(lift.estimatedOneRepMax)) lb",
+                    title: "One-rep max",
+                    value: MeasurementFormatting.formatBodyweight(lift.estimatedOneRepMax, preferredUnit: appState.currentProfile.preferredUnit),
                     subtitle: lift.isActualOneRepMax ? "Actual one-rep max" : "Estimated one-rep max",
                     symbolName: "chart.line.uptrend.xyaxis",
                     tint: .liftGreen
@@ -893,7 +896,7 @@ struct LiftSubmissionResultView: View {
                 .accessibilityIdentifier("lift.submissionEvidence")
 
                 SubmissionSummaryRow(
-                    title: "Provisional placement",
+                    title: "Current leaderboard placement",
                     value: placementText,
                     subtitle: placementSubtitle,
                     symbolName: "list.number",
@@ -913,34 +916,59 @@ struct LiftSubmissionResultView: View {
         .task {
             await updatePlacement()
         }
-    }
-
-    private func updatePlacement() async {
-        var foundPlacement = applyPlacement(from: appState.leaderboardEntries())
-
-        await appState.refreshLeaderboard()
-
-        if !foundPlacement {
-            foundPlacement = applyPlacement(from: appState.leaderboardEntries())
+        .onChange(of: appState.competitionStore.isLeaderboardLoading) { _, isLoading in
+            if !isLoading {
+                applyPlacement(from: appState.leaderboardEntries())
+            }
         }
     }
 
-    @discardableResult
-    private func applyPlacement(from entries: [LeaderboardEntry]) -> Bool {
+    private func updatePlacement() async {
+        await appState.refreshLeaderboard()
+        applyPlacement(from: appState.leaderboardEntries())
+    }
+
+    private func applyPlacement(from entries: [LeaderboardEntry]) {
+        if appState.competitionStore.isLeaderboardLoading {
+            placementText = "Checking ranking…"
+            placementSubtitle = "The selected leaderboard is still loading. Your lift is saved."
+            return
+        }
+        if let error = appState.competitionStore.leaderboardError {
+            placementText = "Ranking unavailable"
+            placementSubtitle = "Your lift is saved, but the leaderboard could not be refreshed. \(error)"
+            return
+        }
         guard let entry = entries.first(where: { $0.lift.id == lift.id }) else {
-            if lift.resolvedEvidenceStatus == .videoBacked {
-                placementText = "Pending"
-                placementSubtitle = "Your video-backed result is entering the live leaderboard."
+            if lift.visibility != .publicLift {
+                placementText = "Not public"
+                placementSubtitle = lift.visibility == .friendsLift
+                    ? "Friends-only lifts stay out of public leaderboards."
+                    : "Private lifts stay out of public leaderboards."
+            } else if !lift.isActualOneRepMax || lift.repetitions != 1 {
+                placementText = "One-rep max required"
+                placementSubtitle = "Leaderboards require an actual one-rep max. This set stays in your submission history."
+            } else if lift.resolvedModerationStatus != .clear {
+                placementText = lift.resolvedModerationStatus.displayName
+                placementSubtitle = "This lift has a review restriction and cannot rank while it is in this state."
+            } else if appState.verifiedOnly && lift.resolvedEvidenceStatus != .videoBacked {
+                placementText = "Video filter active"
+                placementSubtitle = "This lift is self-reported. Choose All lifts or Self-reported in the leaderboard’s Evidence filter to include lifts without video."
+            } else if appState.leaderboardFilters.verificationLevel == .selfReported && lift.resolvedEvidenceStatus == .videoBacked {
+                placementText = "Self-reported filter active"
+                placementSubtitle = "This lift has video evidence. Choose All lifts or Video-backed in the leaderboard’s Evidence filter."
+            } else if entries.contains(where: { $0.profile.id == lift.userID }) {
+                placementText = "Another result shown"
+                placementSubtitle = "Your leaderboard entry is represented by another lift. Open Leaderboards to see your current result."
             } else {
-                placementText = "Not eligible yet"
-                placementSubtitle = "A public video-backed result can enter the leaderboard."
+                placementText = "Not in current results"
+                placementSubtitle = "No entry for this lift was returned for the selected ranking and filters. Open Leaderboards to review the selection; a specific eligibility reason is not available."
             }
-            return false
+            return
         }
 
         placementText = "#\(entry.rank) of \(entries.count)"
         placementSubtitle = "Live \(appState.leaderboardFilters.rankingType.rawValue.lowercased()) ranking; other lifts can change this position."
-        return true
     }
 }
 

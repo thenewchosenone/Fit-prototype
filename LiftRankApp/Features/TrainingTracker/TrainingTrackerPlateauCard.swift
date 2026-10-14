@@ -14,7 +14,7 @@ struct PlateauAlertCard: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Possible plateau")
                         .font(.headline)
-                    Text("\(insight.exerciseName) has not improved in 3 workouts.")
+                    Text("\(insight.exerciseName) shows little change across the last three workouts.")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }

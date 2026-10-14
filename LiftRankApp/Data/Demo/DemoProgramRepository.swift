@@ -633,7 +633,9 @@ extension DemoRepository {
             exerciseIndex: exerciseIndex,
             week: week
         )
-        let percentage = method == .percentage ? trainingMaxKilograms[exercise.id].map { _ in WorkoutProgramCatalog.percentage(for: week, exerciseID: exercise.id) } : nil
+        let percentage = method == .percentage ? trainingMaxKilograms[exercise.id].map { _ in
+            WorkoutProgramCatalog.percentage(for: week, exerciseID: exercise.id, templateID: templateID, sessionIndex: sessionIndex)
+        } : nil
         let reps = effectiveTemplate.reps
         let targetRIR = method == .rirRepRange || (method == .percentage && percentage == nil)
             ? WorkoutProgramCatalog.rirTarget(for: week)

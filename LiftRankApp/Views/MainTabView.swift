@@ -70,9 +70,7 @@ struct MainTabView: View {
                 showsMeTabBar = false
             }
         }
-        .sheet(item: $router.sheet, onDismiss: {
-            router.sheet = nil
-        }) { destination in
+        .sheet(item: $router.sheet) { destination in
             appSheet(destination)
         }
         .fullScreenCover(item: $router.cover) { destination in
@@ -312,7 +310,7 @@ private struct ForumView: View {
                     .accessibilityLabel("New discussion")
             }
         }
-        .sheet(item: $requestedPost) { post in
+        .sheet(item: $requestedPost, onDismiss: { Task { await loadPosts() } }) { post in
             NavigationStack {
                 ForumThreadView(post: post, highlightedCommentID: requestedCommentID)
                     .environmentObject(appState)
@@ -441,7 +439,7 @@ private struct ForumView: View {
     private var emptyFeedMessage: String {
         switch feed {
         case .all:
-            return "Start the first useful conversation for this training group."
+            return "Start a discussion in this community."
         case .forYou:
             return "Join communities to personalize this feed, or browse pinned recommendations."
         case .following:
@@ -616,9 +614,9 @@ private struct ForumCommunityDirectoryView: View {
 
     private var directoryIntro: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Find your training rooms")
+            Text("Find training communities")
                 .font(.title3.weight(.black))
-            Text("Browse every discussion community, read its focus, and choose which ones appear in Following.")
+            Text("Find communities that match your training goals. Join one to see its discussions in Following.")
                 .font(.subheadline)
                 .foregroundStyle(Color.liftTextSecondary)
         }
@@ -721,18 +719,18 @@ private enum ForumDemoContent {
             comments: [
                 ForumComment(
                     id: demoID(post.id, offset: 3), postID: post.id, authorID: authorID, parentCommentID: nil,
-                    body: "This is a sample reply so we can review the mobile discussion layout.",
+                    body: "I’m focusing on consistent training days and tracking my working sets this block. What are your goals?",
                     createdAt: post.createdAt.addingTimeInterval(1800)
                 ),
                 ForumComment(
                     id: demoID(post.id, offset: 4), postID: post.id, authorID: authorID, parentCommentID: nil,
-                    body: "Add your own perspective here when this community goes live.",
+                    body: "I’m keeping a few main lifts consistent so I can compare my progress from week to week.",
                     createdAt: post.createdAt.addingTimeInterval(3600)
                 ),
                 ForumComment(
                     id: demoID(post.id, offset: 5), postID: post.id, authorID: authorID,
                     parentCommentID: demoID(post.id, offset: 3),
-                    body: "A reply nested under the first comment demonstrates the conversation structure.",
+                    body: "Same here. Having a regular schedule makes it easier to see what’s working.",
                     createdAt: post.createdAt.addingTimeInterval(2700)
                 )
             ]
@@ -775,15 +773,17 @@ private struct ForumComposerView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Training group") {
-                    Picker("Group", selection: $groupID) {
-                        Text("Choose a group").tag(UUID?.none)
+                Section("Community") {
+                    Picker("Community", selection: $groupID) {
+                        Text("Choose a community").tag(UUID?.none)
                         ForEach(groups) { group in Text(group.name).tag(Optional(group.id)) }
                     }
                 }
                 Section("Discussion") {
                     TextField("Title", text: $title)
-                    TextField("Share the training context", text: $draftBody, axis: .vertical).lineLimit(5...12)
+                    TextField("Share the training context", text: $draftBody, axis: .vertical)
+                        .lineLimit(5...12)
+                        .accessibilityIdentifier("forum.composer.body")
                 }
                 if let error { Text(error).foregroundStyle(Color.liftRed) }
             }
@@ -831,7 +831,7 @@ private struct ForumPostCard: View {
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(Color.liftTextSecondary)
                         HStack(spacing: 5) {
-                            Text(post.createdAt, style: .relative)
+                            Text(LiftTimeFormatter.relativeNoSeconds(from: post.createdAt))
                             Text("•")
                             Text(community?.name ?? "Community")
                         }
@@ -924,6 +924,7 @@ private struct ForumPostCard: View {
 
 private struct ForumThreadView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
     let post: ForumPost
     let highlightedCommentID: UUID?
     @State private var thread: ForumThread?
@@ -938,6 +939,13 @@ private struct ForumThreadView: View {
     @State private var showingReportReasons = false
     @State private var reportTargetCommentID: UUID?
     @State private var isSubmittingReply = false
+    @State private var showingEditSheet = false
+    @State private var showingDeletePostConfirmation = false
+    @State private var deletingCommentID: UUID?
+    @State private var editingCommentID: UUID?
+    @State private var editTitle = ""
+    @State private var editBody = ""
+    @State private var isSavingEdit = false
 
     private var isDemoReadOnly: Bool { post.tag == "demo" }
 
@@ -953,7 +961,7 @@ private struct ForumThreadView: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(authorDisplayName(for: post.authorID, isDemo: isDemoReadOnly))
                                         .font(.subheadline.weight(.semibold))
-                                    Text(post.createdAt, style: .relative)
+                                    Text(LiftTimeFormatter.relativeNoSeconds(from: post.createdAt))
                                         .font(.caption)
                                         .foregroundStyle(Color.liftMuted)
                                 }
@@ -967,10 +975,20 @@ private struct ForumThreadView: View {
                                         .background(Color.liftLime.opacity(0.12), in: Capsule())
                                 } else {
                                     Menu {
+                                        if post.authorID == appState.currentProfile.id {
+                                            Button("Edit discussion", systemImage: "pencil") { beginEditingPost() }
+                                            Button("Delete discussion", systemImage: "trash", role: .destructive) {
+                                                showingDeletePostConfirmation = true
+                                            }
+                                            .accessibilityIdentifier("forum.discussion.delete")
+                                            Divider()
+                                        }
                                         Button("Report discussion", role: .destructive) { showingReportReasons = true }
                                     } label: {
                                         Image(systemName: "ellipsis")
                                             .foregroundStyle(Color.liftMuted)
+                                                .accessibilityLabel("Discussion actions")
+                                                .accessibilityIdentifier("forum.discussion.actions")
                                     }
                                 }
                             }
@@ -1030,7 +1048,7 @@ private struct ForumThreadView: View {
                         }
                         .padding(.horizontal, 16)
                         if thread.comments.isEmpty {
-                            Text("Be the first to add useful training context.")
+                            Text("Be the first to comment.")
                                 .font(.subheadline)
                                 .foregroundStyle(Color.liftMuted)
                                 .padding(.horizontal, 16)
@@ -1068,6 +1086,51 @@ private struct ForumThreadView: View {
             Button("Off-topic or misleading", role: .destructive) { Task { await report(reason: "off_topic") } }
             Button("Cancel", role: .cancel) { reportTargetCommentID = nil }
         }
+        .confirmationDialog("Delete this discussion?", isPresented: $showingDeletePostConfirmation, titleVisibility: .visible) {
+            Button("Delete discussion", role: .destructive) { Task { await deletePost() } }
+                .accessibilityIdentifier("forum.discussion.delete.confirm")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The discussion will be removed from the forum.")
+        }
+        .confirmationDialog("Delete this comment?", isPresented: Binding(
+            get: { deletingCommentID != nil },
+            set: { if !$0 { deletingCommentID = nil } }
+        ), titleVisibility: .visible) {
+            Button("Delete comment", role: .destructive) {
+                guard let commentID = deletingCommentID else { return }
+                Task { await deleteComment(commentID: commentID) }
+            }
+                .accessibilityIdentifier("forum.comment.delete.confirm")
+            Button("Cancel", role: .cancel) { deletingCommentID = nil }
+        } message: {
+            Text("The comment will be removed from the discussion.")
+        }
+        .sheet(isPresented: $showingEditSheet) {
+            NavigationStack {
+                Form {
+                    if editingCommentID == nil {
+                        TextField("Title", text: $editTitle)
+                            .accessibilityIdentifier("forum.edit.title")
+                    }
+                    TextField(editingCommentID == nil ? "Discussion" : "Comment", text: $editBody, axis: .vertical)
+                        .lineLimit(5...12)
+                        .accessibilityIdentifier("forum.edit.body")
+                    if let error { Text(error).foregroundStyle(Color.liftRed) }
+                }
+                .navigationTitle(editingCommentID == nil ? "Edit discussion" : "Edit comment")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { showingEditSheet = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") { Task { await saveEdit() } }
+                            .disabled(isSavingEdit || editBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (editingCommentID == nil && editTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                    }
+                }
+            }
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if thread?.post.isLocked == true {
                 Text("This discussion is locked. New replies are unavailable.")
@@ -1102,6 +1165,7 @@ private struct ForumThreadView: View {
                         TextField(replyingTo == nil ? "Write a comment…" : "Write a reply…", text: $reply, axis: .vertical)
                             .lineLimit(1...4)
                             .textFieldStyle(.roundedBorder)
+                            .accessibilityIdentifier("forum.reply.body")
                         Button { Task { await submitReply() } } label: {
                             if isSubmittingReply {
                                 ProgressView()
@@ -1110,6 +1174,8 @@ private struct ForumThreadView: View {
                                     .font(.title2)
                             }
                         }
+                        .accessibilityLabel("Submit comment")
+                        .accessibilityIdentifier("forum.reply.submit")
                         .disabled(isSubmittingReply || reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         .tint(Color.liftAccentText)
                     }
@@ -1176,7 +1242,7 @@ private struct ForumThreadView: View {
                     Text(authorDisplayName(for: comment.authorID, isDemo: isDemoReadOnly))
                         .font(.caption.weight(.bold))
                     Text("•")
-                                    Text(comment.createdAt, style: .relative)
+                                    Text(LiftTimeFormatter.relativeNoSeconds(from: comment.createdAt))
                                         .font(.caption2)
                                         .foregroundStyle(Color.liftMuted)
                                 }
@@ -1190,6 +1256,19 @@ private struct ForumThreadView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(isDemoReadOnly)
+                    if comment.authorID == appState.currentProfile.id && !isDemoReadOnly {
+                        Menu {
+                            Button("Edit comment", systemImage: "pencil") { beginEditingComment(comment) }
+                            Button("Delete comment", systemImage: "trash", role: .destructive) {
+                                deletingCommentID = comment.id
+                            }
+                            .accessibilityIdentifier("forum.comment.delete")
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .accessibilityLabel("Comment actions")
+                                .accessibilityIdentifier("forum.comment.actions")
+                        }
+                    }
                     Button { Task { await toggleCommentVote(comment) } } label: {
                         Label(
                             commentVoteValues[comment.id] == 1 ? "Voted (\(comment.voteCount))" : "Vote (\(comment.voteCount))",
@@ -1393,6 +1472,62 @@ private struct ForumThreadView: View {
             await load()
         } catch let submitError { error = submitError.localizedDescription }
     }
+
+    private func beginEditingPost() {
+        guard let current = thread?.post, current.authorID == appState.currentProfile.id else { return }
+        error = nil
+        editingCommentID = nil
+        editTitle = current.title
+        editBody = current.body
+        showingEditSheet = true
+    }
+
+    private func beginEditingComment(_ comment: ForumComment) {
+        guard comment.authorID == appState.currentProfile.id else { return }
+        error = nil
+        editingCommentID = comment.id
+        editTitle = ""
+        editBody = comment.body
+        showingEditSheet = true
+    }
+
+    private func saveEdit() async {
+        let body = editBody.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !body.isEmpty, !isSavingEdit else { return }
+        isSavingEdit = true
+        defer { isSavingEdit = false }
+        do {
+            if let editingCommentID {
+                let updated = try await appState.forumStore.updateComment(commentID: editingCommentID, body: body)
+                if let thread {
+                    self.thread = ForumThread(post: thread.post, comments: thread.comments.map { $0.id == editingCommentID ? updated : $0 })
+                }
+            } else {
+                let title = editTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !title.isEmpty else { return }
+                let updated = try await appState.forumStore.updatePost(postID: post.id, title: title, body: body)
+                if let thread { self.thread = ForumThread(post: updated, comments: thread.comments) }
+            }
+            showingEditSheet = false
+        } catch let saveError {
+            error = saveError.localizedDescription
+        }
+    }
+
+    private func deletePost() async {
+        do {
+            try await appState.forumStore.deletePost(postID: post.id)
+            dismiss()
+        } catch let deleteError { error = deleteError.localizedDescription }
+    }
+
+    private func deleteComment(commentID: UUID) async {
+        do {
+            try await appState.forumStore.deleteComment(commentID: commentID)
+            self.deletingCommentID = nil
+            await load()
+        } catch let deleteError { error = deleteError.localizedDescription }
+    }
 }
 
 private enum MeRecentVolumeSelection: String, CaseIterable {
@@ -1423,7 +1558,7 @@ private struct MeHubContentView: View {
                 let tierSummary = appState.strengthTierSummary
                 let trainingStats = appState.competitiveStatistics
                 let displayName = profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Your profile" : profile.displayName
-                let handle = profile.username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Add a handle in Edit profile" : "@\(profile.username)"
+                let handle = profile.username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Add a username in Edit Profile" : "@\(profile.username)"
 
                 LazyVStack(alignment: .leading, spacing: 14) {
                     VStack(alignment: .leading, spacing: 12) {
@@ -1482,7 +1617,7 @@ private struct MeHubContentView: View {
                             Divider().frame(height: 28).overlay(Color.liftSeparator)
                             meHeaderStat("PRs", trainingStats.prCount.formatted())
                             Divider().frame(height: 28).overlay(Color.liftSeparator)
-                            meHeaderStat("Streak", "\(trainingStats.currentStreak)d")
+                            meHeaderStat("Streak", "\(trainingStats.currentStreak)w")
                         }
                         .padding(.top, 2)
                     }
@@ -1490,7 +1625,7 @@ private struct MeHubContentView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .liftSurface(radius: 12)
 
-                    DisclosureGroup("Training details", isExpanded: $showsTrainingDetails) {
+                    DisclosureGroup(isExpanded: $showsTrainingDetails) {
                     if showsTrainingDetails {
                     let bestStrengthLifts = appState.bestStrengthLifts
                     let hasLoggedTopLifts = bestStrengthLifts["bench"] != nil || bestStrengthLifts["squat"] != nil || bestStrengthLifts["deadlift"] != nil
@@ -1583,7 +1718,10 @@ private struct MeHubContentView: View {
                     )
                     }
                     }
-                    .accessibilityIdentifier("me.trainingDetails")
+                    label: {
+                        Text("Strength and training details")
+                            .accessibilityIdentifier("me.trainingDetails")
+                    }
                     .tint(Color.liftAccentText)
 
                     CompactSectionHeader(title: "Activity & connections")
@@ -1595,7 +1733,7 @@ private struct MeHubContentView: View {
                         .accessibilityIdentifier("me.awards")
                         Divider().overlay(Color.liftSeparator).padding(.leading, 66)
                         NavigationLink(value: MeRoute.personalProfile) {
-                            meRow("Your lifts and history", "Submissions, workouts, and personal activity", "chart.xyaxis.line", Color.liftGreen)
+                            meRow("Workout and lift history", "Submissions and completed workouts", "chart.xyaxis.line", Color.liftGreen)
                         }
                         .accessibilityIdentifier("me.personalProfile")
                         Divider().overlay(Color.liftSeparator).padding(.leading, 66)
@@ -1604,7 +1742,7 @@ private struct MeHubContentView: View {
                                 "Find a gym",
                                 appState.gyms.isEmpty
                                     ? "Browse locations and choose your primary gym"
-                                    : "\(appState.gyms.count) locations · \(appState.joinedGymCount) joined",
+                                    : "Browse locations and manage your primary gym",
                                 "building.2.fill",
                                 Color.liftBlue,
                                 badge: appState.currentProfile.primaryGymName.isEmpty
@@ -1746,7 +1884,7 @@ private struct MeHubContentView: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(summary.completedRequiredLiftCount) of \(summary.requiredLiftCount)")
                     .font(.subheadline.weight(.black))
-                Text(summary.completedRequiredLiftCount == summary.requiredLiftCount ? "lifts ranked" : "lifts logged")
+                Text("lifts logged")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Color.liftMuted)
             }
@@ -1767,7 +1905,10 @@ private struct MeHubContentView: View {
             return "\(estimate) · \(RankingCalculator.format(lift.bodyweightMultiple))× bodyweight"
         }
 
-        return VStack(alignment: .leading, spacing: 8) {
+        return Button {
+            selectedTopLiftCard = .exerciseHistory(id: lift.exerciseID, name: lift.exerciseName)
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Group {
                     if let catalogExercise {
@@ -1827,7 +1968,10 @@ private struct MeHubContentView: View {
                 .foregroundStyle(Color.liftMuted)
             }
         }
-        .accessibilityElement(children: .combine)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("View \(lift.exerciseName) workout history")
+        .accessibilityHint("Review a workout set and submit it as a lift")
         .accessibilityIdentifier("me.strength.lift.\(lift.exerciseID)")
     }
 
@@ -1897,10 +2041,13 @@ private struct MeTrainingInsightsView: View {
                     tint: .liftGreen
                 )
                 compactStatDivider()
-                CompactMetric(title: "Streak", value: stats.currentStreak.formatted(), unit: "days", symbolName: "flame", tint: .liftOrange)
+                CompactMetric(title: "Streak", value: stats.currentStreak.formatted(), unit: "weeks", symbolName: "flame", tint: .liftOrange)
             }
             .padding(11)
             .liftSurface(radius: 12)
+            Text("PRs count new best loads for an exercise and rep count.")
+                .font(.caption2)
+                .foregroundStyle(Color.liftMuted)
 
             CompactSectionHeader(title: "Recent performance")
                 .accessibilityIdentifier("me.section.recentPerformance")
@@ -2027,6 +2174,9 @@ private struct MeTrainingInsightsView: View {
 struct AwardsView: View {
     @EnvironmentObject private var appState: AppState
     @State private var rivalTierShareImage: Image?
+    @State private var showsAllUnlockedAwards = false
+    @State private var showsAllLockedAwards = false
+    @State private var selectedLiftHistory: TopLiftCardDestination?
 
     var body: some View {
         let tierSummary = appState.strengthTierSummary
@@ -2039,7 +2189,14 @@ struct AwardsView: View {
         let bestBench = bestStrengthLifts["bench"]
         let bestSquat = bestStrengthLifts["squat"]
         let bestDeadlift = bestStrengthLifts["deadlift"]
-        let totalPowerlifting = RankingCalculator.poundsToKilograms(appState.powerliftingTotal)
+        let awardEligibleOneRepWeights = RankingCalculator.achievementEligibleOneRepWeights(
+            lifts: appState.currentUserLifts,
+            completedWorkouts: appState.completedWorkouts
+        )
+        let awardEligibleBench = awardEligibleOneRepWeights["bench"] ?? 0
+        let awardEligibleSquat = awardEligibleOneRepWeights["squat"] ?? 0
+        let awardEligibleDeadlift = awardEligibleOneRepWeights["deadlift"] ?? 0
+        let totalPowerlifting = awardEligibleBench + awardEligibleSquat + awardEligibleDeadlift
         let bodyweightKilograms = RankingCalculator.poundsToKilograms(appState.currentProfile.bodyweightPounds)
         let bodyweightLogCount = appState.bodyweightEntries.reduce(0) { count, entry in
             count + (entry.actual == nil ? 0 : 1)
@@ -2049,9 +2206,9 @@ struct AwardsView: View {
             for: progressAchievements,
             stats: appState.competitiveStatistics,
             tierSummary: tierSummary,
-            bestBench: bestBench?.normalizedWeightKilograms ?? 0,
-            bestSquat: bestSquat?.normalizedWeightKilograms ?? 0,
-            bestDeadlift: bestDeadlift?.normalizedWeightKilograms ?? 0,
+            bestBench: awardEligibleBench,
+            bestSquat: awardEligibleSquat,
+            bestDeadlift: awardEligibleDeadlift,
             totalPowerlifting: totalPowerlifting,
             liftCount: liftCount,
             bodyweightLogCount: bodyweightLogCount,
@@ -2091,17 +2248,24 @@ struct AwardsView: View {
                             LiftEmptyState(title: "No awards yet", message: "Complete workouts and log lifts to unlock your first award.", symbolName: "medal.fill")
                         } else {
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                                ForEach(unlockedAchievements) { achievement in
+                                ForEach(showsAllUnlockedAwards ? unlockedAchievements : Array(unlockedAchievements.prefix(8))) { achievement in
                                     awardTile(achievement, unlocked: true)
                                 }
+                            }
+                            if unlockedCount > 8 {
+                                Button(showsAllUnlockedAwards ? "Show fewer" : "Show all \(unlockedCount) unlocked awards") {
+                                    showsAllUnlockedAwards.toggle()
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.liftAccentText)
                             }
                         }
                     }
 
                     VStack(alignment: .leading, spacing: 12) {
-                        CompactSectionHeader(title: "Next 3 closest awards")
+                        CompactSectionHeader(title: "Closest awards")
                         if closestAwardProgress.isEmpty {
-                            LiftEmptyState(title: "No progress data yet", message: "Keep training to reveal your closest next rewards.", symbolName: "chart.xyaxis.line")
+                            LiftEmptyState(title: "No progress data yet", message: "Keep training to see your next awards.", symbolName: "chart.xyaxis.line")
                         } else {
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                                 ForEach(Array(closestAwardProgress.prefix(3)), id: \.achievement.id) { item in
@@ -2128,13 +2292,20 @@ struct AwardsView: View {
                         }
 
                         Text(tierSummary.completedRequiredLiftCount == tierSummary.requiredLiftCount
-                             ? "Your tier is the highest level reached across squat, bench, and deadlift."
+                             ? "Your overall tier is the highest tier reached in all three lifts: squat, bench press, and deadlift."
                              : "Log completed working sets for all three lifts to unlock your starting tier.")
                             .font(.subheadline)
                             .foregroundStyle(Color.liftMuted)
 
                         ForEach(tierSummary.liftProgress) { lift in
-                            strengthLiftRow(lift, preferredUnit: preferredUnit)
+                            Button {
+                                selectedLiftHistory = .exerciseHistory(id: lift.exerciseID, name: lift.exerciseName)
+                            } label: {
+                                strengthLiftRow(lift, preferredUnit: preferredUnit)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("View \(lift.exerciseName) workout history")
+                            .accessibilityHint("Review a workout set and submit it as a lift")
                         }
                     }
                     .padding(14)
@@ -2174,11 +2345,29 @@ struct AwardsView: View {
                             ForEach(["bench", "squat", "deadlift", "total"], id: \.self) { metric in
                                 switch metric {
                                 case "bench":
-                                    personalRecord("Bench", best: bestBench, preferredUnit: preferredUnit)
+                                    personalRecord(
+                                        "Bench",
+                                        exerciseID: "bench",
+                                        best: bestBench,
+                                        workoutEstimate: tierSummary.liftProgress.first { $0.exerciseID == "bench" }?.estimatedOneRepMaxKilograms,
+                                        preferredUnit: preferredUnit
+                                    )
                                 case "squat":
-                                    personalRecord("Squat", best: bestSquat, preferredUnit: preferredUnit)
+                                    personalRecord(
+                                        "Squat",
+                                        exerciseID: "squat",
+                                        best: bestSquat,
+                                        workoutEstimate: tierSummary.liftProgress.first { $0.exerciseID == "squat" }?.estimatedOneRepMaxKilograms,
+                                        preferredUnit: preferredUnit
+                                    )
                                 case "deadlift":
-                                    personalRecord("Deadlift", best: bestDeadlift, preferredUnit: preferredUnit)
+                                    personalRecord(
+                                        "Deadlift",
+                                        exerciseID: "deadlift",
+                                        best: bestDeadlift,
+                                        workoutEstimate: tierSummary.liftProgress.first { $0.exerciseID == "deadlift" }?.estimatedOneRepMaxKilograms,
+                                        preferredUnit: preferredUnit
+                                    )
                                 default:
                                     totalRecord(preferredUnit: preferredUnit)
                                 }
@@ -2189,7 +2378,16 @@ struct AwardsView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         CompactSectionHeader(title: "Locked awards (\(lockedCount))")
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                            ForEach(progressAchievements) { awardTile($0, unlocked: false) }
+                            ForEach(showsAllLockedAwards ? progressAchievements : Array(progressAchievements.prefix(8))) {
+                                awardTile($0, unlocked: false)
+                            }
+                        }
+                        if lockedCount > 8 {
+                            Button(showsAllLockedAwards ? "Show fewer" : "Show all \(lockedCount) locked awards") {
+                                showsAllLockedAwards.toggle()
+                            }
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.liftAccentText)
                         }
                     }
                 }
@@ -2210,8 +2408,22 @@ struct AwardsView: View {
         .onChange(of: appState.completedWorkoutsRevision) {
             appState.refreshAchievementUnlocks()
         }
+        .onChange(of: appState.competitionStore.liftsRevision) {
+            appState.refreshAchievementUnlocks()
+        }
+        .onChange(of: appState.bodyweightEntries) {
+            appState.refreshAchievementUnlocks()
+        }
+        .onChange(of: appState.currentProfile.bodyweightPounds) {
+            appState.refreshAchievementUnlocks()
+        }
         .onChange(of: tierSummary) { _, _ in
             rivalTierShareImage = nil
+        }
+        .sheet(item: $selectedLiftHistory) { destination in
+            TopLiftCardDetailSheet(destination: destination)
+                .environmentObject(appState)
+                .presentationDetents([.large])
         }
     }
 
@@ -2252,20 +2464,33 @@ struct AwardsView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func personalRecord(_ title: String, best: LiftSubmission?, preferredUnit: UnitSystem) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: "trophy.fill").foregroundStyle(Color.liftGold)
-            Text(title.uppercased()).font(.caption.weight(.black)).foregroundStyle(Color.liftMuted)
-            Text(best.map {
-                MeasurementFormatting.formatDisplayedWeight(
-                    $0.normalizedWeightKilograms,
-                    unit: preferredUnit
-                )
-            } ?? "—")
-                .font(.headline.weight(.black))
-            Text(best == nil ? "No PR yet" : "Best logged lift").font(.caption).foregroundStyle(Color.liftMuted)
+    private func personalRecord(
+        _ title: String,
+        exerciseID: String,
+        best: LiftSubmission?,
+        workoutEstimate: Double?,
+        preferredUnit: UnitSystem
+    ) -> some View {
+        let valueKilograms = best?.normalizedWeightKilograms ?? workoutEstimate
+        return Button {
+            selectedLiftHistory = .exerciseHistory(id: exerciseID, name: title)
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                Image(systemName: "trophy.fill").foregroundStyle(Color.liftGold)
+                Text(title.uppercased()).font(.caption.weight(.black)).foregroundStyle(Color.liftMuted)
+                Text(valueKilograms.map {
+                    MeasurementFormatting.formatDisplayedWeight($0, unit: preferredUnit)
+                } ?? "—")
+                    .font(.headline.weight(.black))
+                Text(best != nil ? "Best submitted lift" : workoutEstimate != nil ? "Estimated 1RM from workouts" : "No workout lift yet")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+            }
+            .padding(14).frame(maxWidth: .infinity, minHeight: 112, alignment: .leading).liftSurface()
         }
-        .padding(14).frame(maxWidth: .infinity, minHeight: 112, alignment: .leading).liftSurface()
+        .buttonStyle(.plain)
+        .accessibilityLabel("View \(title) workout history and lift details")
+        .accessibilityHint("Review a workout set and submit it as a lift")
     }
 
     private func totalRecord(preferredUnit: UnitSystem) -> some View {
@@ -2287,6 +2512,7 @@ struct AwardsView: View {
             Image(systemName: achievement.symbolName)
                 .font(.title3.weight(.bold))
                 .foregroundStyle(unlocked ? Color.liftGold : Color.liftMuted)
+                .accessibilityHidden(true)
             Text(display.title).font(.subheadline.weight(.bold)).foregroundStyle(unlocked ? Color.liftText : Color.liftMuted).lineLimit(2)
             Text(status ?? (unlocked ? "Unlocked" : "Keep progressing"))
                 .font(.caption2.weight(.semibold))
@@ -2298,7 +2524,10 @@ struct AwardsView: View {
     private func awardDisplay(for achievement: Achievement) -> Achievement {
         var display = achievement
         let unit = appState.currentProfile.preferredUnit
-        if let liftMilestone = liftAwardMilestone(for: achievement.title) {
+        if achievement.title == "1 Training Hours" {
+            display.title = "1 Training Hour"
+            display.description = "Accumulate 1 hour of training time."
+        } else if let liftMilestone = liftAwardMilestone(for: achievement.title) {
             let formattedWeight = formattedAwardWeight(pounds: liftMilestone.pounds, unit: unit)
             display.title = "\(formattedWeight) \(liftMilestone.exercise)"
             display.description = "\(liftMilestone.exercise) \(formattedWeight.lowercased())."
@@ -2414,6 +2643,9 @@ struct AwardsView: View {
             metric = metricProgress(current: Double(liftCount), target: target, status: "\(liftCount) / \(Int(target)) lifts logged")
         } else if title == "First Verified Lift" {
             metric = metricProgress(current: Double(stats.verifiedLiftCount), target: 1, status: "\(stats.verifiedLiftCount) / 1 verified lift")
+        } else if title == "Five Verified Lifts" || title == "Ten Verified Lifts" {
+            let target = title == "Five Verified Lifts" ? 5.0 : 10.0
+            metric = metricProgress(current: Double(stats.verifiedLiftCount), target: target, status: "\(stats.verifiedLiftCount) / \(Int(target)) verified lifts")
         } else if title.contains("Verified Lifts") {
             guard let target = parseLeadingValue(from: title) else { return nil }
             metric = metricProgress(current: Double(stats.verifiedLiftCount), target: target, status: "\(stats.verifiedLiftCount) / \(Int(target)) verified lifts")
@@ -2438,6 +2670,18 @@ struct AwardsView: View {
         } else if title.hasSuffix(" Bodyweight Logs") {
             guard let target = parseLeadingValue(from: title) else { return nil }
             metric = metricProgress(current: Double(bodyweightLogCount), target: target, status: "\(bodyweightLogCount) / \(Int(target)) bodyweight logs")
+        } else if title.hasSuffix(" Exercises Explored") {
+            guard let target = parseLeadingValue(from: title) else { return nil }
+            let count = Set(appState.completedWorkouts.flatMap { $0.exercises.map(\.exerciseID) }).count
+            metric = metricProgress(current: Double(count), target: target, status: "\(count) / \(Int(target)) exercises")
+        } else if title.hasSuffix(" Gyms Joined") {
+            guard let target = parseLeadingValue(from: title) else { return nil }
+            let count = appState.joinedGymCount
+            metric = metricProgress(current: Double(count), target: target, status: "\(count) / \(Int(target)) gyms")
+        } else if title.hasSuffix(" Programs Started") {
+            guard let target = parseLeadingValue(from: title) else { return nil }
+            let count = appState.workoutPlans.count
+            metric = metricProgress(current: Double(count), target: target, status: "\(count) / \(Int(target)) programs")
         } else if let liftMilestone = liftAwardMilestone(for: title) {
             let current = liftMilestone.exercise == "Bench" ? bestBench : (liftMilestone.exercise == "Squat" ? bestSquat : bestDeadlift)
             let target = RankingCalculator.poundsToKilograms(liftMilestone.pounds)
@@ -2459,8 +2703,8 @@ struct AwardsView: View {
                 target: volumeKilograms,
                 status: "\(formattedAwardWeight(kilograms: min(stats.lifetimeWorkingSetVolume, volumeKilograms), unit: preferredUnit)) / \(formattedAwardWeight(kilograms: volumeKilograms, unit: preferredUnit))"
             )
-        } else if let streakTarget = parseLeadingValue(from: title), title.contains("Workout Streak") {
-            metric = metricProgress(current: Double(stats.currentStreak), target: streakTarget, status: "\(stats.currentStreak) / \(Int(streakTarget)) days")
+        } else if let streakTarget = parseLeadingValue(from: title), title.contains("Week Workout Streak") {
+            metric = metricProgress(current: Double(stats.currentStreak), target: streakTarget, status: "\(stats.currentStreak) / \(Int(streakTarget)) weeks")
         } else if title == "Profile Complete" {
             let profile = appState.currentProfile
             let isComplete = !profile.username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
@@ -2468,8 +2712,7 @@ struct AwardsView: View {
                 !profile.city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
                 !profile.state.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             metric = metricProgress(current: isComplete ? 1 : 0, target: 1, status: isComplete ? "Profile complete" : "Profile not complete")
-        } else if title == "1.5x Bodyweight Bench" || title == "1.5x Bodyweight Squat" || title == "2x Bodyweight Squat" ||
-                    title == "2x Bodyweight Deadlift" || title == "2.5x Bodyweight Deadlift" || title == "Bodyweight Bench" {
+        } else if title.contains("Bodyweight") {
             let multiple = parseLeadingValue(from: title) ?? 1
             let target = bodyweightKilograms * multiple
             let current: Double
@@ -2653,7 +2896,7 @@ struct AuthenticationView: View {
                         .font(.system(size: 54, weight: .bold))
                         .foregroundStyle(Color.liftAccentText)
                     Text("Lift Rivals").font(.largeTitle.bold())
-                    Text("Your training can stay local. Your profile and gyms use your secured account.")
+                    Text("Sign in to save your profile, sync workouts, and connect with other lifters.")
                         .foregroundStyle(Color.liftMuted)
                         .multilineTextAlignment(.center)
 
@@ -2827,13 +3070,13 @@ struct AuthenticationView: View {
                         Button {
                             Task { await appState.enterDemoMode() }
                         } label: {
-                            Label("Enter Explicit Demo Mode", systemImage: "person.crop.circle.badge.checkmark")
+                            Label("Explore demo", systemImage: "person.crop.circle.badge.checkmark")
                                 .frame(maxWidth: .infinity)
                                 .frame(minHeight: 48)
                         }
                         .buttonStyle(.bordered)
                         .tint(Color.liftAccentText)
-                        Text("Demo mode stays local and never writes to your Supabase account.")
+                        Text("Demo progress stays on this device and does not affect your account.")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                             .multilineTextAlignment(.center)

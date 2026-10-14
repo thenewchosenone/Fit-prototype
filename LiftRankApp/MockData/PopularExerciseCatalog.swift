@@ -678,6 +678,13 @@ enum ExerciseGuidanceCatalog {
                 cues: ["Avoid hyperextending at the top", "Use a slow, controlled range"]
             )
         }
+        if exercise.id == "cardio_rower" || name == "rowing machine" {
+            return .init(
+                summary: "A time-based cardio session using the rowing machine.",
+                steps: ["Set the foot straps so your feet are secure.", "Drive with your legs, then lean back slightly and draw the handle toward your lower ribs.", "Extend your arms, hinge forward, and bend your knees to return smoothly."],
+                cues: ["Keep the strokes controlled", "Record the session duration"]
+            )
+        }
         if name.contains("hyperextension") {
             return .init(
                 summary: "A supported reverse hyperextension for the glutes, hamstrings, and lower back.",

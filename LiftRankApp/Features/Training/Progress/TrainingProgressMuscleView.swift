@@ -354,61 +354,64 @@ extension TrainingTrackerView {
         if !showAllMuscleVolumeRows && groups.count > 5 {
             displayedGroups.append((key: "Other groups", value: groups.dropFirst(5).reduce(0) { $0 + $1.value }))
         }
-        return VStack(alignment: .leading, spacing: 12) {
+        return DisclosureGroup {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("\(Int(total.rounded()).formatted()) \(appState.currentProfile.preferredUnit.shortLabel) × reps")
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                Text("Share of \(selectedVolumeWeek.rawValue.lowercased())’s recorded weight × reps")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+                Text("A smaller share does not mean a muscle is underdeveloped.")
+                    .font(.caption2)
+                    .foregroundStyle(Color.liftMuted)
+                if groups.isEmpty {
+                    Text("No measurable volume load this week. Bodyweight-only and timed sets can still appear in your working-set counts.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                }
+                ForEach(displayedGroups, id: \.key) { group in
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(group.key).font(.subheadline)
+                            Spacer(minLength: 8)
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text((group.value / total).formatted(.percent.precision(.fractionLength(0))))
+                                    .font(.subheadline.weight(.bold).monospacedDigit())
+                                    .foregroundStyle(Color.liftAccentText)
+                                Text(Int(group.value.rounded()).formatted())
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                        }
+                        GeometryReader { geometry in
+                            Capsule().fill(Color.liftOverlay)
+                                .overlay(alignment: .leading) {
+                                    Capsule().fill(Color.liftAccentText)
+                                        .frame(width: geometry.size.width * group.value / max(total, 1))
+                                }
+                        }
+                        .frame(height: 5)
+                        .accessibilityHidden(true)
+                    }
+                }
+                if groups.count > 5 {
+                    Button(showAllMuscleVolumeRows ? "Show fewer groups" : "Show all \(groups.count) groups") {
+                        showAllMuscleVolumeRows.toggle()
+                    }
+                    .frame(minHeight: LiftDesign.minimumTouchTarget)
+                }
+                DisclosureGroup("How volume is counted") {
+                    Text("Completed non-warmup weight × reps, divided evenly among each exercise’s primary muscles. Each muscle appears once, and the estimated shares add up to the selected week’s total. Percentages show each muscle’s share of volume, not change versus earlier weeks or a measure of muscle development. Bodyweight-only and timed sets are excluded.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                        .padding(.top, 4)
+                }
+                .font(.caption.weight(.semibold))
+                .tint(Color.liftAccentText)
+            }
+        } label: {
             Text("Estimated volume by muscle")
                 .font(.headline)
-            Text("\(Int(total.rounded()).formatted()) \(appState.currentProfile.preferredUnit.shortLabel) × reps")
-                .font(.subheadline.weight(.semibold).monospacedDigit())
-            Text("Share of \(selectedVolumeWeek.rawValue.lowercased())’s recorded weight × reps")
-                .font(.caption)
-                .foregroundStyle(Color.liftMuted)
-            Text("A smaller share does not mean a muscle is underdeveloped.")
-                .font(.caption2)
-                .foregroundStyle(Color.liftMuted)
-            if groups.isEmpty {
-                Text("No measurable volume load this week. Bodyweight-only and timed sets can still appear in your working-set counts.")
-                    .font(.caption)
-                    .foregroundStyle(Color.liftMuted)
-            }
-            ForEach(displayedGroups, id: \.key) { group in
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(group.key).font(.subheadline)
-                        Spacer(minLength: 8)
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text((group.value / total).formatted(.percent.precision(.fractionLength(0))))
-                                .font(.subheadline.weight(.bold).monospacedDigit())
-                                .foregroundStyle(Color.liftAccentText)
-                            Text(Int(group.value.rounded()).formatted())
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(Color.liftMuted)
-                        }
-                    }
-                    GeometryReader { geometry in
-                        Capsule().fill(Color.liftOverlay)
-                            .overlay(alignment: .leading) {
-                                Capsule().fill(Color.liftAccentText)
-                                    .frame(width: geometry.size.width * group.value / max(total, 1))
-                            }
-                    }
-                    .frame(height: 5)
-                    .accessibilityHidden(true)
-                }
-            }
-            if groups.count > 5 {
-                Button(showAllMuscleVolumeRows ? "Show fewer groups" : "Show all \(groups.count) groups") {
-                    showAllMuscleVolumeRows.toggle()
-                }
-                .frame(minHeight: LiftDesign.minimumTouchTarget)
-            }
-            DisclosureGroup("How volume is counted") {
-                Text("Completed non-warmup weight × reps, divided evenly among each exercise’s primary muscles. Each muscle appears once, and the estimated shares add up to the selected week’s total. Percentages show each muscle’s share of volume, not change versus earlier weeks or a measure of muscle development. Bodyweight-only and timed sets are excluded.")
-                    .font(.caption)
-                    .foregroundStyle(Color.liftMuted)
-                    .padding(.top, 4)
-            }
-            .font(.caption.weight(.semibold))
-            .tint(Color.liftAccentText)
         }
         .padding(14)
         .liftSurface(radius: 12)

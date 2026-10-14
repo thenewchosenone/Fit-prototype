@@ -15,7 +15,6 @@ struct ExerciseLibraryFilterSheet: View {
     }
 
     private var equipmentOptions: [String] { Set(exercises.map(\.equipment)).sorted() }
-    private var movementOptions: [String] { Set(exercises.map(\.movementType)).sorted() }
     private var trackingOptions: [String] { Set(exercises.map(\.trackingType)).sorted() }
     private var resultCount: Int {
         exercises.filter { $0.matchesSearch(searchText) && draft.matches($0) }.count
@@ -27,11 +26,22 @@ struct ExerciseLibraryFilterSheet: View {
                 VStack(spacing: 0) {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 22) {
+                            if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Label("Search: \(searchText)", systemImage: "magnifyingglass")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.liftMuted)
+                                    .lineLimit(2)
+                                    .accessibilityIdentifier("exercise.filters.searchContext")
+                            }
+                            stringSection("Equipment", options: equipmentOptions, selection: $draft.equipment)
                             bodyAreaSection
                             muscleSection
-                            stringSection("Equipment", options: equipmentOptions, selection: $draft.equipment)
-                            stringSection("Movement type", options: movementOptions, selection: $draft.movementTypes)
-                            stringSection("Tracking type", options: trackingOptions, selection: $draft.trackingTypes)
+                            DisclosureGroup("More filters") {
+                                stringSection("Tracking type", options: trackingOptions, selection: $draft.trackingTypes)
+                                    .padding(.top, 12)
+                            }
+                            .font(.headline)
+                            .tint(Color.liftAccentText)
                         }
                         .padding(16)
                         .padding(.bottom, 90)
@@ -62,12 +72,6 @@ struct ExerciseLibraryFilterSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Apply") {
-                        applied = draft
-                        dismiss()
-                    }
                 }
             }
         }
@@ -118,8 +122,8 @@ struct ExerciseLibraryFilterSheet: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Text(title)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
                 if selected { Image(systemName: "checkmark") }
             }
             .font(.caption.weight(.bold))
@@ -203,6 +207,7 @@ struct CreateCustomExerciseView: View {
 
 struct LibraryCustomExerciseView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.dismiss) private var dismiss
     let onSaved: (TrainingExerciseCatalogItem) -> Void
     @State private var name = ""
@@ -228,8 +233,16 @@ struct LibraryCustomExerciseView: View {
                         }
                     }
                     Section("Tracking") {
-                        Picker("Tracking type", selection: $trackingType) {
-                            ForEach(trackingTypes, id: \.self) { Text($0).tag($0) }
+                        if dynamicTypeSize.isAccessibilitySize {
+                            ForEach(trackingTypes, id: \.self) { option in
+                                ProgramChoiceRow(title: option, isSelected: trackingType == option) {
+                                    trackingType = option
+                                }
+                            }
+                        } else {
+                            Picker("Tracking type", selection: $trackingType) {
+                                ForEach(trackingTypes, id: \.self) { Text($0).tag($0) }
+                            }
                         }
                     }
                 }

@@ -312,6 +312,12 @@ final class SupabaseProfileService: ProfileService {
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
+    func deleteBodyweightEntry(id: UUID) async throws {
+        do {
+            try await client.rpc("delete_bodyweight_checkin", params: ["p_id": id]).execute()
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {
         let existing = try await authenticatedProfile()
         let draft = ProfileDraft(

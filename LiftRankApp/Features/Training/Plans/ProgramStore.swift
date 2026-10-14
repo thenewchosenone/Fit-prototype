@@ -347,6 +347,14 @@ final class ProgramStore {
     }
 
     @discardableResult
+    func updatePlanNotes(id: UUID, notes: String) -> Bool {
+        guard var plan = plan(id: id) else { return false }
+        plan.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        repository.updateWorkoutPlan(plan)
+        return true
+    }
+
+    @discardableResult
     func duplicatePlan(id: UUID) -> WorkoutPlan? {
         guard let plan = plan(id: id) else { return nil }
         return repository.duplicateWorkoutPlan(plan)

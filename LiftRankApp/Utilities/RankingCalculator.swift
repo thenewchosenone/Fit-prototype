@@ -102,8 +102,7 @@ enum RankingCalculator {
         var bestEstimatedMaxByExercise: [String: Double] = [:]
         for workout in workouts {
             for exercise in workout.exercises {
-                let exerciseID = exercise.rankingExerciseID ?? exercise.exerciseID
-                guard strengthTierExerciseIDs.contains(exerciseID) else { continue }
+                guard let exerciseID = strengthTierExerciseID(for: exercise) else { continue }
                 for set in workout.sets where set.prescriptionID == exercise.id && set.isComplete && !set.isWarmup {
                     guard let weight = set.weight, weight > 0,
                           let repetitions = set.reps, (1...10).contains(repetitions) else { continue }
@@ -199,6 +198,45 @@ enum RankingCalculator {
             return movement == requestedMovement
         }
         return lift.exerciseID.caseInsensitiveCompare(exerciseID) == .orderedSame
+    }
+
+    static func achievementEligibleOneRepWeights(
+        lifts: [LiftSubmission],
+        completedWorkouts: [CompletedWorkout]
+    ) -> [String: Double] {
+        let trackedExerciseIDs = strengthTierExerciseIDs
+        var bestByExercise: [String: Double] = [:]
+        for lift in lifts where lift.repetitions == 1 && lift.resolvedModerationStatus != .rejected {
+            guard let exerciseID = trackedExerciseIDs.first(where: { matchesExerciseID(lift, exerciseID: $0) }) else { continue }
+            bestByExercise[exerciseID] = max(bestByExercise[exerciseID] ?? 0, lift.normalizedWeightKilograms)
+        }
+        for workout in completedWorkouts {
+            let exercisesByID = Dictionary(uniqueKeysWithValues: workout.exercises.map { ($0.id, $0) })
+            for set in workout.completedWorkingSets where set.reps == 1 {
+                guard let exercise = exercisesByID[set.prescriptionID],
+                      let exerciseID = strengthTierExerciseID(for: exercise),
+                      trackedExerciseIDs.contains(exerciseID),
+                      let weight = set.weight else { continue }
+                let kilograms = set.recordedUnit == .kilograms ? weight : poundsToKilograms(weight)
+                bestByExercise[exerciseID] = max(bestByExercise[exerciseID] ?? 0, kilograms)
+            }
+        }
+        return bestByExercise
+    }
+
+    private static func strengthTierExerciseID(for exercise: WorkoutExerciseSnapshot) -> String? {
+        let candidates = [exercise.rankingExerciseID, exercise.exerciseID].compactMap { $0 }
+        for candidate in candidates {
+            if strengthTierExerciseIDs.contains(candidate) { return candidate }
+            guard let movement = CompetitiveMovement.resolve(exerciseID: candidate) else { continue }
+            switch movement {
+            case .backSquat: return "squat"
+            case .barbellBenchPress: return "bench"
+            case .conventionalDeadlift, .sumoDeadlift: return "deadlift"
+            case .standingBarbellOverheadPress, .dumbbellBenchPress, .bentOverBarbellRow: continue
+            }
+        }
+        return nil
     }
 
     static func powerliftingBreakdown(for userID: UUID, lifts: [LiftSubmission]) -> PowerliftingBreakdown {

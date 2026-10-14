@@ -78,7 +78,7 @@ extension AppState {
     }
 
     func refreshCurrentUserTotalRanking(force: Bool = false) async {
-        guard isAuthenticated, !isDemoMode else { return }
+        guard isAuthenticated || isDemoMode else { return }
         await competitionStore.refreshCurrentUserTotalEntry(force: force)
     }
 

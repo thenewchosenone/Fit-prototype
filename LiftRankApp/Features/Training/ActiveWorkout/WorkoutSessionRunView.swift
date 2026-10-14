@@ -136,8 +136,8 @@ struct WorkoutSessionRunView: View {
                     }
                 } else {
                     LiftEmptyState(
-                        title: "Workout saved",
-                        message: "Your active workout is no longer available.",
+                        title: "No active workout",
+                        message: "Return to Track to review your history or start a workout.",
                         symbolName: "checkmark.circle.fill",
                         actionTitle: "Return to Track"
                     ) { dismiss() }
@@ -646,7 +646,7 @@ private struct IncompleteWorkoutFinishPrompt: View {
                         Text("You have sets remaining")
                             .font(.title3.weight(.black))
                             .foregroundStyle(Color.liftText)
-                        Text("Review what you logged, or keep training to finish the plan.")
+                        Text("Review your logged sets, or keep training to finish this workout.")
                             .font(.subheadline)
                             .foregroundStyle(Color.liftMuted)
                             .fixedSize(horizontal: false, vertical: true)

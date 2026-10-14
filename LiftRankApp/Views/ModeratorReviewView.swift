@@ -91,7 +91,7 @@ struct ModeratorReviewView: View {
                     }
                     .buttonStyle(.bordered)
                     .tint(Color.liftRed)
-                    Button("More evidence") {
+                    Button("Request more evidence") {
                         appState.updateVerification(lift, status: .videoSubmitted, note: "More evidence requested: \(selectedReason)")
                     }
                     .buttonStyle(.bordered)

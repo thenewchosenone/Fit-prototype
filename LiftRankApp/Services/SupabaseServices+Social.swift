@@ -220,6 +220,15 @@ private struct ForumCommentInsert: Encodable {
     }
 }
 
+private struct ForumPostContentUpdate: Encodable {
+    let title: String
+    let body: String
+}
+
+private struct ForumCommentContentUpdate: Encodable {
+    let body: String
+}
+
 private struct JoinForumParameters: Encodable {
     let targetCommunityID: UUID
     let requestNote: String
@@ -391,6 +400,44 @@ final class SupabaseForumService: ForumService {
             let inserted: ForumCommentDTO = try await client.from("forum_comments").insert(ForumCommentInsert(id: UUID(), postID: postID, authorID: user.id, parentCommentID: parentCommentID, body: String(body.prefix(5000)))).select("id,post_id,author_id,parent_comment_id,body,created_at,forum_comment_votes(user_id,value)").single().execute().value
             return inserted.model(currentUserID: user.id)
         } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func updatePost(postID: UUID, title: String, body: String) async throws -> ForumPost {
+        do {
+            let user = try await client.auth.session.user
+            let updated: ForumPostDTO = try await client.from("forum_posts")
+                .update(ForumPostContentUpdate(title: String(title.trimmingCharacters(in: .whitespacesAndNewlines).prefix(180)), body: String(body.trimmingCharacters(in: .whitespacesAndNewlines).prefix(10000))))
+                .eq("id", value: postID)
+                .eq("author_id", value: user.id)
+                .is("removed_at", value: nil)
+                .select("id,community_id,gym_id,author_id,kind,title,body,tag,lift_id,is_pinned,is_locked,created_at,forum_post_votes(user_id,value),forum_comments(count)")
+                .single().execute().value
+            return updated.model(currentUserID: user.id)
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func updateComment(commentID: UUID, body: String) async throws -> ForumComment {
+        do {
+            let user = try await client.auth.session.user
+            let updated: ForumCommentDTO = try await client.from("forum_comments")
+                .update(ForumCommentContentUpdate(body: String(body.trimmingCharacters(in: .whitespacesAndNewlines).prefix(5000))))
+                .eq("id", value: commentID)
+                .eq("author_id", value: user.id)
+                .is("removed_at", value: nil)
+                .select("id,post_id,author_id,parent_comment_id,body,created_at,forum_comment_votes(user_id,value)")
+                .single().execute().value
+            return updated.model(currentUserID: user.id)
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func deletePost(postID: UUID) async throws {
+        do { try await client.rpc("delete_own_forum_post", params: ["target_post_id": postID]).execute() }
+        catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func deleteComment(commentID: UUID) async throws {
+        do { try await client.rpc("delete_own_forum_comment", params: ["target_comment_id": commentID]).execute() }
+        catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
     func vote(postID: UUID, value: Int?) async throws {

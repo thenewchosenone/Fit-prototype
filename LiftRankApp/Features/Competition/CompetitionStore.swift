@@ -562,7 +562,6 @@ final class CompetitionStore: ObservableObject {
 
     func normalizeFilters() {
         var normalized = filters
-        normalized.gymID = nil
         if let weightClassID = normalized.weightClassID,
            !weightClasses.contains(where: { $0.id == weightClassID }) {
             normalized.weightClassID = nil

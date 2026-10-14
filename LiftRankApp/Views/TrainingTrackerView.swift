@@ -8,6 +8,7 @@ struct TrainingTrackerView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) var dismiss
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
+    @FocusState var isLibrarySearchFocused: Bool
     @State var segment: TrackerSegment
     @State var selectedWeekID: UUID?
     @State var selectedSessionForAdd: WorkoutSession?
@@ -39,6 +40,7 @@ struct TrainingTrackerView: View {
     @State var workoutHistoryMonth = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
     @State var selectedWorkoutHistoryDate: Date?
     @State var selectedProgressExerciseID: String?
+    @State var showingProgressExercisePicker = false
     @State var selectedProgressCategory: TrackerProgressCategory = .consistency
     @State var showAllMuscleSetRows = false
     @State var showAllMuscleVolumeRows = false

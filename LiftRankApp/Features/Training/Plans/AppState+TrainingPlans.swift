@@ -555,6 +555,11 @@ extension AppState {
         Task { await synchronizeWorkoutPlans() }
     }
 
+    func updateSelectedWorkoutPlanNotes(_ notes: String) {
+        guard programStore.updatePlanNotes(id: selectedWorkoutPlanID, notes: notes) else { return }
+        Task { await synchronizeWorkoutPlans() }
+    }
+
     func duplicateSelectedWorkoutPlan() {
         guard activeWorkout == nil else { return }
         guard let copy = programStore.duplicatePlan(id: selectedWorkoutPlanID) else { return }

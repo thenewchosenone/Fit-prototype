@@ -66,6 +66,11 @@ final class WorkoutPresentationFormattingTests: XCTestCase {
         )
     }
 
+    func testDisplayedLeaderboardTotalConvertsCanonicalKilogramsToPreferredUnit() {
+        XCTAssertEqual(MeasurementFormatting.formatDisplayedWeight(100, unit: .pounds), "220.5 lb")
+        XCTAssertEqual(MeasurementFormatting.formatDisplayedWeight(100, unit: .kilograms), "100 kg")
+    }
+
     func testBodyweightInLbText() {
         XCTAssertEqual(RankingFormatting.bodyweightInLbText(225.4), "225 lb BW")
     }
@@ -225,6 +230,30 @@ final class WorkoutPresentationFormattingTests: XCTestCase {
 
         XCTAssertEqual(draft.id, existing.id)
         XCTAssertEqual(draft.actual, 205)
+    }
+
+    func testCurrentWeekBodyweightDraftStartsNewEntryAfterPreviousWeek() {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let previousWeek = BodyweightEntry(
+            id: UUID(),
+            week: 4,
+            targetDate: now.addingTimeInterval(-7 * 86_400),
+            actual: 205,
+            notes: "previous week"
+        )
+
+        let draft = BodyweightEntry.draftForCurrentWeek(
+            entries: [previousWeek],
+            currentBodyweightPounds: 210,
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertNotEqual(draft.id, previousWeek.id)
+        XCTAssertEqual(draft.week, 5)
+        XCTAssertEqual(draft.targetDate, now)
+        XCTAssertEqual(draft.actual, 210)
     }
 
     func testCurrentWeekBodyweightDraftStartsBlankWhenProfileBodyweightIsMissing() {

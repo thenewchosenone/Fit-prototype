@@ -40,6 +40,7 @@ final class MockProfileService: ProfileService {
     func currentProfile() async throws -> UserProfile { repository.currentProfile }
     func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry]) async throws -> [BodyweightEntry] { localEntries }
     func saveBodyweightEntry(_ entry: BodyweightEntry) async throws {}
+    func deleteBodyweightEntry(id: UUID) async throws {}
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {
         var saved = profile
         saved.username = repository.currentProfile.username
@@ -323,6 +324,21 @@ final class MockNotificationService: NotificationService {
 #if DEBUG
 @MainActor
 final class MockForumService: ForumService {
+    private let repository: DemoRepository
+    private let hasEditableTestFixture: Bool
+    private var editedPost: ForumPost?
+    private var editedComments: [ForumComment]?
+    private var isTestPostDeleted = false
+
+    init(repository: DemoRepository) {
+        self.repository = repository
+        hasEditableTestFixture = ProcessInfo.processInfo.arguments.contains("-uiTestingEditableForumThread")
+    }
+
+    private var testPostID: UUID { UUID(uuidString: "00000000-0000-0000-0000-000000000211")! }
+    private var testCommentID: UUID { UUID(uuidString: "00000000-0000-0000-0000-000000000212")! }
+    private var testCommunityID: UUID { UUID(uuidString: "00000000-0000-0000-0000-000000000201")! }
+
     private let demoCommunities = [
         ForumCommunity(id: UUID(uuidString: "00000000-0000-0000-0000-000000000201")!, slug: "strength", name: "Strength Training", summary: "Build strength together.", details: "Discuss programming, technique, and progress.", category: "Training", visibility: "public", accentHex: "8B5CF6"),
         ForumCommunity(id: UUID(uuidString: "00000000-0000-0000-0000-000000000202")!, slug: "powerlifting", name: "Powerlifting", summary: "Train the competition lifts.", details: "Share meet prep and powerlifting advice.", category: "Training", visibility: "public", accentHex: "F59E0B"),
@@ -330,10 +346,18 @@ final class MockForumService: ForumService {
     ]
 
     func communities() async throws -> [ForumCommunity] { demoCommunities }
-    func joinedCommunityIDs() async throws -> [UUID] { [] }
-    func communityMembershipStatuses() async throws -> [UUID: String] { [:] }
-    func posts(communityID: UUID?, limit: Int, offset: Int) async throws -> [ForumPost] { [] }
-    func thread(postID: UUID) async throws -> ForumThread? { nil }
+    func joinedCommunityIDs() async throws -> [UUID] { hasEditableTestFixture ? [testCommunityID] : [] }
+    func communityMembershipStatuses() async throws -> [UUID: String] {
+        hasEditableTestFixture ? [testCommunityID: "Joined"] : [:]
+    }
+    func posts(communityID: UUID?, limit: Int, offset: Int) async throws -> [ForumPost] {
+        guard hasEditableTestFixture, !isTestPostDeleted, communityID == nil || communityID == testCommunityID else { return [] }
+        return Array([currentTestPost].dropFirst(offset).prefix(limit))
+    }
+    func thread(postID: UUID) async throws -> ForumThread? {
+        guard hasEditableTestFixture, !isTestPostDeleted, postID == testPostID else { return nil }
+        return ForumThread(post: currentTestPost, comments: currentTestComments)
+    }
     func join(communityID: UUID, requestNote: String) async throws -> String {
         throw LiftRankServiceError.invalidInput("Joining communities is unavailable in the simulator demo.")
     }
@@ -345,6 +369,40 @@ final class MockForumService: ForumService {
     }
     func createComment(postID: UUID, body: String, parentCommentID: UUID?) async throws -> ForumComment {
         throw LiftRankServiceError.invalidInput("Commenting is unavailable in the simulator demo.")
+    }
+    func updatePost(postID: UUID, title: String, body: String) async throws -> ForumPost {
+        if hasEditableTestFixture, postID == testPostID, currentTestPost.authorID == repository.currentProfile.id {
+            let post = currentTestPost
+            let updated = ForumPost(id: post.id, communityID: post.communityID, gymID: post.gymID, authorID: post.authorID, kind: post.kind, title: title, body: body, tag: post.tag, liftID: post.liftID, isPinned: post.isPinned, isLocked: post.isLocked, createdAt: post.createdAt, voteCount: post.voteCount, commentCount: post.commentCount, currentUserVote: post.currentUserVote)
+            editedPost = updated
+            return updated
+        }
+        throw LiftRankServiceError.invalidInput("Editing posts is unavailable in the simulator demo.")
+    }
+    func updateComment(commentID: UUID, body: String) async throws -> ForumComment {
+        if hasEditableTestFixture, let index = currentTestComments.firstIndex(where: { $0.id == commentID && $0.authorID == repository.currentProfile.id }) {
+            let comment = currentTestComments[index]
+            let updated = ForumComment(id: comment.id, postID: comment.postID, authorID: comment.authorID, parentCommentID: comment.parentCommentID, body: body, createdAt: comment.createdAt, voteCount: comment.voteCount, currentUserVote: comment.currentUserVote)
+            var comments = currentTestComments
+            comments[index] = updated
+            editedComments = comments
+            return updated
+        }
+        throw LiftRankServiceError.invalidInput("Editing comments is unavailable in the simulator demo.")
+    }
+    func deletePost(postID: UUID) async throws {
+        if hasEditableTestFixture, postID == testPostID, currentTestPost.authorID == repository.currentProfile.id {
+            isTestPostDeleted = true
+            return
+        }
+        throw LiftRankServiceError.invalidInput("Deleting posts is unavailable in the simulator demo.")
+    }
+    func deleteComment(commentID: UUID) async throws {
+        if hasEditableTestFixture, currentTestComments.contains(where: { $0.id == commentID && $0.authorID == repository.currentProfile.id }) {
+            editedComments = currentTestComments.filter { $0.id != commentID }
+            return
+        }
+        throw LiftRankServiceError.invalidInput("Deleting comments is unavailable in the simulator demo.")
     }
     func vote(postID: UUID, value: Int?) async throws {
         throw LiftRankServiceError.invalidInput("Voting is unavailable in the simulator demo.")
@@ -361,6 +419,36 @@ final class MockForumService: ForumService {
     func reports() async throws -> [ForumReport] { [] }
     func moderate(postID: UUID, action: String, reason: String) async throws {
         throw LiftRankServiceError.invalidInput("Moderation is unavailable in the simulator demo.")
+    }
+
+    private var currentTestPost: ForumPost {
+        editedPost ?? ForumPost(
+            id: testPostID,
+            communityID: testCommunityID,
+            gymID: nil,
+            authorID: repository.currentProfile.id,
+            kind: "Discussion",
+            title: "Editable UI test discussion",
+            body: "Use this fixture to verify author edit and delete controls.",
+            tag: nil,
+            liftID: nil,
+            isPinned: true,
+            isLocked: false,
+            createdAt: .now,
+            voteCount: 100,
+            commentCount: currentTestComments.count
+        )
+    }
+
+    private var currentTestComments: [ForumComment] {
+        editedComments ?? [ForumComment(
+            id: testCommentID,
+            postID: testPostID,
+            authorID: repository.currentProfile.id,
+            parentCommentID: nil,
+            body: "Editable UI test comment",
+            createdAt: .now
+        )]
     }
 }
 #endif

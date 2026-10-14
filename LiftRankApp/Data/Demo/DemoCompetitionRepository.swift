@@ -141,6 +141,12 @@ extension DemoRepository {
     }
 
     func computedStatistics(referenceDate: Date = .now) -> CompetitiveStatistics {
+        let workoutStreaks = WorkoutHistoryCalendarData.workoutStreaks(
+            completedWorkoutDates: completedWorkouts
+                .filter { !$0.completedWorkingSets.isEmpty }
+                .map(\.completedAt),
+            referenceDate: referenceDate
+        )
         let lifetimeWorkingSetVolume = completedWorkouts.reduce(0.0) { workoutTotal, workout in
             workoutTotal + workout.completedWorkingSets.reduce(0.0) { total, log in
                 let trackingKind = trackingKind(for: log, workout: workout)
@@ -166,8 +172,8 @@ extension DemoRepository {
                 }
             },
             prCount: completedPRCount(),
-            currentStreak: currentWorkoutStreak(referenceDate: referenceDate),
-            longestStreak: longestWorkoutStreak(),
+            currentStreak: workoutStreaks.current,
+            longestStreak: workoutStreaks.longest,
             verifiedLiftCount: currentUserLifts.filter(\.verificationStatus.isDefaultLeaderboardEligible).count,
             currentGlobalTotalRank: nil,
             highestGlobalTotalRank: nil,
@@ -203,51 +209,6 @@ extension DemoRepository {
         return count
     }
 
-    private func currentWorkoutStreak(referenceDate: Date = .now) -> Int {
-        let calendar = Calendar.current
-        let completedDays = Set(completedWorkouts.filter { !$0.completedWorkingSets.isEmpty }.map { calendar.startOfDay(for: $0.completedAt) })
-        let today = calendar.startOfDay(for: referenceDate)
-        let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
-        var cursor: Date
-        if completedDays.contains(today) {
-            cursor = today
-        } else if completedDays.contains(yesterday) {
-            cursor = yesterday
-        } else {
-            return 0
-        }
-
-        var streak = 0
-        while completedDays.contains(cursor) {
-            streak += 1
-            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
-            cursor = previous
-        }
-        return streak
-    }
-
-    private func longestWorkoutStreak() -> Int {
-        let calendar = Calendar.current
-        let days = completedWorkouts
-            .filter { !$0.completedWorkingSets.isEmpty }
-            .map { calendar.startOfDay(for: $0.completedAt) }
-            .sorted()
-        guard !days.isEmpty else { return 0 }
-        var longest = 1
-        var current = 1
-        for index in 1..<days.count {
-            let delta = calendar.dateComponents([.day], from: days[index - 1], to: days[index]).day ?? 0
-            if delta == 0 { continue }
-            if delta == 1 {
-                current += 1
-                longest = max(longest, current)
-            } else {
-                current = 1
-            }
-        }
-        return longest
-    }
-
     func refreshAchievementUnlocks(now: Date = .now) {
         var refreshedByTitle = achievementUnlocks.reduce(into: [String: AchievementUnlock]()) { result, unlock in
             result[unlock.title] = unlock
@@ -274,7 +235,10 @@ extension DemoRepository {
         let stats = computedStatistics()
         let bodyweightKilograms = RankingCalculator.poundsToKilograms(currentProfile.bodyweightPounds)
         let userLifts = currentUserLifts
-        let strengthMaxes = verifiedOrCompletedOneRepKilogramsByExercise(userLifts: userLifts)
+        let strengthMaxes = RankingCalculator.achievementEligibleOneRepWeights(
+            lifts: userLifts,
+            completedWorkouts: completedWorkouts
+        )
         let maxBench = strengthMaxes["bench"] ?? 0
         let maxSquat = strengthMaxes["squat"] ?? 0
         let maxDeadlift = strengthMaxes["deadlift"] ?? 0
@@ -381,7 +345,6 @@ extension DemoRepository {
         }
         add("1.25x Bodyweight Bench", when: bodyweightKilograms > 0 && maxBench >= bodyweightKilograms * 1.25)
         add("2x Bodyweight Bench", when: bodyweightKilograms > 0 && maxBench >= bodyweightKilograms * 2)
-        add("2x Bodyweight Deadlift", when: bodyweightKilograms > 0 && maxDeadlift >= bodyweightKilograms * 2)
         add("2.5x Bodyweight Squat", when: bodyweightKilograms > 0 && maxSquat >= bodyweightKilograms * 2.5)
         add("3x Bodyweight Deadlift", when: bodyweightKilograms > 0 && maxDeadlift >= bodyweightKilograms * 3)
         for milestone in [10, 25, 50, 100] {
@@ -415,16 +378,8 @@ extension DemoRepository {
         for milestone in [2, 8, 24, 104, 208] {
             add("\(milestone) Bodyweight Logs", when: actualBodyweightEntryCount >= milestone)
         }
-        add("3-Day Workout Streak", when: stats.currentStreak >= 3)
-        add("7-Day Workout Streak", when: stats.currentStreak >= 7)
-        add("14-Day Workout Streak", when: stats.currentStreak >= 14)
-        add("30-Day Workout Streak", when: stats.currentStreak >= 30)
-        add("60-Day Workout Streak", when: stats.currentStreak >= 60)
-        add("90-Day Workout Streak", when: stats.currentStreak >= 90)
-        add("180-Day Workout Streak", when: stats.currentStreak >= 180)
-        add("365-Day Workout Streak", when: stats.currentStreak >= 365)
-        for milestone in [5, 10, 21, 45, 120, 240] {
-            add("\(milestone)-Day Workout Streak", when: stats.currentStreak >= milestone)
+        for milestone in [3, 7, 14, 26, 52, 104] {
+            add("\(milestone)-Week Workout Streak", when: stats.currentStreak >= milestone)
         }
         add("10,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 10_000)
         add("50,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 50_000)
@@ -454,28 +409,6 @@ extension DemoRepository {
         add("90-Day Improvement Leader", when: stats.biggestRealDailyRankingJump >= 25)
         add("Profile Complete", when: isProfileComplete())
         return titles
-    }
-
-    private func verifiedOrCompletedOneRepKilogramsByExercise(userLifts: [LiftSubmission]) -> [String: Double] {
-        let trackedExerciseIDs: Set<String> = ["bench", "squat", "deadlift"]
-        var bestByExercise: [String: Double] = [:]
-        for lift in userLifts where lift.repetitions == 1 && lift.resolvedModerationStatus != .rejected {
-            guard let exerciseID = trackedExerciseIDs.first(where: { RankingCalculator.matchesExerciseID(lift, exerciseID: $0) }) else { continue }
-            bestByExercise[exerciseID] = max(bestByExercise[exerciseID] ?? 0, lift.normalizedWeightKilograms)
-        }
-        for workout in completedWorkouts {
-            let exerciseByID = Dictionary(uniqueKeysWithValues: workout.exercises.map { ($0.id, $0) })
-            for log in workout.completedWorkingSets {
-                guard log.reps == 1,
-                      let exercise = exerciseByID[log.prescriptionID],
-                      let rankingExerciseID = exercise.rankingExerciseID,
-                      trackedExerciseIDs.contains(rankingExerciseID),
-                      let weight = log.weight else { continue }
-                let kilograms = log.recordedUnit == .kilograms ? weight : RankingCalculator.poundsToKilograms(weight)
-                bestByExercise[rankingExerciseID] = max(bestByExercise[rankingExerciseID] ?? 0, kilograms)
-            }
-        }
-        return bestByExercise
     }
 
     private var currentUserLifts: [LiftSubmission] {

@@ -212,6 +212,11 @@ final class ProfileStore: ObservableObject {
         try await profileService.saveBodyweightEntry(entry)
     }
 
+    func deleteBodyweightEntry(id: UUID) async throws {
+        guard let profileService else { throw LiftRankServiceError.configurationMissing }
+        try await profileService.deleteBodyweightEntry(id: id)
+    }
+
     func applyAuthenticatedProfile(_ remote: AuthenticatedProfile, retainingDemoProfiles: Bool) {
         let isSameAccount = repository.currentProfile.id == remote.id
         var local = repository.currentProfile

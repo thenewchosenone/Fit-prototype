@@ -45,11 +45,14 @@ struct BodyweightEntryEditor: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var draft: BodyweightEntry
+    @State private var showingDeleteConfirmation = false
     let onSave: (BodyweightEntry) -> Void
+    let onDelete: (BodyweightEntry) -> Void
 
-    init(entry: BodyweightEntry, onSave: @escaping (BodyweightEntry) -> Void) {
+    init(entry: BodyweightEntry, onSave: @escaping (BodyweightEntry) -> Void, onDelete: @escaping (BodyweightEntry) -> Void) {
         _draft = State(initialValue: entry)
         self.onSave = onSave
+        self.onDelete = onDelete
     }
 
     var body: some View {
@@ -62,7 +65,7 @@ struct BodyweightEntryEditor: View {
                     )
 
                     OptionalNumericInputField(
-                        title: "Actual bodyweight (required)",
+                        title: "Bodyweight (required)",
                         value: displayedBodyweight,
                         unit: appState.currentProfile.preferredUnit.shortLabel,
                         placeholder: "Enter weight"
@@ -92,6 +95,11 @@ struct BodyweightEntryEditor: View {
                         dismiss()
                     }
                 }
+                ToolbarItem(placement: .bottomBar) {
+                    Button("Delete Entry", role: .destructive) {
+                        showingDeleteConfirmation = true
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         onSave(draft)
@@ -101,6 +109,14 @@ struct BodyweightEntryEditor: View {
                     .foregroundStyle(Color.liftAccentText)
                     .disabled((draft.actual ?? 0) <= 0)
                 }
+            }
+            .confirmationDialog("Delete this bodyweight entry?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
+                Button("Delete Entry", role: .destructive) {
+                    onDelete(draft)
+                    dismiss()
+                }
+            } message: {
+                Text("This removes the measurement from your progress history.")
             }
         }
     }

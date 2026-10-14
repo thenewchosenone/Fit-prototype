@@ -137,6 +137,15 @@ enum LiftModerationStatus: String, Codable, CaseIterable, Identifiable {
     case replacementRequested = "replacement_requested"
     case rejected
     var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .clear: "No review restrictions"
+        case .underReview: "Under review"
+        case .replacementRequested: "Replacement video requested"
+        case .rejected: "Rejected"
+        }
+    }
 }
 
 enum LiftReportReason: String, Codable, CaseIterable, Identifiable {

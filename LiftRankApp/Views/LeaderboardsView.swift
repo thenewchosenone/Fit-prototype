@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LeaderboardsView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.dynamicTypeSize) var dynamicTypeSize
     @State var searchText = ""
     @State var isSearchVisible = false
     @State var showsRankingExplanation = false
