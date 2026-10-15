@@ -1110,24 +1110,6 @@ extension TrainingTrackerView {
             .filter { $0.date >= start && $0.date <= now && !($0.workoutID.map { recoveryIDs.contains($0) } ?? false) }
         let chartPoints = ExerciseProgressSeries.dailyHighest(from: setPoints)
         let estimatedMaxPoints = ExerciseProgressSeries.dailyHighestEstimatedOneRepMax(from: setPoints)
-        let repRangeProgressions = ExerciseProgressSeries.repRangeProgressions(from: setPoints)
-        let selectedStrengthTrendPoint = selectedExerciseStrengthTrendDate.flatMap { selection in
-            estimatedMaxPoints.min {
-                abs($0.date.timeIntervalSince(selection)) < abs($1.date.timeIntervalSince(selection))
-            }
-        }
-        let selectedWeightTrendPoint = selectedExerciseWeightTrendDate.flatMap { selection in
-            chartPoints.min {
-                abs($0.date.timeIntervalSince(selection)) < abs($1.date.timeIntervalSince(selection))
-            }
-        }
-        let prs = MeasurementFormatting.bestPRsByReps(from: setPoints)
-        let records = exercise.map { appState.exerciseRecords(for: $0.id) }
-        let startingEstimatedMax = estimatedMaxPoints.first.map(ExerciseProgressSeries.estimatedOneRepMax)
-        let latestEstimatedMax = estimatedMaxPoints.last.map(ExerciseProgressSeries.estimatedOneRepMax)
-        let strengthIncrease = startingEstimatedMax.flatMap { start in
-            latestEstimatedMax.map { $0 - start }
-        }
 
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -1170,231 +1152,27 @@ extension TrainingTrackerView {
                     .buttonStyle(.plain)
                 }
             } else {
-                if estimatedMaxPoints.isEmpty {
-                    Text("Estimated strength needs a completed weighted working set of 1–10 reps. Higher-rep sets still appear in load and volume records.")
-                        .font(.caption).foregroundStyle(Color.liftMuted)
-                }
-                if estimatedMaxPoints.count == 1,
-                   let currentEstimatedMax = estimatedMaxPoints.first.map(ExerciseProgressSeries.estimatedOneRepMax) {
-                    progressMetric(
-                        title: "CURRENT EST. 1RM",
-                        value: MeasurementFormatting.formatDisplayedWeight(currentEstimatedMax, unit: appState.currentProfile.preferredUnit),
-                        symbol: "scalemass.fill"
-                    )
-                    Text("Log this exercise in another workout to see an estimated 1RM trend.")
-                        .font(.caption2)
-                        .foregroundStyle(Color.liftMuted)
-                } else if let startingEstimatedMax, let latestEstimatedMax, let strengthIncrease {
-                    HStack(spacing: 10) {
-                        progressMetric(
-                            title: "STARTING EST. 1RM",
-                            value: MeasurementFormatting.formatDisplayedWeight(startingEstimatedMax, unit: appState.currentProfile.preferredUnit),
-                            symbol: "flag.fill"
-                        )
-                        progressMetric(
-                            title: "LATEST EST. 1RM",
-                            value: MeasurementFormatting.formatDisplayedWeight(latestEstimatedMax, unit: appState.currentProfile.preferredUnit),
-                            symbol: "arrow.up.right"
-                        )
-                        progressMetric(
-                            title: "CHANGE",
-                            value: (strengthIncrease >= 0 ? "+" : "") + MeasurementFormatting.formatDisplayedWeight(strengthIncrease, unit: appState.currentProfile.preferredUnit),
-                            symbol: "chart.line.uptrend.xyaxis"
-                        )
-                    }
-
-                    Text("Change compares the first and latest eligible days in this 28-day window. The summary above compares averages across its two halves. Known recovery weeks are excluded.")
-                        .font(.caption2).foregroundStyle(Color.liftMuted)
-                    Text("Estimated 1RM trend")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftMuted)
-                        .padding(.top, 2)
-
-                    Chart(estimatedMaxPoints) { point in
-                        LineMark(
-                            x: .value("Date", point.date),
-                            y: .value("Estimated 1RM", ExerciseProgressSeries.estimatedOneRepMax(point))
-                        )
-                        .foregroundStyle(Color.liftAccentText)
-                        PointMark(
-                            x: .value("Date", point.date),
-                            y: .value("Estimated 1RM", ExerciseProgressSeries.estimatedOneRepMax(point))
-                        )
-                        .foregroundStyle(Color.liftGreen)
-                    }
-                    .frame(height: 150)
-                    .chartYAxis { AxisMarks(position: .trailing) }
-                    .chartXSelection(value: $selectedExerciseStrengthTrendDate)
-                    .onChange(of: selectedExerciseStrengthTrendDate) { _, selection in
-                        if selection != nil { selectedExerciseWeightTrendDate = nil }
-                    }
-                }
-
-                Text("Weight trend")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.liftMuted)
-                    .padding(.top, 2)
-                Text(chartPoints.count == 1
-                    ? "One workout logged; record this exercise again to compare sessions."
-                    : "Tap a chart point to open its workout.")
-                    .font(.caption2)
-                    .foregroundStyle(Color.liftMuted)
-
-                Chart(chartPoints) { point in
-                    LineMark(
-                        x: .value("Date", point.date),
-                        y: .value("Weight", point.weight)
-                    )
-                    .foregroundStyle(Color.liftAccentText)
-                    PointMark(
-                        x: .value("Date", point.date),
-                        y: .value("Weight", point.weight)
-                    )
-                    .foregroundStyle(Color.liftGreen)
-                }
-                .frame(height: 150)
-                .chartYAxis { AxisMarks(position: .trailing) }
-                .chartXSelection(value: $selectedExerciseWeightTrendDate)
-                .onChange(of: selectedExerciseWeightTrendDate) { _, selection in
-                    if selection != nil { selectedExerciseStrengthTrendDate = nil }
-                }
-
-                if let selectedPoint = selectedWeightTrendPoint ?? selectedStrengthTrendPoint,
-                   let workoutID = selectedPoint.workoutID,
-                   let workout = appState.trainingHistoryWorkouts.first(where: { $0.id == workoutID }) {
-                    if let set = workout.sets.first(where: { $0.id == selectedPoint.id }) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Selected performance")
-                                .font(.caption.weight(.bold))
-                            Text(LiftTimeFormatter.shortDateNoTime(workout.completedAt))
-                                .font(.caption2)
-                                .foregroundStyle(Color.liftMuted)
-                            HStack(spacing: 10) {
-                                if let weight = set.weight {
-                                    Text(MeasurementFormatting.formatRecordedWeight(weight, unit: set.recordedUnit))
-                                        .font(.caption.weight(.black).monospacedDigit())
-                                }
-                                if let reps = set.reps {
-                                    Text("× \(reps) reps")
-                                        .font(.caption.weight(.semibold).monospacedDigit())
-                                }
-                                if let weight = set.weight, let reps = set.reps {
-                                    Text("· \(MeasurementFormatting.formatRecordedVolume(weight * Double(reps), recordedUnit: set.recordedUnit, preferredUnit: appState.currentProfile.preferredUnit)) volume")
-                                        .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(Color.liftMuted)
-                                }
-                            }
-                        }
-                        .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.liftScrim)
-                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                        .accessibilityElement(children: .combine)
-                    }
-
-                    Button {
-                        selectedCompletedWorkout = workout
-                        focusedWorkoutSetID = selectedPoint.id
-                    } label: {
-                        Label(
-                            "View workout · \(LiftTimeFormatter.shortDateNoTime(workout.completedAt))",
-                            systemImage: "arrow.up.right.square"
-                        )
-                        .font(.caption.weight(.bold))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.liftAccentText)
-                    .accessibilityHint("Opens the workout containing this exercise performance")
-                }
-
-                if !prs.isEmpty {
-                    Text("Best sets by rep range · last 28 days")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftMuted)
-                        .padding(.top, 2)
-                    HStack(spacing: 8) {
-                        ForEach(prs.prefix(4), id: \.reps) { pr in
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("\(pr.reps)-rep PR")
-                                    .font(.caption2)
-                                    .foregroundStyle(Color.liftMuted)
-                                Text("\(RankingCalculator.format(pr.weight)) \(pr.unit.shortLabel)")
-                                    .font(.caption.weight(.black).monospacedDigit())
-                                    .foregroundStyle(Color.liftText)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(9)
-                            .background(Color.liftScrim)
-                            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                        }
-                    }
-                }
-
-                if let records,
-                   let bestSetVolume = records.bestSetVolumeKilograms,
-                   let bestSessionVolume = records.bestSessionVolumeKilograms {
-                    HStack(spacing: 8) {
-                        progressMetric(
-                            title: "ALL-TIME SET VOLUME",
-                            value: MeasurementFormatting.formatDisplayedWeight(bestSetVolume, unit: appState.currentProfile.preferredUnit),
-                            symbol: "square.stack.3d.up.fill"
-                        )
-                        progressMetric(
-                            title: "ALL-TIME SESSION VOLUME",
-                            value: MeasurementFormatting.formatDisplayedWeight(bestSessionVolume, unit: appState.currentProfile.preferredUnit),
-                            symbol: "chart.bar.fill"
-                        )
-                    }
-                    .accessibilityElement(children: .contain)
-                }
-
-                if !repRangeProgressions.isEmpty {
-                    Text("Rep-range progression")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftMuted)
-                        .padding(.top, 2)
-                    ForEach(repRangeProgressions.suffix(4).reversed()) { progression in
-                        let workout = appState.trainingHistoryWorkouts.first { $0.id == progression.workoutID }
-                        Button {
-                            if let workout {
-                                focusedWorkoutSetID = nil
-                                selectedCompletedWorkout = workout
-                            }
-                        } label: {
-                            HStack(alignment: .center, spacing: 12) {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(LiftTimeFormatter.shortDateNoTime(progression.date))
-                                        .font(.caption.weight(.bold))
-                                        .foregroundStyle(Color.liftText)
-                                    Text("Target \(progression.targetReps) reps")
-                                        .font(.caption2)
-                                        .foregroundStyle(Color.liftMuted)
-                                }
-                                Spacer(minLength: 4)
-                                VStack(alignment: .trailing, spacing: 3) {
-                                    Text("\(progression.inRangeSetCount)/\(progression.totalSetCount) sets in range")
-                                        .font(.caption2.weight(.semibold).monospacedDigit())
-                                        .foregroundStyle(Color.liftMuted)
-                                    if let bestWeight = progression.bestInRangeWeight {
-                                        Text("Best \(RankingCalculator.format(bestWeight)) \(appState.currentProfile.preferredUnit.shortLabel)")
-                                            .font(.caption.weight(.black).monospacedDigit())
-                                            .foregroundStyle(Color.liftText)
-                                    }
-                                }
-                                Image(systemName: "chevron.right")
-                                    .font(.caption2.weight(.bold))
-                                    .foregroundStyle(Color.liftMuted)
-                            }
-                            .padding(9)
-                            .background(Color.liftScrim)
-                            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(workout == nil)
-                        .accessibilityLabel("View workout from \(LiftTimeFormatter.shortDateNoTime(progression.date)), target \(progression.targetReps) reps, \(progression.inRangeSetCount) of \(progression.totalSetCount) sets in range")
-                        .accessibilityHint("Opens the workout and its logged sets")
-                    }
-                }
+                StrengthExerciseCharts(
+                    chartPoints: chartPoints,
+                    estimatedMaxPoints: estimatedMaxPoints,
+                    preferredUnit: appState.currentProfile.preferredUnit,
+                    selectedExerciseStrengthTrendDate: $selectedExerciseStrengthTrendDate,
+                    selectedExerciseWeightTrendDate: $selectedExerciseWeightTrendDate
+                )
+                StrengthSelectedPerformance(
+                    chartPoints: chartPoints,
+                    estimatedMaxPoints: estimatedMaxPoints,
+                    selectedExerciseStrengthTrendDate: selectedExerciseStrengthTrendDate,
+                    selectedExerciseWeightTrendDate: selectedExerciseWeightTrendDate,
+                    selectedCompletedWorkout: $selectedCompletedWorkout,
+                    focusedWorkoutSetID: $focusedWorkoutSetID
+                )
+                StrengthExerciseRecords(
+                    exerciseID: exerciseID,
+                    setPoints: setPoints,
+                    selectedCompletedWorkout: $selectedCompletedWorkout,
+                    focusedWorkoutSetID: $focusedWorkoutSetID
+                )
             }
         }
         .padding(14)
@@ -1404,27 +1182,6 @@ extension TrainingTrackerView {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.liftOverlay, lineWidth: 1)
         }
-    }
-
-    private func progressMetric(title: String, value: String, symbol: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Image(systemName: symbol)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.liftAccentText)
-            Text(title)
-                .font(.system(size: 8, weight: .black, design: .rounded))
-                .tracking(0.3)
-                .foregroundStyle(Color.liftMuted)
-                .lineLimit(2)
-            Text(value)
-                .font(.caption.weight(.black).monospacedDigit())
-                .minimumScaleFactor(0.7)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
-        .padding(9)
-        .background(Color.liftCardRaised.opacity(0.62))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private var strainAndInjurySection: some View {
@@ -1807,6 +1564,317 @@ extension TrainingTrackerView {
             .sorted { $0.occurredAt > $1.occurredAt }
             .prefix(5)
             .map { $0 }
+    }
+}
+
+// Separate bodies prevent the combined exercise builder from exhausting the device stack.
+private struct StrengthExerciseCharts: View {
+    let chartPoints: [ExerciseProgressPoint]
+    let estimatedMaxPoints: [ExerciseProgressPoint]
+    let preferredUnit: UnitSystem
+    @Binding var selectedExerciseStrengthTrendDate: Date?
+    @Binding var selectedExerciseWeightTrendDate: Date?
+
+    var body: some View {
+        let startingEstimatedMax = estimatedMaxPoints.first.map(ExerciseProgressSeries.estimatedOneRepMax)
+        let latestEstimatedMax = estimatedMaxPoints.last.map(ExerciseProgressSeries.estimatedOneRepMax)
+        let strengthIncrease = startingEstimatedMax.flatMap { start in
+            latestEstimatedMax.map { $0 - start }
+        }
+
+        VStack(alignment: .leading, spacing: 12) {
+            if estimatedMaxPoints.isEmpty {
+                Text("Estimated strength needs a completed weighted working set of 1–10 reps. Higher-rep sets still appear in load and volume records.")
+                    .font(.caption).foregroundStyle(Color.liftMuted)
+            }
+            if estimatedMaxPoints.count == 1,
+               let currentEstimatedMax = estimatedMaxPoints.first.map(ExerciseProgressSeries.estimatedOneRepMax) {
+                ExerciseProgressMetric(
+                    title: "CURRENT EST. 1RM",
+                    value: MeasurementFormatting.formatDisplayedWeight(currentEstimatedMax, unit: preferredUnit),
+                    symbol: "scalemass.fill"
+                )
+                Text("Log this exercise in another workout to see an estimated 1RM trend.")
+                    .font(.caption2)
+                    .foregroundStyle(Color.liftMuted)
+            } else if let startingEstimatedMax, let latestEstimatedMax, let strengthIncrease {
+                HStack(spacing: 10) {
+                    ExerciseProgressMetric(
+                        title: "STARTING EST. 1RM",
+                        value: MeasurementFormatting.formatDisplayedWeight(startingEstimatedMax, unit: preferredUnit),
+                        symbol: "flag.fill"
+                    )
+                    ExerciseProgressMetric(
+                        title: "LATEST EST. 1RM",
+                        value: MeasurementFormatting.formatDisplayedWeight(latestEstimatedMax, unit: preferredUnit),
+                        symbol: "arrow.up.right"
+                    )
+                    ExerciseProgressMetric(
+                        title: "CHANGE",
+                        value: (strengthIncrease >= 0 ? "+" : "") + MeasurementFormatting.formatDisplayedWeight(strengthIncrease, unit: preferredUnit),
+                        symbol: "chart.line.uptrend.xyaxis"
+                    )
+                }
+
+                Text("Change compares the first and latest eligible days in this 28-day window. The summary above compares averages across its two halves. Known recovery weeks are excluded.")
+                    .font(.caption2).foregroundStyle(Color.liftMuted)
+                Text("Estimated 1RM trend")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.liftMuted)
+                    .padding(.top, 2)
+
+                Chart(estimatedMaxPoints) { point in
+                    LineMark(
+                        x: .value("Date", point.date),
+                        y: .value("Estimated 1RM", ExerciseProgressSeries.estimatedOneRepMax(point))
+                    )
+                    .foregroundStyle(Color.liftAccentText)
+                    PointMark(
+                        x: .value("Date", point.date),
+                        y: .value("Estimated 1RM", ExerciseProgressSeries.estimatedOneRepMax(point))
+                    )
+                    .foregroundStyle(Color.liftGreen)
+                }
+                .frame(height: 150)
+                .chartYAxis { AxisMarks(position: .trailing) }
+                .chartXSelection(value: $selectedExerciseStrengthTrendDate)
+                .onChange(of: selectedExerciseStrengthTrendDate) { _, selection in
+                    if selection != nil { selectedExerciseWeightTrendDate = nil }
+                }
+            }
+
+            Text("Weight trend")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.liftMuted)
+                .padding(.top, 2)
+            Text(chartPoints.count == 1
+                ? "One workout logged; record this exercise again to compare sessions."
+                : "Tap a chart point to open its workout.")
+                .font(.caption2)
+                .foregroundStyle(Color.liftMuted)
+
+            Chart(chartPoints) { point in
+                LineMark(
+                    x: .value("Date", point.date),
+                    y: .value("Weight", point.weight)
+                )
+                .foregroundStyle(Color.liftAccentText)
+                PointMark(
+                    x: .value("Date", point.date),
+                    y: .value("Weight", point.weight)
+                )
+                .foregroundStyle(Color.liftGreen)
+            }
+            .frame(height: 150)
+            .chartYAxis { AxisMarks(position: .trailing) }
+            .chartXSelection(value: $selectedExerciseWeightTrendDate)
+            .onChange(of: selectedExerciseWeightTrendDate) { _, selection in
+                if selection != nil { selectedExerciseStrengthTrendDate = nil }
+            }
+        }
+    }
+}
+
+private struct StrengthSelectedPerformance: View {
+    @EnvironmentObject private var appState: AppState
+    let chartPoints: [ExerciseProgressPoint]
+    let estimatedMaxPoints: [ExerciseProgressPoint]
+    let selectedExerciseStrengthTrendDate: Date?
+    let selectedExerciseWeightTrendDate: Date?
+    @Binding var selectedCompletedWorkout: CompletedWorkout?
+    @Binding var focusedWorkoutSetID: UUID?
+
+    var body: some View {
+        let selectedStrengthTrendPoint = selectedExerciseStrengthTrendDate.flatMap { selection in
+            estimatedMaxPoints.min {
+                abs($0.date.timeIntervalSince(selection)) < abs($1.date.timeIntervalSince(selection))
+            }
+        }
+        let selectedWeightTrendPoint = selectedExerciseWeightTrendDate.flatMap { selection in
+            chartPoints.min {
+                abs($0.date.timeIntervalSince(selection)) < abs($1.date.timeIntervalSince(selection))
+            }
+        }
+        Group {
+            if let selectedPoint = selectedWeightTrendPoint ?? selectedStrengthTrendPoint,
+               let workoutID = selectedPoint.workoutID,
+               let workout = appState.trainingHistoryWorkouts.first(where: { $0.id == workoutID }) {
+                if let set = workout.sets.first(where: { $0.id == selectedPoint.id }) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Selected performance")
+                            .font(.caption.weight(.bold))
+                        Text(LiftTimeFormatter.shortDateNoTime(workout.completedAt))
+                            .font(.caption2)
+                            .foregroundStyle(Color.liftMuted)
+                        HStack(spacing: 10) {
+                            if let weight = set.weight {
+                                Text(MeasurementFormatting.formatRecordedWeight(weight, unit: set.recordedUnit))
+                                    .font(.caption.weight(.black).monospacedDigit())
+                            }
+                            if let reps = set.reps {
+                                Text("× \(reps) reps")
+                                    .font(.caption.weight(.semibold).monospacedDigit())
+                            }
+                            if let weight = set.weight, let reps = set.reps {
+                                Text("· \(MeasurementFormatting.formatRecordedVolume(weight * Double(reps), recordedUnit: set.recordedUnit, preferredUnit: appState.currentProfile.preferredUnit)) volume")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                        }
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.liftScrim)
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .accessibilityElement(children: .combine)
+                }
+
+                Button {
+                    selectedCompletedWorkout = workout
+                    focusedWorkoutSetID = selectedPoint.id
+                } label: {
+                    Label(
+                        "View workout · \(LiftTimeFormatter.shortDateNoTime(workout.completedAt))",
+                        systemImage: "arrow.up.right.square"
+                    )
+                    .font(.caption.weight(.bold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.liftAccentText)
+                .accessibilityHint("Opens the workout containing this exercise performance")
+            }
+        }
+    }
+}
+
+private struct StrengthExerciseRecords: View {
+    @EnvironmentObject private var appState: AppState
+    let exerciseID: String?
+    let setPoints: [ExerciseProgressPoint]
+    @Binding var selectedCompletedWorkout: CompletedWorkout?
+    @Binding var focusedWorkoutSetID: UUID?
+
+    var body: some View {
+        let prs = MeasurementFormatting.bestPRsByReps(from: setPoints)
+        let records = exerciseID.map { appState.exerciseRecords(for: $0) }
+        let repRangeProgressions = ExerciseProgressSeries.repRangeProgressions(from: setPoints)
+        Group {
+            if !prs.isEmpty {
+                Text("Best sets by rep range · last 28 days")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.liftMuted)
+                    .padding(.top, 2)
+                HStack(spacing: 8) {
+                    ForEach(prs.prefix(4), id: \.reps) { pr in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("\(pr.reps)-rep PR")
+                                .font(.caption2)
+                                .foregroundStyle(Color.liftMuted)
+                            Text("\(RankingCalculator.format(pr.weight)) \(pr.unit.shortLabel)")
+                                .font(.caption.weight(.black).monospacedDigit())
+                                .foregroundStyle(Color.liftText)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(9)
+                        .background(Color.liftScrim)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    }
+                }
+            }
+
+            if let records,
+               let bestSetVolume = records.bestSetVolumeKilograms,
+               let bestSessionVolume = records.bestSessionVolumeKilograms {
+                HStack(spacing: 8) {
+                    ExerciseProgressMetric(
+                        title: "ALL-TIME SET VOLUME",
+                        value: MeasurementFormatting.formatDisplayedWeight(bestSetVolume, unit: appState.currentProfile.preferredUnit),
+                        symbol: "square.stack.3d.up.fill"
+                    )
+                    ExerciseProgressMetric(
+                        title: "ALL-TIME SESSION VOLUME",
+                        value: MeasurementFormatting.formatDisplayedWeight(bestSessionVolume, unit: appState.currentProfile.preferredUnit),
+                        symbol: "chart.bar.fill"
+                    )
+                }
+                .accessibilityElement(children: .contain)
+            }
+
+            if !repRangeProgressions.isEmpty {
+                Text("Rep-range progression")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.liftMuted)
+                    .padding(.top, 2)
+                ForEach(repRangeProgressions.suffix(4).reversed()) { progression in
+                    let workout = appState.trainingHistoryWorkouts.first { $0.id == progression.workoutID }
+                    Button {
+                        if let workout {
+                            focusedWorkoutSetID = nil
+                            selectedCompletedWorkout = workout
+                        }
+                    } label: {
+                        HStack(alignment: .center, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(LiftTimeFormatter.shortDateNoTime(progression.date))
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(Color.liftText)
+                                Text("Target \(progression.targetReps) reps")
+                                    .font(.caption2)
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                            Spacer(minLength: 4)
+                            VStack(alignment: .trailing, spacing: 3) {
+                                Text("\(progression.inRangeSetCount)/\(progression.totalSetCount) sets in range")
+                                    .font(.caption2.weight(.semibold).monospacedDigit())
+                                    .foregroundStyle(Color.liftMuted)
+                                if let bestWeight = progression.bestInRangeWeight {
+                                    Text("Best \(RankingCalculator.format(bestWeight)) \(appState.currentProfile.preferredUnit.shortLabel)")
+                                        .font(.caption.weight(.black).monospacedDigit())
+                                        .foregroundStyle(Color.liftText)
+                                }
+                            }
+                            Image(systemName: "chevron.right")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(Color.liftMuted)
+                        }
+                        .padding(9)
+                        .background(Color.liftScrim)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(workout == nil)
+                    .accessibilityLabel("View workout from \(LiftTimeFormatter.shortDateNoTime(progression.date)), target \(progression.targetReps) reps, \(progression.inRangeSetCount) of \(progression.totalSetCount) sets in range")
+                    .accessibilityHint("Opens the workout and its logged sets")
+                }
+            }
+        }
+    }
+}
+
+private struct ExerciseProgressMetric: View {
+    let title: String
+    let value: String
+    let symbol: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Image(systemName: symbol)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.liftAccentText)
+            Text(title)
+                .font(.system(size: 8, weight: .black, design: .rounded))
+                .tracking(0.3)
+                .foregroundStyle(Color.liftMuted)
+                .lineLimit(2)
+            Text(value)
+                .font(.caption.weight(.black).monospacedDigit())
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
+        .padding(9)
+        .background(Color.liftCardRaised.opacity(0.62))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 

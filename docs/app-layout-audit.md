@@ -138,7 +138,7 @@ These are unverified runtime states, not claims that the app failed those cases.
 
 ## Implementation handoff — October 15, 2026
 
-The implementation pass has addressed F01–F35 in source. **All entries below are implemented but unverified.** Per the requested model split, builds, tests, simulator checks and resulting test adjustments are deferred to the final GPT-5.6 Luna pass. This table is a handoff checklist, not evidence that any behavioral or visual check passed.
+The implementation pass has addressed F01–F35 in source. **All entries still require final behavioral and visual sign-off.** The user subsequently requested a test run, build and TestFlight upload; the evidence from those steps is recorded below. The final GPT-5.6 Luna verification pass remains outstanding. This table is a handoff checklist, not evidence that every behavioral or visual check passed.
 
 | Finding | Implementation | Required final verification |
 | --- | --- | --- |
@@ -188,4 +188,23 @@ The implementation pass has addressed F01–F35 in source. **All entries below a
 - Use demo/disposable test data for saves and uploads. Do not submit real reports, accept policies, delete accounts or perform production moderation merely to test layout.
 - Record results and any remaining gaps here. The goal remains active until verification and any resulting corrections are complete.
 
-No new implementation files, types or dependencies were added. The gym-specific store query keeps networking behind the existing service protocol; the Progress routing field opens the intended existing category from another screen. The previously created audit document remains the only new file.
+The original layout pass added no implementation files, types or dependencies. The gym-specific store query keeps networking behind the existing service protocol; the Progress routing field opens the intended existing category from another screen. The previously created audit document remains the only new file. The subsequent production crash fix introduces the concrete view boundaries described below.
+
+### Verification evidence and unresolved crash — October 15, 2026
+
+- The first test build found a non-escaping content builder retained by the new leaderboard disclosure. Its signature was corrected to `@ViewBuilder content: @escaping () -> Content`.
+- The next full run passed all 407 unit tests. UI testing recorded 13 failed cases before interruption; the complete suite did not finish. Log: `/tmp/liftrivals-app-layout-tests.log`. Several failures reference the previous layout or labels; current-account cases reached Sign In instead of an authenticated account and do not establish a navigation regression.
+- A subsequent Debug simulator build and signed Release device archive succeeded. Build 1.0 (26) was uploaded through Xcode Organizer's Distribute App flow. Upload success is packaging evidence, not a passing UI or crash gate.
+- The user reported that opening Strength crashes consistently. The existing `testRecentStrengthLiftOpensItsChart` passed in normal Debug and with only the app target temporarily using `-O` and whole-module compilation. Logs: `/tmp/liftrivals-strength-crash-debug.log` and `/tmp/liftrivals-strength-crash-app-optimized.log`. These checks used demo data on the iOS 26.5 simulator; they do not reproduce or disprove the reported phone crash. Temporary project settings were removed afterward.
+- Applying optimization globally to test dependencies crashed the Swift compiler in IssueReporting before the app ran. That attempt provides no app runtime evidence: `/tmp/liftrivals-strength-crash-optimized.log`.
+- At diagnosis time, the paired iPhone was unavailable and Computer Use reported the Mac locked. Cached device reports were for build 14; local simulator reports were from October 13 and involved Profile. A current Strength crash report is still required to identify the phone failure.
+- Source corrections add the persistent Email accessibility label and update existing UI tests to open profile video sections, expand RPE options, navigate Settings categories, select a report reason, expect closest awards first, and explicitly launch the custom-exercise accessibility case at a large accessibility text size. Build 27 includes these changes; their individual UI cases still require execution in the final verification pass.
+
+### Production Strength crash diagnosis
+
+- The in-app browser provided authenticated App Store Connect access even while native Computer Use was blocked. TestFlight Crash Feedback includes a build-26 report from iPhone 17 / iOS 26.7.1 at 3:00 AM ET on October 15, with the comment “Crashed when I pressed strength.” Report: `AKU4QY5NiMnf39fHQ4YBLGQ`; downloaded crash: `/tmp/liftrivals-production-strength-crashlog.crash`.
+- The report records `EXC_BAD_ACCESS / KERN_PROTECTION_FAILURE` in the main thread's stack guard. Swift was resolving nested generic view metadata. The archived build-26 dSYM UUID matches the report exactly: `9FA3FBFD-4B9B-3D37-A6C4-4FDFEDFEED7A`. Symbolication maps app frames to closure #9 in `TrainingTrackerView.exerciseProgressSection(options:)`, then that section and the Progress builder.
+- The source correction divides the oversized exercise builder into four private concrete views in the existing file: `StrengthExerciseCharts`, `StrengthSelectedPerformance`, `StrengthExerciseRecords`, and the repeated `ExerciseProgressMetric`. These boundaries reduce the combined runtime type and view-construction stack demand. The existing filtering, calculations, selection bindings, workout actions and UI text are retained. No file or dependency is added.
+- All three focused optimized simulator regressions passed: repeated category switching, lift-to-chart selection and muscle-workload routing. Log: `/tmp/liftrivals-strength-stack-fix.log`. Temporary optimization settings were removed. A successful simulator run alone does not establish that the production phone crash is resolved; the corrected device build must still be exercised on the affected phone.
+- The newer 3:12 AM build-26 report, `AD1btkR5DfXPTtybLMuWw6A`, independently identifies the same stack guard failure and `exerciseProgressSection` closure. Download: `/tmp/liftrivals-production-strength-latest.crash`.
+- Signed Release archive 1.0 (27) succeeded: `/tmp/liftrivals-strength-fix-build27-archive.log`. Xcode Organizer's Distribute App → App Store Connect flow confirmed upload success. The original 35-item audit and final Luna verification remain incomplete; the upload does not establish phone validation.

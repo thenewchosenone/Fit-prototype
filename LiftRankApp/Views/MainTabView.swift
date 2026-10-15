@@ -2538,6 +2538,7 @@ struct AuthenticationView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Email").font(.caption.weight(.semibold)).foregroundStyle(Color.liftMuted)
                             TextField("name@example.com", text: $email)
+                                .accessibilityLabel("Email")
                                 .textContentType(.emailAddress)
                                 .keyboardType(.emailAddress)
                                 .textInputAutocapitalization(.never)
