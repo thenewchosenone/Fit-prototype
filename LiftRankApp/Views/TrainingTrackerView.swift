@@ -40,6 +40,7 @@ struct TrainingTrackerView: View {
     @State var workoutHistoryMonth = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
     @State var selectedWorkoutHistoryDate: Date?
     @State var selectedProgressExerciseID: String?
+    @State var strengthExerciseScrollRequest = UUID()
     @State var showingProgressExercisePicker = false
     @State var selectedProgressCategory: TrackerProgressCategory = .consistency
     @State var showAllMuscleSetRows = false

@@ -426,30 +426,10 @@ struct StreakDetailView: View {
     private let weeklyTrainingDayTarget = 3
 
     var body: some View {
+        NavigationStack {
         AppBackground {
-            VStack(spacing: 22) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("CONSISTENCY")
-                            .font(.caption2.weight(.black))
-                            .tracking(1.3)
-                            .foregroundStyle(Color.liftOrange)
-                        Text("Workout streak")
-                            .font(.title2.weight(.black))
-                    }
-                    Spacer()
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.subheadline.weight(.bold))
-                            .frame(width: 40, height: 40)
-                            .background(Color.liftCard)
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                }
-
+            ScrollView {
+            VStack(spacing: 18) {
                 ZStack {
                     Circle()
                         .fill(Color.liftOrange.opacity(0.12))
@@ -494,9 +474,15 @@ struct StreakDetailView: View {
                     }
                 }
 
-                Spacer()
             }
             .padding(20)
+            }
+        }
+        .navigationTitle("Workout streak")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+        }
         }
     }
 

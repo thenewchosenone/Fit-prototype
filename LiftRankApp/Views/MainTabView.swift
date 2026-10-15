@@ -263,7 +263,7 @@ private struct ForumView: View {
                     }
                     else {
                         ForEach(sortedPosts) { post in
-                            ForumPostCard(post: post, community: selectedGroup).environmentObject(appState)
+                            ForumPostCard(post: post, community: groups.first { $0.id == post.communityID }).environmentObject(appState)
                         }
                         if hasMorePosts {
                             Button {
@@ -324,47 +324,17 @@ private struct ForumView: View {
     }
 
     private var forumHeader: some View {
-        HStack(alignment: .center, spacing: 11) {
-            ZStack {
-                Circle().fill(Color.liftLime)
-                Image(systemName: "figure.strengthtraining.traditional")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(Color.liftOnAccent)
-            }
-            .frame(width: 42, height: 42)
-
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 7) {
-                    Text(selectedGroup?.name ?? "Training discussions")
-                        .font(.headline.weight(.black))
-                    Text("\(posts.count)")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftMuted)
-                }
-                Text(selectedGroup?.details ?? "Ask questions, share progress, and learn from other lifters.")
-                    .font(.caption)
-                    .foregroundStyle(Color.liftTextSecondary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
+        HStack(spacing: 12) {
             if let selectedGroup {
-                Button {
+                Text(selectedGroup.summary).font(.caption).foregroundStyle(Color.liftMuted).lineLimit(2)
+                Spacer()
+                Button(joinedGroupIDs.contains(selectedGroup.id) ? "Joined" : "Join") {
                     Task { await toggleMembership(selectedGroup) }
-                } label: {
-                    Text(joinedGroupIDs.contains(selectedGroup.id) ? "Joined" : "Join")
-                        .font(.caption.weight(.bold))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color.liftSurfaceElevated, in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .frame(minHeight: LiftDesign.minimumTouchTarget)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(Color.liftSurfaceBackground)
     }
 
     private var forumGroupPicker: some View {
@@ -1248,69 +1218,52 @@ private struct ForumThreadView: View {
                                 }
                 Text(comment.body)
                     .font(.body)
-                HStack(spacing: 18) {
-                    Button {
-                        replyingTo = comment.id
-                    } label: {
-                        Label("Reply", systemImage: "arrowshape.turn.up.left")
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isDemoReadOnly)
-                    if comment.authorID == appState.currentProfile.id && !isDemoReadOnly {
-                        Menu {
-                            Button("Edit comment", systemImage: "pencil") { beginEditingComment(comment) }
-                            Button("Delete comment", systemImage: "trash", role: .destructive) {
-                                deletingCommentID = comment.id
-                            }
-                            .accessibilityIdentifier("forum.comment.delete")
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .accessibilityLabel("Comment actions")
-                                .accessibilityIdentifier("forum.comment.actions")
-                        }
-                    }
+                HStack(spacing: 12) {
+                    Button("Reply", systemImage: "arrowshape.turn.up.left") { replyingTo = comment.id }
+                        .disabled(isDemoReadOnly)
                     Button { Task { await toggleCommentVote(comment) } } label: {
-                        Label(
-                            commentVoteValues[comment.id] == 1 ? "Voted (\(comment.voteCount))" : "Vote (\(comment.voteCount))",
-                            systemImage: commentVoteValues[comment.id] == 1 ? "arrow.up.circle.fill" : "arrow.up"
-                        )
+                        Label("\(comment.voteCount)", systemImage: commentVoteValues[comment.id] == 1 ? "arrow.up.circle.fill" : "arrow.up")
                     }
-                    .buttonStyle(.plain)
+                    .accessibilityLabel("Upvote comment, \(comment.voteCount) votes")
                     .disabled(isDemoReadOnly)
                     Button { Task { await toggleCommentDownvote(comment) } } label: {
                         Image(systemName: commentVoteValues[comment.id] == -1 ? "arrow.down.circle.fill" : "arrow.down")
                     }
-                    .buttonStyle(.plain)
+                    .accessibilityLabel("Downvote comment")
                     .disabled(isDemoReadOnly)
-                    if hasReplies {
-                        Button {
-                            if collapsedCommentIDs.contains(comment.id) {
-                                collapsedCommentIDs.remove(comment.id)
-                            } else {
-                                collapsedCommentIDs.insert(comment.id)
+                    Spacer(minLength: 0)
+                    Menu {
+                        if hasReplies {
+                            Button(collapsedCommentIDs.contains(comment.id) ? "Expand replies" : "Collapse replies",
+                                   systemImage: collapsedCommentIDs.contains(comment.id) ? "chevron.right" : "chevron.down") {
+                                if collapsedCommentIDs.contains(comment.id) { collapsedCommentIDs.remove(comment.id) }
+                                else { collapsedCommentIDs.insert(comment.id) }
                             }
-                        } label: {
-                            Label(
-                                collapsedCommentIDs.contains(comment.id) ? "Expand replies" : "Collapse replies",
-                                systemImage: collapsedCommentIDs.contains(comment.id) ? "chevron.right" : "chevron.down"
-                            )
                         }
-                        .buttonStyle(.plain)
-                    }
-                    Button {
-                        reportTargetCommentID = comment.id
-                        showingReportReasons = true
+                        if comment.authorID == appState.currentProfile.id && !isDemoReadOnly {
+                            Button("Edit comment", systemImage: "pencil") { beginEditingComment(comment) }
+                            Button("Delete comment", systemImage: "trash", role: .destructive) { deletingCommentID = comment.id }
+                                .accessibilityIdentifier("forum.comment.delete")
+                        }
+                        Button("Report", systemImage: "flag") {
+                            reportTargetCommentID = comment.id
+                            showingReportReasons = true
+                        }
+                        .disabled(isDemoReadOnly)
                     } label: {
-                        Label("Report", systemImage: "flag")
+                        Image(systemName: "ellipsis")
+                            .frame(minWidth: LiftDesign.minimumTouchTarget, minHeight: LiftDesign.minimumTouchTarget)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(isDemoReadOnly)
+                    .accessibilityLabel("Comment actions")
+                    .accessibilityIdentifier("forum.comment.actions")
                 }
+                .buttonStyle(.plain)
+                .fixedSize(horizontal: false, vertical: true)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color.liftMuted)
             }
         }
-        .padding(.leading, CGFloat(min(depth, 5) * 28 + 16))
+        .padding(.leading, CGFloat(min(depth, 3) * 12 + 16))
         .padding(.trailing, 16)
         .padding(.vertical, 14)
         .overlay(alignment: .leading) {
@@ -1530,23 +1483,8 @@ private struct ForumThreadView: View {
     }
 }
 
-private enum MeRecentVolumeSelection: String, CaseIterable {
-    case thisWeek = "This week"
-    case lastWeek = "Last week"
-
-    var referenceDate: Date {
-        switch self {
-        case .thisWeek:
-            Date()
-        case .lastWeek:
-            Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
-        }
-    }
-}
-
 private struct MeHubContentView: View {
     @EnvironmentObject private var appState: AppState
-    @State private var weeklyVolumeSelection: MeRecentVolumeSelection = .thisWeek
     @State private var showsTrainingDetails = false
     @State private var selectedTopLiftCard: TopLiftCardDestination?
 
@@ -1629,43 +1567,6 @@ private struct MeHubContentView: View {
                     if showsTrainingDetails {
                     let bestStrengthLifts = appState.bestStrengthLifts
                     let hasLoggedTopLifts = bestStrengthLifts["bench"] != nil || bestStrengthLifts["squat"] != nil || bestStrengthLifts["deadlift"] != nil
-                    CompactSectionHeader(title: "Strength progress")
-                        .accessibilityIdentifier("me.section.strengthProgress")
-                    VStack(alignment: .leading, spacing: 12) {
-                        strengthTierHeader(tierSummary)
-
-                        Divider().overlay(Color.liftSeparator)
-
-                        ForEach(Array(tierSummary.liftProgress.enumerated()), id: \.element.id) { index, lift in
-                            strengthProgressRow(lift: lift, preferredUnit: preferredUnit)
-                            if index < tierSummary.liftProgress.count - 1 {
-                                Divider().overlay(Color.liftSeparator)
-                            }
-                        }
-
-                        Divider().overlay(Color.liftSeparator)
-
-                        NavigationLink(value: MeRoute.awards) {
-                            HStack(spacing: 10) {
-                                Image(systemName: "trophy.fill")
-                                    .font(.subheadline.weight(.bold))
-                                    .foregroundStyle(Color.liftGold)
-                                Text("Tier details and awards")
-                                    .font(.subheadline.weight(.bold))
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(Color.liftMuted)
-                            }
-                            .frame(minHeight: 36)
-                        }
-                        .accessibilityIdentifier("me.awards.strength")
-                        .buttonStyle(.plain)
-                    }
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .liftSurface(radius: 12)
-
                     CompactSectionHeader(title: "Top submitted lifts")
                         .accessibilityIdentifier("me.section.topLifts")
                     if hasLoggedTopLifts {
@@ -1712,14 +1613,10 @@ private struct MeHubContentView: View {
                         }
                     }
 
-                    MeTrainingInsightsView(
-                        selection: $weeklyVolumeSelection,
-                        preferredUnit: preferredUnit
-                    )
                     }
                     }
                     label: {
-                        Text("Strength and training details")
+                        Text("Submitted lift records")
                             .accessibilityIdentifier("me.trainingDetails")
                     }
                     .tint(Color.liftAccentText)
@@ -1733,9 +1630,18 @@ private struct MeHubContentView: View {
                         .accessibilityIdentifier("me.awards")
                         Divider().overlay(Color.liftSeparator).padding(.leading, 66)
                         NavigationLink(value: MeRoute.personalProfile) {
-                            meRow("Workout and lift history", "Submissions and completed workouts", "chart.xyaxis.line", Color.liftGreen)
+                            meRow("Submitted lift activity", "Your athlete profile and shared lifts", "chart.xyaxis.line", Color.liftGreen)
                         }
                         .accessibilityIdentifier("me.personalProfile")
+                        Divider().overlay(Color.liftSeparator).padding(.leading, 66)
+                        Button {
+                            appState.router.progressCategory = appState.currentProfile.trainingFocus?.startingCategory ?? .consistency
+                            appState.trainingTrackerStartOnProgress = true
+                            appState.requestedTrackerSegment = "Progress"
+                            appState.selectedTab = 2
+                        } label: {
+                            meRow("Training progress", "Workouts, strength, and muscle workload", "chart.line.uptrend.xyaxis", Color.liftBlue)
+                        }
                         Divider().overlay(Color.liftSeparator).padding(.leading, 66)
                         NavigationLink(value: MeRoute.gyms) {
                             meRow(
@@ -1862,119 +1768,6 @@ private struct MeHubContentView: View {
         .liftSurface(radius: 12)
     }
 
-    private func strengthTierHeader(_ summary: StrengthTierSummary) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "medal.fill")
-                .font(.title3.weight(.black))
-                .foregroundStyle(Color.liftGold)
-                .frame(width: 44, height: 44)
-                .background(Color.liftGold.opacity(0.13))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("RIVAL TIER")
-                    .font(.caption2.weight(.black))
-                    .foregroundStyle(Color.liftMuted)
-                Text(summary.overallTier.label)
-                    .font(.title3.weight(.black))
-            }
-
-            Spacer(minLength: 8)
-
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(summary.completedRequiredLiftCount) of \(summary.requiredLiftCount)")
-                    .font(.subheadline.weight(.black))
-                Text("lifts logged")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Color.liftMuted)
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("me.strength.tier")
-    }
-
-    private func strengthProgressRow(lift: LiftTierProgress, preferredUnit: UnitSystem) -> some View {
-        let hasEstimate = lift.estimatedOneRepMaxKilograms != nil
-        let progressPercent = Int((lift.progressToNextTier * 100).rounded())
-        let catalogExercise = MockData.trainingExerciseLibrary.first {
-            $0.id == lift.exerciseID || $0.rankingExerciseID == lift.exerciseID
-        }
-        let estimatedMaxText = lift.estimatedOneRepMaxKilograms.map { kilograms in
-            let estimate = "Est. 1RM \(MeasurementFormatting.formatDisplayedWeight(kilograms, unit: preferredUnit))"
-            guard lift.bodyweightMultiple > 0 else { return estimate }
-            return "\(estimate) · \(RankingCalculator.format(lift.bodyweightMultiple))× bodyweight"
-        }
-
-        return Button {
-            selectedTopLiftCard = .exerciseHistory(id: lift.exerciseID, name: lift.exerciseName)
-        } label: {
-            VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                Group {
-                    if let catalogExercise {
-                        ExerciseCatalogIcon(exercise: catalogExercise)
-                            .scaleEffect(0.56)
-                    } else {
-                        ExerciseNameIcon(name: lift.exerciseName, fallbackSymbol: liftSymbol(for: lift.exerciseName))
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(hasEstimate ? Color.liftGold : Color.liftMuted)
-                    }
-                }
-                    .frame(width: 34, height: 34)
-                    .background((hasEstimate ? Color.liftGold : Color.liftMuted).opacity(0.11))
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(lift.exerciseName)
-                        .font(.subheadline.weight(.bold))
-                    Text(estimatedMaxText ?? "Log a working set of 10 reps or fewer")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(Color.liftMuted)
-                        .lineLimit(2)
-                }
-
-                Spacer(minLength: 8)
-
-                Text(hasEstimate ? lift.currentTier.label : "Not logged")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(hasEstimate ? Color.liftText : Color.liftMuted)
-                    .padding(.horizontal, 9)
-                    .frame(minHeight: 26)
-                    .background(hasEstimate ? Color.liftGold.opacity(0.14) : Color.liftSurfaceSecondary)
-                    .clipShape(Capsule())
-            }
-
-            if hasEstimate {
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.liftSurfaceSecondary)
-                        Capsule()
-                            .fill(Color.liftGold)
-                            .frame(width: proxy.size.width * lift.progressToNextTier)
-                    }
-                }
-                .frame(height: 6)
-
-                HStack {
-                    if let nextTier = lift.nextTier, let threshold = lift.nextThresholdMultiple {
-                        Text("\(progressPercent)% to \(nextTier.label)")
-                        Spacer()
-                        Text("Target \(RankingCalculator.format(threshold))× BW")
-                    } else {
-                        Text("Highest tier reached")
-                    }
-                }
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(Color.liftMuted)
-            }
-        }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("View \(lift.exerciseName) workout history")
-        .accessibilityHint("Review a workout set and submit it as a lift")
-        .accessibilityIdentifier("me.strength.lift.\(lift.exerciseID)")
-    }
-
     private func meRow(_ title: String, _ subtitle: String, _ symbol: String, _ tint: Color, badge: String? = nil) -> some View {
         meRow(title, subtitle, symbol, tint, badge: badge, isDestructive: false)
     }
@@ -2008,167 +1801,6 @@ private struct MeHubContentView: View {
         .padding(.vertical, 11)
         .contentShape(Rectangle())
     }
-}
-
-private struct MeTrainingInsightsView: View {
-    @EnvironmentObject private var appState: AppState
-    @Binding var selection: MeRecentVolumeSelection
-    let preferredUnit: UnitSystem
-
-    var body: some View {
-        let stats = appState.competitiveStatistics
-        let recentLifts = Array(appState.currentUserLifts.prefix(5))
-        let weeklyVolume = appState.weeklyVolumeByBodyPart(referenceDate: selection.referenceDate)
-        let totalWeeklyVolume = weeklyVolume.values.reduce(0, +)
-        let topBodyPart = weeklyVolume.max { $0.value < $1.value }?.key ?? "—"
-        let topBodyPartPercent = topBodyPart == "—"
-            ? 0
-            : Int((weeklyVolume[topBodyPart, default: 0] / max(totalWeeklyVolume, 1)) * 100)
-
-        Group {
-            CompactSectionHeader(title: "Training stats")
-                .accessibilityIdentifier("me.section.trainingStats")
-            HStack(spacing: 10) {
-                CompactMetric(title: "Workouts", value: stats.totalWorkouts.formatted(), unit: "all", symbolName: "flame.fill", tint: .liftBlue)
-                compactStatDivider()
-                CompactMetric(title: "PRs", value: stats.prCount.formatted(), unit: "earned", symbolName: "trophy.fill", tint: .liftGold)
-                compactStatDivider()
-                CompactMetric(
-                    title: "Week volume",
-                    value: Int(totalWeeklyVolume).formatted(),
-                    unit: preferredUnit.shortLabel,
-                    symbolName: "chart.xyaxis.line",
-                    tint: .liftGreen
-                )
-                compactStatDivider()
-                CompactMetric(title: "Streak", value: stats.currentStreak.formatted(), unit: "weeks", symbolName: "flame", tint: .liftOrange)
-            }
-            .padding(11)
-            .liftSurface(radius: 12)
-            Text("PRs count new best loads for an exercise and rep count.")
-                .font(.caption2)
-                .foregroundStyle(Color.liftMuted)
-
-            CompactSectionHeader(title: "Recent performance")
-                .accessibilityIdentifier("me.section.recentPerformance")
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(selection.rawValue)
-                            .font(.subheadline.weight(.black))
-                        Text("Weekly volume: \(Int(totalWeeklyVolume).formatted()) \(preferredUnit.shortLabel)")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
-                        Text("Top focus: \(topBodyPart) (\(topBodyPartPercent)% of this week)")
-                            .font(.caption2)
-                            .foregroundStyle(Color.liftMuted)
-                    }
-                    Spacer()
-                    Button {
-                        selection = selection == .thisWeek ? .lastWeek : .thisWeek
-                    } label: {
-                        Text(selection.rawValue.uppercased())
-                            .font(.system(size: 10, weight: .black, design: .rounded))
-                            .tracking(0.8)
-                            .foregroundStyle(Color.liftAccentText)
-                            .padding(.horizontal, 10)
-                            .frame(height: 28)
-                            .background(Color.liftBlue.opacity(0.12))
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityValue(selection.rawValue)
-                }
-
-                if recentLifts.isEmpty {
-                    Text("No recent lifts yet. Log lifts to build your performance feed.")
-                        .font(.caption)
-                        .foregroundStyle(Color.liftText)
-                        .padding(.vertical, 4)
-                } else {
-                    VStack(spacing: 0) {
-                        ForEach(Array(recentLifts.enumerated()), id: \.element.id) { index, lift in
-                            let catalogExercise = MockData.trainingExerciseLibrary.first {
-                                $0.id == lift.exerciseID || $0.rankingExerciseID == lift.exerciseID
-                            }
-                            HStack(spacing: 13) {
-                                Group {
-                                    if let catalogExercise {
-                                        ExerciseCatalogIcon(exercise: catalogExercise)
-                                            .scaleEffect(0.72)
-                                    } else {
-                                        ExerciseNameIcon(name: lift.exerciseName, fallbackSymbol: liftSymbol(for: lift.exerciseName))
-                                            .font(.headline)
-                                            .foregroundStyle(Color.liftGold)
-                                    }
-                                }
-                                    .frame(width: 42, height: 42)
-                                    .background(Color.liftGold.opacity(0.11))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(lift.exerciseName)
-                                        .font(.subheadline.weight(.bold))
-                                        .foregroundStyle(Color.liftText)
-                                    Text(MeasurementFormatting.recordedLiftSetText(
-                                        weight: lift.weight,
-                                        unit: lift.unit,
-                                        repetitions: lift.repetitions,
-                                        includeRepLabel: true
-                                    ))
-                                    .font(.caption)
-                                    .foregroundStyle(Color.liftMuted)
-                                    VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus, compact: true)
-                                        .padding(.top, 3)
-                                }
-
-                                Spacer(minLength: 8)
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.bold))
-                                    .foregroundStyle(Color.liftMuted)
-                            }
-                            .padding(11)
-                            .contentShape(Rectangle())
-
-                            if index < recentLifts.count - 1 {
-                                Divider().overlay(Color.liftSeparator)
-                            }
-                        }
-                    }
-                    .background(Color.liftCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.liftOverlay, lineWidth: 1)
-                    }
-                }
-
-                Button {
-                    appState.trainingTrackerStartOnProgress = true
-                    appState.requestedTrackerSegment = "Progress"
-                    appState.selectedTab = 2
-                } label: {
-                    HStack {
-                        Label("Training history", systemImage: "chart.xyaxis.line")
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                    }
-                    .padding(13)
-                    .foregroundStyle(Color.liftText)
-                    .background(Color.liftCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private func compactStatDivider() -> some View {
-        Rectangle()
-            .fill(Color.liftSeparator)
-            .frame(width: 1, height: 40)
-    }
-
 }
 
 struct AwardsView: View {
@@ -2219,28 +1851,25 @@ struct AwardsView: View {
         AppBackground {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Text("LIFT RIVALS AWARDS")
-                            .font(.caption.weight(.black)).tracking(1.4)
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Text("\(unlockedCount)")
-                                .font(.system(size: 44, weight: .black, design: .rounded))
-                            Text("unlocked").font(.headline)
-                        }
-                        Text("Progress summary: \(unlockedCount) earned · \(lockedCount) locked")
-                            .font(.subheadline)
-                        ProgressView(value: Double(unlockedCount), total: Double(max(1, achievements.count)))
-                            .tint(.white)
-                        Text("Celebrate consistent training, personal records, and ranking milestones.")
-                            .font(.subheadline)
+                    HStack {
+                        Label("\(unlockedCount) earned", systemImage: "medal.fill")
+                        Spacer()
+                        Text("\(lockedCount) remaining").foregroundStyle(Color.liftMuted)
                     }
-                    .foregroundStyle(.white)
-                    .padding(20)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        LinearGradient(colors: [Color.liftGold, Color.orange, Color.pink.opacity(0.85)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .font(.subheadline.weight(.semibold))
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        CompactSectionHeader(title: "Closest awards")
+                        if closestAwardProgress.isEmpty {
+                            LiftEmptyState(title: "No progress data yet", message: "Keep training to see your next awards.", symbolName: "chart.xyaxis.line")
+                        } else {
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                                ForEach(Array(closestAwardProgress.prefix(3)), id: \.achievement.id) { item in
+                                    awardTile(item.achievement, unlocked: false, status: item.status)
+                                }
+                            }
+                        }
+                    }
 
                     VStack(alignment: .leading, spacing: 12) {
                         CompactSectionHeader(title: "Unlocked awards (\(unlockedCount))")
@@ -2258,19 +1887,6 @@ struct AwardsView: View {
                                 }
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Color.liftAccentText)
-                            }
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        CompactSectionHeader(title: "Closest awards")
-                        if closestAwardProgress.isEmpty {
-                            LiftEmptyState(title: "No progress data yet", message: "Keep training to see your next awards.", symbolName: "chart.xyaxis.line")
-                        } else {
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                                ForEach(Array(closestAwardProgress.prefix(3)), id: \.achievement.id) { item in
-                                    awardTile(item.achievement, unlocked: false, status: item.status)
-                                }
                             }
                         }
                     }
@@ -2514,9 +2130,12 @@ struct AwardsView: View {
                 .foregroundStyle(unlocked ? Color.liftGold : Color.liftMuted)
                 .accessibilityHidden(true)
             Text(display.title).font(.subheadline.weight(.bold)).foregroundStyle(unlocked ? Color.liftText : Color.liftMuted).lineLimit(2)
-            Text(status ?? (unlocked ? "Unlocked" : "Keep progressing"))
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(Color.liftMuted)
+                .accessibilityLabel("\(display.title), \(unlocked ? "earned" : "locked")")
+            if let status {
+                Text(status).font(.caption2.weight(.semibold)).foregroundStyle(Color.liftMuted)
+            } else if !unlocked {
+                Text("Keep progressing").font(.caption2).foregroundStyle(Color.liftMuted)
+            }
         }
         .padding(14).frame(maxWidth: .infinity, minHeight: 112, alignment: .leading).liftSurface()
     }
@@ -2881,6 +2500,7 @@ struct AuthenticationView: View {
     @State private var showingPassword = false
     @State private var showingReset = false
     @State private var resetEmail = ""
+    @State private var resetError: String?
     @State private var appleNonce = ""
     @State private var confirmationEmail: String?
 
@@ -2915,8 +2535,9 @@ struct AuthenticationView: View {
                         }
                         .pickerStyle(.segmented)
 
-                        VStack(spacing: 12) {
-                            TextField("Email", text: $email)
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Email").font(.caption.weight(.semibold)).foregroundStyle(Color.liftMuted)
+                            TextField("name@example.com", text: $email)
                                 .textContentType(.emailAddress)
                                 .keyboardType(.emailAddress)
                                 .textInputAutocapitalization(.never)
@@ -2924,6 +2545,7 @@ struct AuthenticationView: View {
                                 .padding(14)
                                 .background(Color.liftCardRaised)
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
+                            Text("Password").font(.caption.weight(.semibold)).foregroundStyle(Color.liftMuted)
                             HStack(spacing: 10) {
                                 Group {
                                     if showingPassword {
@@ -3060,7 +2682,7 @@ struct AuthenticationView: View {
                         .disabled(appState.accountOperationInProgress)
 #endif
 
-                        Button("Forgot password?") { resetEmail = email; showingReset = true }
+                        Button("Forgot password?") { resetEmail = email; resetError = nil; showingReset = true }
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Color.liftAccentText)
                     }
@@ -3099,17 +2721,24 @@ struct AuthenticationView: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                     }
+                    if let resetError {
+                        Text(resetError).foregroundStyle(Color.liftRed)
+                            .accessibilityIdentifier("authentication.reset.error")
+                    }
                     Section {
                         Button(appState.accountOperationInProgress ? "Sending…" : "Send reset link") {
                             let normalizedEmail = resetEmail.trimmingCharacters(in: .whitespacesAndNewlines)
                             guard normalizedEmail.contains("@") else {
-                                appState.accountMessage = "Enter a valid email address."
+                                resetError = "Enter a valid email address."
                                 return
                             }
+                            resetError = nil
                             Task {
                                 await appState.requestPasswordReset(email: normalizedEmail)
                                 if appState.accountMessage == "If an account can receive a reset email, instructions are on the way." {
                                     showingReset = false
+                                } else {
+                                    resetError = appState.accountMessage
                                 }
                             }
                         }
@@ -3209,18 +2838,6 @@ struct PasswordUpdateView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(Color.liftMuted)
                                 .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        LiftCard(padding: 15, radius: 18) {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Label("Password recovery", systemImage: "checkmark.shield.fill")
-                                    .font(.subheadline.weight(.bold))
-                                    .foregroundStyle(Color.liftAccentText)
-                                Text("This password will replace your old password. Use one you do not reuse on another site.")
-                                    .font(.caption)
-                                    .foregroundStyle(Color.liftMuted)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
                         }
 
                         VStack(alignment: .leading, spacing: 13) {

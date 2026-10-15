@@ -131,12 +131,15 @@ extension LeaderboardsView {
     var filterBar: some View {
         let showsExercise = ![.total, .relativeTotal].contains(appState.leaderboardFilters.rankingType)
         return VStack(spacing: 8) {
-            scopeFilterControl
-                .frame(maxWidth: .infinity, alignment: .leading)
             HStack(spacing: 8) {
-                if showsExercise { exerciseFilterControl }
-                if appState.leaderboardFilters.exerciseID != nil { repetitionsFilterControl }
+                scopeFilterControl
                 moreFiltersControl
+            }
+            if showsExercise {
+                HStack(spacing: 8) {
+                    exerciseFilterControl
+                    if appState.leaderboardFilters.exerciseID != nil { repetitionsFilterControl }
+                }
             }
         }
         .padding(.horizontal, 16)

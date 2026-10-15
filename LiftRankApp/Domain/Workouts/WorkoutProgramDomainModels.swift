@@ -68,10 +68,90 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
 
 enum WorkoutProgressionMethod: String, CaseIterable, Codable, Hashable, Identifiable {
     case rirRepRange = "RIR + Rep Range"
+    case adaptive = "Adaptive Rep Range"
+    case linear = "Beginner Linear Progression"
     case percentage = "Percentage"
     case fixed = "Fixed Sets + Reps"
 
     var id: String { rawValue }
+
+    var guidance: String {
+        switch self {
+        case .adaptive:
+            "RIR is reps left; RPE is effort out of 10. Choose your first weight and log every working set. Matching workouts in this plan guide the next load: add 1 kg or 2.5 lb when all sets reach the top of the range at the target effort; reduce about 5% after missing minimum reps; otherwise hold. Incomplete sets or missing RPE never trigger an increase. Mixed loads and timed exercises need manual load selection."
+        case .linear:
+            "Choose a conservative first weight. Complete every working set and rep to add 2.5 kg or 5 lb at the next occurrence of that lift. After a missed rep target, repeat the weight. Three consecutive completed attempts that miss reps at the same weight trigger a reset of about 10%. Incomplete or mixed-load sessions do not trigger increases or resets. Weeks 4, 8, and 12 use lighter loads and do not count toward progression. RPE is optional."
+        case .rirRepRange:
+            "Reps in reserve (RIR) means how many more reps you could complete with good form. Choose and adjust your own working weights."
+        case .percentage:
+            "Working weights follow the weekly percentage of your training max. Update your training max manually as needed."
+        case .fixed:
+            "Follow the prescribed sets and reps, choosing your own working weights."
+        }
+    }
+}
+
+enum WorkoutAdaptiveProgression {
+    static func loadKilograms(for exercise: WorkoutExerciseSnapshot, sets: [WorkoutSetLog], unit: UnitSystem) -> Double? {
+        let parts = exercise.targetReps.split(separator: "-", omittingEmptySubsequences: false)
+        let bounds = parts.compactMap { Int($0) }
+        guard (1...2).contains(bounds.count), bounds.count == parts.count,
+              let minimum = bounds.first, let maximum = bounds.last, minimum > 0, maximum >= minimum,
+              exercise.targetSets > 0 else { return nil }
+        guard let performance = workingPerformance(for: exercise, sets: sets) else { return nil }
+        let load = performance.loadKilograms
+        let completed = performance.sets
+        let step = unit == .kilograms ? 1.0 : RankingCalculator.poundsToKilograms(2.5)
+        if completed.contains(where: { ($0.reps ?? 0) < minimum }) {
+            return min(load, max(step, (load * 0.95 / step).rounded(.down) * step))
+        }
+        if performance.allSetsComplete, let rir = exercise.targetRIR,
+           completed.allSatisfy({ ($0.reps ?? 0) >= maximum && $0.rpe.map { (1...10).contains($0) && $0 <= 10 - rir } == true }) {
+            return load + step
+        }
+        return load
+    }
+
+    static func linearLoadKilograms(
+        history: [(exercise: WorkoutExerciseSnapshot, sets: [WorkoutSetLog])],
+        unit: UnitSystem,
+        isDeload: Bool
+    ) -> Double? {
+        guard let latest = history.first, let goal = Int(latest.exercise.targetReps), goal > 0,
+              let performance = workingPerformance(for: latest.exercise, sets: latest.sets) else { return nil }
+        let load = performance.loadKilograms
+        if isDeload { return load * 0.9 }
+        guard performance.allSetsComplete else { return load }
+        let step = unit == .kilograms ? 2.5 : RankingCalculator.poundsToKilograms(5)
+        if performance.sets.allSatisfy({ ($0.reps ?? 0) >= goal }) { return load + step }
+        var stalls = 0
+        for attempt in history.prefix(3) {
+            guard attempt.exercise.targetReps == latest.exercise.targetReps,
+                  attempt.exercise.targetSets == latest.exercise.targetSets,
+                  let prior = workingPerformance(for: attempt.exercise, sets: attempt.sets),
+                  prior.allSetsComplete, abs(prior.loadKilograms - load) < 0.01,
+                  prior.sets.contains(where: { ($0.reps ?? 0) < goal }) else { break }
+            stalls += 1
+        }
+        return stalls == 3 ? min(load, max(step, (load * 0.9 / step).rounded(.down) * step)) : load
+    }
+
+    private static func workingPerformance(
+        for exercise: WorkoutExerciseSnapshot,
+        sets: [WorkoutSetLog]
+    ) -> (loadKilograms: Double, sets: [WorkoutSetLog], allSetsComplete: Bool)? {
+        guard exercise.targetSets > 0 else { return nil }
+        let completed = sets.filter {
+            $0.prescriptionID == exercise.id && !$0.isWarmup && $0.isComplete && (1...exercise.targetSets).contains($0.setNumber)
+        }
+        let loads = completed.compactMap { log -> Double? in
+            guard let weight = log.weight, weight.isFinite, weight > 0, let reps = log.reps, reps >= 0 else { return nil }
+            return log.recordedUnit == .kilograms ? weight : RankingCalculator.poundsToKilograms(weight)
+        }
+        guard let load = loads.first, loads.count == completed.count,
+              loads.allSatisfy({ abs($0 - load) < 0.01 }) else { return nil }
+        return (load, completed, completed.count == exercise.targetSets && Set(completed.map(\.setNumber)).count == exercise.targetSets)
+    }
 }
 
 enum WorkoutProgramCategory: String, CaseIterable, Codable, Hashable, Identifiable {
@@ -119,6 +199,13 @@ struct WorkoutProgramTemplate: Identifiable, Codable, Hashable {
     var defaultProgression: WorkoutProgressionMethod
     var sessions: [WorkoutProgramSessionTemplate]
     var requiredTrainingMaxExerciseIDs: [String]
+
+    var availableProgressionMethods: [WorkoutProgressionMethod] {
+        if defaultProgression == .linear { return [.linear, .fixed] }
+        return WorkoutProgressionMethod.allCases.filter {
+            $0 != .linear && ($0 != .percentage || !requiredTrainingMaxExerciseIDs.isEmpty)
+        }
+    }
 }
 
 struct WorkoutPlanProgressionSettings: Identifiable, Codable, Hashable {

@@ -638,22 +638,6 @@ struct ProgramAddExercisePickerView: View {
 
     private var bottomActionBar: some View {
         HStack(spacing: 10) {
-            NavigationLink {
-                CreateCustomExerciseView(session: session) {
-                    dismiss()
-                }
-                .environmentObject(appState)
-            } label: {
-                Image(systemName: "plus")
-                    .font(.headline.weight(.bold))
-                    .frame(width: 50, height: 50)
-                    .background(Color.liftCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(Color.liftAccentText)
-            .accessibilityLabel("Create custom exercise")
-
             Button {
                 appState.addExercises(selectedExercises, to: session)
                 dismiss()

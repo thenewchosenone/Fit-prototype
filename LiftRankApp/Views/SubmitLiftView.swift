@@ -284,18 +284,11 @@ struct SubmitLiftView: View {
         LiftCard(padding: 14, radius: 16) {
             VStack(alignment: .leading, spacing: 10) {
                 CompactSectionHeader(title: "Training context")
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .bottom, spacing: 12) {
-                        bodyweightInput
-                        DatePicker("Date", selection: $performedAt, displayedComponents: .date)
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity, minHeight: LiftDesign.minimumTouchTarget)
-                    }
-                    VStack(alignment: .leading, spacing: 10) {
-                        bodyweightInput
-                        DatePicker("Date performed", selection: $performedAt, displayedComponents: .date)
-                            .frame(minHeight: LiftDesign.minimumTouchTarget)
-                    }
+                VStack(alignment: .leading, spacing: 12) {
+                    bodyweightInput
+                    DatePicker("Date performed", selection: $performedAt, displayedComponents: .date)
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
                 }
                 Divider().overlay(Color.liftSeparator)
                 LiftActionRow(title: "Gym", subtitle: selectedGym?.name ?? "No gym", symbolName: "building.2") {

@@ -209,7 +209,9 @@ final class ExerciseLibraryStore {
         if cachedSearchSignature == signature, let cachedSearchResults {
             return cachedSearchResults
         }
-        let results = ExerciseCatalogSearch.search(exercises: exercises, query: query)
+        // Retain the old catalog ID for saved workouts; new selections use its named equivalent.
+        let selectable = exercises.filter { $0.id != "machine_ab_crunch" }
+        let results = ExerciseCatalogSearch.search(exercises: selectable, query: query)
             .filter { !excludingIDs.contains($0.exercise.id) }
             .filter { filters?.matches($0.exercise) ?? true }
         cachedSearchSignature = signature
@@ -251,7 +253,7 @@ final class ExerciseLibraryStore {
         }
 
         let recommendations: [ExerciseSubstitutionRecommendation] = exercises
-            .filter { $0.id != exercise.id }
+            .filter { $0.id != exercise.id && $0.id != "machine_ab_crunch" }
             .filter { equipmentFilter.isEmpty || equipmentFilter.contains($0.equipment) }
             .compactMap { candidate in
                 let primaryOverlap = overlapScore(

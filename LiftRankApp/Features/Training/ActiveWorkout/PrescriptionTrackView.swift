@@ -32,7 +32,7 @@ struct PrescriptionTrackView: View {
                         MeasurementFormatting.formatDisplayedWeight($0, unit: activeUnit)
                     }
                     let targetDetails = [
-                        exercise.targetRIR.map { "\($0) reps in reserve" },
+                        !ExerciseTrackingKind(catalogExercise.trackingType).usesDuration ? exercise.targetRIR.map { "\($0) reps in reserve" } : nil,
                         exercise.trainingMaxPercentage.map { "\(Int(($0 * 100).rounded()))% of training max" },
                         targetLoad
                     ].compactMap { $0 }.joined(separator: " · ")

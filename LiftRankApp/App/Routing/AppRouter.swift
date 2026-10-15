@@ -49,6 +49,7 @@ enum AppCover: String, Identifiable, Hashable {
 final class AppRouter: ObservableObject {
     @Published var selectedTab: AppTab = .home
     @Published var trackerSection: TrackerSection = .today
+    @Published var progressCategory: TrackerProgressCategory?
     @Published var forumPostToOpen: UUID?
     @Published var forumCommentToOpen: UUID?
     @Published var sheet: AppSheet?

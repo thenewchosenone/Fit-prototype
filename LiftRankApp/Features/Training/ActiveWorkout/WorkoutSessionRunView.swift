@@ -56,9 +56,6 @@ struct WorkoutSessionRunView: View {
                                                 .font(.caption.weight(.bold))
                                                 .foregroundStyle(Color.liftAccentText)
                                         }
-                                        Text("\(displayState.completedWorkingSets)/\(displayState.plannedWorkingSets) working sets")
-                                            .font(.caption.weight(.bold))
-                                            .foregroundStyle(Color.liftMuted)
                                     }
 
                                     ForEach(displayState.exercises) { exercise in

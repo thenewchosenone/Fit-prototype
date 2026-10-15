@@ -151,26 +151,12 @@ struct CompletedWorkoutDetailView: View {
                     .accessibilityLabel("Repeat workout")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        _ = appState.saveWorkoutAsRoutine(displayedWorkout)
-                    } label: {
-                        Image(systemName: "bookmark")
+                    Menu("More", systemImage: "ellipsis") {
+                        Button("Save as routine", systemImage: "bookmark") { _ = appState.saveWorkoutAsRoutine(displayedWorkout) }
+                        Button("Edit workout", systemImage: "pencil") { editingWorkout = displayedWorkout }
+                        Button("Delete workout", systemImage: "trash", role: .destructive) { showingDeleteConfirmation = true }
                     }
-                    .accessibilityLabel("Save workout as routine")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        editingWorkout = displayedWorkout
-                    } label: {
-                        Image(systemName: "pencil")
-                    }
-                    .accessibilityLabel("Edit workout history")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(role: .destructive) { showingDeleteConfirmation = true } label: {
-                        Image(systemName: "trash")
-                    }
-                    .accessibilityLabel("Delete workout history")
+                    .accessibilityLabel("More workout actions")
                 }
             }
             .confirmationDialog("Delete this workout from history?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {

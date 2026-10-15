@@ -455,7 +455,7 @@ struct EditProfileView: View {
                             NumericInputField(title: "Height", value: $draft.heightInches, unit: "in", presentation: .formRow)
                         }
                         Button {
-                            selectedBodyweightEntry = BodyweightEntry.draftForCurrentWeek(
+                            selectedBodyweightEntry = BodyweightEntry.draftForToday(
                                 entries: appState.bodyweightEntries,
                                 currentBodyweightPounds: draft.bodyweightPounds
                             )
@@ -1232,8 +1232,12 @@ struct GymDirectoryView: View {
 
 struct GymDetailView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
     let gym: Gym
     @State private var showingMembershipLimit = false
+    @State private var gymLeaderboardEntries: [LeaderboardEntry] = []
+    @State private var isLoadingRankings = true
+    @State private var rankingsError: String?
 
     private var joined: Bool {
         appState.isGymJoined(gym)
@@ -1241,11 +1245,6 @@ struct GymDetailView: View {
 
     private var isPrimaryGym: Bool {
         appState.isPrimaryGym(gym)
-    }
-
-    private var gymLeaderboardEntries: [LeaderboardEntry] {
-        guard appState.leaderboardFilters.gymID == gym.id else { return [] }
-        return Array(appState.leaderboardEntries().prefix(5))
     }
 
     var body: some View {
@@ -1293,13 +1292,23 @@ struct GymDetailView: View {
                         }
                     }
                     SectionHeader(title: "Top lifters")
-                    if appState.leaderboardFilters.gymID != gym.id || appState.isLeaderboardRequestPending {
+                    Button("View gym rankings") {
+                        dismiss()
+                        appState.leaderboardFilters = LeaderboardFilters(exerciseID: nil, rankingType: .total, gymID: gym.id)
+                        appState.verifiedOnly = true
+                        appState.selectedTab = 1
+                    }
+                    .frame(minHeight: LiftDesign.minimumTouchTarget)
+                    if isLoadingRankings {
                         HStack(spacing: 10) {
                             ProgressView()
                             Text("Loading gym rankings…")
                                 .foregroundStyle(Color.liftMuted)
                         }
                         .frame(maxWidth: .infinity, minHeight: 70)
+                    } else if let rankingsError {
+                        Text(rankingsError).font(.caption).foregroundStyle(Color.liftRed)
+                        Button("Retry gym rankings") { Task { await loadGymLeaderboard() } }
                     } else if gymLeaderboardEntries.isEmpty {
                         Text("No qualifying verified lifts at this gym yet.")
                             .font(.subheadline)
@@ -1307,7 +1316,20 @@ struct GymDetailView: View {
                             .padding(.vertical, 12)
                     } else {
                         ForEach(gymLeaderboardEntries) { entry in
-                            LeaderboardRow(entry: entry)
+                            Button { appState.selectedProfile = entry.profile } label: {
+                                HStack(spacing: 12) {
+                                    Text("#\(entry.rank)").monospacedDigit()
+                                        .foregroundStyle(Color.liftAccentText)
+                                    ProfileAvatar(profile: entry.profile, size: 36)
+                                    Text(entry.profile.displayName.isEmpty ? entry.profile.username : entry.profile.displayName)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    Text(RankingFormatting.leaderboardValueText(for: entry, rankingType: .total, preferredUnit: appState.currentProfile.preferredUnit))
+                                        .monospacedDigit()
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .frame(minHeight: LiftDesign.minimumTouchTarget)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -1325,12 +1347,15 @@ struct GymDetailView: View {
     }
 
     private func loadGymLeaderboard() async {
-        appState.leaderboardFilters.gymID = gym.id
-        appState.leaderboardFilters.cityID = nil
-        appState.leaderboardFilters.city = nil
-        appState.leaderboardFilters.state = nil
-        appState.leaderboardFilters.country = nil
-        await appState.refreshLeaderboard()
+        isLoadingRankings = true
+        rankingsError = nil
+        do {
+            gymLeaderboardEntries = try await appState.competitionStore.gymLeaderboardEntries(gymID: gym.id)
+        } catch {
+            guard !Task.isCancelled else { return }
+            rankingsError = "Gym rankings couldn’t load. Try again."
+        }
+        isLoadingRankings = false
     }
 }
 
@@ -1353,11 +1378,12 @@ struct RequestGymView: View {
             AppBackground {
                 Form {
                     Section("Gym") {
-                        TextField("Gym name", text: $name)
-                        TextField("City", text: $city)
-                        TextField("State", text: $state)
-                        TextField("Why should this gym be added?", text: $note, axis: .vertical)
-                            .lineLimit(3...5)
+                        LabeledContent("Gym name") { TextField("Required", text: $name) }
+                        LabeledContent("City") { TextField("Required", text: $city) }
+                        LabeledContent("State / province") { TextField("Required", text: $state) }
+                    }
+                    Section("Details · Optional") {
+                        TextField("Why should this gym be added?", text: $note, axis: .vertical).lineLimit(3...5)
                     }
                 }
                 .scrollContentBackground(.hidden)

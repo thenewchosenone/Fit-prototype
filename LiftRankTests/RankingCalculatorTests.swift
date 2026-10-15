@@ -5045,6 +5045,168 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
+    func testStrengthRecordsAndStallsRejectHighRepAndInvalidEstimates() throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let now = Date.now
+        repository.completedWorkouts = (1...3).map { day in
+            makeExerciseHistoryWorkout(completedAt: now.addingTimeInterval(Double(-day) * 86_400), unit: .kilograms,
+                sets: [(100, 5, false, true), (1_000, 15, false, true), (.infinity, 5, false, true)])
+        }
+        let store = TrainingProgressStore(repository: repository)
+        let expected = RankingCalculator.epleyOneRepMax(weight: 100, repetitions: 5)
+        XCTAssertEqual(try XCTUnwrap(store.exerciseRecords(for: "barbell_bench_press").bestEstimatedOneRepMaxKilograms), expected, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(store.exerciseHistory(for: "barbell_bench_press").first?.estimatedOneRepMaxKilograms), expected, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(store.plateauInsights.first?.latestPerformance.estimatedOneRepMaxKilograms), expected, accuracy: 0.001)
+        XCTAssertEqual(store.exerciseRecords(for: "barbell_bench_press").mostRepetitions, 15)
+        repository.completedWorkouts = [makeExerciseHistoryWorkout(completedAt: now, unit: .kilograms, sets: [(100, 15, false, true)])]
+        XCTAssertNil(store.exerciseRecords(for: "barbell_bench_press").bestEstimatedOneRepMaxKilograms)
+        XCTAssertTrue(store.plateauInsights.isEmpty)
+    }
+
+    @MainActor
+    func testStrengthBodyweightUsesLatestValidReadingAndInvalidatesTiers() throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let now = Date.now
+        let store = TrainingProgressStore(repository: repository)
+        repository.bodyweightEntries = []
+        XCTAssertEqual(store.strengthBodyweightPounds(), repository.currentProfile.bodyweightPounds)
+        repository.completedWorkouts = [makeExerciseHistoryWorkout(completedAt: now, unit: .kilograms, sets: [(100, 5, false, true)])]
+        func entry(_ days: Int, _ actual: Double?) -> BodyweightEntry {
+            BodyweightEntry(id: UUID(), week: 1, targetDate: now.addingTimeInterval(Double(days) * 86_400), actual: actual, notes: "")
+        }
+        repository.bodyweightEntries = [entry(-3, 200), entry(-2, nil), entry(-1, .infinity), entry(1, 300)]
+        XCTAssertEqual(store.strengthBodyweightPounds(), 200)
+        let before = try XCTUnwrap(store.strengthTierSummary.liftProgress.first { $0.exerciseID == "bench" }).bodyweightMultiple
+        repository.bodyweightEntries.append(entry(0, 180))
+        XCTAssertEqual(store.strengthBodyweightPounds(), 180)
+        let after = try XCTUnwrap(store.strengthTierSummary.liftProgress.first { $0.exerciseID == "bench" }).bodyweightMultiple
+        XCTAssertGreaterThan(after, before)
+    }
+
+    @MainActor
+    func testDemoStrengthHistoryPopulatesAllTrendStatesWithoutDuplicates() throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let reference = Date(timeIntervalSince1970: 1_900_400_000)
+        _ = repository.seedDemoProgramHistoryIfNeeded(referenceDate: reference)
+        let originalIDs = Set(repository.completedWorkouts.map(\.id))
+        repository.seedDemoStrengthTrendsIfNeeded(referenceDate: reference)
+        let store = TrainingProgressStore(repository: repository)
+        let trends = Dictionary(uniqueKeysWithValues: store.recentStrengthTrends(referenceDate: reference).map { ($0.exerciseID, $0.status) })
+        XCTAssertEqual(trends["barbell_bench_press"], .improving)
+        XCTAssertEqual(trends["dumbbell_bent_over_row"], .steady)
+        XCTAssertEqual(trends["dumbbell_romanian_deadlift"], .declining)
+        XCTAssertEqual(trends["dumbbell_hammer_curl"], .improving)
+        XCTAssertEqual(trends["dumbbell_front_squat"], .insufficient)
+        XCTAssertTrue(originalIDs.isSubset(of: Set(repository.completedWorkouts.map(\.id))))
+        XCTAssertEqual(repository.completedWorkouts.count, originalIDs.count + 6)
+        let seededIDs = Set(repository.completedWorkouts.map(\.id))
+        repository.seedDemoStrengthTrendsIfNeeded(referenceDate: reference)
+        XCTAssertEqual(Set(repository.completedWorkouts.map(\.id)), seededIDs)
+        repository.seedDemoStrengthTrendsIfNeeded(referenceDate: reference.addingTimeInterval(86_400))
+        XCTAssertEqual(repository.completedWorkouts.count, originalIDs.count + 6)
+        XCTAssertTrue(originalIDs.isSubset(of: Set(repository.completedWorkouts.map(\.id))))
+    }
+
+    @MainActor
+    func testRecentStrengthTrendsDetectDeclineDespiteAnOldPersonalBest() throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let reference = Date(timeIntervalSince1970: 1_900_400_000)
+        func workout(_ days: Int, weight: Double, unit: UnitSystem = .kilograms) -> CompletedWorkout {
+            makeExerciseHistoryWorkout(completedAt: calendar.date(byAdding: .day, value: days, to: reference)!, unit: unit,
+                                       sets: [(weight, 5, false, true), (1_000, 5, true, true), (1_000, 5, false, false), (1_000, 15, false, true)])
+        }
+        let recent = workout(-2, weight: RankingCalculator.kilogramsToPounds(80), unit: .pounds)
+        var timed = workout(-1, weight: 1_000)
+        timed.exercises[0].trackingType = "Time"
+        repository.completedWorkouts = [
+            workout(-60, weight: 200), workout(-24, weight: 100), workout(-18, weight: 100),
+            workout(-8, weight: 80), workout(-8, weight: 60), recent, timed, workout(1, weight: 1_000)
+        ]
+        let store = TrainingProgressStore(repository: repository, calendar: calendar)
+        let trend = try XCTUnwrap(store.recentStrengthTrends(referenceDate: reference).first)
+        XCTAssertEqual(trend.exerciseID, "barbell_bench_press")
+        XCTAssertTrue(trend.primaryMuscles.contains(.chest))
+        XCTAssertEqual(trend.earlierDayCount, 2)
+        XCTAssertEqual(trend.recentDayCount, 2)
+        XCTAssertEqual(trend.status, .declining)
+        XCTAssertEqual(try XCTUnwrap(trend.changeFraction), -0.2, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(trend.recentAverageKilograms), RankingCalculator.epleyOneRepMax(weight: 80, repetitions: 5), accuracy: 0.001)
+        repository.completedWorkouts.removeAll { $0.id == recent.id }
+        XCTAssertEqual(store.recentStrengthTrends(referenceDate: reference).first?.status, .insufficient)
+        var improved = recent
+        for index in improved.sets.indices where !improved.sets[index].isWarmup && improved.sets[index].isComplete && improved.sets[index].reps == 5 {
+            improved.sets[index].weight = 120
+            improved.sets[index].recordedUnit = .kilograms
+        }
+        repository.completedWorkouts.append(improved)
+        XCTAssertEqual(store.recentStrengthTrends(referenceDate: reference).first?.status, .steady)
+    }
+
+    @MainActor
+    func testRecentStrengthTrendsUseCalendarBoundariesAndExcludeRecoveryWeeks() throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let reference = Date(timeIntervalSince1970: 1_900_400_000)
+        let template = try XCTUnwrap(WorkoutProgramCatalog.templates.first)
+        let plan = repository.startWorkoutProgram(template: template, startDate: reference.addingTimeInterval(-30 * 86_400),
+                                                  scheduledWeekdays: template.sessions.map(\.dayIndex), method: .adaptive,
+                                                  preferredUnit: .kilograms, trainingMaxKilograms: [:])
+        let week = try XCTUnwrap(repository.workoutWeeks.first { $0.planID == plan.id && $0.weekNumber == 4 })
+        let session = try XCTUnwrap(repository.workoutSessions.first { $0.weekID == week.id })
+        var recovery = makeExerciseHistoryWorkout(completedAt: reference.addingTimeInterval(-86_400), unit: .kilograms, sets: [(20, 5, false, true)])
+        recovery.sourceSessionID = session.id
+        recovery.sourcePlanID = plan.id
+        repository.completedWorkouts = [-27, -14, -13, 0].map { days in
+            makeExerciseHistoryWorkout(completedAt: calendar.date(byAdding: .day, value: days, to: reference)!, unit: .kilograms,
+                                       sets: [(days < -13 ? 100 : 110, 5, false, true)])
+        } + [recovery]
+        let trend = try XCTUnwrap(TrainingProgressStore(repository: repository, calendar: calendar).recentStrengthTrends(referenceDate: reference).first)
+        XCTAssertEqual(trend.earlierDayCount, 2)
+        XCTAssertEqual(trend.recentDayCount, 2)
+        XCTAssertEqual(trend.status, .improving)
+        XCTAssertEqual(try XCTUnwrap(trend.changeFraction), 0.1, accuracy: 0.001)
+    }
+
+    @MainActor
+    func testStrengthAttentionRecognizesCatalogIDsAndIgnoresOldStalls() throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let reference = Date(timeIntervalSince1970: 1_900_400_000)
+        repository.completedWorkouts = [-2, -1, 0].map { days in
+            makeExerciseHistoryWorkout(completedAt: reference.addingTimeInterval(Double(days) * 86_400), unit: .kilograms,
+                                       sets: [(100, 5, false, true)])
+        }
+        let store = TrainingProgressStore(repository: repository)
+        let insights = store.strengthAttentionInsights(summary: store.strengthTierSummary, referenceDate: reference)
+        XCTAssertTrue(insights.contains { $0.id == "plateau-barbell_bench_press" })
+        repository.completedWorkouts.append(makeExerciseHistoryWorkout(completedAt: reference.addingTimeInterval(86_400), unit: .kilograms,
+                                                                       sets: [(500, 5, false, true)]))
+        XCTAssertTrue(store.strengthAttentionInsights(summary: store.strengthTierSummary, referenceDate: reference)
+            .contains { $0.id == "plateau-barbell_bench_press" })
+        XCTAssertFalse(store.strengthAttentionInsights(summary: store.strengthTierSummary, referenceDate: reference.addingTimeInterval(40 * 86_400))
+            .contains { $0.id.hasPrefix("plateau-") })
+        repository.completedWorkouts = Array(repository.completedWorkouts.prefix(2)).map { original in
+            var workout = original
+            workout.exercises[0].rankingExerciseID = nil
+            return workout
+        }
+        XCTAssertFalse(store.strengthAttentionInsights(summary: store.strengthTierSummary, referenceDate: reference)
+            .contains { $0.id == "frequency-bench" })
+    }
+
+    func testEstimatedMaxSeriesRejectsUnsupportedAndInvalidSets() {
+        let date = Date()
+        let valid = ExerciseProgressPoint(id: UUID(), date: date, weight: 100, reps: 5, unit: .kilograms)
+        let points = [valid,
+                      ExerciseProgressPoint(id: UUID(), date: date, weight: 1_000, reps: 15, unit: .kilograms),
+                      ExerciseProgressPoint(id: UUID(), date: date, weight: .infinity, reps: 5, unit: .kilograms),
+                      ExerciseProgressPoint(id: UUID(), date: date, weight: -1, reps: 5, unit: .kilograms)]
+        XCTAssertEqual(ExerciseProgressSeries.dailyHighestEstimatedOneRepMax(from: points).map(\.id), [valid.id])
+    }
+
+    @MainActor
     func testTrainingProgressStoreOwnsNormalizedHistoryVolumeStreakAndPlateaus() throws {
         let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
         let bench = try XCTUnwrap(MockData.trainingExerciseLibrary.first { $0.id == "barbell_bench_press" })
@@ -5107,7 +5269,7 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(store.plateauInsights.first?.exerciseID, bench.id)
         XCTAssertEqual(store.plateauInsights.first?.performances.count, 3)
 
-        let draftBodyweight = BodyweightEntry.draftForCurrentWeek(
+        let draftBodyweight = BodyweightEntry.draftForToday(
             entries: store.bodyweightEntries,
             currentBodyweightPounds: 200,
             calendar: calendar,
@@ -6434,7 +6596,7 @@ final class RankingCalculatorTests: XCTestCase {
         let templates = WorkoutProgramCatalog.templates
         let catalogIDs = Set(MockData.trainingExerciseLibrary.map(\.id))
 
-        XCTAssertEqual(templates.count, 10)
+        XCTAssertEqual(templates.count, 20)
         for template in templates {
             XCTAssertEqual(template.sessions.count, template.daysPerWeek, template.name)
             XCTAssertFalse(template.sessions.flatMap(\.exercises).isEmpty, template.name)
@@ -6461,9 +6623,305 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(Set(intermediatePowerlifting.requiredTrainingMaxExerciseIDs), Set(["back_squat", "barbell_bench_press", "conventional_deadlift"]))
 
         for template in templates where template.category == .bodybuilding {
-            XCTAssertTrue(template.name.localizedCaseInsensitiveContains("bodybuilding"), template.name)
-            XCTAssertTrue([.rirRepRange, .fixed].contains(template.defaultProgression), template.name)
+            XCTAssertTrue(template.name.localizedCaseInsensitiveContains("bodybuilding") || template.name == "Adaptive Hypertrophy", template.name)
+            XCTAssertTrue([.rirRepRange, .fixed, .adaptive].contains(template.defaultProgression), template.name)
         }
+    }
+
+    @MainActor
+    func testAdaptiveProgramsSupportEveryScheduleAndRestoreTheirVariants() throws {
+        let catalogIDs = Set(MockData.trainingExerciseLibrary.map(\.id))
+        for strength in [true, false] {
+            let family = try XCTUnwrap(WorkoutProgramCatalog.template(id: "adaptive_\(strength ? "strength" : "hypertrophy")_3d_12"))
+            let variants = WorkoutProgramCatalog.scheduleVariants(for: family)
+            XCTAssertEqual(variants.map(\.daysPerWeek), [2, 3, 4, 5, 6])
+            for template in variants {
+                XCTAssertEqual(WorkoutProgramCatalog.template(id: template.id), template)
+                XCTAssertEqual(template.sessions.count, template.daysPerWeek)
+                XCTAssertEqual(Set(template.sessions.map(\.dayIndex)).count, template.daysPerWeek)
+                XCTAssertTrue(template.sessions.flatMap(\.exercises).allSatisfy { catalogIDs.contains($0.exerciseID) })
+                let repository = DemoRepository()
+                let plan = repository.startWorkoutProgram(
+                    template: template, startDate: .now, scheduledWeekdays: template.sessions.map(\.dayIndex),
+                    method: .adaptive, preferredUnit: .kilograms, trainingMaxKilograms: [:]
+                )
+                let weekIDs = Set(repository.workoutWeeks.filter { $0.planID == plan.id }.map(\.id))
+                XCTAssertEqual(repository.workoutSessions.filter { weekIDs.contains($0.weekID) }.count, template.daysPerWeek * 12)
+                let settings = try XCTUnwrap(repository.workoutPlanProgressionSettings.first { $0.planID == plan.id })
+                let restored = try JSONDecoder().decode(WorkoutPlanProgressionSettings.self, from: JSONEncoder().encode(settings))
+                XCTAssertEqual(restored.method, .adaptive)
+                XCTAssertEqual(WorkoutProgramCatalog.template(id: restored.sourceTemplateID)?.sessions.count, template.daysPerWeek)
+                XCTAssertTrue(repository.changeWorkoutProgramProgression(planID: plan.id, method: .fixed, trainingMaxKilograms: [:]))
+                XCTAssertTrue(repository.changeWorkoutProgramProgression(planID: plan.id, method: .adaptive, trainingMaxKilograms: [:]))
+            }
+        }
+    }
+
+    @MainActor
+    func testAdaptiveProgramsCompleteAllTwelveWeeksAcrossEverySchedule() throws {
+        let templates = WorkoutProgramCatalog.templates.filter { $0.defaultProgression == .adaptive }
+            .flatMap { WorkoutProgramCatalog.scheduleVariants(for: $0) }
+        let start = Date.now.addingTimeInterval(-90 * 86_400)
+        for template in templates {
+            let repository = DemoRepository()
+            let plan = repository.startWorkoutProgram(
+                template: template, startDate: start, scheduledWeekdays: template.sessions.map(\.dayIndex),
+                method: .adaptive, preferredUnit: .kilograms, trainingMaxKilograms: [:]
+            )
+            for number in 1...12 {
+                let week = try XCTUnwrap(repository.workoutWeeks.first { $0.planID == plan.id && $0.weekNumber == number })
+                let sessions = repository.workoutSessions.filter { $0.weekID == week.id }.sorted { $0.order < $1.order }
+                XCTAssertEqual(sessions.count, template.daysPerWeek, template.id)
+                for session in sessions {
+                    let date = start.addingTimeInterval(Double((number - 1) * 7 + session.order) * 86_400)
+                    let unit: UnitSystem = number.isMultiple(of: 2) ? .pounds : .kilograms
+                    let workout = try XCTUnwrap(repository.startWorkout(
+                        session: session, planID: plan.id, gymID: nil, bodyweight: nil, unit: unit, at: date
+                    ))
+                    XCTAssertEqual(workout.exercises.count, template.sessions[session.order].exercises.count, template.id)
+                    if number > 1, session.order == 0 {
+                        let expected = [50.0, 51, 52, 46.8, 53, 54, 55, 49.5, 56, 57, 58, 52.2][number - 1]
+                        XCTAssertEqual(try XCTUnwrap(workout.exercises.first?.targetLoadKilograms), expected, accuracy: 0.001, "\(template.id), week \(number)")
+                    }
+                    for exercise in workout.exercises {
+                        let numeric = exercise.targetReps.range(of: "^[0-9]+(-[0-9]+)?$", options: .regularExpression) != nil
+                        let weighted = ExerciseTrackingKind(exercise.trackingType ?? "Weight + Reps") == .weightReps
+                        if number > 1, numeric, weighted {
+                            XCTAssertNotNil(exercise.targetLoadKilograms, "\(template.id), week \(number), \(exercise.exerciseName)")
+                        }
+                        let upperReps = exercise.targetReps.split(separator: "-").last.flatMap { Int($0) }
+                        for var log in repository.workoutSetLogs where log.prescriptionID == exercise.id {
+                            let kilograms = exercise.targetLoadKilograms ?? 50
+                            log.weight = weighted ? (unit == .kilograms ? kilograms : RankingCalculator.kilogramsToPounds(kilograms)) : nil
+                            log.reps = numeric ? try XCTUnwrap(upperReps) : 30
+                            log.rpe = 10 - (exercise.targetRIR ?? 3)
+                            log.isComplete = true
+                            repository.updateWorkoutSetLog(log)
+                        }
+                    }
+                    let completed = try XCTUnwrap(repository.finishActiveWorkout(effort: 3, notes: "", at: date.addingTimeInterval(3600)))
+                    XCTAssertEqual(completed.sets.filter { $0.isComplete && !$0.isWarmup }.count, workout.exercises.reduce(0) { $0 + $1.targetSets })
+                    XCTAssertEqual(repository.resolvedWorkoutPrescriptions(sessionID: session.id, at: date.addingTimeInterval(7200)).map(\.targetLoadKilograms), workout.exercises.map(\.targetLoadKilograms))
+                }
+            }
+            XCTAssertEqual(repository.completedWorkouts.filter { $0.sourcePlanID == plan.id }.count, 12 * template.daysPerWeek)
+        }
+    }
+
+    @MainActor
+    func testAdaptiveLoadRulesRequireComparableCompletePerformance() throws {
+        let repository = DemoRepository()
+        let template = try XCTUnwrap(WorkoutProgramCatalog.template(id: "adaptive_strength_3d_12"))
+        let prescription = try XCTUnwrap(repository.programPrescription(
+            template.sessions[0].exercises[0], sessionID: UUID(), order: 0,
+            templateID: template.id, sessionIndex: 0, exerciseIndex: 0, week: 1,
+            method: .adaptive, trainingMaxKilograms: [:]
+        ))
+        var exercise = repository.exerciseSnapshot(prescription)
+        let sets = (1...exercise.targetSets).map { number in
+            WorkoutSetLog(id: UUID(), prescriptionID: exercise.id, performedAt: .now, setNumber: number,
+                          weight: 100, reps: 6, rpe: 7, isWarmup: false, isComplete: true, recordedUnit: .kilograms)
+        }
+        func load(_ logs: [WorkoutSetLog]) -> Double? {
+            WorkoutAdaptiveProgression.loadKilograms(for: exercise, sets: logs, unit: .kilograms)
+        }
+        XCTAssertEqual(load(sets), 101)
+        XCTAssertEqual(load(sets), 101, "Repeated evaluation must not compound the increase")
+        var changed = sets
+        changed[0].reps = 5
+        XCTAssertEqual(load(changed), 100)
+        changed[0].reps = 3
+        XCTAssertEqual(load(changed), 95)
+        let lightSets = changed.map { log in
+            var light = log
+            light.weight = 0.5
+            return light
+        }
+        XCTAssertEqual(load(lightSets), 0.5, "Rounding must never increase a load after missed reps")
+        changed = sets
+        changed[0].rpe = nil
+        XCTAssertEqual(load(changed), 100)
+        changed[0].rpe = 9
+        XCTAssertEqual(load(changed), 100)
+        changed = sets
+        changed[0].isComplete = false
+        XCTAssertEqual(load(changed), 100)
+        changed = sets
+        changed[0].weight = 90
+        XCTAssertNil(load(changed), "Mixed working loads need manual selection")
+        changed = sets
+        changed[0].weight = .nan
+        XCTAssertNil(load(changed))
+        changed = sets.map { log in
+            var converted = log
+            converted.weight = RankingCalculator.kilogramsToPounds(100)
+            converted.recordedUnit = .pounds
+            return converted
+        }
+        XCTAssertEqual(try XCTUnwrap(load(changed)), 101, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(WorkoutAdaptiveProgression.loadKilograms(for: exercise, sets: sets, unit: .pounds)), 100 + RankingCalculator.poundsToKilograms(2.5), accuracy: 0.001)
+        changed = sets
+        var warmup = sets[0]
+        warmup.isWarmup = true
+        warmup.weight = 20
+        changed.append(warmup)
+        XCTAssertEqual(load(changed), 101)
+        exercise.targetReps = "30-60 sec"
+        XCTAssertNil(load(sets))
+    }
+
+    @MainActor
+    func testAdaptiveTargetsUsePlanHistoryAndFreezeWhenWorkoutStarts() throws {
+        let repository = DemoRepository()
+        let template = try XCTUnwrap(WorkoutProgramCatalog.template(id: "adaptive_strength_2d_12"))
+        let start = Date.now.addingTimeInterval(-21 * 86_400)
+        let plan = repository.startWorkoutProgram(
+            template: template, startDate: start, scheduledWeekdays: template.sessions.map(\.dayIndex),
+            method: .adaptive, preferredUnit: .kilograms, trainingMaxKilograms: [:]
+        )
+        func session(_ weekNumber: Int) throws -> WorkoutSession {
+            let week = try XCTUnwrap(repository.workoutWeeks.first { $0.planID == plan.id && $0.weekNumber == weekNumber })
+            return try XCTUnwrap(repository.workoutSessions.first { $0.weekID == week.id && $0.order == 0 })
+        }
+        let firstSession = try session(1)
+        let nextSession = try session(2)
+        let firstWorkout = try XCTUnwrap(repository.startWorkout(session: firstSession, planID: plan.id, gymID: nil, bodyweight: nil, unit: .kilograms, at: start))
+        let exercise = try XCTUnwrap(firstWorkout.exercises.first)
+        for var log in repository.workoutSetLogs where log.prescriptionID == exercise.id {
+            log.weight = 100
+            log.reps = 6
+            log.rpe = 7
+            log.isComplete = true
+            repository.updateWorkoutSetLog(log)
+        }
+        let completed = try XCTUnwrap(repository.finishActiveWorkout(effort: 3, notes: "", at: start.addingTimeInterval(3600)))
+        XCTAssertEqual(repository.resolvedWorkoutPrescriptions(sessionID: nextSession.id).first?.targetLoadKilograms, 101)
+        XCTAssertEqual(repository.resolvedWorkoutPrescriptions(sessionID: try session(4).id).first?.targetLoadKilograms, 90)
+        XCTAssertNil(repository.workoutPrescriptions.first { $0.sessionID == nextSession.id }?.targetLoadKilograms, "Recommendations must not overwrite saved prescriptions")
+
+        let started = try XCTUnwrap(repository.startWorkout(session: nextSession, planID: plan.id, gymID: nil, bodyweight: nil, unit: .pounds))
+        XCTAssertEqual(started.exercises.first?.targetLoadKilograms, 101)
+        let substitute = try XCTUnwrap(MockData.trainingExerciseLibrary.first { $0.id == "leg_press" })
+        let substituted = try XCTUnwrap(repository.substituteActiveWorkoutExercise(currentExerciseID: try XCTUnwrap(started.exercises.first?.id), substitute: substitute))
+        XCTAssertNil(substituted.targetLoadKilograms, "A substitute must not inherit another exercise's adaptive load")
+        repository.discardActiveWorkout()
+        _ = repository.startWorkout(session: nextSession, planID: plan.id, gymID: nil, bodyweight: nil, unit: .pounds)
+        var edited = completed
+        for index in edited.sets.indices { edited.sets[index].reps = 3 }
+        repository.updateCompletedWorkout(edited)
+        XCTAssertEqual(repository.activeWorkout?.exercises.first?.targetLoadKilograms, 101)
+        XCTAssertEqual(repository.resolvedWorkoutPrescriptions(sessionID: nextSession.id).first?.targetLoadKilograms, 101)
+        repository.discardActiveWorkout()
+        XCTAssertEqual(repository.resolvedWorkoutPrescriptions(sessionID: nextSession.id).first?.targetLoadKilograms, 95)
+
+        edited.completedAt = Date.now.addingTimeInterval(86_400)
+        repository.updateCompletedWorkout(edited)
+        XCTAssertNil(repository.resolvedWorkoutPrescriptions(sessionID: nextSession.id).first?.targetLoadKilograms)
+        edited.completedAt = completed.completedAt
+        edited.sourcePlanID = UUID()
+        repository.updateCompletedWorkout(edited)
+        XCTAssertNil(repository.resolvedWorkoutPrescriptions(sessionID: nextSession.id).first?.targetLoadKilograms)
+        repository.updateCompletedWorkout(completed)
+        var deload = completed
+        deload.id = UUID()
+        deload.sourceSessionID = try session(4).id
+        deload.completedAt = Date.now.addingTimeInterval(-3600)
+        for index in deload.sets.indices {
+            deload.sets[index].weight = 20
+            deload.sets[index].reps = 3
+        }
+        repository.completedWorkouts.insert(deload, at: 0)
+        XCTAssertEqual(repository.resolvedWorkoutPrescriptions(sessionID: try session(5).id).first?.targetLoadKilograms, 101, "Deload performance must not change the next block's working load")
+        XCTAssertTrue(repository.changeWorkoutProgramProgression(planID: plan.id, method: .fixed, trainingMaxKilograms: [:], at: start))
+        XCTAssertNil(repository.resolvedWorkoutPrescriptions(sessionID: nextSession.id).first?.targetLoadKilograms)
+    }
+
+    @MainActor
+    func testBeginnerLinearProgressionIncreasesHoldsAndResetsWithoutRPE() throws {
+        let repository = DemoRepository()
+        let template = try XCTUnwrap(WorkoutProgramCatalog.template(id: "beginner_linear_strength_12"))
+        let prescription = try XCTUnwrap(repository.programPrescription(
+            template.sessions[0].exercises[0], sessionID: UUID(), order: 0,
+            templateID: template.id, sessionIndex: 0, exerciseIndex: 0, week: 1,
+            method: .linear, trainingMaxKilograms: [:]
+        ))
+        let exercise = repository.exerciseSnapshot(prescription)
+        let success = (1...exercise.targetSets).map {
+            WorkoutSetLog(id: UUID(), prescriptionID: exercise.id, performedAt: .now, setNumber: $0,
+                          weight: 100, reps: 5, rpe: nil, isWarmup: false, isComplete: true, recordedUnit: .kilograms)
+        }
+        var missed = success
+        missed[0].reps = 4
+        func load(_ attempts: [[WorkoutSetLog]], deload: Bool = false) -> Double? {
+            WorkoutAdaptiveProgression.linearLoadKilograms(
+                history: attempts.map { (exercise, $0) }, unit: .kilograms, isDeload: deload
+            )
+        }
+        XCTAssertEqual(load([success]), 102.5)
+        XCTAssertEqual(load([missed]), 100)
+        XCTAssertEqual(load([missed, missed]), 100)
+        XCTAssertEqual(load([missed, missed, missed]), 90)
+        XCTAssertEqual(load([missed, success, missed]), 100)
+        XCTAssertEqual(load([success], deload: true), 90)
+        var incomplete = success
+        incomplete[0].isComplete = false
+        XCTAssertEqual(load([incomplete]), 100)
+        XCTAssertEqual(load([missed, incomplete, missed]), 100)
+        var mixed = success
+        mixed[0].weight = 95
+        XCTAssertNil(load([mixed]))
+        XCTAssertEqual(try XCTUnwrap(WorkoutAdaptiveProgression.linearLoadKilograms(
+            history: [(exercise, success)], unit: .pounds, isDeload: false
+        )), 100 + RankingCalculator.poundsToKilograms(5), accuracy: 0.001)
+        XCTAssertEqual(template.availableProgressionMethods, [.linear, .fixed])
+        XCTAssertFalse(try XCTUnwrap(WorkoutProgramCatalog.templates.first).availableProgressionMethods.contains(.linear))
+    }
+
+    @MainActor
+    func testLinearProgressionUsesEarlierWorkoutsInTheSameWeek() throws {
+        let repository = DemoRepository()
+        let template = try XCTUnwrap(WorkoutProgramCatalog.template(id: "beginner_linear_strength_12"))
+        let start = Date.now.addingTimeInterval(-3 * 86_400)
+        let plan = repository.startWorkoutProgram(
+            template: template, startDate: start, scheduledWeekdays: template.sessions.map(\.dayIndex),
+            method: .linear, preferredUnit: .kilograms, trainingMaxKilograms: [:]
+        )
+        let week = try XCTUnwrap(repository.workoutWeeks.first { $0.planID == plan.id && $0.weekNumber == 1 })
+        let sessions = repository.workoutSessions.filter { $0.weekID == week.id }.sorted { $0.order < $1.order }
+        let workout = try XCTUnwrap(repository.startWorkout(session: sessions[0], planID: plan.id, gymID: nil, bodyweight: nil, unit: .kilograms, at: start))
+        let squat = try XCTUnwrap(workout.exercises.first)
+        for var log in repository.workoutSetLogs where log.prescriptionID == squat.id {
+            log.weight = 100
+            log.reps = 5
+            log.isComplete = true
+            repository.updateWorkoutSetLog(log)
+        }
+        XCTAssertNotNil(repository.finishActiveWorkout(effort: 3, notes: "", at: start.addingTimeInterval(3600)))
+        XCTAssertEqual(repository.resolvedWorkoutPrescriptions(sessionID: sessions[1].id).first?.targetLoadKilograms, 102.5)
+        XCTAssertNil(repository.workoutPrescriptions.first { $0.sessionID == sessions[1].id }?.targetLoadKilograms)
+        for number in 9...11 {
+            XCTAssertEqual(WorkoutProgramCatalog.workingSetCount(for: template.id, baseSets: 3, sessionIndex: 0, exerciseIndex: 0, week: number), 3)
+        }
+    }
+
+    @MainActor
+    func testNewLibraryPlansRespectEquipmentAndExpressSetBudget() throws {
+        for (id, equipment) in [("dumbbells_only_12", "Dumbbell"), ("machines_only_12", "Machine"), ("bodyweight_home_12", "Bodyweight")] {
+            let template = try XCTUnwrap(WorkoutProgramCatalog.template(id: id))
+            for prescription in template.sessions.flatMap(\.exercises) {
+                let exercise = try XCTUnwrap(MockData.trainingExerciseLibrary.first { $0.id == prescription.exerciseID })
+                XCTAssertEqual(exercise.equipment, equipment, exercise.name)
+            }
+        }
+        let express = try XCTUnwrap(WorkoutProgramCatalog.template(id: "thirty_minute_full_body_12"))
+        for session in express.sessions {
+            XCTAssertEqual(session.exercises.count, 4)
+            XCTAssertEqual(session.exercises.reduce(0) { $0 + $1.sets }, 8)
+            XCTAssertTrue(session.exercises.allSatisfy { $0.restSeconds <= 90 })
+        }
+        let ppl = try XCTUnwrap(WorkoutProgramCatalog.template(id: "bodybuilding_push_pull_legs_3_day_12"))
+        XCTAssertEqual(ppl.sessions.map(\.dayIndex), [2, 4, 6])
+        XCTAssertEqual(ppl.daysPerWeek, 3)
     }
 
     func testAchievementCatalogHasExpandedGamificationMilestones() {

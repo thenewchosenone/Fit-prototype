@@ -47,8 +47,10 @@ struct ExerciseLibraryDetailView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     detailTabs
-                    if selectedTab == .about { exerciseMedia }
                     selectedTabContent
+                    if selectedTab == .about {
+                        DisclosureGroup("Muscles worked") { exerciseMedia }
+                    }
                 }
                 .padding(16)
                 .padding(.bottom, 140)

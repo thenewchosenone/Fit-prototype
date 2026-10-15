@@ -113,7 +113,8 @@ enum ExerciseProgressSeries {
         from points: [ExerciseProgressPoint],
         calendar: Calendar = .current
     ) -> [ExerciseProgressPoint] {
-        Dictionary(grouping: points) { calendar.startOfDay(for: $0.date) }
+        let eligible = points.filter { $0.weight.isFinite && $0.weight > 0 && (1...10).contains($0.reps) }
+        return Dictionary(grouping: eligible) { calendar.startOfDay(for: $0.date) }
             .compactMap { day, dailyPoints in
                 guard let best = dailyPoints.max(by: { lhs, rhs in
                     estimatedOneRepMax(lhs) < estimatedOneRepMax(rhs)
@@ -189,6 +190,7 @@ final class TrainingProgressStore {
     private let calendar: Calendar
     private var cachedUserID: UUID
     private var cachedStrengthTierSummary: StrengthTierSummary?
+    private var cachedStrengthBodyweight: Double?
     private var cachedStrengthTierSignature: StrengthTierSignature?
     private var cachedWorkoutStreak: Int?
     private var cachedWorkoutStreakSignature: WorkoutStreakSignature?
@@ -204,14 +206,19 @@ final class TrainingProgressStore {
     private var cachedExerciseHistorySignature: ExerciseHistorySignature?
     private var cachedExerciseProgressPoints: [ExerciseProgressPoint]?
     private var cachedExerciseProgressPointsSignature: ExerciseProgressPointsSignature?
-    private var cachedExerciseRecords: ExerciseRecords?
-    private var cachedExerciseRecordsSignature: ExerciseHistorySignature?
+    private var cachedExerciseRecords: [String: (signature: ExerciseHistorySignature, records: ExerciseRecords)] = [:]
     private var cachedProgressExerciseOptions: [TrainingExerciseCatalogItem]?
     private var cachedProgressExerciseOptionsSignature: ProgressExerciseOptionsSignature?
     private var cachedPreviousComparableWorkout: CompletedWorkout?
     private var cachedPreviousComparableWorkoutSignature: PreviousComparableWorkoutSignature?
     private var cachedPlateauInsights: [PlateauInsight]?
     private var cachedPlateauInsightsSignature: WorkoutHistorySignature?
+    private var cachedPlateauReferenceDate: Date?
+    private var cachedPlateauProgramRevision: Int?
+    private var cachedRecentStrengthTrends: [ExerciseStrengthTrend]?
+    private var cachedRecentStrengthRevision: Int?
+    private var cachedRecentStrengthProgramRevision: Int?
+    private var cachedRecentStrengthDate: Date?
     private var cachedRecoverySummaries: [TrainingRecoverySummary]?
     private var cachedRecoverySummariesSignature: RecoverySummariesSignature?
     private var cachedWeekCompletion: Double?
@@ -286,11 +293,13 @@ final class TrainingProgressStore {
             profile: repository.currentProfile,
             additionalPerformances: additionalPerformances
         )
-        if let cachedStrengthTierSummary, cachedStrengthTierSignature == signature {
+        if let cachedStrengthTierSummary, cachedStrengthTierSignature == signature,
+           cachedStrengthBodyweight == strengthBodyweightPounds() {
             return cachedStrengthTierSummary
         }
         let summary = calculateStrengthTierSummary(including: additionalPerformances)
         cachedStrengthTierSignature = signature
+        cachedStrengthBodyweight = strengthBodyweightPounds()
         cachedStrengthTierSummary = summary
         return summary
     }
@@ -299,10 +308,16 @@ final class TrainingProgressStore {
         let performances = RankingCalculator.strengthPerformances(from: repository.completedWorkouts) + additionalPerformances
         return RankingCalculator.strengthTierSummary(
             performances: performances,
-            bodyweightKilograms: RankingCalculator.poundsToKilograms(repository.currentProfile.bodyweightPounds),
+            bodyweightKilograms: RankingCalculator.poundsToKilograms(strengthBodyweightPounds()),
             sexCategory: repository.currentProfile.sexCategory
         )
     }
+    func strengthBodyweightPounds(referenceDate: Date = .now) -> Double {
+        repository.bodyweightEntries
+            .filter { $0.targetDate <= referenceDate && ($0.actual.map { $0.isFinite && $0 > 0 } ?? false) }
+            .max { $0.targetDate < $1.targetDate }?.actual ?? repository.currentProfile.bodyweightPounds
+    }
+
     var bodyweightEntries: [BodyweightEntry] {
         resetAccountScopedEntriesIfNeeded()
         return repository.bodyweightEntries
@@ -329,6 +344,7 @@ final class TrainingProgressStore {
     private func resetAccountScopedEntriesIfNeeded() {
         guard cachedUserID != repository.currentProfile.id else { return }
         cachedUserID = repository.currentProfile.id
+        cachedRecentStrengthTrends = nil
         cachedStrengthTierSummary = nil
         cachedStrengthTierSignature = nil
         cachedWorkoutStreak = nil
@@ -345,8 +361,7 @@ final class TrainingProgressStore {
         cachedExerciseHistorySignature = nil
         cachedExerciseProgressPoints = nil
         cachedExerciseProgressPointsSignature = nil
-        cachedExerciseRecords = nil
-        cachedExerciseRecordsSignature = nil
+        cachedExerciseRecords.removeAll()
         cachedProgressExerciseOptions = nil
         cachedProgressExerciseOptionsSignature = nil
         cachedPreviousComparableWorkout = nil
@@ -790,12 +805,76 @@ final class TrainingProgressStore {
         return contributions
     }
 
+    func isRecoveryWorkout(_ workout: CompletedWorkout) -> Bool {
+        guard let session = repository.workoutSessions.first(where: { $0.id == workout.sourceSessionID }),
+              let week = repository.workoutWeeks.first(where: { $0.id == session.weekID }) else { return false }
+        let description = "\(week.title) \(week.notes)".lowercased()
+        return description.contains("deload") || description.contains("recovery")
+    }
+
+    func recentStrengthTrends(referenceDate: Date? = nil) -> [ExerciseStrengthTrend] {
+        resetAccountScopedEntriesIfNeeded()
+        let explicitReferenceDate = referenceDate
+        let referenceDate = referenceDate ?? .now
+        // Minute buckets avoid rescanning unchanged history during chart gestures.
+        let cacheDate = explicitReferenceDate ?? Date(timeIntervalSince1970: floor(referenceDate.timeIntervalSince1970 / 60) * 60)
+        if let cachedRecentStrengthTrends, cachedRecentStrengthDate == cacheDate,
+           cachedRecentStrengthRevision == repository.completedWorkoutsRevision,
+           cachedRecentStrengthProgramRevision == repository.programDataRevision {
+            return cachedRecentStrengthTrends
+        }
+        let today = calendar.startOfDay(for: referenceDate)
+        guard let start = calendar.date(byAdding: .day, value: -27, to: today),
+              let midpoint = calendar.date(byAdding: .day, value: -13, to: today) else { return [] }
+        var dailyMaxes: [String: [Date: Double]] = [:]
+        var exercises: [String: WorkoutExerciseSnapshot] = [:]
+        for workout in repository.completedWorkouts where
+            workout.completedAt >= start && workout.completedAt <= referenceDate && !isRecoveryWorkout(workout) {
+            let setsByExercise = Dictionary(grouping: workout.sets.filter { $0.isComplete && !$0.isWarmup }, by: \.prescriptionID)
+            for exercise in workout.exercises {
+                let kind = exercise.trackingType.map(ExerciseTrackingKind.init) ?? trackingKind(for: exercise.exerciseID)
+                guard kind == .weightReps else { continue }
+                let estimates = setsByExercise[exercise.id, default: []].compactMap { set -> Double? in
+                    guard let weight = set.weight, weight.isFinite, weight > 0,
+                          let reps = set.reps, (1...10).contains(reps) else { return nil }
+                    let kilograms = MeasurementFormatting.normalizeToKilograms(weight, unit: set.recordedUnit)
+                    let estimate = RankingCalculator.epleyOneRepMax(weight: kilograms, repetitions: reps)
+                    return estimate.isFinite ? estimate : nil
+                }
+                guard let best = estimates.max() else { continue }
+                let day = calendar.startOfDay(for: workout.completedAt)
+                let previous = dailyMaxes[exercise.exerciseID]?[day] ?? 0
+                dailyMaxes[exercise.exerciseID, default: [:]][day] = max(previous, best)
+                if exercises[exercise.exerciseID] == nil { exercises[exercise.exerciseID] = exercise }
+            }
+        }
+        let middleDay = calendar.startOfDay(for: midpoint)
+        let trends = exercises.values.map { exercise in
+            let days = dailyMaxes[exercise.exerciseID, default: [:]]
+            let earlier = days.filter { $0.key < middleDay }.map(\.value)
+            let recent = days.filter { $0.key >= middleDay }.map(\.value)
+            let profile = exercise.muscleProfile ?? ExerciseMuscleProfileResolver.profile(name: exercise.exerciseName, bodyPart: exercise.bodyPart)
+            return ExerciseStrengthTrend(
+                exerciseID: exercise.exerciseID, exerciseName: exercise.exerciseName,
+                primaryMuscles: Array(Set(profile.primary.map(\.trainingSummaryRegion))).sorted { $0.rawValue < $1.rawValue },
+                earlierAverageKilograms: earlier.isEmpty ? nil : earlier.reduce(0, +) / Double(earlier.count),
+                recentAverageKilograms: recent.isEmpty ? nil : recent.reduce(0, +) / Double(recent.count),
+                earlierDayCount: earlier.count, recentDayCount: recent.count
+            )
+        }.sorted { $0.exerciseName < $1.exerciseName }
+        cachedRecentStrengthDate = cacheDate
+        cachedRecentStrengthRevision = repository.completedWorkoutsRevision
+        cachedRecentStrengthProgramRevision = repository.programDataRevision
+        cachedRecentStrengthTrends = trends
+        return trends
+    }
+
     func strengthAttentionInsights(
         summary: StrengthTierSummary,
         referenceDate: Date = .now
     ) -> [TrainingAttentionInsight] {
-        var insights = plateauInsights
-            .filter { RankingCalculator.strengthTierExerciseIDs.contains($0.exerciseID) }
+        let cutoff = referenceDate.addingTimeInterval(-28 * 24 * 3_600)
+        var insights = plateauInsights(referenceDate: referenceDate)
             .map { plateau in
                 TrainingAttentionInsight(
                     id: "plateau-\(plateau.exerciseID)",
@@ -805,11 +884,10 @@ final class TrainingProgressStore {
                 )
             }
 
-        let cutoff = referenceDate.addingTimeInterval(-28 * 24 * 3_600)
         for lift in summary.liftProgress {
             let sessionCount = repository.completedWorkouts.filter { workout in
                 workout.completedAt >= cutoff && workout.completedAt <= referenceDate && workout.exercises.contains { exercise in
-                    (exercise.rankingExerciseID ?? exercise.exerciseID) == lift.exerciseID && workout.sets.contains {
+                    RankingCalculator.strengthTierExerciseID(for: exercise) == lift.exerciseID && workout.sets.contains {
                         $0.prescriptionID == exercise.id && $0.isComplete && !$0.isWarmup
                     }
                 }
@@ -1042,14 +1120,14 @@ final class TrainingProgressStore {
             }
             let normalized = sets.compactMap { set -> (weight: Double, reps: Int, estimatedMax: Double, volume: Double)? in
                 guard trackingKind == .weightReps else { return nil }
-                guard let weight = set.weight, weight > 0, let reps = set.reps, reps > 0 else { return nil }
+                guard let weight = set.weight, weight.isFinite, weight > 0, let reps = set.reps, reps > 0 else { return nil }
                 let kilograms = set.recordedUnit == .kilograms
                     ? weight
                     : RankingCalculator.poundsToKilograms(weight)
                 return (
                     weight: kilograms,
                     reps: reps,
-                    estimatedMax: RankingCalculator.epleyOneRepMax(weight: kilograms, repetitions: reps),
+                    estimatedMax: (1...10).contains(reps) ? RankingCalculator.epleyOneRepMax(weight: kilograms, repetitions: reps) : 0,
                     volume: kilograms * Double(reps)
                 )
             }
@@ -1061,7 +1139,7 @@ final class TrainingProgressStore {
                 sets: sets,
                 bestWeightKilograms: best?.weight,
                 bestRepetitions: best?.reps ?? bestRepsOrDuration,
-                estimatedOneRepMaxKilograms: best?.estimatedMax,
+                estimatedOneRepMaxKilograms: best.flatMap { $0.estimatedMax > 0 ? $0.estimatedMax : nil },
                 sessionVolumeKilograms: normalized.reduce(0) { $0 + $1.volume }
             )
         }
@@ -1100,16 +1178,16 @@ final class TrainingProgressStore {
             trackingKind: trackingKind,
             completedWorkoutsRevision: repository.completedWorkoutsRevision
         )
-        if let cachedExerciseRecords, cachedExerciseRecordsSignature == signature {
-            return cachedExerciseRecords
+        if let cached = cachedExerciseRecords[exerciseID], cached.signature == signature {
+            return cached.records
         }
         let history = exerciseHistory(for: exerciseID)
         let normalizedSets = history.flatMap(\.sets).compactMap { set -> (weight: Double, reps: Int)? in
             guard trackingKind == .weightReps else { return nil }
-            guard let weight = set.weight, weight > 0, let reps = set.reps, reps > 0 else { return nil }
+            guard let weight = set.weight, weight.isFinite, weight > 0, let reps = set.reps, reps > 0 else { return nil }
             return (set.recordedUnit == .kilograms ? weight : RankingCalculator.poundsToKilograms(weight), reps)
         }
-        let estimatedMaxes = normalizedSets.map {
+        let estimatedMaxes = normalizedSets.filter { (1...10).contains($0.reps) }.map {
             RankingCalculator.epleyOneRepMax(weight: $0.weight, repetitions: $0.reps)
         }
         let setVolumes = normalizedSets.map { $0.weight * Double($0.reps) }
@@ -1121,23 +1199,33 @@ final class TrainingProgressStore {
             heaviestWeightKilograms: normalizedSets.map(\.weight).max(),
             mostRepetitions: history.flatMap(\.sets).compactMap(\.reps).max()
         )
-        cachedExerciseRecordsSignature = signature
-        cachedExerciseRecords = records
+        cachedExerciseRecords[exerciseID] = (signature, records)
         return records
     }
 
     var plateauInsights: [PlateauInsight] {
+        plateauInsights(referenceDate: nil)
+    }
+
+    private func plateauInsights(referenceDate: Date?) -> [PlateauInsight] {
         let signature = WorkoutHistorySignature(
             userID: repository.currentProfile.id,
             completedWorkoutsRevision: repository.completedWorkoutsRevision
         )
-        if let cachedPlateauInsights, cachedPlateauInsightsSignature == signature {
+        if let cachedPlateauInsights, cachedPlateauInsightsSignature == signature,
+           cachedPlateauReferenceDate == referenceDate,
+           cachedPlateauProgramRevision == repository.programDataRevision {
             return cachedPlateauInsights
         }
         var exerciseNames: [String: String] = [:]
         var performancesByExercise: [String: [PlateauPerformance]] = [:]
 
         for workout in repository.completedWorkouts.sorted(by: { $0.completedAt > $1.completedAt }) {
+            if let referenceDate {
+                guard workout.completedAt <= referenceDate,
+                      workout.completedAt >= referenceDate.addingTimeInterval(-28 * 86_400),
+                      !isRecoveryWorkout(workout) else { continue }
+            }
             for exercise in workout.exercises {
                 guard trackingKind(for: exercise.exerciseID) == .weightReps else { continue }
                 let sets = workout.sets.filter {
@@ -1145,13 +1233,13 @@ final class TrainingProgressStore {
                 }
                 guard !sets.isEmpty else { continue }
                 let normalizedSets = sets.compactMap { set -> (WorkoutSetLog, Double, Int)? in
-                    guard let weight = set.weight, weight > 0, let reps = set.reps, reps > 0 else { return nil }
+                    guard let weight = set.weight, weight.isFinite, weight > 0, let reps = set.reps, reps > 0 else { return nil }
                     let kilograms = set.recordedUnit == .kilograms
                         ? weight
                         : RankingCalculator.poundsToKilograms(weight)
                     return (set, kilograms, reps)
                 }
-                guard let best = normalizedSets.max(by: {
+                guard let best = normalizedSets.filter({ (1...10).contains($0.2) }).max(by: {
                     RankingCalculator.epleyOneRepMax(weight: $0.1, repetitions: $0.2) <
                         RankingCalculator.epleyOneRepMax(weight: $1.1, repetitions: $1.2)
                 }) else { continue }
@@ -1187,6 +1275,8 @@ final class TrainingProgressStore {
         }
         .sorted { $0.latestPerformance.performedAt > $1.latestPerformance.performedAt }
         cachedPlateauInsightsSignature = signature
+        cachedPlateauReferenceDate = referenceDate
+        cachedPlateauProgramRevision = repository.programDataRevision
         cachedPlateauInsights = insights
         return insights
     }

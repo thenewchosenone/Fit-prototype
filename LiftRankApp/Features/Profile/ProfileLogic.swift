@@ -177,7 +177,7 @@ extension ProfileView {
                 if isCurrentUser || profile.yearsExperience > 0 {
                     let trainingDetails = displayedExperienceLevel.rawValue
                     if !trainingDetails.isEmpty {
-                        Text("Rival tier · \(trainingDetails)")
+                        Text("Experience · \(trainingDetails)")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                     }

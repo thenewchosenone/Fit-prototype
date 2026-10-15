@@ -4,7 +4,7 @@ struct ReportLiftView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     let lift: LiftSubmission
-    @State private var reason = LiftReportReason.harassment
+    @State private var reason: LiftReportReason?
     @State private var note = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
@@ -14,19 +14,23 @@ struct ReportLiftView: View {
         NavigationStack {
             AppBackground {
                 Form {
+                    Text("Report \(lift.exerciseName)").font(.subheadline.weight(.semibold))
                     Picker("Reason", selection: $reason) {
+                        Text("Choose a reason").tag(nil as LiftReportReason?)
                         ForEach(LiftReportReason.allCases) { option in
-                            Text(option.rawValue).tag(option)
+                            Text(option.rawValue).tag(Optional(option))
                         }
                     }
-                    TextField("Optional note", text: $note, axis: .vertical)
-                        .lineLimit(3...5)
+                    Section("Details · Optional") {
+                        TextField("Add details", text: $note, axis: .vertical).lineLimit(3...5)
+                    }
                     if let errorMessage {
                         Text(errorMessage)
                             .font(.caption)
                             .foregroundStyle(Color.liftRed)
                     }
                     Button(isSubmitting ? "Submitting…" : "Submit Report") {
+                        guard let reason else { return }
                         isSubmitting = true
                         errorMessage = nil
                         Task {
@@ -40,7 +44,7 @@ struct ReportLiftView: View {
                         }
                     }
                     .accessibilityIdentifier("report.submit")
-                    .disabled(isSubmitting)
+                    .disabled(isSubmitting || reason == nil)
                 }
                 .scrollContentBackground(.hidden)
             }
@@ -63,7 +67,7 @@ struct ReportProfileView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     let profile: UserProfile
-    @State private var reason = ProfileReportReason.harassment
+    @State private var reason: ProfileReportReason?
     @State private var note = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
@@ -79,18 +83,21 @@ struct ReportProfileView: View {
                             .foregroundStyle(Color.liftMuted)
                     }
                     Picker("Reason", selection: $reason) {
+                        Text("Choose a reason").tag(nil as ProfileReportReason?)
                         ForEach(ProfileReportReason.allCases) { option in
-                            Text(option.rawValue).tag(option)
+                            Text(option.rawValue).tag(Optional(option))
                         }
                     }
-                    TextField("Optional details", text: $note, axis: .vertical)
-                        .lineLimit(3...5)
+                    Section("Details · Optional") {
+                        TextField("Add details", text: $note, axis: .vertical).lineLimit(3...5)
+                    }
                     if let errorMessage {
                         Text(errorMessage)
                             .font(.caption)
                             .foregroundStyle(Color.liftRed)
                     }
                     Button(isSubmitting ? "Submitting..." : "Submit Report") {
+                        guard let reason else { return }
                         isSubmitting = true
                         errorMessage = nil
                         Task {
@@ -104,7 +111,7 @@ struct ReportProfileView: View {
                         }
                     }
                     .accessibilityIdentifier("profileReport.submit")
-                    .disabled(isSubmitting)
+                    .disabled(isSubmitting || reason == nil)
                 }
                 .scrollContentBackground(.hidden)
             }

@@ -11,9 +11,7 @@ extension DemoRepository {
         at startedAt: Date = .now
     ) -> ActiveWorkoutState? {
         guard activeWorkout == nil else { return nil }
-        let snapshots = workoutPrescriptions
-            .filter { $0.sessionID == session.id }
-            .sorted { $0.order < $1.order }
+        let snapshots = resolvedWorkoutPrescriptions(sessionID: session.id, at: historyDate ?? startedAt)
             .map(exerciseSnapshot)
         let workout = ActiveWorkoutState(
             id: UUID(),
@@ -626,7 +624,10 @@ extension DemoRepository {
         substitute: TrainingExerciseCatalogItem,
         preserveID: Bool
     ) -> WorkoutExerciseSnapshot {
-        WorkoutExerciseSnapshot(
+        let usesAdaptiveProgression = workoutPlanProgressionSettings.contains {
+            $0.planID == activeWorkout?.sourcePlanID && ($0.method == .adaptive || $0.method == .linear)
+        }
+        return WorkoutExerciseSnapshot(
             id: preserveID ? current.id : UUID(),
             sourcePrescriptionID: preserveID ? current.sourcePrescriptionID : nil,
             exerciseID: substitute.id,
@@ -643,7 +644,7 @@ extension DemoRepository {
             muscleProfile: substitute.resolvedMuscleProfile,
             targetRIR: current.targetRIR,
             trainingMaxPercentage: current.trainingMaxPercentage,
-            targetLoadKilograms: current.targetLoadKilograms,
+            targetLoadKilograms: usesAdaptiveProgression ? nil : current.targetLoadKilograms,
             substitutedFromExerciseID: current.exerciseID,
             substitutedFromExerciseName: current.exerciseName,
             demonstrationMediaID: substitute.demonstrationMediaID,

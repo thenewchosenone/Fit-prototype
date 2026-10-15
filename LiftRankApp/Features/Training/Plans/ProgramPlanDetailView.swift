@@ -96,17 +96,15 @@ struct ProgramPlanDetailView: View {
                     }
                     .disabled(appState.activeWorkout != nil)
                 } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(Color.liftMuted)
-                        .frame(width: 44, height: 44)
-                        .background(Color.liftCard)
-                        .clipShape(Circle())
+                    Label("Week options", systemImage: "ellipsis")
+                        .font(.caption.weight(.semibold))
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
                 }
-                .accessibilityLabel("Plan detail options")
+                .accessibilityLabel("Week options")
             }
 
             if let selectedWeek {
+                DisclosureGroup("Phase details") {
                 LiftCard {
                     HStack(alignment: .top, spacing: 12) {
                         Image(systemName: isRecoveryWeek ? "figure.mind.and.body" : "arrow.up.right")
@@ -129,6 +127,7 @@ struct ProgramPlanDetailView: View {
                         Spacer(minLength: 0)
                     }
                 }
+            }
             }
 
             if detailTab == "Weeks" {

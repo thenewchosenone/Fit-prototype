@@ -235,7 +235,7 @@ final class ProgramStore {
     }
 
     func prescriptions(session: WorkoutSession) -> [WorkoutExercisePrescription] {
-        graph().prescriptionsBySessionID[session.id] ?? []
+        repository.resolvedWorkoutPrescriptions(sessionID: session.id, at: now())
     }
 
     func weekPresentation(
@@ -468,7 +468,8 @@ final class ProgramStore {
         preferredUnit: UnitSystem,
         trainingMaxKilograms: [String: Double]
     ) -> WorkoutPlan? {
-        guard scheduledWeekdays.count == template.sessions.count,
+        guard method != .linear || template.defaultProgression == .linear,
+              scheduledWeekdays.count == template.sessions.count,
               Set(scheduledWeekdays).count == scheduledWeekdays.count,
               scheduledWeekdays.allSatisfy({ (1...7).contains($0) }) else { return nil }
         if method == .percentage {

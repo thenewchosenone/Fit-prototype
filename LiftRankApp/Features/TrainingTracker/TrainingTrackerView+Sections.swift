@@ -200,6 +200,19 @@ extension TrainingTrackerView {
                 }
                 .id(segment)
                 .scrollIndicators(.hidden)
+                .onChange(of: isProgramLibraryExpanded) { _, expanded in
+                    if segment == .plans && expanded {
+                        scrollProxy.scrollTo("tracker-program-library", anchor: .top)
+                    }
+                }
+                .onChange(of: segment) { _, selected in
+                    if selected == .plans && isProgramLibraryExpanded {
+                        scrollProxy.scrollTo("tracker-program-library", anchor: .top)
+                    }
+                }
+                .onChange(of: strengthExerciseScrollRequest) {
+                    withAnimation { scrollProxy.scrollTo("tracker-strength-exercise", anchor: .top) }
+                }
                 .onChange(of: selectedProgressCategory) {
                     guard segment == .progress else { return }
                     scrollProxy.scrollTo("tracker-content-top", anchor: .top)
@@ -226,8 +239,9 @@ extension TrainingTrackerView {
                         Text("Tracker")
                             .font(.title3.weight(.black))
                         HStack(spacing: 8) {
-                            planSelectionMenu
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            if segment == .today || segment == .plans {
+                                planSelectionMenu.frame(maxWidth: .infinity, alignment: .leading)
+                            }
                             trackerHeaderActions
                         }
                     }
@@ -235,7 +249,7 @@ extension TrainingTrackerView {
                     HStack(spacing: 8) {
                         Text("Tracker")
                             .font(.title3.weight(.black))
-                        planSelectionMenu
+                        if segment == .today || segment == .plans { planSelectionMenu }
                         Spacer(minLength: 0)
                         trackerHeaderActions
                     }
@@ -358,12 +372,9 @@ extension TrainingTrackerView {
             .accessibilityLabel("Plan options")
             .simultaneousGesture(TapGesture().onEnded { isLibrarySearchFocused = false })
         } else if segment == .today {
-            Menu {
-                Button { appState.showingSubmitSheet = true } label: { Label("Submit a Lift", systemImage: "plus.circle") }
-            } label: {
-                trackerOptionsButtonLabel
+            NativeIconButton(symbolName: "plus.circle", accessibilityLabel: "Submit a lift") {
+                appState.showingSubmitSheet = true
             }
-            .accessibilityLabel("Workout actions")
         }
 
         if !isEmbeddedInTab {
@@ -594,7 +605,16 @@ extension TrainingTrackerView {
 
     private var plans: some View {
         VStack(alignment: .leading, spacing: 12) {
-            programLibrary
+            if appState.selectedWorkoutPlan != nil {
+                ProgramPlanDetailView(
+                    selectedWeekID: $selectedWeekID,
+                    detailTab: $planDetailTab,
+                    selectedSessionForAdd: $selectedSessionForAdd,
+                    selectedSessionToRun: $selectedSessionToRun
+                )
+                .environmentObject(appState)
+            }
+            programLibrary.id("tracker-program-library")
             if appState.activeWorkout != nil {
                 Text("Finish or discard your active workout before changing plans or scheduled workouts.")
                     .font(.caption).foregroundStyle(Color.liftMuted)
@@ -629,87 +649,79 @@ extension TrainingTrackerView {
                     }
                 }
             } else {
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(appState.workoutPlans.count > 1 ? "My Plans" : "Program")
-                            .font(.headline)
-                        if appState.workoutPlans.count > 1 {
-                            Text("Select your active plan.")
-                                .font(.caption)
-                                .foregroundStyle(Color.liftMuted)
+                DisclosureGroup("Manage saved plans") {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(appState.workoutPlans.count > 1 ? "My Plans" : "Program")
+                                .font(.headline)
+                            if appState.workoutPlans.count > 1 {
+                                Text("Select your active plan.")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.liftMuted)
+                            }
                         }
+                        Spacer()
+                        Button {
+                            showingCreatePlan = true
+                        } label: {
+                            Label("New", systemImage: "plus")
+                                .font(.caption.weight(.bold))
+                                .frame(minHeight: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.liftAccentText)
+                        .disabled(appState.activeWorkout != nil)
                     }
-                    Spacer()
-                    Button {
-                        showingCreatePlan = true
-                    } label: {
-                        Label("New", systemImage: "plus")
-                            .font(.caption.weight(.bold))
-                            .frame(minHeight: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.liftAccentText)
-                    .disabled(appState.activeWorkout != nil)
-                }
 
-                if appState.workoutPlans.count > 1 {
-                    VStack(spacing: 0) {
-                        ForEach(Array(appState.workoutPlans.enumerated()), id: \.element.id) { index, plan in
-                            Button {
-                                if appState.selectWorkoutPlan(plan.id) {
-                                    isProgramLibraryExpanded = false
-                                    syncSelectedWeek()
-                                }
-                            } label: {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "folder.fill")
-                                        .foregroundStyle(plan.id == appState.selectedWorkoutPlanID ? Color.liftAccentText : Color.liftMuted)
-                                        .frame(width: 28)
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(plan.name)
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(Color.liftText)
-                                            .lineLimit(1)
-                                        Text(plan.isActive ? "Active" : "Saved · tap to resume")
-                                            .font(.caption)
-                                            .foregroundStyle(Color.liftMuted)
-                                            .lineLimit(1)
+                    if appState.workoutPlans.count > 1 {
+                        VStack(spacing: 0) {
+                            ForEach(Array(appState.workoutPlans.enumerated()), id: \.element.id) { index, plan in
+                                Button {
+                                    if appState.selectWorkoutPlan(plan.id) {
+                                        isProgramLibraryExpanded = false
+                                        syncSelectedWeek()
                                     }
-                                    Spacer()
-                                    Image(systemName: plan.id == appState.selectedWorkoutPlanID ? "checkmark.circle.fill" : "circle")
-                                        .foregroundStyle(plan.id == appState.selectedWorkoutPlanID ? Color.liftGreen : Color.liftMuted)
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "folder.fill")
+                                            .foregroundStyle(plan.id == appState.selectedWorkoutPlanID ? Color.liftAccentText : Color.liftMuted)
+                                            .frame(width: 28)
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(plan.name)
+                                                .font(.subheadline.weight(.semibold))
+                                                .foregroundStyle(Color.liftText)
+                                                .lineLimit(1)
+                                            Text(plan.isActive ? "Active" : "Saved · tap to resume")
+                                                .font(.caption)
+                                                .foregroundStyle(Color.liftMuted)
+                                                .lineLimit(1)
+                                        }
+                                        Spacer()
+                                        Image(systemName: plan.id == appState.selectedWorkoutPlanID ? "checkmark.circle.fill" : "circle")
+                                            .foregroundStyle(plan.id == appState.selectedWorkoutPlanID ? Color.liftGreen : Color.liftMuted)
+                                    }
+                                    .padding(.horizontal, 14)
+                                    .frame(minHeight: 58)
+                                    .contentShape(Rectangle())
                                 }
-                                .padding(.horizontal, 14)
-                                .frame(minHeight: 58)
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(appState.activeWorkout != nil)
+                                .buttonStyle(.plain)
+                                .disabled(appState.activeWorkout != nil)
 
-                            if index < appState.workoutPlans.count - 1 {
-                                Divider()
-                                    .overlay(Color.liftOverlay)
-                                    .padding(.leading, 54)
+                                if index < appState.workoutPlans.count - 1 {
+                                    Divider()
+                                        .overlay(Color.liftOverlay)
+                                        .padding(.leading, 54)
+                                }
                             }
                         }
-                    }
-                    .background(Color.liftCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.liftOverlay, lineWidth: 1)
+                        .background(Color.liftCard)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.liftOverlay, lineWidth: 1)
+                        }
                     }
                 }
-            }
-
-            if appState.selectedWorkoutPlan != nil {
-                ProgramPlanDetailView(
-                    selectedWeekID: $selectedWeekID,
-                    detailTab: $planDetailTab,
-                    selectedSessionForAdd: $selectedSessionForAdd,
-                    selectedSessionToRun: $selectedSessionToRun
-                )
-                .environmentObject(appState)
             }
         }
     }
@@ -775,7 +787,9 @@ extension TrainingTrackerView {
                                         .foregroundStyle(Color.liftMuted)
                                         .lineLimit(1)
 
-                                    Text(appState.workoutPlanProgressionSettings.contains(where: { $0.sourceTemplateID == template.id }) ? "Saved program · resume or start a new cycle" : template.defaultProgression.rawValue)
+                                    Text(appState.workoutPlanProgressionSettings.contains(where: { settings in
+                                        WorkoutProgramCatalog.scheduleVariants(for: template).contains { $0.id == settings.sourceTemplateID }
+                                    }) ? "Saved program · resume or start a new cycle" : template.defaultProgression.rawValue)
                                         .font(.caption2.weight(.semibold))
                                         .foregroundStyle(Color.liftAccentText)
                                         .lineLimit(1)
@@ -784,7 +798,7 @@ extension TrainingTrackerView {
                                 Spacer(minLength: 8)
 
                                 VStack(alignment: .trailing, spacing: 5) {
-                                    Text("\(template.daysPerWeek) DAYS")
+                                    Text(WorkoutProgramCatalog.scheduleVariants(for: template).count > 1 ? "2–6 DAYS" : "\(template.daysPerWeek) DAYS")
                                         .font(.system(size: 9, weight: .black, design: .rounded))
                                         .tracking(0.4)
                                         .foregroundStyle(Color.liftAccentText)
@@ -808,7 +822,7 @@ extension TrainingTrackerView {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Preview \(template.name), \(template.category.rawValue), \(template.level.rawValue), \(template.daysPerWeek) days per week")
+                        .accessibilityLabel("Preview \(template.name), \(template.category.rawValue), \(template.level.rawValue), \(WorkoutProgramCatalog.scheduleVariants(for: template).count > 1 ? "2 to 6" : String(template.daysPerWeek)) days per week")
                     }
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))

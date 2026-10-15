@@ -114,7 +114,7 @@ struct ProgramSessionCard: View {
                                     if let kilograms = prescription.targetLoadKilograms {
                                         Text("Target: \(MeasurementFormatting.convert(kilograms, from: .kilograms, to: appState.currentProfile.preferredUnit).formatted(.number.precision(.fractionLength(0...1)))) \(appState.currentProfile.preferredUnit.shortLabel)")
                                             .font(.caption2).foregroundStyle(Color.liftAccentText)
-                                    } else if let rir = prescription.targetRIR {
+                                    } else if !ExerciseTrackingKind(catalogExercise(for: prescription).trackingType).usesDuration, let rir = prescription.targetRIR {
                                         Text("Target: \(rir) reps in reserve").font(.caption2).foregroundStyle(Color.liftMuted)
                                     }
                                 }

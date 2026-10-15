@@ -118,6 +118,7 @@ private struct LocalDataRecoveryView: View {
 
     var body: some View {
         AppBackground {
+            ScrollView {
             VStack(spacing: 16) {
                 Image(systemName: "externaldrive.badge.exclamationmark")
                     .font(.system(size: 48, weight: .semibold))
@@ -127,15 +128,16 @@ private struct LocalDataRecoveryView: View {
                 Text("Lift Rivals could not safely open its on-device database. Close and reopen the app. If the problem continues, contact support before reinstalling so your local training history is not erased.")
                     .foregroundStyle(Color.liftMuted)
                     .multilineTextAlignment(.center)
+                Link("Contact support", destination: URL(string: "https://liftrivals.com/support/")!)
+                    .frame(minHeight: LiftDesign.minimumTouchTarget)
                 if let details {
-                    Text(details)
-                        .font(.caption)
-                        .foregroundStyle(Color.liftMuted)
-                        .multilineTextAlignment(.center)
-                        .accessibilityLabel("Technical details: \(details)")
+                    DisclosureGroup("Technical details") {
+                        Text(details).font(.caption).foregroundStyle(Color.liftMuted).textSelection(.enabled)
+                    }
                 }
             }
             .padding(28)
+            }
         }
     }
 }

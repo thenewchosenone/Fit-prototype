@@ -131,7 +131,6 @@ extension HomeView {
     var trainingAlerts: some View {
         let stalledLifts = Array(appState.plateauInsights.prefix(2))
         let stalledLiftNames = stalledLifts.map { $0.exerciseName }.joined(separator: ", ")
-        let missedWorkout = appState.missedScheduledWorkout()
         let recoveringMuscles = Array(
             appState.recoverySummaries()
                 .filter { $0.hoursSinceTraining < 48 }
@@ -145,8 +144,7 @@ extension HomeView {
         let baselineVolume = priorWeekVolumes.isEmpty ? 0 : priorWeekVolumes.reduce(0, +) / Double(priorWeekVolumes.count)
         let unusualVolume = appState.trainingProgressStore.hasFourFullWeeksOfHistory()
             && baselineVolume > 0 && thisWeekVolume >= baselineVolume * 1.5
-        let signalCount = (missedWorkout == nil ? 0 : 1)
-            + (stalledLifts.isEmpty ? 0 : 1)
+        let signalCount = (stalledLifts.isEmpty ? 0 : 1)
             + (recoveringMuscles.isEmpty ? 0 : 1)
             + (unusualVolume ? 1 : 0)
         if signalCount > 0 {
@@ -166,18 +164,10 @@ extension HomeView {
                                 .font(.caption.weight(.black))
                                 .foregroundStyle(Color.liftAccentText)
                         }
-                        if let missedWorkout {
-                            Text("Missed session")
-                                .font(.caption.weight(.bold))
-                            Text("\(missedWorkout.session.name) · scheduled \(LiftTimeFormatter.shortDateNoTime(missedWorkout.date)) · Log missed workout")
-                                .font(.caption)
-                                .foregroundStyle(Color.liftMuted)
-                                .lineLimit(2)
-                        }
                         if !stalledLifts.isEmpty {
                             Text("Possible plateau")
                                 .font(.caption.weight(.bold))
-                            Text("\(stalledLiftNames) · Open plateau details")
+                            Text("\(stalledLiftNames)")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
                                 .lineLimit(2)
@@ -185,7 +175,7 @@ extension HomeView {
                         if !recoveringMuscles.isEmpty {
                             Text("Recently trained muscles")
                                 .font(.caption.weight(.bold))
-                            Text("\(recoveringMuscles.map { $0.muscle.displayName }.joined(separator: ", ")) · Review recovery")
+                            Text("\(recoveringMuscles.map { $0.muscle.displayName }.joined(separator: ", "))")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
                                 .lineLimit(2)
@@ -193,7 +183,7 @@ extension HomeView {
                         if unusualVolume {
                             Text("Unusual volume")
                                 .font(.caption.weight(.bold))
-                            Text("Volume is \(Int(((thisWeekVolume - baselineVolume) / baselineVolume * 100).rounded()))% above your prior four-week average · Review volume")
+                            Text("Volume is \(Int(((thisWeekVolume - baselineVolume) / baselineVolume * 100).rounded()))% above your prior four-week average")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
                                 .lineLimit(2)
@@ -314,12 +304,12 @@ extension HomeView {
 
             if usesStackedOverview {
                 VStack(spacing: 12) {
-                    trainingOverviewCard
+                    if appState.activeWorkout == nil { trainingOverviewCard }
                     strengthOverviewCard
                 }
             } else {
                 HStack(alignment: .top, spacing: 12) {
-                    trainingOverviewCard
+                    if appState.activeWorkout == nil { trainingOverviewCard }
                     strengthOverviewCard
                 }
             }
@@ -585,48 +575,21 @@ extension HomeView {
     }
 
     var highlights: some View {
-        let missedWorkout = appState.missedScheduledWorkout()
-        return VStack(alignment: .leading, spacing: 12) {
-            dashboardSectionHeader("Quick actions")
-            HStack(spacing: 12) {
-                highlightButton(
-                    missedWorkout == nil ? "Log workout" : "Log missed workout",
-                    missedWorkout == nil ? "dumbbell.fill" : "arrow.uturn.backward.circle",
-                    Color.liftAccentText
-                ) {
-                    appState.requestedTrackerSegment = "Today"
-                    appState.trainingTrackerStartOnProgress = false
-                    appState.selectedTab = 2
-                }
-                highlightButton("Bodyweight", "scalemass.fill", Color.liftGold) {
-                    selectedBodyweightEntry = BodyweightEntry.draftForCurrentWeek(
-                        entries: appState.bodyweightEntries,
-                        currentBodyweightPounds: appState.currentProfile.bodyweightPounds
-                    )
-                }
-            }
-        }
-    }
-
-    func highlightButton(_ title: String, _ symbol: String, _ tint: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 12) {
-                Image(systemName: symbol)
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(tint)
-                Text(title)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.liftText)
-                    .lineLimit(2)
-            }
-            .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
-            .padding(13)
-            .liftSurface(radius: 14)
-            .contentShape(Rectangle())
+        Button {
+            selectedBodyweightEntry = BodyweightEntry.draftForToday(
+                entries: appState.bodyweightEntries,
+                currentBodyweightPounds: appState.currentProfile.bodyweightPounds
+            )
+        } label: {
+            Label("Log bodyweight", systemImage: "scalemass.fill")
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity, minHeight: LiftDesign.minimumTouchTarget, alignment: .leading)
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier("home.quickAction.\(title.replacingOccurrences(of: " ", with: "").lowercased())")
+        .foregroundStyle(Color.liftAccentText)
+        .accessibilityIdentifier("home.quickAction.bodyweight")
     }
+
 
     var recentPRs: some View {
         let recentLifts = Array(appState.currentUserLifts.sorted {
@@ -942,7 +905,14 @@ extension HomeView {
                 .environmentObject(appState)
         }
         .sheet(isPresented: $showingAwards) {
-            NavigationStack { AwardsView() }
+            NavigationStack {
+                AwardsView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Close") { showingAwards = false }
+                        }
+                    }
+            }
                 .environmentObject(appState)
         }
     }

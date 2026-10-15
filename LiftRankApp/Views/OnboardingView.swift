@@ -572,6 +572,47 @@ struct OnboardingView: View {
                     subtitle: "Username, bodyweight, and location are required. Your details make rankings fair and useful."
                 )
 
+                profileSection("Identity") {
+                    field("Username", text: $profile.username, symbol: "at", disablesSuggestions: true)
+                    labeledPicker("Birth date", symbol: "calendar") {
+                        DatePicker(
+                            "Birth date",
+                            selection: $birthDate,
+                            in: ...Calendar.current.date(byAdding: .year, value: -13, to: .now)!,
+                            displayedComponents: .date
+                        )
+                        .labelsHidden()
+                        .onChange(of: birthDate) { _, newValue in
+                            profile.ageGroup = ageGroup(for: newValue)
+                        }
+                    }
+                    labeledPicker("Gender", symbol: "person.2.fill") {
+                        Picker("Gender", selection: $profile.sexCategory) {
+                            ForEach([SexCategory.male, .female]) { category in
+                                Text(category.rawValue).tag(category)
+                            }
+                        }
+                    }
+                }
+
+                profileSection("Ranking details") {
+                    bodyweightField
+                    labeledPicker("Preferred unit", symbol: "scalemass.fill") {
+                        Picker("Preferred unit", selection: $profile.preferredUnit) {
+                            ForEach(UnitSystem.allCases) { Text($0.rawValue.capitalized).tag($0) }
+                        }
+                    }
+                }
+
+                profileSection("Location") {
+                    locationPickerRow("Country", value: selectedCountry?.name ?? "Select country", symbol: "globe.americas.fill", picker: .country)
+                    locationPickerRow("State / province", value: selectedCountry == nil ? "Choose country first" : (selectedRegionName.isEmpty ? "Select state or province" : selectedRegionName), symbol: "map.fill", picker: .region, disabled: selectedCountry == nil)
+                    locationPickerRow("City", value: selectedRegion == nil ? "Choose state or province first" : (selectedCity.isEmpty ? "Select city" : selectedCity), symbol: "mappin.and.ellipse", picker: .city, disabled: selectedRegion == nil)
+                }
+
+                privacyToggles
+                DisclosureGroup("Optional profile details") {
+                    VStack(alignment: .leading, spacing: 16) {
                 Button {
                     showingPhotoManager = true
                 } label: {
@@ -602,32 +643,7 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(.plain)
 
-                profileSection("Identity") {
-                    field("Username", text: $profile.username, symbol: "at", disablesSuggestions: true)
-                    field("Bio (optional)", text: $bio, symbol: "text.quote")
-                    labeledPicker("Birth date", symbol: "calendar") {
-                        DatePicker(
-                            "Birth date",
-                            selection: $birthDate,
-                            in: ...Calendar.current.date(byAdding: .year, value: -13, to: .now)!,
-                            displayedComponents: .date
-                        )
-                        .labelsHidden()
-                        .onChange(of: birthDate) { _, newValue in
-                            profile.ageGroup = ageGroup(for: newValue)
-                        }
-                    }
-                    labeledPicker("Gender", symbol: "person.2.fill") {
-                        Picker("Gender", selection: $profile.sexCategory) {
-                            ForEach([SexCategory.male, .female]) { category in
-                                Text(category.rawValue).tag(category)
-                            }
-                        }
-                    }
-                }
-
-                profileSection("Ranking details") {
-                    bodyweightField
+                        field("Bio", text: $bio, symbol: "text.quote")
                     heightScroller
                     labeledPicker("Years training", symbol: "calendar.badge.clock") {
                         HStack(spacing: 0) {
@@ -671,17 +687,6 @@ struct OnboardingView: View {
                         .accessibilityElement(children: .contain)
                         .accessibilityIdentifier("onboarding.yearsTraining")
                     }
-                    labeledPicker("Preferred unit", symbol: "scalemass.fill") {
-                        Picker("Preferred unit", selection: $profile.preferredUnit) {
-                            ForEach(UnitSystem.allCases) { Text($0.rawValue.capitalized).tag($0) }
-                        }
-                    }
-                }
-
-                profileSection("Location") {
-                    locationPickerRow("Country", value: selectedCountry?.name ?? "Select country", symbol: "globe.americas.fill", picker: .country)
-                    locationPickerRow("State / province", value: selectedCountry == nil ? "Choose country first" : (selectedRegionName.isEmpty ? "Select state or province" : selectedRegionName), symbol: "map.fill", picker: .region, disabled: selectedCountry == nil)
-                    locationPickerRow("City", value: selectedRegion == nil ? "Choose state or province first" : (selectedCity.isEmpty ? "Select city" : selectedCity), symbol: "mappin.and.ellipse", picker: .city, disabled: selectedRegion == nil)
                     labeledPicker("Primary gym (optional)", symbol: "building.2.fill") {
                         if selectedCity.isEmpty {
                             Text("Choose your city first")
@@ -706,9 +711,8 @@ struct OnboardingView: View {
                             }
                         }
                     }
+                    }.padding(.top, 12)
                 }
-
-                privacyToggles
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 124)

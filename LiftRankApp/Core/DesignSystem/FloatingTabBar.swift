@@ -8,11 +8,18 @@ struct FloatingTabItem: Identifiable {
 }
 
 struct FloatingTabBar: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var selection: AppTab
     let items: [FloatingTabItem]
 
     var body: some View {
-        navigationGroup(items)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                ScrollView(.horizontal) { navigationGroup(items) }
+            } else {
+                navigationGroup(items)
+            }
+        }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
@@ -36,23 +43,22 @@ struct FloatingTabBar: View {
                 } label: {
                     VStack(spacing: 3) {
                         Image(systemName: item.icon)
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.callout.weight(.semibold))
                             .foregroundStyle(item.tab == selection ? Color.liftAccentText : Color.liftTextSecondary)
                         Text(item.title)
-                            .font(.system(size: 9, weight: .bold, design: .rounded))
-                            .tracking(0.3)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                            .allowsTightening(true)
+                            .font(.caption2.weight(.semibold))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
                             .foregroundStyle(item.tab == selection ? Color.liftAccentText : Color.liftTextSecondary)
                     }
-                    .frame(maxWidth: .infinity)
+                    .frame(minWidth: dynamicTypeSize.isAccessibilitySize ? 100 : LiftDesign.minimumTouchTarget, maxWidth: .infinity, minHeight: LiftDesign.minimumTouchTarget)
                     .padding(.vertical, 8)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(item.title)
                 .accessibilityIdentifier("mainTab.\(String(describing: item.tab))")
+                .accessibilityAddTraits(item.tab == selection ? .isSelected : [])
                 .accessibilityValue(item.tab == selection ? "selected" : "not selected")
             }
         }

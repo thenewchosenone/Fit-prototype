@@ -1,11 +1,10 @@
-import AVKit
 import SwiftUI
 
 struct ModeratorReviewView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedReason = "Plates not visible"
-    @State private var note = ""
+    @State private var selectedReasons: [UUID: String] = [:]
+    @State private var notes: [UUID: String] = [:]
 
     private let reasons = [
         "Plates not visible",
@@ -26,10 +25,16 @@ struct ModeratorReviewView: View {
             AppBackground {
                 VStack(spacing: 0) {
                     ScrollView {
-                        VStack(spacing: 14) {
-                            ForEach(pending.prefix(12)) { lift in reviewCard(lift) }
+                        LazyVStack(spacing: 14) {
+                            if !appState.isDemoMode {
+                                ContentUnavailableView("Demo review only", systemImage: "eye.slash", description: Text("Live moderation is unavailable from this screen."))
+                            } else {
+                            Text("Demo review · decisions affect demo data only")
+                                .font(.subheadline.weight(.semibold)).foregroundStyle(Color.liftGold)
+                            ForEach(pending) { lift in reviewCard(lift) }
                             if pending.isEmpty {
                                 ContentUnavailableView("No pending lifts", systemImage: "checkmark.seal.fill", description: Text("All demo submissions have been reviewed."))
+                            }
                             }
                         }
                         .padding()
@@ -46,7 +51,9 @@ struct ModeratorReviewView: View {
     }
 
     private func reviewCard(_ lift: LiftSubmission) -> some View {
-        LiftCard {
+        let note = notes[lift.id, default: ""]
+        let selectedReason = selectedReasons[lift.id, default: "Plates not visible"]
+        return LiftCard {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     VStack(alignment: .leading) {
@@ -58,34 +65,23 @@ struct ModeratorReviewView: View {
                     Spacer()
                     VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus)
                 }
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.black.opacity(0.35))
-                        .frame(height: 170)
-                    VStack(spacing: 8) {
-                        Image(systemName: "play.rectangle.fill")
-                            .font(.largeTitle)
-                            .foregroundStyle(Color.liftAccentText)
-                        Text("Video playback preview")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
-                    }
-                }
-                Picker("Rejection reason", selection: $selectedReason) {
+                Label("Simulated evidence review", systemImage: "eye")
+                    .font(.caption).foregroundStyle(Color.liftMuted)
+                Picker("Rejection reason", selection: Binding(get: { selectedReasons[lift.id, default: "Plates not visible"] }, set: { selectedReasons[lift.id] = $0 })) {
                     ForEach(reasons, id: \.self) { Text($0).tag($0) }
                 }
-                TextField("Moderator note", text: $note, axis: .vertical)
+                TextField("Moderator note", text: Binding(get: { notes[lift.id, default: ""] }, set: { notes[lift.id] = $0 }), axis: .vertical)
                     .lineLimit(2...4)
                     .padding(12)
                     .background(Color.liftScrim)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
-                HStack {
-                    Button("Approve") {
+                VStack(alignment: .leading, spacing: 10) {
+                    Button("Approve demo lift") {
                         appState.updateVerification(lift, status: .videoVerified, note: note.isEmpty ? "Video evidence approved." : note)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Color.liftGreen)
-                    Button("Reject") {
+                    Button("Reject demo lift") {
                         Haptics.warning()
                         appState.updateVerification(lift, status: .rejected, note: selectedReason)
                     }

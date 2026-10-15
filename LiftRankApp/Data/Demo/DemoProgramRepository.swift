@@ -4,6 +4,59 @@ extension DemoRepository {
     private static let demoProgramHistoryMarker = "[demo:program-history-v2]"
     private static let previousDemoProgramHistoryMarker = "[demo:program-history-v1]"
 
+    func seedDemoStrengthTrendsIfNeeded(referenceDate: Date = .now) {
+        let marker = "[demo:strength-trends-v1]"
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: referenceDate)
+        let latestDay = calendar.date(byAdding: .day, value: -3, to: today)!
+        let existing = completedWorkouts.filter { $0.notes.contains(marker) }
+        if existing.count == 6, existing.map({ calendar.startOfDay(for: $0.completedAt) }).max() == latestDay { return }
+
+        completedWorkouts.removeAll { $0.notes.contains(marker) }
+        let samples: [(id: String, earlier: Double, recent: Double)] = [
+            ("barbell_bench_press", 80, 90),
+            ("dumbbell_bent_over_row", 40, 40),
+            ("dumbbell_romanian_deadlift", 45, 37.5),
+            ("dumbbell_hammer_curl", 12.5, 15)
+        ]
+        for offset in [-25, -21, -17, -11, -7, -3] {
+            let day = calendar.date(byAdding: .day, value: offset, to: today)!
+            let completedAt = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: day)!
+            let workoutID = UUID()
+            var exercises: [WorkoutExerciseSnapshot] = []
+            var sets: [WorkoutSetLog] = []
+            let movements = offset == -3 ? samples + [("dumbbell_front_squat", 20, 20)] : samples
+            for (index, sample) in movements.enumerated() {
+                let exercise = MockData.trainingExerciseLibrary.first { $0.id == sample.id }!
+                let snapshot = WorkoutExerciseSnapshot(
+                    id: UUID(), sourcePrescriptionID: nil, exerciseID: exercise.id, exerciseName: exercise.name,
+                    bodyPart: exercise.bodyPart, equipment: exercise.equipment,
+                    targetSets: 3, targetReps: "8", restSeconds: 120, order: index,
+                    notes: "Demo strength comparison", rankingExerciseID: exercise.rankingExerciseID,
+                    muscleProfile: exercise.resolvedMuscleProfile, targetRIR: 2, trackingType: exercise.trackingType
+                )
+                exercises.append(snapshot)
+                for number in 1...3 {
+                    sets.append(WorkoutSetLog(
+                        id: UUID(), prescriptionID: snapshot.id, performedAt: completedAt, setNumber: number,
+                        weight: offset < -13 ? sample.earlier : sample.recent, reps: 8, rpe: 8,
+                        isWarmup: false, isComplete: true, workoutID: workoutID, recordedUnit: .kilograms
+                    ))
+                }
+            }
+            completedWorkouts.append(CompletedWorkout(
+                id: workoutID, source: .freestyle, sourceSessionID: nil, sourcePlanID: nil,
+                name: "Demo · Strength Progress", dayLabel: completedAt.formatted(.dateTime.weekday(.wide)),
+                startedAt: completedAt.addingTimeInterval(-2_400), completedAt: completedAt, duration: 2_400,
+                effort: 3, notes: "\(marker) Sample data for improving, steady, declining, and insufficient-history trends.",
+                gymID: nil, bodyweight: nil, unit: .kilograms, exercises: exercises, sets: sets, linkedSubmissionIDs: []
+            ))
+        }
+        completedWorkouts.sort { $0.completedAt > $1.completedAt }
+        refreshAchievementUnlocks()
+        persistWorkoutSnapshot()
+    }
+
     /// Seeds one complete 12-week program for simulator demonstrations. The
     /// marker keeps this idempotent and makes the history easy to replace.
     @discardableResult
@@ -278,7 +331,8 @@ extension DemoRepository {
         at date: Date = .now
     ) -> Bool {
         guard let settingsIndex = workoutPlanProgressionSettings.firstIndex(where: { $0.planID == planID }),
-              let template = WorkoutProgramCatalog.template(id: workoutPlanProgressionSettings[settingsIndex].sourceTemplateID) else {
+              let template = WorkoutProgramCatalog.template(id: workoutPlanProgressionSettings[settingsIndex].sourceTemplateID),
+              method != .linear || template.defaultProgression == .linear else {
             return false
         }
         workoutPlanProgressionSettings[settingsIndex].method = method
@@ -637,7 +691,7 @@ extension DemoRepository {
             WorkoutProgramCatalog.percentage(for: week, exerciseID: exercise.id, templateID: templateID, sessionIndex: sessionIndex)
         } : nil
         let reps = effectiveTemplate.reps
-        let targetRIR = method == .rirRepRange || (method == .percentage && percentage == nil)
+        let targetRIR = method == .rirRepRange || method == .adaptive || (method == .percentage && percentage == nil)
             ? WorkoutProgramCatalog.rirTarget(for: week)
             : nil
         let targetLoad = percentage.flatMap { value in trainingMaxKilograms[exercise.id].map { $0 * value } }
@@ -663,6 +717,66 @@ extension DemoRepository {
             trainingMaxPercentage: percentage,
             targetLoadKilograms: targetLoad
         )
+    }
+
+    func resolvedWorkoutPrescriptions(sessionID: UUID, at date: Date = .now) -> [WorkoutExercisePrescription] {
+        let prescriptions = workoutPrescriptions.filter { $0.sessionID == sessionID }.sorted { $0.order < $1.order }
+        guard let session = workoutSessions.first(where: { $0.id == sessionID }),
+              let week = workoutWeeks.first(where: { $0.id == session.weekID }),
+              let settings = workoutPlanProgressionSettings.first(where: { $0.planID == week.planID }),
+              settings.method == .adaptive || settings.method == .linear else { return prescriptions }
+
+        let frozenExercises = activeWorkout?.sourceSessionID == sessionID ? activeWorkout?.exercises :
+            completedWorkouts.first(where: { $0.sourceSessionID == sessionID })?.exercises
+        if let frozenExercises {
+            return prescriptions.map { prescription in
+                guard let snapshot = frozenExercises.first(where: { $0.sourcePrescriptionID == prescription.id }) else { return prescription }
+                var result = prescription
+                result.targetLoadKilograms = snapshot.targetLoadKilograms
+                result.targetRIR = snapshot.targetRIR
+                result.notes = snapshot.notes
+                return result
+            }
+        }
+        guard session.outcome == nil,
+              !workoutSetLogs.contains(where: { log in prescriptions.contains { $0.id == log.prescriptionID } }) else { return prescriptions }
+
+        let history = completedWorkouts.filter { workout in
+            guard workout.sourcePlanID == week.planID, workout.completedAt < date,
+                  let priorSession = workoutSessions.first(where: { $0.id == workout.sourceSessionID }),
+                  let priorWeek = workoutWeeks.first(where: { $0.id == priorSession.weekID }),
+                  priorWeek.weekNumber < week.weekNumber || (priorWeek.weekNumber == week.weekNumber && priorSession.order < session.order),
+                  settings.method == .linear || priorSession.order == session.order else { return false }
+            return ![4, 8, 12].contains(priorWeek.weekNumber)
+        }.sorted { $0.completedAt > $1.completedAt }
+
+        return prescriptions.map { prescription in
+            var result = prescription
+            let isDeload = [4, 8, 12].contains(week.weekNumber)
+            if settings.method == .linear {
+                let attempts = history.compactMap { workout -> (exercise: WorkoutExerciseSnapshot, sets: [WorkoutSetLog])? in
+                    guard let exercise = workout.exercises.first(where: {
+                        $0.exerciseID == prescription.exerciseID && $0.targetReps == prescription.reps &&
+                        $0.sourcePrescriptionID != nil && (isDeload || $0.targetSets == prescription.sets)
+                    }), ExerciseTrackingKind(exercise.trackingType ?? "Weight + Reps") == .weightReps else { return nil }
+                    return (exercise, workout.sets)
+                }
+                result.targetLoadKilograms = WorkoutAdaptiveProgression.linearLoadKilograms(history: attempts, unit: settings.preferredUnit, isDeload: isDeload)
+                if result.targetLoadKilograms != nil {
+                    result.notes = [result.notes, isDeload ? "Linear progression: lighter recovery load; this workout does not count toward progression." : "Linear progression: suggested load from completed attempts at this lift in this plan. Review before lifting."].filter { !$0.isEmpty }.joined(separator: " ")
+                }
+                return result
+            }
+            guard let workout = history.first(where: { workout in
+                workout.exercises.contains { $0.exerciseID == prescription.exerciseID && $0.targetReps == prescription.reps }
+            }), var exercise = workout.exercises.first(where: { $0.exerciseID == prescription.exerciseID && $0.targetReps == prescription.reps }),
+                  ExerciseTrackingKind(exercise.trackingType ?? "Weight + Reps") == .weightReps else { return result }
+            if isDeload || prescription.sets > exercise.targetSets { exercise.targetRIR = nil }
+            guard let load = WorkoutAdaptiveProgression.loadKilograms(for: exercise, sets: workout.sets, unit: settings.preferredUnit) else { return result }
+            result.targetLoadKilograms = isDeload ? load * 0.9 : load
+            result.notes = [result.notes, isDeload ? "Adaptive: lighter deload load. Deload results do not advance working weights." : "Adaptive: suggested load from your last matching workout in this plan. Review before lifting."].filter { !$0.isEmpty }.joined(separator: " ")
+            return result
+        }
     }
 
     private func normalizedWeekdays(_ values: [Int], fallback: [Int]) -> [Int] {

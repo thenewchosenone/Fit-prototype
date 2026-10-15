@@ -130,6 +130,7 @@ struct LeaderboardFiltersView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var customRepText = ""
+    @State private var expandedFilterGroups: Set<String> = ["Exercise and reps", "Evidence and time"]
     @State private var locationOptions: [String] = []
     @State private var locationQuery = ""
     @State private var locationSuggestions: [LocationCitySuggestion] = []
@@ -234,7 +235,7 @@ struct LeaderboardFiltersView: View {
                                         appState.leaderboardFilters.ageGroup = nil
                                     }
                                     ForEach(ageGroups, id: \.self) { ageGroup in
-                                        optionButton(ageGroup, isActive: appState.leaderboardFilters.ageGroup == ageGroup) {
+                                        optionButton(LeaderboardAgeGroupPresentation.subtitle(for: ageGroup).map { "\(ageGroup) · \($0)" } ?? ageGroup, isActive: appState.leaderboardFilters.ageGroup == ageGroup) {
                                             appState.leaderboardFilters.ageGroup = ageGroup
                                         }
                                     }
@@ -571,14 +572,29 @@ struct LeaderboardFiltersView: View {
         }
     }
 
-    private func filterGroup<Content: View>(_ title: String, symbol: String, @ViewBuilder content: () -> Content) -> some View {
-        LiftCard(padding: 14, radius: 16) {
-            VStack(alignment: .leading, spacing: 12) {
-                Label(title, systemImage: symbol)
+    private func filterGroup<Content: View>(_ title: String, symbol: String, @ViewBuilder content: @escaping () -> Content) -> some View {
+        let filters = appState.leaderboardFilters
+        let activeCount: Int = switch title {
+        case "Division": [filters.sexCategory != nil, filters.ageGroup != nil, filters.experienceLevel != nil, filters.weightClassID != nil].filter { $0 }.count
+        case "Location": [filters.gymID != nil, filters.city != nil || filters.state != nil || filters.country != nil].filter { $0 }.count
+        case "Exercise and reps": [filters.exerciseID != nil, filters.repetitionCount != nil].filter { $0 }.count
+        default: [!appState.verifiedOnly || filters.verificationLevel != nil, filters.timeRange != "All time"].filter { $0 }.count
+        }
+        return LiftCard(padding: 14, radius: 16) {
+            DisclosureGroup(isExpanded: Binding(
+                get: { expandedFilterGroups.contains(title) },
+                set: { expanded in
+                    if expanded { expandedFilterGroups.insert(title) }
+                    else { expandedFilterGroups.remove(title) }
+                }
+            )) {
+                VStack(alignment: .leading, spacing: 12) { content() }.padding(.top, 10)
+            } label: {
+                Label(activeCount == 0 ? title : "\(title) · \(activeCount) active", systemImage: symbol)
                     .font(.headline)
                     .accessibilityIdentifier("leaderboard.filters.group.\(identifierComponent(title))")
-                content()
             }
+            .tint(Color.liftAccentText)
         }
     }
 

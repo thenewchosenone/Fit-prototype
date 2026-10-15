@@ -279,66 +279,8 @@ struct WorkoutSummaryView: View {
                         .background(Color.liftCard)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                        if !prCandidates.isEmpty || volumePRDetails != nil || !advancedStrengthLifts.isEmpty || !newlyUnlockedAchievements.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Workout highlights")
-                                    .font(.title3.weight(.black))
-                                if !prCandidates.isEmpty {
-                                    prSubmissionSection
-                                }
-                                if let volumePRDetails {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Label("Highest recorded workout volume", systemImage: "chart.bar.fill")
-                                            .font(.headline.weight(.bold))
-                                            .foregroundStyle(Color.liftGreen)
-                                        Text("\(formattedVolume(volumePRDetails.current - volumePRDetails.previous, unit: volumePRDetails.unit)) above your previous highest. Exercise selection affects total volume.")
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(Color.liftMuted)
-                                    }
-                                    .padding(14)
-                                    .background(Color.liftGreen.opacity(0.10))
-                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                    .overlay {
-                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .stroke(Color.liftGreen.opacity(0.28), lineWidth: 1)
-                                    }
-                                }
-
-                                if !advancedStrengthLifts.isEmpty {
-                                    rivalTierProgressSection(
-                                        advancedStrengthLifts: advancedStrengthLifts,
-                                        projectedStrengthTierSummary: projectedStrengthTierSummary
-                                    )
-                                }
-
-                                if !newlyUnlockedAchievements.isEmpty {
-                                    VStack(alignment: .leading, spacing: 10) {
-                                        Text("Badge earned when you save")
-                                            .font(.headline.weight(.bold))
-                                        ForEach(newlyUnlockedAchievements.prefix(3)) { unlock in
-                                            achievementBadgeRow(
-                                                appState.achievements.first { $0.title == unlock.title },
-                                                fallbackTitle: unlock.title
-                                            )
-                                        }
-                                    }
-                                    .padding(14)
-                                    .background(Color.liftGold.opacity(0.08))
-                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                    .overlay {
-                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .stroke(Color.liftGold.opacity(0.28), lineWidth: 1)
-                                    }
-                                }
-
-                                if let nextAchievementProgress {
-                                    achievementProgressCard(nextAchievementProgress)
-                                }
-
-                            }
-                        }
-
                         exerciseReviewSection
+                        if !prCandidates.isEmpty { prSubmissionSection }
 
                         if let previous = previousComparableWorkout {
                             comparisonSection(previous)
@@ -390,7 +332,7 @@ struct WorkoutSummaryView: View {
                             let sharedIDs = sharePRs ? selectedPRSetIDs.intersection(eligibleIDs) : []
                             if onComplete(effort, notes, videoURLsBySetID.filter { sharedIDs.contains($0.key) }, sharedIDs) {
                                 savedSummary = reviewedSummary
-                                completionHighlights = highlights
+                                completionHighlights = highlights + advancedStrengthLifts.map { "\($0.exerciseName) reached \($0.currentTier.label)" }
                                 savedAchievementBadges = newlyUnlockedAchievements.prefix(3).compactMap { unlock in
                                     appState.achievements.first { $0.title == unlock.title }
                                 }
@@ -564,36 +506,6 @@ struct WorkoutSummaryView: View {
         .padding(14)
         .background(Color.liftCard)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-
-    private func rivalTierProgressSection(
-        advancedStrengthLifts: [LiftTierProgress],
-        projectedStrengthTierSummary: StrengthTierSummary
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("Rival tiers after saving", systemImage: "medal.fill")
-                .font(.headline.weight(.bold))
-                .foregroundStyle(Color.liftGold)
-            ForEach(advancedStrengthLifts) { lift in
-                HStack {
-                    Text("\(lift.exerciseName) tier")
-                        .font(.subheadline.weight(.semibold))
-                    Spacer()
-                    Text(lift.currentTier.label)
-                        .font(.subheadline.weight(.black))
-                        .foregroundStyle(Color.liftGold)
-                }
-            }
-            if projectedStrengthTierSummary.overallTier > appState.strengthTierSummary.overallTier {
-                Text("Overall tier on saving: \(projectedStrengthTierSummary.overallTier.label)")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.liftText)
-            }
-        }
-        .padding(14)
-        .background(Color.liftGold.opacity(0.09))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .accessibilityIdentifier("workoutSummary.rivalTierProgress")
     }
 
     private var prSubmissionSection: some View {

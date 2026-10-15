@@ -60,7 +60,7 @@ struct BodyweightEntryEditor: View {
             AppBackground {
                 VStack(alignment: .leading, spacing: 16) {
                     LiftSheetHeader(
-                        title: "Week \(draft.week)",
+                        title: appState.bodyweightEntries.contains(where: { $0.id == draft.id }) ? "Edit bodyweight" : "Log bodyweight",
                         subtitle: draft.targetDate.formatted(date: .long, time: .omitted)
                     )
 
@@ -95,9 +95,9 @@ struct BodyweightEntryEditor: View {
                         dismiss()
                     }
                 }
-                ToolbarItem(placement: .bottomBar) {
-                    Button("Delete Entry", role: .destructive) {
-                        showingDeleteConfirmation = true
+                if appState.bodyweightEntries.contains(where: { $0.id == draft.id }) {
+                    ToolbarItem(placement: .bottomBar) {
+                        Button("Delete Entry", role: .destructive) { showingDeleteConfirmation = true }
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {

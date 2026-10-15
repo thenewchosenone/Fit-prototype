@@ -103,6 +103,8 @@ protocol ProgramRepository: AnyObject {
     var workoutPrescriptions: [WorkoutExercisePrescription] { get }
     var programDataRevision: Int { get }
 
+    func resolvedWorkoutPrescriptions(sessionID: UUID, at date: Date) -> [WorkoutExercisePrescription]
+
     func currentProgramWeek(planID: UUID, at date: Date) -> WorkoutWeek?
     func addWorkoutPlan(_ plan: WorkoutPlan)
     func updateWorkoutPlan(_ plan: WorkoutPlan)

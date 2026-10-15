@@ -159,6 +159,19 @@ final class CompetitionStore: ObservableObject {
         await refreshLeaderboard()
     }
 
+    func gymLeaderboardEntries(gymID: UUID) async throws -> [LeaderboardEntry] {
+        guard let leaderboardService else { throw LiftRankServiceError.configurationMissing }
+        let userID = repository.currentProfile.id
+        let entries = try await leaderboardService.entries(
+            filters: LeaderboardFilters(exerciseID: nil, rankingType: .total, gymID: gymID),
+            verifiedOnly: true
+        )
+        guard repository.currentProfile.id == userID, !Task.isCancelled else {
+            throw LiftRankServiceError.sessionExpired
+        }
+        return Array(entries.prefix(5))
+    }
+
     func refreshLeaderboard() async {
         guard let leaderboardService else { return }
         let userID = repository.currentProfile.id

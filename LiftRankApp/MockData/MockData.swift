@@ -20,6 +20,9 @@ enum MockData {
             .filter { exerciseIDs.insert($0.id).inserted }
         return uniqueExercises.map { item in
             var enriched = item
+            if item.id == "machine_ab_crunch" {
+                enriched.name = "Abdominal Crunch Machine (legacy record)"
+            }
             enriched.muscleProfile = item.muscleProfile ?? ExerciseMuscleProfileResolver.profile(name: item.name, bodyPart: item.bodyPart)
             enriched.searchAliases = Array(Set(item.searchAliases + exerciseAliases(for: item)))
             enriched.movementPattern = item.movementPattern == .other ? movementPattern(for: item) : item.movementPattern
@@ -36,6 +39,8 @@ enum MockData {
     private static func exerciseAliases(for exercise: TrainingExerciseCatalogItem) -> [String] {
         var aliases = generatedAliases(for: exercise)
         switch exercise.id {
+        case "machine_abdominal_crunch":
+            aliases += ["Ab Crunch Machine", "Machine Ab Crunch"]
         case "machine_chest_press":
             aliases += [
                 "Seated Chest Press",

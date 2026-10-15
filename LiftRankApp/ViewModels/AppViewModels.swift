@@ -596,6 +596,7 @@ final class AppState: ObservableObject {
             await synchronizeCompletedWorkoutHistory()
             await synchronizeWorkoutPlans()
             _ = repository.seedDemoProgramHistoryIfNeeded()
+            repository.seedDemoStrengthTrendsIfNeeded()
             restoreSelectedWorkoutPlanIfNeeded()
             repository.seedDemoLeaderboardDataIfNeeded()
             accountStatus = .demo

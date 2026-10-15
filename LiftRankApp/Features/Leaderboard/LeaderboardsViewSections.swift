@@ -23,15 +23,15 @@ extension LeaderboardsView {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                            LeaderboardMetricStrip(
-                                rank: RankingFormatting.leaderboardRankText(rank: currentEntry?.rank),
-                                lifters: matchingEntries.count,
-                                ranking: appState.leaderboardFilters.rankingType.rawValue,
-                                rankTitle: rankScopeTitle
-                            )
+                            HStack {
+                                Text("\(rankScopeTitle): \(RankingFormatting.leaderboardRankText(rank: currentEntry?.rank))")
+                                Spacer()
+                                Text("\(matchingEntries.count) lifters")
+                            }
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.liftMuted)
                             .padding(.horizontal, 16)
-                            .padding(.top, 8)
-                            .padding(.bottom, 14)
+                            .padding(.vertical, 8)
 
                             LeaderboardTabBar(selection: rankingTypeBinding, types: availableRankingTypes)
                             filterBar.padding(.vertical, 10)
@@ -40,7 +40,8 @@ extension LeaderboardsView {
                                 Button {
                                     showsRankingExplanation.toggle()
                                 } label: {
-                                    Label("How this ranking works", systemImage: "info.circle")
+                                    Label(appState.verifiedOnly ? "Video-backed rankings" : (appState.leaderboardFilters.verificationLevel == .selfReported ? "Self-reported rankings" : "All lift evidence"), systemImage: "info.circle")
+                                        .accessibilityLabel("How this ranking works")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(Color.liftAccentText)
                                 }
@@ -62,13 +63,9 @@ extension LeaderboardsView {
                                         .padding(.bottom, 8)
                                 }
                             }
-                            if let evidenceMessage = leaderboardEvidenceMessage {
-                                Label(evidenceMessage, systemImage: appState.verifiedOnly ? "video.fill" : "person.fill")
-                                    .font(.caption)
-                                    .foregroundStyle(Color.liftMuted)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 16)
-                                    .padding(.bottom, 8)
+                            if showsRankingExplanation, let evidenceMessage = leaderboardEvidenceMessage {
+                                Text(evidenceMessage).font(.caption).foregroundStyle(Color.liftMuted)
+                                    .padding(.horizontal, 16).padding(.bottom, 8)
                             }
 
                             if currentUserEntry != nil {
@@ -173,6 +170,7 @@ extension LeaderboardsView {
             }
         }
             .navigationTitle("Leaderboards")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {

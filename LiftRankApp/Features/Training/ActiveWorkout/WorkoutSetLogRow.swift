@@ -101,7 +101,17 @@ struct WorkoutSetLogRow: View {
                 }
             }
 
-            setOptionsControls
+            if showingDetails {
+                setOptionsControls
+            } else {
+                HStack {
+                    if let rpe = draft.rpe, !draft.isWarmup {
+                        Text("RPE \(rpe)").font(.caption).foregroundStyle(Color.liftMuted)
+                    }
+                    Spacer()
+                    setOptionsButton
+                }
+            }
 
             if showingDetails && !draft.isWarmup {
                 Text("RPE rates set effort out of 10. A 10 means you could not complete another rep.")
@@ -348,10 +358,10 @@ struct WorkoutSetLogRow: View {
         Button {
             showingDetails.toggle()
         } label: {
-            Label(showingDetails ? "Done" : "Set options", systemImage: showingDetails ? "checkmark" : "ellipsis.circle")
+            Label(showingDetails ? "Done" : "Effort & options", systemImage: showingDetails ? "checkmark" : "ellipsis.circle")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Color.liftMuted)
-                .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 48 : 0)
+                .frame(minHeight: LiftDesign.minimumTouchTarget)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(showingDetails ? "Hide set options" : "Show set options")

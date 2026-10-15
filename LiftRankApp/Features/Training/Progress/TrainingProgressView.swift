@@ -76,10 +76,12 @@ extension TrainingTrackerView {
                 let bodyweightReadings = bodyweightEntries
                     .compactMap { entry in entry.actual.map { (date: entry.targetDate, pounds: $0) } }
                     .sorted { $0.date < $1.date }
+                recentStrengthProgressSection
                 strengthProgressSection
 
                 if !exerciseOptions.isEmpty {
                     exerciseProgressSection(options: exerciseOptions)
+                        .id("tracker-strength-exercise")
                 }
 
                 trainingAttentionSection
@@ -149,6 +151,10 @@ extension TrainingTrackerView {
                 loadTrainingFocus()
                 didLoadTrainingFocus = true
             }
+            if let category = appState.router.progressCategory {
+                selectedProgressCategory = category
+                appState.router.progressCategory = nil
+            }
             if selectedProgressCategory == .strength { syncProgressExerciseSelection() }
             if selectedProgressCategory == .consistency { syncWorkoutHistorySelection() }
             Task { await appState.synchronizeCompletedWorkoutHistory(force: false) }
@@ -156,6 +162,12 @@ extension TrainingTrackerView {
         .onChange(of: appState.completedWorkoutsRevision) {
             if selectedProgressCategory == .strength { syncProgressExerciseSelection() }
             if selectedProgressCategory == .consistency { syncWorkoutHistorySelection() }
+        }
+        .onChange(of: appState.router.progressCategory) { _, requested in
+            if let requested {
+                selectedProgressCategory = requested
+                appState.router.progressCategory = nil
+            }
         }
         .onChange(of: selectedProgressCategory) { _, category in
             if category == .strength { syncProgressExerciseSelection() }
@@ -360,7 +372,10 @@ extension TrainingTrackerView {
 
     @ViewBuilder
     private var trainingAttentionSection: some View {
-        let insights = appState.strengthAttentionInsights
+        let insights = appState.trainingProgressStore.strengthAttentionInsights(
+            summary: appState.strengthTierSummary,
+            referenceDate: Date(timeIntervalSince1970: floor(Date.now.timeIntervalSince1970 / 60) * 60)
+        )
         let nextWorkout = appState.scheduledPlanSessions(on: .now).first
             ?? appState.nextScheduledWorkout().map { (week: $0.week, session: $0.session) }
         if !insights.isEmpty {
@@ -709,6 +724,114 @@ extension TrainingTrackerView {
         return "trained \(days)d ago"
     }
 
+    private var recentStrengthProgressSection: some View {
+        let trends = appState.trainingProgressStore.recentStrengthTrends()
+        let improving = trends.filter { $0.status == .improving }.count
+        let declining = trends.filter { $0.status == .declining }.count
+        let steady = trends.filter { $0.status == .steady }.count
+        let muscles = Set(trends.flatMap(\.primaryMuscles)).sorted { $0.displayName < $1.displayName }
+        let selectableExerciseIDs = Set(appState.progressExerciseOptions().map(\.id))
+        let coverage = appState.trainingProgressStore.muscleAttentionInsights(trainingFocus: appState.currentProfile.trainingFocus)
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Am I getting stronger?").font(.headline.weight(.bold))
+            Text("Last 14 calendar days compared with the preceding 14")
+                .font(.caption).foregroundStyle(Color.liftMuted)
+            if improving + declining + steady == 0 {
+                Text("More comparable history needed")
+                    .font(.subheadline.weight(.semibold))
+            } else {
+                Text("\(improving) improving · \(steady) steady · \(declining) declining")
+                    .font(.subheadline.weight(.semibold))
+            }
+            Text("Each lift needs at least two logged training days in each period. Changes over 1% are marked improving or declining; smaller changes are steady.")
+                .font(.caption).foregroundStyle(Color.liftMuted)
+            if !trends.isEmpty {
+                Text("Lift performance by primary muscle").font(.subheadline.weight(.bold))
+                ForEach(muscles) { muscle in
+                    let lifts = trends.filter { $0.primaryMuscles.contains(muscle) }
+                    DisclosureGroup {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(lifts) { trend in
+                                Button {
+                                    selectedProgressExerciseID = trend.exerciseID
+                                    selectedExerciseStrengthTrendDate = nil
+                                    selectedExerciseWeightTrendDate = nil
+                                    strengthExerciseScrollRequest = UUID()
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(trend.exerciseName).font(.subheadline.weight(.semibold))
+                                        HStack {
+                                            Text(trend.status.rawValue)
+                                            if let change = trend.changeFraction {
+                                                Text(change.formatted(.percent.precision(.fractionLength(1)).sign(strategy: .always())))
+                                                    .monospacedDigit()
+                                            }
+                                        }
+                                        .foregroundStyle(trend.status == .declining ? Color.orange : Color.liftAccentText)
+                                        if trend.changeFraction != nil, let earlier = trend.earlierAverageKilograms, let recent = trend.recentAverageKilograms {
+                                            Text("Average daily best estimated 1RM: \(MeasurementFormatting.formatDisplayedWeight(earlier, unit: appState.currentProfile.preferredUnit)) → \(MeasurementFormatting.formatDisplayedWeight(recent, unit: appState.currentProfile.preferredUnit))")
+                                        }
+                                        if trend.status == .insufficient {
+                                            Text(trend.recentDayCount < 2
+                                                 ? "Log this lift on \(2 - trend.recentDayCount) more day(s) this period. Two days in each period are needed."
+                                                 : "Recent history is ready. The preceding period needs two logged days; keep logging to build the next comparison.")
+                                        }
+                                        Text("\(trend.earlierDayCount) earlier days · \(trend.recentDayCount) recent days")
+                                            .foregroundStyle(Color.liftMuted)
+                                        Text(selectableExerciseIDs.contains(trend.exerciseID) ? "Tap to select this exercise below" : "Exercise is no longer available in the library")
+                                            .foregroundStyle(Color.liftMuted)
+                                    }
+                                    .font(.caption)
+                                    .frame(maxWidth: .infinity, minHeight: LiftDesign.minimumTouchTarget, alignment: .leading)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(!selectableExerciseIDs.contains(trend.exerciseID))
+                                .accessibilityIdentifier("tracker.strength.trend.\(trend.exerciseID)")
+                            }
+                        }
+                        .padding(.vertical, 8)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(muscle.displayName)
+                            Text("\(lifts.filter { $0.status == .improving }.count) improving · \(lifts.filter { $0.status == .steady }.count) steady · \(lifts.filter { $0.status == .declining }.count) declining · \(lifts.filter { $0.status == .insufficient }.count) need logs")
+                                .font(.caption).foregroundStyle(Color.liftMuted)
+                        }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .tint(Color.liftAccentText)
+                }
+            }
+            DisclosureGroup("How trends are calculated") {
+                Text("These are exercise performance signals, not direct measurements of muscle strength or growth. Each period averages the best estimated 1RM per logged day for the same exercise. Only completed weighted working sets of 1–10 reps count. Known deload/recovery weeks are excluded. Effort, technique, and equipment setup can affect estimates. A lift can appear under multiple primary muscles; the totals above count each lift once.")
+                    .font(.caption).foregroundStyle(Color.liftMuted).padding(.top, 6)
+            }
+            .font(.caption.weight(.semibold))
+            .tint(Color.liftAccentText)
+            Divider()
+            Text("Training coverage").font(.subheadline.weight(.bold))
+            if !coverage.isEmpty {
+                ForEach(coverage) { insight in
+                    Text(insight.title).font(.caption.weight(.semibold))
+                    Text(insight.evidence).font(.caption).foregroundStyle(Color.liftMuted)
+                    Text(insight.nextStep).font(.caption).foregroundStyle(Color.liftMuted)
+                }
+            } else {
+                Text("Review primary and secondary sets to see which muscles received less work. A missing signal does not establish that training is balanced.")
+                    .font(.caption).foregroundStyle(Color.liftMuted)
+            }
+            Text("Less logged work is different from declining lift performance.")
+                .font(.caption2).foregroundStyle(Color.liftMuted)
+            Button("Review muscle workload") { selectedProgressCategory = .muscle }
+                .font(.caption.weight(.semibold))
+                .frame(minHeight: LiftDesign.minimumTouchTarget)
+                .foregroundStyle(Color.liftAccentText)
+                .accessibilityIdentifier("tracker.progress.reviewMuscleWorkload")
+        }
+        .padding(14)
+        .liftSurface(radius: 12)
+    }
+
     private var strengthProgressSection: some View {
         let summary = appState.strengthTierSummary
         let keyLifts = ["bench", "squat", "deadlift"].compactMap { exerciseID in
@@ -717,21 +840,20 @@ extension TrainingTrackerView {
         let completeMaxes = keyLifts.compactMap(\.estimatedOneRepMaxKilograms)
         let highestMax = max(1, completeMaxes.max() ?? 1)
         let threeLiftTotal = completeMaxes.count == 3 ? completeMaxes.reduce(0, +) : nil
-        let latestBodyweight = recentBodyweightEntries.last?.actual ?? appState.currentProfile.bodyweightPounds
+        let latestBodyweight = appState.trainingProgressStore.strengthBodyweightPounds()
         let bodyweightKilograms = MeasurementFormatting.normalizeToKilograms(latestBodyweight, unit: .pounds)
         let relativeTotal = threeLiftTotal.flatMap { bodyweightKilograms > 0 ? $0 / bodyweightKilograms : nil }
         let supplementalLifts = progressExerciseOptions
             .filter { !["bench", "squat", "deadlift"].contains($0.rankingExerciseID ?? $0.id) }
-            .filter { appState.exerciseRecords(for: $0.id).bestEstimatedOneRepMaxKilograms != nil }
-            .sorted {
-                (appState.exerciseRecords(for: $0.id).bestEstimatedOneRepMaxKilograms ?? 0)
-                    > (appState.exerciseRecords(for: $1.id).bestEstimatedOneRepMaxKilograms ?? 0)
+            .compactMap { exercise in
+                appState.exerciseRecords(for: exercise.id).bestEstimatedOneRepMaxKilograms.map { (exercise, $0) }
             }
-            .prefix(3)
+            .sorted { $0.1 > $1.1 }
+            .prefix(3).map(\.0)
 
         return VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("Strength")
+                Text("Strength records · all time")
                     .font(.headline.weight(.bold))
                 Text("Estimated one-rep max, calculated from completed working sets of up to 10 reps.")
                     .font(.caption)
@@ -741,7 +863,7 @@ extension TrainingTrackerView {
                     .foregroundStyle(Color.liftMuted)
             }
 
-            if keyLifts.isEmpty {
+            if completeMaxes.isEmpty && supplementalLifts.isEmpty {
                 LiftEmptyState(
                     title: "No strength data yet",
                     message: "Complete a working set for bench press, squat, or deadlift to start your strength profile.",
@@ -755,7 +877,7 @@ extension TrainingTrackerView {
                 strengthSummaryMetrics(threeLiftTotal: threeLiftTotal, relativeTotal: relativeTotal)
 
                 if !supplementalLifts.isEmpty {
-                    Text("Other tracked lifts")
+                    Text("Other tracked lifts · all time")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Color.liftMuted)
                     supplementalLiftCards(Array(supplementalLifts))
@@ -979,7 +1101,13 @@ extension TrainingTrackerView {
     ) -> some View {
         let exerciseID = selectedProgressExerciseID ?? options.first?.id
         let exercise = options.first { $0.id == exerciseID }
-        let setPoints = exercise.map { appState.exerciseProgressPoints(for: $0.id) } ?? []
+        let now = Date.now
+        let start = Calendar.current.date(byAdding: .day, value: -27, to: Calendar.current.startOfDay(for: now))!
+        let recoveryIDs = Set(appState.trainingProgressStore.completedWorkouts
+            .filter { $0.completedAt >= start && $0.completedAt <= now && appState.trainingProgressStore.isRecoveryWorkout($0) }
+            .map(\.id))
+        let setPoints = (exercise.map { appState.exerciseProgressPoints(for: $0.id) } ?? [])
+            .filter { $0.date >= start && $0.date <= now && !($0.workoutID.map { recoveryIDs.contains($0) } ?? false) }
         let chartPoints = ExerciseProgressSeries.dailyHighest(from: setPoints)
         let estimatedMaxPoints = ExerciseProgressSeries.dailyHighestEstimatedOneRepMax(from: setPoints)
         let repRangeProgressions = ExerciseProgressSeries.repRangeProgressions(from: setPoints)
@@ -996,9 +1124,9 @@ extension TrainingTrackerView {
         let prs = MeasurementFormatting.bestPRsByReps(from: setPoints)
         let records = exercise.map { appState.exerciseRecords(for: $0.id) }
         let startingEstimatedMax = estimatedMaxPoints.first.map(ExerciseProgressSeries.estimatedOneRepMax)
-        let bestEstimatedMax = estimatedMaxPoints.map(ExerciseProgressSeries.estimatedOneRepMax).max()
+        let latestEstimatedMax = estimatedMaxPoints.last.map(ExerciseProgressSeries.estimatedOneRepMax)
         let strengthIncrease = startingEstimatedMax.flatMap { start in
-            bestEstimatedMax.map { $0 - start }
+            latestEstimatedMax.map { $0 - start }
         }
 
         return VStack(alignment: .leading, spacing: 12) {
@@ -1007,7 +1135,7 @@ extension TrainingTrackerView {
                     ExerciseCatalogIcon(exercise: exercise)
                         .frame(width: 42, height: 42)
                 }
-            Text("Exercise progress")
+            Text("Exercise progress · last 28 days")
                 .font(.subheadline.weight(.bold))
                 Spacer()
                 Button {
@@ -1042,6 +1170,10 @@ extension TrainingTrackerView {
                     .buttonStyle(.plain)
                 }
             } else {
+                if estimatedMaxPoints.isEmpty {
+                    Text("Estimated strength needs a completed weighted working set of 1–10 reps. Higher-rep sets still appear in load and volume records.")
+                        .font(.caption).foregroundStyle(Color.liftMuted)
+                }
                 if estimatedMaxPoints.count == 1,
                    let currentEstimatedMax = estimatedMaxPoints.first.map(ExerciseProgressSeries.estimatedOneRepMax) {
                     progressMetric(
@@ -1052,7 +1184,7 @@ extension TrainingTrackerView {
                     Text("Log this exercise in another workout to see an estimated 1RM trend.")
                         .font(.caption2)
                         .foregroundStyle(Color.liftMuted)
-                } else if let startingEstimatedMax, let bestEstimatedMax, let strengthIncrease {
+                } else if let startingEstimatedMax, let latestEstimatedMax, let strengthIncrease {
                     HStack(spacing: 10) {
                         progressMetric(
                             title: "STARTING EST. 1RM",
@@ -1060,17 +1192,19 @@ extension TrainingTrackerView {
                             symbol: "flag.fill"
                         )
                         progressMetric(
-                            title: "BEST EST. 1RM",
-                            value: MeasurementFormatting.formatDisplayedWeight(bestEstimatedMax, unit: appState.currentProfile.preferredUnit),
+                            title: "LATEST EST. 1RM",
+                            value: MeasurementFormatting.formatDisplayedWeight(latestEstimatedMax, unit: appState.currentProfile.preferredUnit),
                             symbol: "arrow.up.right"
                         )
                         progressMetric(
-                            title: "INCREASE",
+                            title: "CHANGE",
                             value: (strengthIncrease >= 0 ? "+" : "") + MeasurementFormatting.formatDisplayedWeight(strengthIncrease, unit: appState.currentProfile.preferredUnit),
                             symbol: "chart.line.uptrend.xyaxis"
                         )
                     }
 
+                    Text("Change compares the first and latest eligible days in this 28-day window. The summary above compares averages across its two halves. Known recovery weeks are excluded.")
+                        .font(.caption2).foregroundStyle(Color.liftMuted)
                     Text("Estimated 1RM trend")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Color.liftMuted)
@@ -1174,7 +1308,7 @@ extension TrainingTrackerView {
                 }
 
                 if !prs.isEmpty {
-                    Text("Personal records by rep range")
+                    Text("Best sets by rep range · last 28 days")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Color.liftMuted)
                         .padding(.top, 2)
@@ -1201,12 +1335,12 @@ extension TrainingTrackerView {
                    let bestSessionVolume = records.bestSessionVolumeKilograms {
                     HStack(spacing: 8) {
                         progressMetric(
-                            title: "BEST SET VOLUME",
+                            title: "ALL-TIME SET VOLUME",
                             value: MeasurementFormatting.formatDisplayedWeight(bestSetVolume, unit: appState.currentProfile.preferredUnit),
                             symbol: "square.stack.3d.up.fill"
                         )
                         progressMetric(
-                            title: "BEST SESSION VOLUME",
+                            title: "ALL-TIME SESSION VOLUME",
                             value: MeasurementFormatting.formatDisplayedWeight(bestSessionVolume, unit: appState.currentProfile.preferredUnit),
                             symbol: "chart.bar.fill"
                         )
@@ -1532,7 +1666,7 @@ extension TrainingTrackerView {
                     .background(Color.liftCardRaised.opacity(0.7))
             } else {
                 HStack {
-                    Text("Week").frame(width: 48, alignment: .leading)
+                    Text("Entry").frame(width: 48, alignment: .leading)
                     Text("Date").frame(maxWidth: .infinity, alignment: .leading)
                     Text("Weight").frame(width: 76, alignment: .trailing)
                     Text("").frame(width: 28)
@@ -1581,7 +1715,7 @@ extension TrainingTrackerView {
                             if dynamicTypeSize.isAccessibilitySize {
                                 VStack(alignment: .leading, spacing: 6) {
                                     HStack {
-                                        Text("Week \(row.week)")
+                                        Text("Entry \(row.week)")
                                             .font(.caption.weight(.semibold))
                                             .foregroundStyle(Color.liftMuted)
                                         Spacer()
@@ -1631,7 +1765,7 @@ extension TrainingTrackerView {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Week \(row.week), \(row.targetDate.formatted(date: .abbreviated, time: .omitted)), \(formattedBodyweight), edit")
+                    .accessibilityLabel("Entry \(row.week), \(row.targetDate.formatted(date: .abbreviated, time: .omitted)), \(formattedBodyweight), edit")
 
                     if index < entries.count - 1 {
                         Divider()
@@ -1651,6 +1785,7 @@ extension TrainingTrackerView {
 
     private var recentBodyweightEntries: [BodyweightEntry] {
         return appState.bodyweightEntries
+            .filter { $0.targetDate <= .now && ($0.actual.map { $0.isFinite && $0 > 0 } ?? false) }
             .sorted { $0.targetDate < $1.targetDate }
             .map { $0 }
     }
@@ -1661,7 +1796,7 @@ extension TrainingTrackerView {
     }
 
     private func logBodyweightEntry() {
-        selectedBodyweightEntry = BodyweightEntry.draftForCurrentWeek(
+        selectedBodyweightEntry = BodyweightEntry.draftForToday(
             entries: appState.bodyweightEntries,
             currentBodyweightPounds: appState.currentProfile.bodyweightPounds
         )

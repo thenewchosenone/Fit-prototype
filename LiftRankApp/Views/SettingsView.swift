@@ -10,10 +10,18 @@ enum SettingsSection: String, Hashable {
     case legal
     case appearance
     case developer
+
+    var title: String {
+        switch self {
+        case .legal: "About & support"
+        case .developer: "Demo"
+        default: rawValue.capitalized
+        }
+    }
 }
 
 struct SettingsView: View {
-    let initialSection: SettingsSection?
+    @State private var activeSection: SettingsSection?
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var preferredUnit = UnitSystem.pounds
@@ -31,20 +39,38 @@ struct SettingsView: View {
     @Environment(\.openURL) private var openURL
 
     init(initialSection: SettingsSection? = nil) {
-        self.initialSection = initialSection
+        _activeSection = State(initialValue: initialSection)
     }
 
     var body: some View {
         NavigationStack {
             AppBackground {
-                ScrollViewReader { proxy in
-                    Form {
+                Form {
+                    if activeSection == nil {
+                        Section("Settings") {
+                            ForEach([SettingsSection.privacy, .training, .account, .notifications, .legal], id: \.self) { section in
+                                Button { activeSection = section } label: {
+                                    HStack {
+                                        Text(section.title).foregroundStyle(Color.liftText)
+                                        Spacer()
+                                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.liftMuted)
+                                    }
+                                }
+                            }
+                            if appState.isDemoMode {
+                                Button("Demo") { activeSection = .developer }
+                            }
+                        }
+                    }
+                    if activeSection == nil || activeSection == .units {
                     Section("Units") {
                         Picker("Pounds or kilograms", selection: $preferredUnit) {
                             ForEach(UnitSystem.allCases) { Text($0.rawValue.capitalized).tag($0) }
                         }
                     }
                     .id(SettingsSection.units)
+                    }
+                    if activeSection == .account {
                     Section("Account") {
                         Button("Sign Out", role: .destructive) {
                             dismiss()
@@ -60,6 +86,8 @@ struct SettingsView: View {
                         }
                     }
                     .id(SettingsSection.account)
+                    }
+                    if activeSection == .privacy {
                     Section("Privacy") {
                         audiencePicker("Profile visibility", selection: $privacy.profileAudience)
                         audiencePicker("Bodyweight", selection: $privacy.bodyweightAudience)
@@ -84,6 +112,8 @@ struct SettingsView: View {
                             .foregroundStyle(Color.liftMuted)
                     }
                     .id(SettingsSection.privacy)
+                    }
+                    if activeSection == .notifications {
                     Section("Notifications") {
                         Button("Manage notification permissions") {
                             if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
@@ -95,6 +125,8 @@ struct SettingsView: View {
                             .foregroundStyle(Color.liftMuted)
                     }
                     .id(SettingsSection.notifications)
+                    }
+                    if activeSection == .training {
                     Section("Training") {
                         Picker("Training focus", selection: $trainingFocus) {
                             if trainingFocus == nil {
@@ -126,6 +158,8 @@ struct SettingsView: View {
                         }
                     }
                     .id(SettingsSection.training)
+                    }
+                    if activeSection == .legal {
                     Section("Legal and Safety") {
                         Button("About Lift Rivals") { settingsInfo = .about }
                         Button("Privacy notice") { settingsInfo = .privacy }
@@ -136,6 +170,8 @@ struct SettingsView: View {
                         LabeledContent("Build", value: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Local")
                     }
                     .id(SettingsSection.legal)
+                    }
+                    if activeSection == nil || activeSection == .appearance {
                     Section("Appearance") {
                         Picker("Appearance", selection: $appearance) {
                             ForEach(LiftAppearance.allCases) { option in
@@ -144,7 +180,8 @@ struct SettingsView: View {
                         }
                     }
                     .id(SettingsSection.appearance)
-                    if appState.isDemoMode {
+                    }
+                    if appState.isDemoMode && activeSection == .developer {
                         Section("Demo") {
                             Button("Reset Demo Data", role: .destructive) {
                                 confirmingDemoReset = true
@@ -177,17 +214,10 @@ struct SettingsView: View {
                     } message: {
                         Text(settingsSaveError ?? "Try again.")
                     }
-                    .onAppear {
-                        guard let initialSection else { return }
-                        Task { @MainActor in
-                            await Task.yield()
-                            proxy.scrollTo(initialSection, anchor: .top)
-                        }
-                    }
-                }
                 .scrollContentBackground(.hidden)
             }
-            .navigationTitle("Settings")
+            .navigationTitle(activeSection?.title ?? "Settings")
+            .navigationBarTitleDisplayMode(.inline)
             .onAppear {
                 guard !hasLoadedDraft else { return }
                 hasLoadedDraft = true
@@ -198,6 +228,11 @@ struct SettingsView: View {
                     ?? UserDefaults.standard.string(forKey: "liftrank.progressFocus.\(profile.id.uuidString)").flatMap(TrainingFocus.init(rawValue:))
             }
             .toolbar {
+                if activeSection != nil {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Settings", systemImage: "chevron.left") { activeSection = nil }
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
                         saveSettingsAndClose()

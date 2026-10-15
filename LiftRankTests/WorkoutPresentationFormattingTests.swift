@@ -210,18 +210,18 @@ final class WorkoutPresentationFormattingTests: XCTestCase {
         )
     }
 
-    func testCurrentWeekBodyweightDraftReusesExistingEntry() {
+    func testTodayBodyweightDraftReusesSameDayEntry() {
         let calendar = Calendar(identifier: .gregorian)
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let existing = BodyweightEntry(
             id: UUID(),
             week: 4,
-            targetDate: now.addingTimeInterval(-86_400),
+            targetDate: now.addingTimeInterval(-60),
             actual: 205,
             notes: "existing"
         )
 
-        let draft = BodyweightEntry.draftForCurrentWeek(
+        let draft = BodyweightEntry.draftForToday(
             entries: [existing],
             currentBodyweightPounds: 210,
             calendar: calendar,
@@ -229,10 +229,44 @@ final class WorkoutPresentationFormattingTests: XCTestCase {
         )
 
         XCTAssertEqual(draft.id, existing.id)
-        XCTAssertEqual(draft.actual, 205)
+        XCTAssertEqual(draft, existing)
     }
 
-    func testCurrentWeekBodyweightDraftStartsNewEntryAfterPreviousWeek() {
+    func testTodayBodyweightDraftDoesNotReuseEarlierEntryInSameWeek() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/New_York"))
+        calendar.firstWeekday = 1
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: 14, hour: 23, minute: 36)))
+        let previousDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: 11, hour: 12)))
+        let existing = BodyweightEntry(id: UUID(), week: 3, targetDate: previousDate, actual: 207, notes: "Sunday")
+
+        let draft = BodyweightEntry.draftForToday(
+            entries: [existing],
+            currentBodyweightPounds: 207,
+            calendar: calendar,
+            now: now
+        )
+
+        XCTAssertNotEqual(draft.id, existing.id)
+        XCTAssertEqual(draft.targetDate, now)
+        XCTAssertEqual(draft.week, 4)
+        XCTAssertEqual(draft.actual, 207)
+        XCTAssertEqual(draft.notes, "")
+    }
+
+    func testTodayBodyweightDraftUsesLocalDayAcrossMidnight() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/New_York"))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: 14, hour: 0, minute: 5)))
+        let yesterday = BodyweightEntry(id: UUID(), week: 3, targetDate: now.addingTimeInterval(-600), actual: 207, notes: "")
+
+        let draft = BodyweightEntry.draftForToday(entries: [yesterday], currentBodyweightPounds: 207, calendar: calendar, now: now)
+
+        XCTAssertNotEqual(draft.id, yesterday.id)
+        XCTAssertEqual(draft.targetDate, now)
+    }
+
+    func testTodayBodyweightDraftStartsNewEntryAfterPreviousWeek() {
         let calendar = Calendar(identifier: .gregorian)
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let previousWeek = BodyweightEntry(
@@ -243,7 +277,7 @@ final class WorkoutPresentationFormattingTests: XCTestCase {
             notes: "previous week"
         )
 
-        let draft = BodyweightEntry.draftForCurrentWeek(
+        let draft = BodyweightEntry.draftForToday(
             entries: [previousWeek],
             currentBodyweightPounds: 210,
             calendar: calendar,
@@ -256,8 +290,8 @@ final class WorkoutPresentationFormattingTests: XCTestCase {
         XCTAssertEqual(draft.actual, 210)
     }
 
-    func testCurrentWeekBodyweightDraftStartsBlankWhenProfileBodyweightIsMissing() {
-        let draft = BodyweightEntry.draftForCurrentWeek(
+    func testTodayBodyweightDraftStartsBlankWhenProfileBodyweightIsMissing() {
+        let draft = BodyweightEntry.draftForToday(
             entries: [],
             currentBodyweightPounds: 0,
             now: Date(timeIntervalSince1970: 1_800_000_000)

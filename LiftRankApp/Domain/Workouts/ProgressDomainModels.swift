@@ -108,3 +108,35 @@ struct ExerciseRecords: Hashable {
     var heaviestWeightKilograms: Double?
     var mostRepetitions: Int?
 }
+
+struct ExerciseStrengthTrend: Identifiable {
+    enum Status: String {
+        case improving = "Improving"
+        case steady = "Steady"
+        case declining = "Declining"
+        case insufficient = "More logs needed"
+    }
+
+    var id: String { exerciseID }
+    let exerciseID: String
+    let exerciseName: String
+    let primaryMuscles: [ExerciseMuscleRegion]
+    let earlierAverageKilograms: Double?
+    let recentAverageKilograms: Double?
+    let earlierDayCount: Int
+    let recentDayCount: Int
+
+    var changeFraction: Double? {
+        guard earlierDayCount >= 2, recentDayCount >= 2,
+              let earlierAverageKilograms, earlierAverageKilograms > 0,
+              let recentAverageKilograms else { return nil }
+        return (recentAverageKilograms - earlierAverageKilograms) / earlierAverageKilograms
+    }
+
+    var status: Status {
+        guard let changeFraction else { return .insufficient }
+        if changeFraction > 0.01 { return .improving }
+        if changeFraction < -0.01 { return .declining }
+        return .steady
+    }
+}

@@ -570,6 +570,57 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label ENDSWITH %@", "Completed week")).firstMatch.exists)
     }
 
+    func testRecentStrengthLiftOpensItsChart() {
+        let app = launchDemo()
+        XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
+        tab("track", in: app).tap()
+        app.buttons["tracker.segment.progress"].tap()
+        app.segmentedControls["tracker.progress.category"].buttons["Strength"].tap()
+        let chest = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Chest")).firstMatch
+        for _ in 0..<6 where !chest.isHittable { app.swipeUp() }
+        XCTAssertTrue(chest.isHittable)
+        chest.tap()
+        let bench = app.buttons["tracker.strength.trend.barbell_bench_press"].firstMatch
+        XCTAssertTrue(bench.waitForExistence(timeout: 3))
+        for _ in 0..<4 where !bench.isHittable { app.swipeUp() }
+        bench.tap()
+        let heading = app.staticTexts["Exercise progress · last 28 days"]
+        XCTAssertTrue(heading.waitForExistence(timeout: 5))
+        XCTAssertTrue(heading.isHittable)
+        XCTAssertTrue(app.buttons["tracker.progress.exercisePicker"].label.contains("Bench"))
+    }
+
+    func testRecentStrengthSummaryOpensSeparateMuscleWorkload() {
+        let app = launchDemo()
+        XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
+        tab("track", in: app).tap()
+        app.buttons["tracker.segment.progress"].tap()
+        let categories = app.segmentedControls["tracker.progress.category"]
+        XCTAssertTrue(categories.waitForExistence(timeout: 5))
+        categories.buttons["Strength"].tap()
+        let heading = app.staticTexts["Am I getting stronger?"]
+        for _ in 0..<12 where !heading.isHittable { app.swipeUp() }
+        XCTAssertTrue(heading.isHittable)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Recent strength summary"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        let workload = app.buttons.matching(NSPredicate(format: "label == %@", "Review muscle workload")).firstMatch
+        for _ in 0..<30 {
+            let top = app.buttons["tracker.segment.progress"].frame.maxY + 10
+            let bottom = tab("track", in: app).frame.minY - 10
+            let exists = workload.exists
+            if exists && workload.frame.minY > top && workload.frame.maxY < bottom { break }
+            let above = exists && workload.frame.minY < top
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: above ? 0.5 : 0.72))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: above ? 0.64 : 0.58))
+            start.press(forDuration: 0.1, thenDragTo: end)
+        }
+        XCTAssertTrue(workload.isHittable)
+        workload.tap()
+        XCTAssertTrue(app.staticTexts["Muscle workload"].waitForExistence(timeout: 5))
+    }
+
     func testProgressStrengthCompareAtGymOpensGymLeaderboard() {
         let app = launchDemo()
         XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
@@ -883,6 +934,53 @@ final class LiftRankUITests: XCTestCase {
         athleteScreenshot.name = "Leaderboard accessibility athlete row"
         athleteScreenshot.lifetime = .keepAlways
         add(athleteScreenshot)
+    }
+
+    func testAdaptiveProgramScheduleChangesItsPreview() {
+        let app = launchDemo(arguments: ["-uiTestingNoActiveWorkout"])
+        XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
+        tab("track", in: app).tap()
+        app.buttons["Plans"].tap()
+        let library = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Workout program library")).firstMatch
+        XCTAssertTrue(library.waitForExistence(timeout: 5))
+        if library.value as? String == "Collapsed" { library.tap() }
+        let template = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Preview Adaptive Strength,")).firstMatch
+        for _ in 0..<12 where !template.isHittable { app.swipeUp() }
+        XCTAssertTrue(template.isHittable)
+        template.tap()
+        let preview = app.scrollViews["training.programPreview.screen"]
+        let newCycle = app.buttons["Set up a new cycle"]
+        if newCycle.exists { newCycle.tap() }
+        let picker = app.descendants(matching: .any).matching(identifier: "training.programPreview.daysPerWeek").firstMatch
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        func positionPicker() {
+            for _ in 0..<20 {
+                let frame = picker.frame
+                if frame.minY > 120 && frame.maxY < app.frame.maxY - 200 { break }
+                let above = frame.minY < 120
+                let start = preview.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: above ? 0.3 : 0.72))
+                let end = preview.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: above ? 0.5 : 0.52))
+                start.press(forDuration: 0.05, thenDragTo: end)
+            }
+        }
+        positionPicker()
+        picker.tap()
+        app.buttons["6 days"].tap()
+        XCTAssertTrue(app.staticTexts["6 days/week"].exists)
+        let lastDay = preview.buttons.matching(NSPredicate(format: "label CONTAINS %@", ", Legs B,")).firstMatch
+        XCTAssertTrue(lastDay.waitForExistence(timeout: 3))
+        positionPicker()
+        picker.tap()
+        app.buttons["2 days"].tap()
+        XCTAssertTrue(app.staticTexts["2 days/week"].exists)
+        let secondDay = preview.buttons.matching(NSPredicate(format: "label CONTAINS %@", ", Full Body B,")).firstMatch
+        XCTAssertTrue(secondDay.waitForExistence(timeout: 3))
+        XCTAssertFalse(lastDay.exists)
+        XCTAssertTrue(app.buttons["training.programPreview.start"].isEnabled)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Adaptive strength two-day preview"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
     }
 
     func testProgramLibraryOpensExtractedProgramPreview() {

@@ -6,7 +6,7 @@ enum ProfileSection: String, CaseIterable, Identifiable {
     case training = "Training"
     case history = "Workout history"
     case timeline = "Timeline"
-    case submissions = "Submissions"
+    case submissions = "Activity"
 
     var id: String {
         switch self {
@@ -67,7 +67,7 @@ extension ProfileView {
                     ) {
                         restrictedProfileState
                     } else {
-                        header
+                        header.id("profile-content-top")
                         if let profileLoadError {
                             LiftEmptyState(
                                 title: "Couldn't load training data",
@@ -90,28 +90,36 @@ extension ProfileView {
                         if isCurrentUser || !liftPresentation.lifts.isEmpty {
                         ProfileSectionNavigation(
                                 selection: $selectedProfileSection,
-                            sections: isCurrentUser
-                                ? ProfileSection.allCases
-                                : [.overview, .prVideos, .training, .submissions]
+                            sections: [.overview, .submissions, .prVideos, .training]
                         ) { section in
                             if section == .training { showingAthleteDetails = true }
-                            withAnimation(.easeInOut) { proxy.scrollTo(section.id, anchor: .top) }
+                            withAnimation(.easeInOut) { proxy.scrollTo("profile-content-top", anchor: .top) }
                         }
                         .padding(.vertical, 2)
                         Group {
-                            summary(presentation: liftPresentation)
-                                .id(ProfileSection.overview.id)
-                            ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: liftPresentation.lifts)
-                            athleteDetails(presentation: liftPresentation)
-                                .id(ProfileSection.training.id)
-                            if isCurrentUser {
-                                trainingHistory
-                                    .id(ProfileSection.history.id)
-                                profileTimeline
-                                    .id(ProfileSection.timeline.id)
+                            switch selectedProfileSection {
+                            case .overview:
+                                summary(presentation: liftPresentation)
+                            case .prVideos:
+                                ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: liftPresentation.lifts)
+                            case .training:
+                                athleteDetails(presentation: liftPresentation)
+                                if isCurrentUser {
+                                    Button("Open private workout history in Track") {
+                                        appState.router.progressCategory = .consistency
+                                        appState.trainingTrackerStartOnProgress = true
+                                        appState.requestedTrackerSegment = "Progress"
+                                        appState.selectedTab = 2
+                                    }
+                                    .frame(minHeight: LiftDesign.minimumTouchTarget)
+                                }
+                            case .submissions:
+                                recentSubmissions(profileLifts: liftPresentation.lifts)
+                                if isCurrentUser { DisclosureGroup("Training milestones") { profileTimeline } }
+                            case .history, .timeline:
+                                if isCurrentUser { trainingHistory }
                             }
-                            recentSubmissions(profileLifts: liftPresentation.lifts)
-                                .id(ProfileSection.submissions.id)
+
                         }
                         }
                     }

@@ -5,7 +5,8 @@ struct WorkoutProgramTemplateDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    let template: WorkoutProgramTemplate
+    let sourceTemplate: WorkoutProgramTemplate
+    @State private var trainingDays: Int
     @State private var method: WorkoutProgressionMethod
     @State private var startDate = Date.now
     @State private var scheduledWeekdays: [Int]
@@ -16,9 +17,22 @@ struct WorkoutProgramTemplateDetailView: View {
     @State private var expandedSessionIndices: Set<Int> = [0]
 
     init(template: WorkoutProgramTemplate) {
-        self.template = template
+        self.sourceTemplate = template
+        _trainingDays = State(initialValue: template.daysPerWeek)
         _method = State(initialValue: template.defaultProgression)
         _scheduledWeekdays = State(initialValue: template.sessions.map(\.dayIndex))
+    }
+
+    private var scheduleVariants: [WorkoutProgramTemplate] {
+        WorkoutProgramCatalog.scheduleVariants(for: sourceTemplate)
+    }
+
+    private var template: WorkoutProgramTemplate {
+        scheduleVariants.first { $0.daysPerWeek == trainingDays } ?? sourceTemplate
+    }
+
+    private var progressionMethods: [WorkoutProgressionMethod] {
+        template.availableProgressionMethods
     }
 
     private var canStart: Bool {
@@ -37,7 +51,9 @@ struct WorkoutProgramTemplateDetailView: View {
 
     private var existingPlan: WorkoutPlan? {
         appState.workoutPlans.filter { plan in
-            appState.workoutPlanProgressionSettings.contains { $0.planID == plan.id && $0.sourceTemplateID == template.id }
+            appState.workoutPlanProgressionSettings.contains { settings in
+                settings.planID == plan.id && scheduleVariants.contains { $0.id == settings.sourceTemplateID }
+            }
         }.max { $0.createdAt < $1.createdAt }
     }
 
@@ -59,11 +75,13 @@ struct WorkoutProgramTemplateDetailView: View {
                             LiftCard {
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("You already have this program").font(.headline)
-                                    Text("Resume keeps your schedule and progress. Start a new cycle to use the setup below; your previous history stays saved.")
+                                    Text("Resume keeps your schedule and progress.")
                                         .font(.caption).foregroundStyle(Color.liftMuted)
+                                    DisclosureGroup("Other setup options") {
                                     Button("Edit existing setup") {
                                         guard let settings = appState.workoutPlanProgressionSettings.first(where: { $0.planID == existingPlan.id }) else { return }
                                         startDate = settings.startedAt
+                                        trainingDays = settings.scheduledWeekdays.count
                                         scheduledWeekdays = settings.scheduledWeekdays
                                         method = settings.method
                                         trainingMaxInputs = settings.trainingMaxKilograms.mapValues {
@@ -74,9 +92,9 @@ struct WorkoutProgramTemplateDetailView: View {
                                     .disabled(appState.activeWorkout != nil)
                                     Button("Set up a new cycle") { startingNewCycle = true }
                                         .disabled(appState.activeWorkout != nil)
+                                    }
                                 }
                             }
-                            Text(existingPlan.name).font(.subheadline)
                         } else {
                             setup
                         }
@@ -84,8 +102,8 @@ struct WorkoutProgramTemplateDetailView: View {
                             Text("Finish or discard your active workout before changing programs.")
                                 .font(.caption).foregroundStyle(Color.liftGold)
                         }
-                        phaseSummary
                         sessionPreview
+                        DisclosureGroup("12-week structure") { phaseSummary }
                     }
                     .padding(16)
                     .padding(.bottom, 100)
@@ -128,7 +146,15 @@ struct WorkoutProgramTemplateDetailView: View {
                     Button("Close") { dismiss() }
                 }
             }
-            .onAppear { seedTrainingMaxesIfNeeded() }
+            .onAppear {
+                if scheduleVariants.count > 1, let existingPlan,
+                   let settings = appState.workoutPlanProgressionSettings.first(where: { $0.planID == existingPlan.id }) {
+                    trainingDays = settings.scheduledWeekdays.count
+                    scheduledWeekdays = settings.scheduledWeekdays
+                    method = settings.method
+                }
+                seedTrainingMaxesIfNeeded()
+            }
             .onChange(of: method) { _, value in
                 if value == .percentage { seedTrainingMaxesIfNeeded() }
             }
@@ -162,6 +188,29 @@ struct WorkoutProgramTemplateDetailView: View {
         LiftCard {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Program setup").font(.headline)
+                if scheduleVariants.count > 1 {
+                    if editingExisting {
+                        Text("This cycle uses \(trainingDays) training days per week. Start a new cycle to change the number of days; you can reschedule weekdays below.")
+                            .font(.caption).foregroundStyle(Color.liftMuted)
+                    } else {
+                        Picker("Days per week", selection: Binding(
+                            get: { trainingDays },
+                            set: { days in
+                                guard let variant = scheduleVariants.first(where: { $0.daysPerWeek == days }) else { return }
+                                trainingDays = days
+                                scheduledWeekdays = variant.sessions.map(\.dayIndex)
+                                expandedSessionIndices = [0]
+                            }
+                        )) {
+                            ForEach(scheduleVariants) { variant in
+                                Text("\(variant.daysPerWeek) days").tag(variant.daysPerWeek)
+                            }
+                        }
+                        .accessibilityIdentifier("training.programPreview.daysPerWeek")
+                        Text("The split and working sets change to fit your schedule. Preview the training days below before starting.")
+                            .font(.caption).foregroundStyle(Color.liftMuted)
+                    }
+                }
                 if editingExisting {
                     if dynamicTypeSize.isAccessibilitySize {
                         VStack(alignment: .leading, spacing: 6) {
@@ -189,10 +238,10 @@ struct WorkoutProgramTemplateDetailView: View {
                     .font(.caption).foregroundStyle(Color.liftMuted)
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Progression").font(.caption.weight(.bold)).foregroundStyle(Color.liftMuted)
-                    ForEach(WorkoutProgressionMethod.allCases) { option in
+                    ForEach(progressionMethods) { option in
                         ProgramChoiceRow(title: option.rawValue, isSelected: method == option) { method = option }
                     }
-                    Text("Reps in reserve (RIR) means how many more reps you could complete with good form.")
+                    Text(method.guidance)
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
@@ -269,9 +318,8 @@ struct WorkoutProgramTemplateDetailView: View {
 
     private var phaseSummary: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text("12-week structure").font(.headline)
             ForEach(WorkoutProgramCatalog.phaseSummary(for: template), id: \.self) { title in
-                Label(title, systemImage: "checkmark.circle.fill")
+                Text(title)
                     .font(.subheadline)
                     .foregroundStyle(Color.liftMuted)
             }
@@ -435,7 +483,7 @@ struct WorkoutProgramTemplateDetailView: View {
                                 return "\(MeasurementFormatting.formatDisplayedWeight(load, unit: appState.currentProfile.preferredUnit)) · \(Int(((generated?.trainingMaxPercentage ?? 0) * 100).rounded()))% TM"
                             } else if let percentage = generated?.trainingMaxPercentage {
                                 return "\(Int((percentage * 100).rounded()))% TM"
-                            } else if let rir = generated?.targetRIR {
+                            } else if !ExerciseTrackingKind(exercise.trackingType).usesDuration, let rir = generated?.targetRIR {
                                 return "\(rir) reps in reserve"
                             }
                             return nil
@@ -628,9 +676,10 @@ struct WorkoutProgramProgressionEditorView: View {
                         Text("Changes apply to unstarted sessions in the current and future weeks. Recorded or skipped sessions, substitutions, exercise order, and the active workout stay unchanged.")
                             .font(.subheadline)
                             .foregroundStyle(Color.liftMuted)
-                        ForEach(WorkoutProgressionMethod.allCases) { option in
+                        ForEach(template.availableProgressionMethods) { option in
                             ProgramChoiceRow(title: option.rawValue, isSelected: method == option) { method = option }
                         }
+                        Text(method.guidance).font(.caption).foregroundStyle(Color.liftMuted)
                         if method == .percentage {
                             LiftCard {
                                 VStack(alignment: .leading, spacing: 10) {
