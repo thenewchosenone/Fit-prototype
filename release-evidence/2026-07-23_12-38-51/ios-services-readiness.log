@@ -1,0 +1,25 @@
+
+LiftRank Step #1 readiness checks (Apple + APNs + mail)
+[PASS] Entitlements include Apple Sign In and APNs entries.
+[PASS] Custom URL scheme 'liftrank' is configured in Info.plist.
+[PASS] Auth callback URL in client code is set to liftrank://auth-callback.
+[PASS] Authentication UI exposes Sign in with Apple with nonce wiring.
+[PASS] Xcode project build settings define APS_ENVIRONMENT (per configuration).
+[WARN] APNs runtime variables not set in shell (APNS_TEAM_ID APNS_KEY_ID APNS_PRIVATE_KEY APNS_BUNDLE_ID). Configure these in production Edge Function secrets and capture evidence from staging/production function logs.
+[WARN] NOTIFICATION_DELIVERY_SECRET is not set locally; keep it server-side only and verify via function logs.
+[WARN] SMTP credentials are not provided locally; validate production Auth email provider in Supabase dashboard and run load test.
+
+\nNext manual Step #1 evidence actions:
+1) Open Apple Developer -> Identifiers -> com.liftrank.app and confirm:
+   - Sign in with Apple entitlement is enabled
+   - App ID is associated with current bundle ID and Team ID 32TGWTQNP8
+2) Open App Store Connect -> Certificates, Identifiers & Profiles and confirm:
+   - Production push profile installed and matches Release configuration
+   - App ID has Notifications enabled
+3) In Xcode: open Signing & Capabilities and confirm both Sign in with Apple and Push Notifications are checked.
+4) In Supabase production project, set function secrets for APNs and run a signed push smoke:
+   - APNS_TEAM_ID, APNS_KEY_ID, APNS_PRIVATE_KEY, APNS_BUNDLE_ID, NOTIFICATION_DELIVERY_SECRET
+   - Trigger send-notifications with a staged user and confirm APNs response status 200 and delivery timestamp update
+5) In Supabase production Auth settings, confirm custom SMTP is connected; send 100 recovery/sign-up emails and verify throttling/throughput.
+
+\nResult: READY to continue with manual verification items above.

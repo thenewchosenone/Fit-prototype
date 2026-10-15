@@ -1,0 +1,4250 @@
+Makefile:181: To use pg_prove, TAP::Parser::SourceHandler::pgTAP Perl module
+Makefile:182: must be installed from CPAN. To do so, simply run:
+Makefile:183: cpan TAP::Parser::SourceHandler::pgTAP
+NOTICE:  database "liftrank_foundation_1" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607140001_identity_social_foundation.sql:7: NOTICE:  extension "pgcrypto" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607140001_identity_social_foundation.sql:49: NOTICE:  constraint "profiles_username_format" of relation "profiles" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607140001_identity_social_foundation.sql:117: NOTICE:  trigger "profile_private_details_updated_at" for relation "public.profile_private_details" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607140001_identity_social_foundation.sql:122: NOTICE:  trigger "profile_privacy_updated_at" for relation "public.profile_privacy" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607140001_identity_social_foundation.sql:252: NOTICE:  trigger "gyms_updated_at" for relation "public.gyms" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607140001_identity_social_foundation.sql:361: NOTICE:  trigger "enforce_gym_membership_limits" for relation "public.gym_memberships" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607140001_identity_social_foundation.sql:944: NOTICE:  policy "profiles authenticated read" for relation "public.profiles" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607140001_identity_social_foundation.sql:945: NOTICE:  policy "profiles owner update" for relation "public.profiles" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607180003_competitive_lift_authority.sql:60: NOTICE:  trigger "competitive_lift_authority" for relation "public.lift_submissions" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607180003_competitive_lift_authority.sql:152: NOTICE:  trigger "moderation_audit_immutable" for relation "public.lift_moderation_audit" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607240001_canonical_locations.sql:59: NOTICE:  policy "location countries public read" for relation "public.location_countries" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607240001_canonical_locations.sql:60: NOTICE:  policy "location regions public read" for relation "public.location_regions" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607240001_canonical_locations.sql:61: NOTICE:  policy "location cities public read" for relation "public.location_cities" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607240001_canonical_locations.sql:62: NOTICE:  policy "location city aliases public read" for relation "public.location_city_aliases" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607240002_profile_avatars.sql:14: NOTICE:  policy "profile avatars authenticated read" for relation "storage.objects" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607240002_profile_avatars.sql:15: NOTICE:  policy "profile avatars owner upload" for relation "storage.objects" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607240002_profile_avatars.sql:16: NOTICE:  policy "profile avatars owner update" for relation "storage.objects" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607240002_profile_avatars.sql:17: NOTICE:  policy "profile avatars owner delete" for relation "storage.objects" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/20260731150000_canonical_verified_rankings.sql:43: NOTICE:  trigger "a_synchronize_lift_gym_uuid" for relation "public.lift_submissions" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:6: NOTICE:  column "show_lift_videos" of relation "profile_privacy" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "gym_uuid" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "status" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "bodyweight_class" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "review_status" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "evidence_public" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "evidence_storage_path" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "pending_evidence_storage_path" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "approved_evidence_storage_path" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "disputed_at" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "reviewed_at" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "reviewed_by" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "review_note" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608210001_protect_username_mutations.sql:34: NOTICE:  trigger "protect_profile_identity" for relation "public.profiles" does not exist, skipping
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607140001_identity_social_foundation.test.sql:3: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+ plan  
+-------
+ 1..64
+(1 row)
+
+       has_table        
+------------------------
+ ok 1 - profiles exists
+(1 row)
+
+              has_table               
+--------------------------------------
+ ok 2 - private profile details exist
+(1 row)
+
+           has_table           
+-------------------------------
+ ok 3 - profile privacy exists
+(1 row)
+
+     has_table     
+-------------------
+ ok 4 - gyms exist
+(1 row)
+
+               has_table                
+----------------------------------------
+ ok 5 - canonical gym memberships exist
+(1 row)
+
+                  has_table                  
+---------------------------------------------
+ ok 6 - canonical friend relationships exist
+(1 row)
+
+              has_function              
+----------------------------------------
+ ok 7 - secure gym join function exists
+(1 row)
+
+                   has_function                   
+--------------------------------------------------
+ ok 8 - secure friendship request function exists
+(1 row)
+
+                  has_table                  
+---------------------------------------------
+ ok 9 - legacy gym memberships remain intact
+(1 row)
+
+                has_table                 
+------------------------------------------
+ ok 10 - legacy friendships remain intact
+(1 row)
+
+                   has_table                   
+-----------------------------------------------
+ ok 11 - existing lift submissions still exist
+(1 row)
+
+                                          is                                           
+---------------------------------------------------------------------------------------
+ ok 12 - Migration 1 preserves the legacy lift gym identifier for later reconciliation
+(1 row)
+
+CREATE FUNCTION
+CREATE FUNCTION
+INSERT 0 3
+                       is                        
+-------------------------------------------------
+ ok 13 - auth signup creates exactly one profile
+(1 row)
+
+                             is                              
+-------------------------------------------------------------
+ ok 14 - auth signup creates exactly one private-details row
+(1 row)
+
+                         is                          
+-----------------------------------------------------
+ ok 15 - auth signup creates exactly one privacy row
+(1 row)
+
+                               isnt                                
+-------------------------------------------------------------------
+ ok 16 - placeholder username does not expose the email local-part
+(1 row)
+
+                             matches                             
+-----------------------------------------------------------------
+ ok 17 - placeholder username is an opaque account-ID derivative
+(1 row)
+
+                     has_index                      
+----------------------------------------------------
+ ok 18 - usernames have case-insensitive uniqueness
+(1 row)
+
+UPDATE 1
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 10000000-0000-0000-0000-000000000002
+(1 row)
+
+                                                    join_gym                                                    
+----------------------------------------------------------------------------------------------------------------
+ (10000000-0000-0000-0000-000000000002,20000000-0000-0000-0000-000000000005,t,"2026-09-05 22:10:53.513885-04",)
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 10000000-0000-0000-0000-000000000001
+(1 row)
+
+                           is                           
+--------------------------------------------------------
+ ok 19 - a user can read only their own private details
+(1 row)
+
+                           is                            
+---------------------------------------------------------
+ ok 20 - a user can read only their own privacy settings
+(1 row)
+
+                            is                             
+-----------------------------------------------------------
+ ok 21 - a user cannot modify another user private details
+(1 row)
+
+                             is                             
+------------------------------------------------------------
+ ok 22 - a user cannot modify another user privacy settings
+(1 row)
+
+                            is                            
+----------------------------------------------------------
+ ok 23 - a user cannot modify another user public profile
+(1 row)
+
+                       lives_ok                        
+-------------------------------------------------------
+ ok 24 - an owner can update a permitted profile field
+(1 row)
+
+                           is                            
+---------------------------------------------------------
+ ok 25 - the permitted owner profile update is persisted
+(1 row)
+
+                             lives_ok                              
+-------------------------------------------------------------------
+ ok 26 - the transactional profile function saves an owner profile
+(1 row)
+
+                             is                              
+-------------------------------------------------------------
+ ok 27 - transactional profile save persists private details
+(1 row)
+
+                              is                              
+--------------------------------------------------------------
+ ok 28 - transactional profile save persists privacy settings
+(1 row)
+
+                           is                            
+---------------------------------------------------------
+ ok 29 - transactional profile save completes onboarding
+(1 row)
+
+                                is                                 
+-------------------------------------------------------------------
+ ok 30 - clients cannot write server-controlled profile timestamps
+(1 row)
+
+                              is                              
+--------------------------------------------------------------
+ ok 31 - clients cannot write server-controlled profile roles
+(1 row)
+
+                                       is                                       
+--------------------------------------------------------------------------------
+ ok 32 - profile cards expose an allowed derived age band, never the birth date
+(1 row)
+
+                           is                           
+--------------------------------------------------------
+ ok 33 - profile cards expose an allowed division field
+(1 row)
+
+                                   is                                    
+-------------------------------------------------------------------------
+ ok 34 - profile cards redact friends-only location from unrelated users
+(1 row)
+
+                             is                             
+------------------------------------------------------------
+ ok 35 - profile cards expose an allowed public primary gym
+(1 row)
+
+            lives_ok             
+---------------------------------
+ ok 36 - first gym can be joined
+(1 row)
+
+             lives_ok             
+----------------------------------
+ ok 37 - second gym can be joined
+(1 row)
+
+            lives_ok             
+---------------------------------
+ ok 38 - third gym can be joined
+(1 row)
+
+                throws_ok                
+-----------------------------------------
+ ok 39 - a fourth active gym is rejected
+(1 row)
+
+                              is                               
+---------------------------------------------------------------
+ ok 40 - the user has at most three visible active memberships
+(1 row)
+
+                         is                          
+-----------------------------------------------------
+ ok 41 - the user has exactly one active primary gym
+(1 row)
+
+                      throws_ok                      
+-----------------------------------------------------
+ ok 42 - the primary gym cannot be accidentally left
+(1 row)
+
+                        is                        
+--------------------------------------------------
+ ok 43 - direct gym-membership mutation is denied
+(1 row)
+
+                         throws_ok                         
+-----------------------------------------------------------
+ ok 44 - a caller cannot leave another user gym membership
+(1 row)
+
+                      throws_ok                       
+------------------------------------------------------
+ ok 45 - a user cannot request themselves as a friend
+(1 row)
+
+                      lives_ok                       
+-----------------------------------------------------
+ ok 46 - a user can request another user as a friend
+(1 row)
+
+                         is                         
+----------------------------------------------------
+ ok 47 - one normalized relationship row is created
+(1 row)
+
+                       throws_ok                       
+-------------------------------------------------------
+ ok 48 - the requester cannot accept their own request
+(1 row)
+
+                         is                         
+----------------------------------------------------
+ ok 49 - direct friendship state mutation is denied
+(1 row)
+
+RESET
+SET
+              set_config              
+--------------------------------------
+ 10000000-0000-0000-0000-000000000002
+(1 row)
+
+                            throws_ok                             
+------------------------------------------------------------------
+ ok 50 - a reverse request cannot create a duplicate relationship
+(1 row)
+
+                   lives_ok                   
+----------------------------------------------
+ ok 51 - the recipient can accept the request
+(1 row)
+
+                             is                             
+------------------------------------------------------------
+ ok 52 - acceptance updates the one normalized relationship
+(1 row)
+
+RESET
+SET
+              set_config              
+--------------------------------------
+ 10000000-0000-0000-0000-000000000001
+(1 row)
+
+                                       is                                       
+--------------------------------------------------------------------------------
+ ok 53 - profile cards expose friends-only location after friendship acceptance
+(1 row)
+
+RESET
+SET
+              set_config              
+--------------------------------------
+ 10000000-0000-0000-0000-000000000003
+(1 row)
+
+                         is                         
+----------------------------------------------------
+ ok 54 - a non-participant cannot read a friendship
+(1 row)
+
+                                is                                
+------------------------------------------------------------------
+ ok 55 - a user cannot read another user gym memberships directly
+(1 row)
+
+RESET
+SET
+ set_config 
+------------
+ 
+(1 row)
+
+                         is                          
+-----------------------------------------------------
+ ok 56 - anonymous users cannot browse beta profiles
+(1 row)
+
+                          is                           
+-------------------------------------------------------
+ ok 57 - anonymous users cannot browse gym memberships
+(1 row)
+
+RESET
+                                    is                                     
+---------------------------------------------------------------------------
+ ok 58 - all security-definer functions use a fixed pg_catalog search path
+(1 row)
+
+                                     matches                                     
+---------------------------------------------------------------------------------
+ ok 59 - gym joins take a per-user row lock before checking the membership limit
+(1 row)
+
+                               ok                               
+----------------------------------------------------------------
+ ok 60 - a partial unique index enforces one active primary gym
+(1 row)
+
+                                     is                                     
+----------------------------------------------------------------------------
+ ok 61 - the public profile-card contract never returns an exact birth date
+(1 row)
+
+                                 ok                                 
+--------------------------------------------------------------------
+ ok 62 - authenticated users can execute secured mutation functions
+(1 row)
+
+                                ok                                 
+-------------------------------------------------------------------
+ ok 63 - anonymous users cannot execute secured mutation functions
+(1 row)
+
+                                      ok                                      
+------------------------------------------------------------------------------
+ ok 64 - authenticated users cannot invoke the auth trigger function directly
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607140003_exercise_catalog.test.sql:3: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+ plan  
+-------
+ 1..20
+(1 row)
+
+           has_table           
+-------------------------------
+ ok 1 - catalog versions exist
+(1 row)
+
+            has_table             
+----------------------------------
+ ok 2 - canonical exercises exist
+(1 row)
+
+          has_table          
+-----------------------------
+ ok 3 - legacy aliases exist
+(1 row)
+
+                    is                     
+-------------------------------------------
+ ok 4 - one current catalog version exists
+(1 row)
+
+                       is                       
+------------------------------------------------
+ ok 5 - seven exercises map to ranked movements
+(1 row)
+
+                     is                      
+---------------------------------------------
+ ok 6 - every alias resolves to one exercise
+(1 row)
+
+                 is                 
+------------------------------------
+ ok 7 - aliases are globally unique
+(1 row)
+
+               is                
+---------------------------------
+ ok 8 - iOS bench alias resolves
+(1 row)
+
+               is                
+---------------------------------
+ ok 9 - web bench alias resolves
+(1 row)
+
+                    is                    
+------------------------------------------
+ ok 10 - sumo remains a distinct exercise
+(1 row)
+
+                            is                             
+-----------------------------------------------------------
+ ok 11 - sumo maps to its distinct competitive leaderboard
+(1 row)
+
+                       is                       
+------------------------------------------------
+ ok 12 - incline bench is not competition bench
+(1 row)
+
+                  throws_ok                   
+----------------------------------------------
+ ok 13 - invalid ranking movement is rejected
+(1 row)
+
+                     throws_ok                      
+----------------------------------------------------
+ ok 14 - canonical IDs must be lowercase hyphenated
+(1 row)
+
+                        throws_ok                        
+---------------------------------------------------------
+ ok 15 - metadata must follow the object schema boundary
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 10000000-0000-0000-0000-000000000001
+(1 row)
+
+                             ok                              
+-------------------------------------------------------------
+ ok 16 - authenticated users can read active catalog entries
+(1 row)
+
+                      is                      
+----------------------------------------------
+ ok 17 - authenticated users can use resolver
+(1 row)
+
+                  throws_ok                   
+----------------------------------------------
+ ok 18 - normal clients cannot modify catalog
+(1 row)
+
+RESET
+SET
+ set_config 
+------------
+ 
+(1 row)
+
+                     throws_ok                      
+----------------------------------------------------
+ ok 19 - anonymous users cannot browse beta catalog
+(1 row)
+
+                         is                          
+-----------------------------------------------------
+ ok 20 - anonymous users cannot execute the resolver
+(1 row)
+
+RESET
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607180001_public_launch_foundation.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan  
+-------
+ 1..13
+(1 row)
+
+               has_type                
+---------------------------------------
+ ok 1 - canonical movement type exists
+(1 row)
+
+                   enum_has_labels                   
+-----------------------------------------------------
+ ok 2 - exactly seven canonical movements are ranked
+(1 row)
+
+              has_table               
+--------------------------------------
+ ok 3 - private media metadata exists
+(1 row)
+
+        has_table        
+-------------------------
+ ok 4 - lift votes exist
+(1 row)
+
+         has_table         
+---------------------------
+ ok 5 - lift reports exist
+(1 row)
+
+                has_table                 
+------------------------------------------
+ ok 6 - immutable moderation audit exists
+(1 row)
+
+       has_table        
+------------------------
+ ok 7 - blocking exists
+(1 row)
+
+          has_table           
+------------------------------
+ ok 8 - versioned plans exist
+(1 row)
+
+                has_table                 
+------------------------------------------
+ ok 9 - immutable workout snapshots exist
+(1 row)
+
+                has_table                
+-----------------------------------------
+ ok 10 - push device registrations exist
+(1 row)
+
+             has_table              
+------------------------------------
+ ok 11 - in-app notifications exist
+(1 row)
+
+                has_table                
+-----------------------------------------
+ ok 12 - legal acceptance history exists
+(1 row)
+
+                  has_table                   
+----------------------------------------------
+ ok 13 - privacy-first launch analytics exist
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607180002_immutable_legal_acceptances.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+BEGIN
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..5
+(1 row)
+
+                            policies_are                             
+---------------------------------------------------------------------
+ ok 1 - legal acceptance exposes only append and owner-read policies
+(1 row)
+
+         policy_roles_are          
+-----------------------------------
+ ok 2 - read is authenticated only
+(1 row)
+
+             policy_cmd_is             
+---------------------------------------
+ ok 3 - read policy cannot mutate rows
+(1 row)
+
+          policy_roles_are           
+-------------------------------------
+ ok 4 - insert is authenticated only
+(1 row)
+
+              policy_cmd_is              
+-----------------------------------------
+ ok 5 - acceptance policy is insert only
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607180003_competitive_lift_authority.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan  
+-------
+ 1..10
+(1 row)
+
+                 has_trigger                 
+---------------------------------------------
+ ok 1 - competitive authority trigger exists
+(1 row)
+
+             has_trigger              
+--------------------------------------
+ ok 2 - moderation audit is immutable
+(1 row)
+
+             has_function              
+---------------------------------------
+ ok 3 - server completes media uploads
+(1 row)
+
+             has_function             
+--------------------------------------
+ ok 4 - playback authorization exists
+(1 row)
+
+               has_function                
+-------------------------------------------
+ ok 5 - moderator decision function exists
+(1 row)
+
+          has_function          
+--------------------------------
+ ok 6 - moderation queue exists
+(1 row)
+
+            function_privs_are            
+------------------------------------------
+ ok 7 - media completion is authenticated
+(1 row)
+
+                         function_privs_are                         
+--------------------------------------------------------------------
+ ok 8 - moderation RPC is authenticated and checks admin internally
+(1 row)
+
+                policy_cmd_is                
+---------------------------------------------
+ ok 9 - visible playback policy is read-only
+(1 row)
+
+             policy_roles_are             
+------------------------------------------
+ ok 10 - playback requires authentication
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607180004_ranked_lifts.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..2
+(1 row)
+
+                  has_function                   
+-------------------------------------------------
+ ok 1 - server-computed ranked lift query exists
+(1 row)
+
+             function_privs_are             
+--------------------------------------------
+ ok 2 - leaderboards require authentication
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607180005_production_messages.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan  
+-------
+ 1..12
+(1 row)
+
+             has_table              
+------------------------------------
+ ok 1 - message read receipts exist
+(1 row)
+
+            has_table            
+---------------------------------
+ ok 2 - message reporting exists
+(1 row)
+
+              has_table               
+--------------------------------------
+ ok 3 - per-user thread hiding exists
+(1 row)
+
+              has_function               
+-----------------------------------------
+ ok 4 - thread list is server authorized
+(1 row)
+
+               has_function                
+-------------------------------------------
+ ok 5 - friend-only thread creation exists
+(1 row)
+
+                has_function                
+--------------------------------------------
+ ok 6 - message reads are server authorized
+(1 row)
+
+                has_function                 
+---------------------------------------------
+ ok 7 - message sending is server authorized
+(1 row)
+
+         has_function          
+-------------------------------
+ ok 8 - sender deletion exists
+(1 row)
+
+           has_function            
+-----------------------------------
+ ok 9 - local thread hiding exists
+(1 row)
+
+           has_function           
+----------------------------------
+ ok 10 - message reporting exists
+(1 row)
+
+               policies_are                
+-------------------------------------------
+ ok 11 - read receipts remain owner scoped
+(1 row)
+
+                        policies_are                         
+-------------------------------------------------------------
+ ok 12 - message reports remain reporter or moderator scoped
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+ plan 
+------
+ 1..8
+(1 row)
+
+           has_table            
+--------------------------------
+ ok 1 - forum communities exist
+(1 row)
+
+        has_table         
+--------------------------
+ ok 2 - forum posts exist
+(1 row)
+
+          has_table          
+-----------------------------
+ ok 3 - forum comments exist
+(1 row)
+
+           has_table           
+-------------------------------
+ ok 4 - forum reporting exists
+(1 row)
+
+              has_function              
+----------------------------------------
+ ok 5 - membership join function exists
+(1 row)
+
+          has_function          
+--------------------------------
+ ok 6 - forum moderation exists
+(1 row)
+
+             has_function              
+---------------------------------------
+ ok 7 - production message list exists
+(1 row)
+
+             has_function              
+---------------------------------------
+ ok 8 - production message send exists
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607180007_notification_devices.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..8
+(1 row)
+
+                 has_table                  
+--------------------------------------------
+ ok 1 - notification device registry exists
+(1 row)
+
+         has_column         
+----------------------------
+ ok 2 - device id is stored
+(1 row)
+
+         has_column          
+-----------------------------
+ ok 3 - APNs token is stored
+(1 row)
+
+             has_column              
+-------------------------------------
+ ok 4 - APNs environment is explicit
+(1 row)
+
+             has_column             
+------------------------------------
+ ok 5 - token revocation is tracked
+(1 row)
+
+                has_function                
+--------------------------------------------
+ ok 6 - device registration function exists
+(1 row)
+
+               has_function               
+------------------------------------------
+ ok 7 - device revocation function exists
+(1 row)
+
+                         policies_are                          
+---------------------------------------------------------------
+ ok 8 - clients can only access their own device registrations
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607180008_notification_delivery.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..9
+(1 row)
+
+           has_column            
+---------------------------------
+ ok 1 - push delivery is tracked
+(1 row)
+
+              has_trigger              
+---------------------------------------
+ ok 2 - messages enqueue notifications
+(1 row)
+
+                has_trigger                 
+--------------------------------------------
+ ok 3 - forum replies enqueue notifications
+(1 row)
+
+                 has_trigger                 
+---------------------------------------------
+ ok 4 - friend changes enqueue notifications
+(1 row)
+
+               has_trigger                
+------------------------------------------
+ ok 5 - moderation enqueues notifications
+(1 row)
+
+          has_function          
+--------------------------------
+ ok 6 - message notifier exists
+(1 row)
+
+         has_function         
+------------------------------
+ ok 7 - forum notifier exists
+(1 row)
+
+         has_function          
+-------------------------------
+ ok 8 - friend notifier exists
+(1 row)
+
+           has_function            
+-----------------------------------
+ ok 9 - moderation notifier exists
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607190001_focused_launch.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan  
+-------
+ 1..17
+(1 row)
+
+              has_table              
+-------------------------------------
+ ok 1 - focused workout shares exist
+(1 row)
+
+            has_table             
+----------------------------------
+ ok 2 - workout share likes exist
+(1 row)
+
+              has_table              
+-------------------------------------
+ ok 3 - workout share comments exist
+(1 row)
+
+               has_table               
+---------------------------------------
+ ok 4 - workout share reporting exists
+(1 row)
+
+                  has_function                   
+-------------------------------------------------
+ ok 5 - connection activity is server authorized
+(1 row)
+
+                 has_function                  
+-----------------------------------------------
+ ok 6 - athlete discovery is server authorized
+(1 row)
+
+              has_function               
+-----------------------------------------
+ ok 7 - completed workout sharing exists
+(1 row)
+
+           has_function           
+----------------------------------
+ ok 8 - owners can remove a share
+(1 row)
+
+         has_function          
+-------------------------------
+ ok 9 - connection likes exist
+(1 row)
+
+                      has_function                       
+---------------------------------------------------------
+ ok 10 - connection comments are readable through an RPC
+(1 row)
+
+                      has_function                       
+---------------------------------------------------------
+ ok 11 - connection comments are writable through an RPC
+(1 row)
+
+              has_function               
+-----------------------------------------
+ ok 12 - shared workouts can be reported
+(1 row)
+
+              has_function               
+-----------------------------------------
+ ok 13 - share visibility is centralized
+(1 row)
+
+                             policies_are                             
+----------------------------------------------------------------------
+ ok 14 - workout shares remain connection-readable and owner-writable
+(1 row)
+
+                        policies_are                         
+-------------------------------------------------------------
+ ok 15 - likes remain scoped to the authenticated connection
+(1 row)
+
+                          policies_are                           
+-----------------------------------------------------------------
+ ok 16 - comments remain connection-readable and author-writable
+(1 row)
+
+                    policies_are                     
+-----------------------------------------------------
+ ok 17 - reports remain reporter or moderator scoped
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607240001_canonical_locations.test.sql:3: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+ plan  
+-------
+ 1..13
+(1 row)
+
+            has_table             
+----------------------------------
+ ok 1 - canonical countries exist
+(1 row)
+
+           has_table            
+--------------------------------
+ ok 2 - canonical regions exist
+(1 row)
+
+           has_table           
+-------------------------------
+ ok 3 - canonical cities exist
+(1 row)
+
+              has_table              
+-------------------------------------
+ ok 4 - canonical city aliases exist
+(1 row)
+
+                     has_column                     
+----------------------------------------------------
+ ok 5 - private details can store canonical city id
+(1 row)
+
+         has_function          
+-------------------------------
+ ok 6 - city search rpc exists
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 2
+INSERT 0 1
+                        is                        
+--------------------------------------------------
+ ok 7 - alias search returns canonical Miami once
+(1 row)
+
+                           is                           
+--------------------------------------------------------
+ ok 8 - prefix search prioritizes larger canonical city
+(1 row)
+
+SET
+                       is                       
+------------------------------------------------
+ ok 9 - anon can search public canonical cities
+(1 row)
+
+RESET
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 30000000-0000-0000-0000-000000000201
+(1 row)
+
+                       lives_ok                        
+-------------------------------------------------------
+ ok 10 - authenticated user can save canonical city id
+(1 row)
+
+                     is                      
+---------------------------------------------
+ ok 11 - save derives city from canonical id
+(1 row)
+
+                      is                       
+-----------------------------------------------
+ ok 12 - save derives region from canonical id
+(1 row)
+
+                   throws_ok                   
+-----------------------------------------------
+ ok 13 - invalid canonical city id is rejected
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607240002_profile_avatars.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan  
+-------
+ 1..11
+(1 row)
+
+                        is                        
+--------------------------------------------------
+ ok 1 - profile avatar bucket exists exactly once
+(1 row)
+
+                   is                    
+-----------------------------------------
+ ok 2 - profile avatar bucket is private
+(1 row)
+
+                       is                       
+------------------------------------------------
+ ok 3 - profile avatar uploads are size limited
+(1 row)
+
+                       is                       
+------------------------------------------------
+ ok 4 - profile avatar uploads accept JPEG only
+(1 row)
+
+                   is                    
+-----------------------------------------
+ ok 5 - authenticated read policy exists
+(1 row)
+
+                is                 
+-----------------------------------
+ ok 6 - owner upload policy exists
+(1 row)
+
+                is                 
+-----------------------------------
+ ok 7 - owner update policy exists
+(1 row)
+
+                is                 
+-----------------------------------
+ ok 8 - owner delete policy exists
+(1 row)
+
+                 is                  
+-------------------------------------
+ ok 9 - upload policy is insert-only
+(1 row)
+
+                  is                  
+--------------------------------------
+ ok 10 - update policy is update-only
+(1 row)
+
+                  is                  
+--------------------------------------
+ ok 11 - delete policy is delete-only
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608020001_optional_lift_gym.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..4
+(1 row)
+
+                    col_is_null                    
+---------------------------------------------------
+ ok 1 - lift submissions permit no gym affiliation
+(1 row)
+
+                         is_definer                         
+------------------------------------------------------------
+ ok 2 - competitive lift authority remains security definer
+(1 row)
+
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 81000000-0000-0000-0000-000000000001
+(1 row)
+
+                            lives_ok                             
+-----------------------------------------------------------------
+ ok 3 - an authenticated athlete can submit a lift without a gym
+(1 row)
+
+                         throws_ok                         
+-----------------------------------------------------------
+ ok 4 - a supplied gym still requires an active membership
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+psql:BEGIN
+/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608020002_finalize_lift_media_authority.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..4
+(1 row)
+
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 84000000-0000-0000-0000-000000000001
+(1 row)
+
+INSERT 0 1
+UPDATE 1
+                                is                                
+------------------------------------------------------------------
+ ok 1 - an authenticated table update cannot forge video evidence
+(1 row)
+
+RESET
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 84000000-0000-0000-0000-000000000001
+(1 row)
+
+                        lives_ok                        
+--------------------------------------------------------
+ ok 2 - the trusted finalizer can attach uploaded media
+(1 row)
+
+                            is                            
+----------------------------------------------------------
+ ok 3 - the trusted finalizer marks the lift video-backed
+(1 row)
+
+                         ok                         
+----------------------------------------------------
+ ok 4 - the trusted finalizer links the media asset
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608020003_video_leaderboard_default.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..2
+(1 row)
+
+                        has_function                         
+-------------------------------------------------------------
+ ok 1 - the canonical leaderboard function remains available
+(1 row)
+
+                                         ok                                         
+------------------------------------------------------------------------------------
+ ok 2 - video-backed evidence remains the only verification gate for video rankings
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608060001_ugc_profile_reporting.test.sql:3: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan  
+-------
+ 1..17
+(1 row)
+
+          has_table           
+------------------------------
+ ok 1 - profile reports exist
+(1 row)
+
+           has_function           
+----------------------------------
+ ok 2 - profile report RPC exists
+(1 row)
+
+                     enum_has_labels                      
+----------------------------------------------------------
+ ok 3 - lift reports include integrity and safety reasons
+(1 row)
+
+                      ok                       
+-----------------------------------------------
+ ok 4 - profile report RPC is security definer
+(1 row)
+
+CREATE FUNCTION
+INSERT 0 2
+SET
+              set_config              
+--------------------------------------
+ 60000000-0000-0000-0000-000000000001
+(1 row)
+
+                        lives_ok                         
+---------------------------------------------------------
+ ok 5 - an authenticated user can report another profile
+(1 row)
+
+                    is                    
+------------------------------------------
+ ok 6 - one open profile report is stored
+(1 row)
+
+                  is                  
+--------------------------------------
+ ok 7 - the selected reason is stored
+(1 row)
+
+                   lives_ok                   
+----------------------------------------------
+ ok 8 - a repeated open report updates safely
+(1 row)
+
+                           is                           
+--------------------------------------------------------
+ ok 9 - a reporter cannot create duplicate open reports
+(1 row)
+
+                    is                     
+-------------------------------------------
+ ok 10 - repeat reporting updates the note
+(1 row)
+
+             throws_ok              
+------------------------------------
+ ok 11 - self-reporting is rejected
+(1 row)
+
+                  throws_ok                  
+---------------------------------------------
+ ok 12 - missing profiles cannot be reported
+(1 row)
+
+                    is                     
+-------------------------------------------
+ ok 13 - direct report insertion is denied
+(1 row)
+
+              set_config              
+--------------------------------------
+ 60000000-0000-0000-0000-000000000002
+(1 row)
+
+                       is                       
+------------------------------------------------
+ ok 14 - a reported user cannot read the report
+(1 row)
+
+RESET
+                           ok                           
+--------------------------------------------------------
+ ok 15 - authenticated users can execute the report RPC
+(1 row)
+
+                          ok                           
+-------------------------------------------------------
+ ok 16 - anonymous users cannot execute the report RPC
+(1 row)
+
+                        is                        
+--------------------------------------------------
+ ok 17 - profile report RPC fixes its search path
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608060002_trusted_media_review_fields.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+BEGIN
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..6
+(1 row)
+
+                         is_definer                         
+------------------------------------------------------------
+ ok 1 - competitive lift authority remains security definer
+(1 row)
+
+                    is_definer                    
+--------------------------------------------------
+ ok 2 - media completion remains security definer
+(1 row)
+
+                       is                        
+-------------------------------------------------
+ ok 3 - media completion has a fixed search path
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 93000000-0000-4000-8000-000000000001
+(1 row)
+
+INSERT 0 1
+                        lives_ok                        
+--------------------------------------------------------
+ ok 4 - the trusted finalizer completes an owned upload
+(1 row)
+
+                              is                              
+--------------------------------------------------------------
+ ok 5 - trusted media fields survive both protection triggers
+(1 row)
+
+              set_config              
+--------------------------------------
+ 93000000-0000-4000-8000-000000000099
+(1 row)
+
+                  throws_ok                   
+----------------------------------------------
+ ok 6 - another user cannot finalize the lift
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608060003_report_driven_video_leaderboard.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..5
+(1 row)
+
+                      is_definer                       
+-------------------------------------------------------
+ ok 1 - leaderboard authority remains security definer
+(1 row)
+
+                          is                          
+------------------------------------------------------
+ ok 2 - leaderboard authority has a fixed search path
+(1 row)
+
+                            ok                            
+----------------------------------------------------------
+ ok 3 - verified lifts do not require manual pre-approval
+(1 row)
+
+                                      ok                                       
+-------------------------------------------------------------------------------
+ ok 4 - verified eligibility does not depend on an unsupported per-lift toggle
+(1 row)
+
+                                                     ok                                                      
+-------------------------------------------------------------------------------------------------------------
+ ok 5 - server-finalized videos remain eligible for partial totals until report-driven moderation intervenes
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608080000_public_profile_visibility_helpers.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan  
+-------
+ 1..10
+(1 row)
+
+              has_column               
+---------------------------------------
+ ok 1 - canonical lift gym UUID exists
+(1 row)
+
+                   has_column                   
+------------------------------------------------
+ ok 2 - canonical approved evidence path exists
+(1 row)
+
+              has_column               
+---------------------------------------
+ ok 3 - canonical review status exists
+(1 row)
+
+                           has_column                            
+-----------------------------------------------------------------
+ ok 4 - legacy public bodyweight-class filter remains compatible
+(1 row)
+
+               has_column               
+----------------------------------------
+ ok 5 - video privacy preference exists
+(1 row)
+
+                has_function                
+--------------------------------------------
+ ok 6 - public gym visibility helper exists
+(1 row)
+
+                      is_definer                       
+-------------------------------------------------------
+ ok 7 - public gym visibility is evaluated server-side
+(1 row)
+
+                                ok                                
+------------------------------------------------------------------
+ ok 8 - anonymous public views can evaluate public gym visibility
+(1 row)
+
+                          ok                           
+-------------------------------------------------------
+ ok 9 - authenticated public views use the same helper
+(1 row)
+
+                         ok                          
+-----------------------------------------------------
+ ok 10 - athletes can update public video visibility
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608080001_coordinated_lift_removal.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..9
+(1 row)
+
+                 has_table                  
+--------------------------------------------
+ ok 1 - durable lift removal requests exist
+(1 row)
+
+              has_function               
+-----------------------------------------
+ ok 2 - trusted removal finalizer exists
+(1 row)
+
+                        ok                        
+--------------------------------------------------
+ ok 3 - clients cannot bypass coordinated cleanup
+(1 row)
+
+                          ok                           
+-------------------------------------------------------
+ ok 4 - only the service workflow can finalize removal
+(1 row)
+
+INSERT 0 1
+              set_config              
+--------------------------------------
+ 98000000-0000-4000-8000-000000000001
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+SET
+                    is                     
+-------------------------------------------
+ ok 5 - service workflow finalizes removal
+(1 row)
+
+RESET
+              is              
+------------------------------
+ ok 6 - submission is deleted
+(1 row)
+
+                 is                 
+------------------------------------
+ ok 7 - moderation state is cleaned
+(1 row)
+
+                    is                     
+-------------------------------------------
+ ok 8 - durable request records completion
+(1 row)
+
+SET
+                is                 
+-----------------------------------
+ ok 9 - finalization is idempotent
+(1 row)
+
+RESET
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608090001_atomic_bodyweight_checkins.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan  
+-------
+ 1..18
+(1 row)
+
+            has_table             
+----------------------------------
+ ok 1 - bodyweight history exists
+(1 row)
+
+                 has_function                 
+----------------------------------------------
+ ok 2 - atomic bodyweight check-in RPC exists
+(1 row)
+
+                        is_definer                        
+----------------------------------------------------------
+ ok 3 - bodyweight check-ins use trusted server authority
+(1 row)
+
+                             is                             
+------------------------------------------------------------
+ ok 4 - bodyweight check-in authority fixes its search path
+(1 row)
+
+                           ok                            
+---------------------------------------------------------
+ ok 5 - authenticated owners can read bodyweight history
+(1 row)
+
+                            ok                             
+-----------------------------------------------------------
+ ok 6 - authenticated owners can insert bodyweight history
+(1 row)
+
+                            ok                             
+-----------------------------------------------------------
+ ok 7 - authenticated owners can update bodyweight history
+(1 row)
+
+                                   ok                                   
+------------------------------------------------------------------------
+ ok 8 - authenticated clients cannot delete bodyweight history directly
+(1 row)
+
+                           ok                            
+---------------------------------------------------------
+ ok 9 - anonymous clients cannot read bodyweight history
+(1 row)
+
+                       ok                        
+-------------------------------------------------
+ ok 10 - authenticated users can save a check-in
+(1 row)
+
+                       ok                       
+------------------------------------------------
+ ok 11 - anonymous users cannot save a check-in
+(1 row)
+
+CREATE FUNCTION
+INSERT 0 2
+SET
+              set_config              
+--------------------------------------
+ 90000000-0000-0000-0000-000000000001
+(1 row)
+
+                     lives_ok                      
+---------------------------------------------------
+ ok 12 - an athlete can save a bodyweight check-in
+(1 row)
+
+                    is                     
+-------------------------------------------
+ ok 13 - history stores the new bodyweight
+(1 row)
+
+                            is                             
+-----------------------------------------------------------
+ ok 14 - current private profile weight updates atomically
+(1 row)
+
+              set_config              
+--------------------------------------
+ 90000000-0000-0000-0000-000000000002
+(1 row)
+
+                        is                        
+--------------------------------------------------
+ ok 15 - another athlete cannot read the check-in
+(1 row)
+
+                           throws_ok                            
+----------------------------------------------------------------
+ ok 16 - another athlete cannot replace an existing check-in id
+(1 row)
+
+                                 lives_ok                                  
+---------------------------------------------------------------------------
+ ok 17 - the owner-only table grant supports local history synchronization
+(1 row)
+
+                              is                              
+--------------------------------------------------------------
+ ok 18 - row-level security still rejects cross-owner inserts
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608090002_lift_removal_service_permissions.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..6
+(1 row)
+
+                        ok                         
+---------------------------------------------------
+ ok 1 - service workflow can read removal requests
+(1 row)
+
+                         ok                          
+-----------------------------------------------------
+ ok 2 - service workflow can create removal requests
+(1 row)
+
+                         ok                          
+-----------------------------------------------------
+ ok 3 - service workflow can update removal requests
+(1 row)
+
+                               ok                                
+-----------------------------------------------------------------
+ ok 4 - service workflow cannot directly delete removal requests
+(1 row)
+
+                            ok                             
+-----------------------------------------------------------
+ ok 5 - authenticated clients cannot read removal requests
+(1 row)
+
+                                  ok                                  
+----------------------------------------------------------------------
+ ok 6 - authenticated clients cannot create removal requests directly
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608210001_protect_username_mutations.test.sql:3: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+ plan  
+-------
+ 1..14
+(1 row)
+
+                 has_table                 
+-------------------------------------------
+ ok 1 - username change audit table exists
+(1 row)
+
+                  has_function                   
+-------------------------------------------------
+ ok 2 - explicit username change function exists
+(1 row)
+
+                    has_trigger                    
+---------------------------------------------------
+ ok 3 - profile identity protection trigger exists
+(1 row)
+
+                         ok                         
+----------------------------------------------------
+ ok 4 - implicit claim_username function is removed
+(1 row)
+
+                              ok                               
+---------------------------------------------------------------
+ ok 5 - authenticated clients cannot directly update usernames
+(1 row)
+
+INSERT 0 1
+              set_config              
+--------------------------------------
+ a1000000-0000-0000-0000-000000000001
+(1 row)
+
+SET
+                           is                            
+---------------------------------------------------------
+ ok 6 - new profiles start with their generated username
+(1 row)
+
+                 lives_ok                  
+-------------------------------------------
+ ok 7 - normal profile saves still succeed
+(1 row)
+
+                        is                         
+---------------------------------------------------
+ ok 8 - normal profile saves preserve the username
+(1 row)
+
+                  throws_ok                  
+---------------------------------------------
+ ok 9 - direct username updates are rejected
+(1 row)
+
+                               is                                
+-----------------------------------------------------------------
+ ok 10 - explicit username changes normalize the requested value
+(1 row)
+
+                          is                           
+-------------------------------------------------------
+ ok 11 - explicit username changes update the username
+(1 row)
+
+                               is                               
+----------------------------------------------------------------
+ ok 12 - explicit username changes keep the handle synchronized
+(1 row)
+
+RESET
+                      is                       
+-----------------------------------------------
+ ok 13 - explicit username changes are audited
+(1 row)
+
+SET
+                  throws_ok                  
+---------------------------------------------
+ ok 14 - stale username changes are rejected
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+ plan 
+------
+ 1..1
+(1 row)
+
+                                  ok                                  
+----------------------------------------------------------------------
+ ok 1 - authenticated playback can evaluate lift media storage policy
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608280001_profile_training_goals.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..8
+(1 row)
+
+                 has_table                  
+--------------------------------------------
+ ok 1 - profile goals are stored separately
+(1 row)
+
+            has_function            
+------------------------------------
+ ok 2 - goal replacement RPC exists
+(1 row)
+
+                  is_definer                   
+-----------------------------------------------
+ ok 3 - goal replacement uses server authority
+(1 row)
+
+                    ok                     
+-------------------------------------------
+ ok 4 - authenticated users can save goals
+(1 row)
+
+                    ok                    
+------------------------------------------
+ ok 5 - anonymous users cannot save goals
+(1 row)
+
+INSERT 0 2
+SET
+              set_config              
+--------------------------------------
+ 98000000-0000-0000-0000-000000000001
+(1 row)
+
+            lives_ok            
+--------------------------------
+ ok 6 - owner can replace goals
+(1 row)
+
+                is                 
+-----------------------------------
+ ok 7 - owner can read saved goals
+(1 row)
+
+              set_config              
+--------------------------------------
+ 98000000-0000-0000-0000-000000000002
+(1 row)
+
+                  is                   
+---------------------------------------
+ ok 8 - another user cannot read goals
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/concurrency.sql:1: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+CREATE EXTENSION
+BEGIN
+INSERT 0 1
+INSERT 0 4
+              set_config              
+--------------------------------------
+ 11000000-0000-0000-0000-000000000001
+(1 row)
+
+                                                    join_gym                                                    
+----------------------------------------------------------------------------------------------------------------
+ (11000000-0000-0000-0000-000000000001,21000000-0000-0000-0000-000000000001,t,"2026-09-05 22:10:54.250932-04",)
+(1 row)
+
+                                                    join_gym                                                    
+----------------------------------------------------------------------------------------------------------------
+ (11000000-0000-0000-0000-000000000001,21000000-0000-0000-0000-000000000002,f,"2026-09-05 22:10:54.251898-04",)
+(1 row)
+
+COMMIT
+BEGIN
+ plan 
+------
+ 1..4
+(1 row)
+
+ dblink_connect 
+----------------
+ OK
+(1 row)
+
+ dblink_connect 
+----------------
+ OK
+(1 row)
+
+                            is                            
+----------------------------------------------------------
+ ok 1 - first competing join is dispatched asynchronously
+(1 row)
+
+                            is                             
+-----------------------------------------------------------
+ ok 2 - second competing join is dispatched asynchronously
+(1 row)
+
+CREATE FUNCTION
+CREATE TABLE
+INSERT 0 2
+                             is                             
+------------------------------------------------------------
+ ok 3 - only one of two concurrent third-gym joins succeeds
+(1 row)
+
+                               is                               
+----------------------------------------------------------------
+ ok 4 - concurrent joins cannot exceed three active memberships
+(1 row)
+
+ dblink_disconnect 
+-------------------
+ OK
+(1 row)
+
+ dblink_disconnect 
+-------------------
+ OK
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+DELETE 1
+DELETE 4
+COMMIT
+NOTICE:  database "liftrank_foundation_2" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607140001_identity_social_foundation.sql:7: NOTICE:  extension "pgcrypto" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607140001_identity_social_foundation.sql:49: NOTICE:  constraint "profiles_username_format" of relation "profiles" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607140001_identity_social_foundation.sql:117: NOTICE:  trigger "profile_private_details_updated_at" for relation "public.profile_private_details" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607140001_identity_social_foundation.sql:122: NOTICE:  trigger "profile_privacy_updated_at" for relation "public.profile_privacy" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607140001_identity_social_foundation.sql:252: NOTICE:  trigger "gyms_updated_at" for relation "public.gyms" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607140001_identity_social_foundation.sql:361: NOTICE:  trigger "enforce_gym_membership_limits" for relation "public.gym_memberships" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607140001_identity_social_foundation.sql:944: NOTICE:  policy "profiles authenticated read" for relation "public.profiles" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607140001_identity_social_foundation.sql:945: NOTICE:  policy "profiles owner update" for relation "public.profiles" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607180003_competitive_lift_authority.sql:60: NOTICE:  trigger "competitive_lift_authority" for relation "public.lift_submissions" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607180003_competitive_lift_authority.sql:152: NOTICE:  trigger "moderation_audit_immutable" for relation "public.lift_moderation_audit" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607240001_canonical_locations.sql:59: NOTICE:  policy "location countries public read" for relation "public.location_countries" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607240001_canonical_locations.sql:60: NOTICE:  policy "location regions public read" for relation "public.location_regions" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607240001_canonical_locations.sql:61: NOTICE:  policy "location cities public read" for relation "public.location_cities" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607240001_canonical_locations.sql:62: NOTICE:  policy "location city aliases public read" for relation "public.location_city_aliases" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607240002_profile_avatars.sql:14: NOTICE:  policy "profile avatars authenticated read" for relation "storage.objects" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607240002_profile_avatars.sql:15: NOTICE:  policy "profile avatars owner upload" for relation "storage.objects" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607240002_profile_avatars.sql:16: NOTICE:  policy "profile avatars owner update" for relation "storage.objects" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202607240002_profile_avatars.sql:17: NOTICE:  policy "profile avatars owner delete" for relation "storage.objects" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/20260731150000_canonical_verified_rankings.sql:43: NOTICE:  trigger "a_synchronize_lift_gym_uuid" for relation "public.lift_submissions" does not exist, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:6: NOTICE:  column "show_lift_videos" of relation "profile_privacy" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "gym_uuid" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "status" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "bodyweight_class" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "review_status" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "evidence_public" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "evidence_storage_path" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "pending_evidence_storage_path" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "approved_evidence_storage_path" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "disputed_at" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "reviewed_at" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "reviewed_by" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608080001_coordinated_lift_removal.sql:22: NOTICE:  column "review_note" of relation "lift_submissions" already exists, skipping
+psql:/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/supabase/migrations/202608210001_protect_username_mutations.sql:34: NOTICE:  trigger "protect_profile_identity" for relation "public.profiles" does not exist, skipping
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607140001_identity_social_foundation.test.sql:3: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+ plan  
+-------
+ 1..64
+(1 row)
+
+       has_table        
+------------------------
+ ok 1 - profiles exists
+(1 row)
+
+              has_table               
+--------------------------------------
+ ok 2 - private profile details exist
+(1 row)
+
+           has_table           
+-------------------------------
+ ok 3 - profile privacy exists
+(1 row)
+
+     has_table     
+-------------------
+ ok 4 - gyms exist
+(1 row)
+
+               has_table                
+----------------------------------------
+ ok 5 - canonical gym memberships exist
+(1 row)
+
+                  has_table                  
+---------------------------------------------
+ ok 6 - canonical friend relationships exist
+(1 row)
+
+              has_function              
+----------------------------------------
+ ok 7 - secure gym join function exists
+(1 row)
+
+                   has_function                   
+--------------------------------------------------
+ ok 8 - secure friendship request function exists
+(1 row)
+
+                  has_table                  
+---------------------------------------------
+ ok 9 - legacy gym memberships remain intact
+(1 row)
+
+                has_table                 
+------------------------------------------
+ ok 10 - legacy friendships remain intact
+(1 row)
+
+                   has_table                   
+-----------------------------------------------
+ ok 11 - existing lift submissions still exist
+(1 row)
+
+                                          is                                           
+---------------------------------------------------------------------------------------
+ ok 12 - Migration 1 preserves the legacy lift gym identifier for later reconciliation
+(1 row)
+
+CREATE FUNCTION
+CREATE FUNCTION
+INSERT 0 3
+                       is                        
+-------------------------------------------------
+ ok 13 - auth signup creates exactly one profile
+(1 row)
+
+                             is                              
+-------------------------------------------------------------
+ ok 14 - auth signup creates exactly one private-details row
+(1 row)
+
+                         is                          
+-----------------------------------------------------
+ ok 15 - auth signup creates exactly one privacy row
+(1 row)
+
+                               isnt                                
+-------------------------------------------------------------------
+ ok 16 - placeholder username does not expose the email local-part
+(1 row)
+
+                             matches                             
+-----------------------------------------------------------------
+ ok 17 - placeholder username is an opaque account-ID derivative
+(1 row)
+
+                     has_index                      
+----------------------------------------------------
+ ok 18 - usernames have case-insensitive uniqueness
+(1 row)
+
+UPDATE 1
+INSERT 0 5
+              set_config              
+--------------------------------------
+ 10000000-0000-0000-0000-000000000002
+(1 row)
+
+                                                    join_gym                                                    
+----------------------------------------------------------------------------------------------------------------
+ (10000000-0000-0000-0000-000000000002,20000000-0000-0000-0000-000000000005,t,"2026-09-05 22:10:55.072617-04",)
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 10000000-0000-0000-0000-000000000001
+(1 row)
+
+                           is                           
+--------------------------------------------------------
+ ok 19 - a user can read only their own private details
+(1 row)
+
+                           is                            
+---------------------------------------------------------
+ ok 20 - a user can read only their own privacy settings
+(1 row)
+
+                            is                             
+-----------------------------------------------------------
+ ok 21 - a user cannot modify another user private details
+(1 row)
+
+                             is                             
+------------------------------------------------------------
+ ok 22 - a user cannot modify another user privacy settings
+(1 row)
+
+                            is                            
+----------------------------------------------------------
+ ok 23 - a user cannot modify another user public profile
+(1 row)
+
+                       lives_ok                        
+-------------------------------------------------------
+ ok 24 - an owner can update a permitted profile field
+(1 row)
+
+                           is                            
+---------------------------------------------------------
+ ok 25 - the permitted owner profile update is persisted
+(1 row)
+
+                             lives_ok                              
+-------------------------------------------------------------------
+ ok 26 - the transactional profile function saves an owner profile
+(1 row)
+
+                             is                              
+-------------------------------------------------------------
+ ok 27 - transactional profile save persists private details
+(1 row)
+
+                              is                              
+--------------------------------------------------------------
+ ok 28 - transactional profile save persists privacy settings
+(1 row)
+
+                           is                            
+---------------------------------------------------------
+ ok 29 - transactional profile save completes onboarding
+(1 row)
+
+                                is                                 
+-------------------------------------------------------------------
+ ok 30 - clients cannot write server-controlled profile timestamps
+(1 row)
+
+                              is                              
+--------------------------------------------------------------
+ ok 31 - clients cannot write server-controlled profile roles
+(1 row)
+
+                                       is                                       
+--------------------------------------------------------------------------------
+ ok 32 - profile cards expose an allowed derived age band, never the birth date
+(1 row)
+
+                           is                           
+--------------------------------------------------------
+ ok 33 - profile cards expose an allowed division field
+(1 row)
+
+                                   is                                    
+-------------------------------------------------------------------------
+ ok 34 - profile cards redact friends-only location from unrelated users
+(1 row)
+
+                             is                             
+------------------------------------------------------------
+ ok 35 - profile cards expose an allowed public primary gym
+(1 row)
+
+            lives_ok             
+---------------------------------
+ ok 36 - first gym can be joined
+(1 row)
+
+             lives_ok             
+----------------------------------
+ ok 37 - second gym can be joined
+(1 row)
+
+            lives_ok             
+---------------------------------
+ ok 38 - third gym can be joined
+(1 row)
+
+                throws_ok                
+-----------------------------------------
+ ok 39 - a fourth active gym is rejected
+(1 row)
+
+                              is                               
+---------------------------------------------------------------
+ ok 40 - the user has at most three visible active memberships
+(1 row)
+
+                         is                          
+-----------------------------------------------------
+ ok 41 - the user has exactly one active primary gym
+(1 row)
+
+                      throws_ok                      
+-----------------------------------------------------
+ ok 42 - the primary gym cannot be accidentally left
+(1 row)
+
+                        is                        
+--------------------------------------------------
+ ok 43 - direct gym-membership mutation is denied
+(1 row)
+
+                         throws_ok                         
+-----------------------------------------------------------
+ ok 44 - a caller cannot leave another user gym membership
+(1 row)
+
+                      throws_ok                       
+------------------------------------------------------
+ ok 45 - a user cannot request themselves as a friend
+(1 row)
+
+                      lives_ok                       
+-----------------------------------------------------
+ ok 46 - a user can request another user as a friend
+(1 row)
+
+                         is                         
+----------------------------------------------------
+ ok 47 - one normalized relationship row is created
+(1 row)
+
+                       throws_ok                       
+-------------------------------------------------------
+ ok 48 - the requester cannot accept their own request
+(1 row)
+
+                         is                         
+----------------------------------------------------
+ ok 49 - direct friendship state mutation is denied
+(1 row)
+
+RESET
+SET
+              set_config              
+--------------------------------------
+ 10000000-0000-0000-0000-000000000002
+(1 row)
+
+                            throws_ok                             
+------------------------------------------------------------------
+ ok 50 - a reverse request cannot create a duplicate relationship
+(1 row)
+
+                   lives_ok                   
+----------------------------------------------
+ ok 51 - the recipient can accept the request
+(1 row)
+
+                             is                             
+------------------------------------------------------------
+ ok 52 - acceptance updates the one normalized relationship
+(1 row)
+
+RESET
+SET
+              set_config              
+--------------------------------------
+ 10000000-0000-0000-0000-000000000001
+(1 row)
+
+                                       is                                       
+--------------------------------------------------------------------------------
+ ok 53 - profile cards expose friends-only location after friendship acceptance
+(1 row)
+
+RESET
+SET
+              set_config              
+--------------------------------------
+ 10000000-0000-0000-0000-000000000003
+(1 row)
+
+                         is                         
+----------------------------------------------------
+ ok 54 - a non-participant cannot read a friendship
+(1 row)
+
+                                is                                
+------------------------------------------------------------------
+ ok 55 - a user cannot read another user gym memberships directly
+(1 row)
+
+RESET
+SET
+ set_config 
+------------
+ 
+(1 row)
+
+                         is                          
+-----------------------------------------------------
+ ok 56 - anonymous users cannot browse beta profiles
+(1 row)
+
+                          is                           
+-------------------------------------------------------
+ ok 57 - anonymous users cannot browse gym memberships
+(1 row)
+
+RESET
+                                    is                                     
+---------------------------------------------------------------------------
+ ok 58 - all security-definer functions use a fixed pg_catalog search path
+(1 row)
+
+                                     matches                                     
+---------------------------------------------------------------------------------
+ ok 59 - gym joins take a per-user row lock before checking the membership limit
+(1 row)
+
+                               ok                               
+----------------------------------------------------------------
+ ok 60 - a partial unique index enforces one active primary gym
+(1 row)
+
+                                     is                                     
+----------------------------------------------------------------------------
+ ok 61 - the public profile-card contract never returns an exact birth date
+(1 row)
+
+                                 ok                                 
+--------------------------------------------------------------------
+ ok 62 - authenticated users can execute secured mutation functions
+(1 row)
+
+                                ok                                 
+-------------------------------------------------------------------
+ ok 63 - anonymous users cannot execute secured mutation functions
+(1 row)
+
+                                      ok                                      
+------------------------------------------------------------------------------
+ ok 64 - authenticated users cannot invoke the auth trigger function directly
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607140003_exercise_catalog.test.sql:3: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+ plan  
+-------
+ 1..20
+(1 row)
+
+           has_table           
+-------------------------------
+ ok 1 - catalog versions exist
+(1 row)
+
+            has_table             
+----------------------------------
+ ok 2 - canonical exercises exist
+(1 row)
+
+          has_table          
+-----------------------------
+ ok 3 - legacy aliases exist
+(1 row)
+
+                    is                     
+-------------------------------------------
+ ok 4 - one current catalog version exists
+(1 row)
+
+                       is                       
+------------------------------------------------
+ ok 5 - seven exercises map to ranked movements
+(1 row)
+
+                     is                      
+---------------------------------------------
+ ok 6 - every alias resolves to one exercise
+(1 row)
+
+                 is                 
+------------------------------------
+ ok 7 - aliases are globally unique
+(1 row)
+
+               is                
+---------------------------------
+ ok 8 - iOS bench alias resolves
+(1 row)
+
+               is                
+---------------------------------
+ ok 9 - web bench alias resolves
+(1 row)
+
+                    is                    
+------------------------------------------
+ ok 10 - sumo remains a distinct exercise
+(1 row)
+
+                            is                             
+-----------------------------------------------------------
+ ok 11 - sumo maps to its distinct competitive leaderboard
+(1 row)
+
+                       is                       
+------------------------------------------------
+ ok 12 - incline bench is not competition bench
+(1 row)
+
+                  throws_ok                   
+----------------------------------------------
+ ok 13 - invalid ranking movement is rejected
+(1 row)
+
+                     throws_ok                      
+----------------------------------------------------
+ ok 14 - canonical IDs must be lowercase hyphenated
+(1 row)
+
+                        throws_ok                        
+---------------------------------------------------------
+ ok 15 - metadata must follow the object schema boundary
+(1 row)
+
+SET
+              set_config              
+--------------------------------------
+ 10000000-0000-0000-0000-000000000001
+(1 row)
+
+                             ok                              
+-------------------------------------------------------------
+ ok 16 - authenticated users can read active catalog entries
+(1 row)
+
+                      is                      
+----------------------------------------------
+ ok 17 - authenticated users can use resolver
+(1 row)
+
+                  throws_ok                   
+----------------------------------------------
+ ok 18 - normal clients cannot modify catalog
+(1 row)
+
+RESET
+SET
+ set_config 
+------------
+ 
+(1 row)
+
+                     throws_ok                      
+----------------------------------------------------
+ ok 19 - anonymous users cannot browse beta catalog
+(1 row)
+
+                         is                          
+-----------------------------------------------------
+ ok 20 - anonymous users cannot execute the resolver
+(1 row)
+
+RESET
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607180001_public_launch_foundation.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan  
+-------
+ 1..13
+(1 row)
+
+               has_type                
+---------------------------------------
+ ok 1 - canonical movement type exists
+(1 row)
+
+                   enum_has_labels                   
+-----------------------------------------------------
+ ok 2 - exactly seven canonical movements are ranked
+(1 row)
+
+              has_table               
+--------------------------------------
+ ok 3 - private media metadata exists
+(1 row)
+
+        has_table        
+-------------------------
+ ok 4 - lift votes exist
+(1 row)
+
+         has_table         
+---------------------------
+ ok 5 - lift reports exist
+(1 row)
+
+                has_table                 
+------------------------------------------
+ ok 6 - immutable moderation audit exists
+(1 row)
+
+       has_table        
+------------------------
+ ok 7 - blocking exists
+(1 row)
+
+          has_table           
+------------------------------
+ ok 8 - versioned plans exist
+(1 row)
+
+                has_table                 
+------------------------------------------
+ ok 9 - immutable workout snapshots exist
+(1 row)
+
+                has_table                
+-----------------------------------------
+ ok 10 - push device registrations exist
+(1 row)
+
+             has_table              
+------------------------------------
+ ok 11 - in-app notifications exist
+(1 row)
+
+                has_table                
+-----------------------------------------
+ ok 12 - legal acceptance history exists
+(1 row)
+
+                  has_table                   
+----------------------------------------------
+ ok 13 - privacy-first launch analytics exist
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607180002_immutable_legal_acceptances.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..5
+(1 row)
+
+                            policies_are                             
+---------------------------------------------------------------------
+ ok 1 - legal acceptance exposes only append and owner-read policies
+(1 row)
+
+         policy_roles_are          
+-----------------------------------
+ ok 2 - read is authenticated only
+(1 row)
+
+             policy_cmd_is             
+---------------------------------------
+ ok 3 - read policy cannot mutate rows
+(1 row)
+
+          policy_roles_are           
+-------------------------------------
+ ok 4 - insert is authenticated only
+(1 row)
+
+              policy_cmd_is              
+-----------------------------------------
+ ok 5 - acceptance policy is insert only
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607180003_competitive_lift_authority.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan  
+-------
+ 1..10
+(1 row)
+
+                 has_trigger                 
+---------------------------------------------
+ ok 1 - competitive authority trigger exists
+(1 row)
+
+             has_trigger              
+--------------------------------------
+ ok 2 - moderation audit is immutable
+(1 row)
+
+             has_function              
+---------------------------------------
+ ok 3 - server completes media uploads
+(1 row)
+
+             has_function             
+--------------------------------------
+ ok 4 - playback authorization exists
+(1 row)
+
+               has_function                
+-------------------------------------------
+ ok 5 - moderator decision function exists
+(1 row)
+
+          has_function          
+--------------------------------
+ ok 6 - moderation queue exists
+(1 row)
+
+            function_privs_are            
+------------------------------------------
+ ok 7 - media completion is authenticated
+(1 row)
+
+                         function_privs_are                         
+--------------------------------------------------------------------
+ ok 8 - moderation RPC is authenticated and checks admin internally
+(1 row)
+
+                policy_cmd_is                
+---------------------------------------------
+ ok 9 - visible playback policy is read-only
+(1 row)
+
+             policy_roles_are             
+------------------------------------------
+ ok 10 - playback requires authentication
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607180004_ranked_lifts.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..2
+(1 row)
+
+                  has_function                   
+-------------------------------------------------
+ ok 1 - server-computed ranked lift query exists
+(1 row)
+
+             function_privs_are             
+--------------------------------------------
+ ok 2 - leaderboards require authentication
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607180005_production_messages.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan  
+-------
+ 1..12
+(1 row)
+
+             has_table              
+------------------------------------
+ ok 1 - message read receipts exist
+(1 row)
+
+            has_table            
+---------------------------------
+ ok 2 - message reporting exists
+(1 row)
+
+              has_table               
+--------------------------------------
+ ok 3 - per-user thread hiding exists
+(1 row)
+
+              has_function               
+-----------------------------------------
+ ok 4 - thread list is server authorized
+(1 row)
+
+               has_function                
+-------------------------------------------
+ ok 5 - friend-only thread creation exists
+(1 row)
+
+                has_function                
+--------------------------------------------
+ ok 6 - message reads are server authorized
+(1 row)
+
+                has_function                 
+---------------------------------------------
+ ok 7 - message sending is server authorized
+(1 row)
+
+         has_function          
+-------------------------------
+ ok 8 - sender deletion exists
+(1 row)
+
+           has_function            
+-----------------------------------
+ ok 9 - local thread hiding exists
+(1 row)
+
+           has_function           
+----------------------------------
+ ok 10 - message reporting exists
+(1 row)
+
+               policies_are                
+-------------------------------------------
+ ok 11 - read receipts remain owner scoped
+(1 row)
+
+                        policies_are                         
+-------------------------------------------------------------
+ ok 12 - message reports remain reporter or moderator scoped
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+ plan 
+------
+ 1..8
+(1 row)
+
+           has_table            
+--------------------------------
+ ok 1 - forum communities exist
+(1 row)
+
+        has_table         
+--------------------------
+ ok 2 - forum posts exist
+(1 row)
+
+          has_table          
+-----------------------------
+ ok 3 - forum comments exist
+(1 row)
+
+           has_table           
+-------------------------------
+ ok 4 - forum reporting exists
+(1 row)
+
+              has_function              
+----------------------------------------
+ ok 5 - membership join function exists
+(1 row)
+
+          has_function          
+--------------------------------
+ ok 6 - forum moderation exists
+(1 row)
+
+             has_function              
+---------------------------------------
+ ok 7 - production message list exists
+(1 row)
+
+             has_function              
+---------------------------------------
+ ok 8 - production message send exists
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607180007_notification_devices.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..8
+(1 row)
+
+                 has_table                  
+--------------------------------------------
+ ok 1 - notification device registry exists
+(1 row)
+
+         has_column         
+----------------------------
+ ok 2 - device id is stored
+(1 row)
+
+         has_column          
+-----------------------------
+ ok 3 - APNs token is stored
+(1 row)
+
+             has_column              
+-------------------------------------
+ ok 4 - APNs environment is explicit
+(1 row)
+
+             has_column             
+------------------------------------
+ ok 5 - token revocation is tracked
+(1 row)
+
+                has_function                
+--------------------------------------------
+ ok 6 - device registration function exists
+(1 row)
+
+               has_function               
+------------------------------------------
+ ok 7 - device revocation function exists
+(1 row)
+
+                         policies_are                          
+---------------------------------------------------------------
+ ok 8 - clients can only access their own device registrations
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607180008_notification_delivery.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+BEGIN
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..9
+(1 row)
+
+           has_column            
+---------------------------------
+ ok 1 - push delivery is tracked
+(1 row)
+
+              has_trigger              
+---------------------------------------
+ ok 2 - messages enqueue notifications
+(1 row)
+
+                has_trigger                 
+--------------------------------------------
+ ok 3 - forum replies enqueue notifications
+(1 row)
+
+                 has_trigger                 
+---------------------------------------------
+ ok 4 - friend changes enqueue notifications
+(1 row)
+
+               has_trigger                
+------------------------------------------
+ ok 5 - moderation enqueues notifications
+(1 row)
+
+          has_function          
+--------------------------------
+ ok 6 - message notifier exists
+(1 row)
+
+         has_function         
+------------------------------
+ ok 7 - forum notifier exists
+(1 row)
+
+         has_function          
+-------------------------------
+ ok 8 - friend notifier exists
+(1 row)
+
+           has_function            
+-----------------------------------
+ ok 9 - moderation notifier exists
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607190001_focused_launch.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan  
+-------
+ 1..17
+(1 row)
+
+              has_table              
+-------------------------------------
+ ok 1 - focused workout shares exist
+(1 row)
+
+            has_table             
+----------------------------------
+ ok 2 - workout share likes exist
+(1 row)
+
+              has_table              
+-------------------------------------
+ ok 3 - workout share comments exist
+(1 row)
+
+               has_table               
+---------------------------------------
+ ok 4 - workout share reporting exists
+(1 row)
+
+                  has_function                   
+-------------------------------------------------
+ ok 5 - connection activity is server authorized
+(1 row)
+
+                 has_function                  
+-----------------------------------------------
+ ok 6 - athlete discovery is server authorized
+(1 row)
+
+              has_function               
+-----------------------------------------
+ ok 7 - completed workout sharing exists
+(1 row)
+
+           has_function           
+----------------------------------
+ ok 8 - owners can remove a share
+(1 row)
+
+         has_function          
+-------------------------------
+ ok 9 - connection likes exist
+(1 row)
+
+                      has_function                       
+---------------------------------------------------------
+ ok 10 - connection comments are readable through an RPC
+(1 row)
+
+                      has_function                       
+---------------------------------------------------------
+ ok 11 - connection comments are writable through an RPC
+(1 row)
+
+              has_function               
+-----------------------------------------
+ ok 12 - shared workouts can be reported
+(1 row)
+
+              has_function               
+-----------------------------------------
+ ok 13 - share visibility is centralized
+(1 row)
+
+                             policies_are                             
+----------------------------------------------------------------------
+ ok 14 - workout shares remain connection-readable and owner-writable
+(1 row)
+
+                        policies_are                         
+-------------------------------------------------------------
+ ok 15 - likes remain scoped to the authenticated connection
+(1 row)
+
+                          policies_are                           
+-----------------------------------------------------------------
+ ok 16 - comments remain connection-readable and author-writable
+(1 row)
+
+                    policies_are                     
+-----------------------------------------------------
+ ok 17 - reports remain reporter or moderator scoped
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607240001_canonical_locations.test.sql:3: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+ plan  
+-------
+ 1..13
+(1 row)
+
+            has_table             
+----------------------------------
+ ok 1 - canonical countries exist
+(1 row)
+
+           has_table            
+--------------------------------
+ ok 2 - canonical regions exist
+(1 row)
+
+           has_table           
+-------------------------------
+ ok 3 - canonical cities exist
+(1 row)
+
+              has_table              
+-------------------------------------
+ ok 4 - canonical city aliases exist
+(1 row)
+
+                     has_column                     
+----------------------------------------------------
+ ok 5 - private details can store canonical city id
+(1 row)
+
+         has_function          
+-------------------------------
+ ok 6 - city search rpc exists
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 2
+INSERT 0 1
+                        is                        
+--------------------------------------------------
+ ok 7 - alias search returns canonical Miami once
+(1 row)
+
+                           is                           
+--------------------------------------------------------
+ ok 8 - prefix search prioritizes larger canonical city
+(1 row)
+
+SET
+                       is                       
+------------------------------------------------
+ ok 9 - anon can search public canonical cities
+(1 row)
+
+RESET
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 30000000-0000-0000-0000-000000000201
+(1 row)
+
+                       lives_ok                        
+-------------------------------------------------------
+ ok 10 - authenticated user can save canonical city id
+(1 row)
+
+                     is                      
+---------------------------------------------
+ ok 11 - save derives city from canonical id
+(1 row)
+
+                      is                       
+-----------------------------------------------
+ ok 12 - save derives region from canonical id
+(1 row)
+
+                   throws_ok                   
+-----------------------------------------------
+ ok 13 - invalid canonical city id is rejected
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202607240002_profile_avatars.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan  
+-------
+ 1..11
+(1 row)
+
+                        is                        
+--------------------------------------------------
+ ok 1 - profile avatar bucket exists exactly once
+(1 row)
+
+                   is                    
+-----------------------------------------
+ ok 2 - profile avatar bucket is private
+(1 row)
+
+                       is                       
+------------------------------------------------
+ ok 3 - profile avatar uploads are size limited
+(1 row)
+
+                       is                       
+------------------------------------------------
+ ok 4 - profile avatar uploads accept JPEG only
+(1 row)
+
+                   is                    
+-----------------------------------------
+ ok 5 - authenticated read policy exists
+(1 row)
+
+                is                 
+-----------------------------------
+ ok 6 - owner upload policy exists
+(1 row)
+
+                is                 
+-----------------------------------
+ ok 7 - owner update policy exists
+(1 row)
+
+                is                 
+-----------------------------------
+ ok 8 - owner delete policy exists
+(1 row)
+
+                 is                  
+-------------------------------------
+ ok 9 - upload policy is insert-only
+(1 row)
+
+                  is                  
+--------------------------------------
+ ok 10 - update policy is update-only
+(1 row)
+
+                  is                  
+--------------------------------------
+ ok 11 - delete policy is delete-only
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608020001_optional_lift_gym.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..4
+(1 row)
+
+                    col_is_null                    
+---------------------------------------------------
+ ok 1 - lift submissions permit no gym affiliation
+(1 row)
+
+                         is_definer                         
+------------------------------------------------------------
+ ok 2 - competitive lift authority remains security definer
+(1 row)
+
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 81000000-0000-0000-0000-000000000001
+(1 row)
+
+                            lives_ok                             
+-----------------------------------------------------------------
+ ok 3 - an authenticated athlete can submit a lift without a gym
+(1 row)
+
+                         throws_ok                         
+-----------------------------------------------------------
+ ok 4 - a supplied gym still requires an active membership
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608020002_finalize_lift_media_authority.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..4
+(1 row)
+
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 84000000-0000-0000-0000-000000000001
+(1 row)
+
+INSERT 0 1
+UPDATE 1
+                                is                                
+------------------------------------------------------------------
+ ok 1 - an authenticated table update cannot forge video evidence
+(1 row)
+
+RESET
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 84000000-0000-0000-0000-000000000001
+(1 row)
+
+                        lives_ok                        
+--------------------------------------------------------
+ ok 2 - the trusted finalizer can attach uploaded media
+(1 row)
+
+                            is                            
+----------------------------------------------------------
+ ok 3 - the trusted finalizer marks the lift video-backed
+(1 row)
+
+                         ok                         
+----------------------------------------------------
+ ok 4 - the trusted finalizer links the media asset
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608020003_video_leaderboard_default.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..2
+(1 row)
+
+                        has_function                         
+-------------------------------------------------------------
+ ok 1 - the canonical leaderboard function remains available
+(1 row)
+
+                                         ok                                         
+------------------------------------------------------------------------------------
+ ok 2 - video-backed evidence remains the only verification gate for video rankings
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608060001_ugc_profile_reporting.test.sql:3: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan  
+-------
+ 1..17
+(1 row)
+
+          has_table           
+------------------------------
+ ok 1 - profile reports exist
+(1 row)
+
+           has_function           
+----------------------------------
+ ok 2 - profile report RPC exists
+(1 row)
+
+                     enum_has_labels                      
+----------------------------------------------------------
+ ok 3 - lift reports include integrity and safety reasons
+(1 row)
+
+                      ok                       
+-----------------------------------------------
+ ok 4 - profile report RPC is security definer
+(1 row)
+
+CREATE FUNCTION
+INSERT 0 2
+SET
+              set_config              
+--------------------------------------
+ 60000000-0000-0000-0000-000000000001
+(1 row)
+
+                        lives_ok                         
+---------------------------------------------------------
+ ok 5 - an authenticated user can report another profile
+(1 row)
+
+                    is                    
+------------------------------------------
+ ok 6 - one open profile report is stored
+(1 row)
+
+                  is                  
+--------------------------------------
+ ok 7 - the selected reason is stored
+(1 row)
+
+                   lives_ok                   
+----------------------------------------------
+ ok 8 - a repeated open report updates safely
+(1 row)
+
+                           is                           
+--------------------------------------------------------
+ ok 9 - a reporter cannot create duplicate open reports
+(1 row)
+
+                    is                     
+-------------------------------------------
+ ok 10 - repeat reporting updates the note
+(1 row)
+
+             throws_ok              
+------------------------------------
+ ok 11 - self-reporting is rejected
+(1 row)
+
+                  throws_ok                  
+---------------------------------------------
+ ok 12 - missing profiles cannot be reported
+(1 row)
+
+                    is                     
+-------------------------------------------
+ ok 13 - direct report insertion is denied
+(1 row)
+
+              set_config              
+--------------------------------------
+ 60000000-0000-0000-0000-000000000002
+(1 row)
+
+                       is                       
+------------------------------------------------
+ ok 14 - a reported user cannot read the report
+(1 row)
+
+RESET
+                           ok                           
+--------------------------------------------------------
+ ok 15 - authenticated users can execute the report RPC
+(1 row)
+
+                          ok                           
+-------------------------------------------------------
+ ok 16 - anonymous users cannot execute the report RPC
+(1 row)
+
+                        is                        
+--------------------------------------------------
+ ok 17 - profile report RPC fixes its search path
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608060002_trusted_media_review_fields.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..6
+(1 row)
+
+                         is_definer                         
+------------------------------------------------------------
+ ok 1 - competitive lift authority remains security definer
+(1 row)
+
+                    is_definer                    
+--------------------------------------------------
+ ok 2 - media completion remains security definer
+(1 row)
+
+                       is                        
+-------------------------------------------------
+ ok 3 - media completion has a fixed search path
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+SET
+              set_config              
+--------------------------------------
+ 93000000-0000-4000-8000-000000000001
+(1 row)
+
+INSERT 0 1
+                        lives_ok                        
+--------------------------------------------------------
+ ok 4 - the trusted finalizer completes an owned upload
+(1 row)
+
+                              is                              
+--------------------------------------------------------------
+ ok 5 - trusted media fields survive both protection triggers
+(1 row)
+
+              set_config              
+--------------------------------------
+ 93000000-0000-4000-8000-000000000099
+(1 row)
+
+                  throws_ok                   
+----------------------------------------------
+ ok 6 - another user cannot finalize the lift
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608060003_report_driven_video_leaderboard.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..5
+(1 row)
+
+                      is_definer                       
+-------------------------------------------------------
+ ok 1 - leaderboard authority remains security definer
+(1 row)
+
+                          is                          
+------------------------------------------------------
+ ok 2 - leaderboard authority has a fixed search path
+(1 row)
+
+                            ok                            
+----------------------------------------------------------
+ ok 3 - verified lifts do not require manual pre-approval
+(1 row)
+
+                                      ok                                       
+-------------------------------------------------------------------------------
+ ok 4 - verified eligibility does not depend on an unsupported per-lift toggle
+(1 row)
+
+                                                     ok                                                      
+-------------------------------------------------------------------------------------------------------------
+ ok 5 - server-finalized videos remain eligible for partial totals until report-driven moderation intervenes
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608080000_public_profile_visibility_helpers.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan  
+-------
+ 1..10
+(1 row)
+
+              has_column               
+---------------------------------------
+ ok 1 - canonical lift gym UUID exists
+(1 row)
+
+                   has_column                   
+------------------------------------------------
+ ok 2 - canonical approved evidence path exists
+(1 row)
+
+              has_column               
+---------------------------------------
+ ok 3 - canonical review status exists
+(1 row)
+
+                           has_column                            
+-----------------------------------------------------------------
+ ok 4 - legacy public bodyweight-class filter remains compatible
+(1 row)
+
+               has_column               
+----------------------------------------
+ ok 5 - video privacy preference exists
+(1 row)
+
+                has_function                
+--------------------------------------------
+ ok 6 - public gym visibility helper exists
+(1 row)
+
+                      is_definer                       
+-------------------------------------------------------
+ ok 7 - public gym visibility is evaluated server-side
+(1 row)
+
+                                ok                                
+------------------------------------------------------------------
+ ok 8 - anonymous public views can evaluate public gym visibility
+(1 row)
+
+                          ok                           
+-------------------------------------------------------
+ ok 9 - authenticated public views use the same helper
+(1 row)
+
+                         ok                          
+-----------------------------------------------------
+ ok 10 - athletes can update public video visibility
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608080001_coordinated_lift_removal.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..9
+(1 row)
+
+                 has_table                  
+--------------------------------------------
+ ok 1 - durable lift removal requests exist
+(1 row)
+
+              has_function               
+-----------------------------------------
+ ok 2 - trusted removal finalizer exists
+(1 row)
+
+                        ok                        
+--------------------------------------------------
+ ok 3 - clients cannot bypass coordinated cleanup
+(1 row)
+
+                          ok                           
+-------------------------------------------------------
+ ok 4 - only the service workflow can finalize removal
+(1 row)
+
+INSERT 0 1
+              set_config              
+--------------------------------------
+ 98000000-0000-4000-8000-000000000001
+(1 row)
+
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+SET
+                    is                     
+-------------------------------------------
+ ok 5 - service workflow finalizes removal
+(1 row)
+
+RESET
+              is              
+------------------------------
+ ok 6 - submission is deleted
+(1 row)
+
+                 is                 
+------------------------------------
+ ok 7 - moderation state is cleaned
+(1 row)
+
+                    is                     
+-------------------------------------------
+ ok 8 - durable request records completion
+(1 row)
+
+SET
+                is                 
+-----------------------------------
+ ok 9 - finalization is idempotent
+(1 row)
+
+RESET
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608090001_atomic_bodyweight_checkins.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan  
+-------
+ 1..18
+(1 row)
+
+            has_table             
+----------------------------------
+ ok 1 - bodyweight history exists
+(1 row)
+
+                 has_function                 
+----------------------------------------------
+ ok 2 - atomic bodyweight check-in RPC exists
+(1 row)
+
+                        is_definer                        
+----------------------------------------------------------
+ ok 3 - bodyweight check-ins use trusted server authority
+(1 row)
+
+                             is                             
+------------------------------------------------------------
+ ok 4 - bodyweight check-in authority fixes its search path
+(1 row)
+
+                           ok                            
+---------------------------------------------------------
+ ok 5 - authenticated owners can read bodyweight history
+(1 row)
+
+                            ok                             
+-----------------------------------------------------------
+ ok 6 - authenticated owners can insert bodyweight history
+(1 row)
+
+                            ok                             
+-----------------------------------------------------------
+ ok 7 - authenticated owners can update bodyweight history
+(1 row)
+
+                                   ok                                   
+------------------------------------------------------------------------
+ ok 8 - authenticated clients cannot delete bodyweight history directly
+(1 row)
+
+                           ok                            
+---------------------------------------------------------
+ ok 9 - anonymous clients cannot read bodyweight history
+(1 row)
+
+                       ok                        
+-------------------------------------------------
+ ok 10 - authenticated users can save a check-in
+(1 row)
+
+                       ok                       
+------------------------------------------------
+ ok 11 - anonymous users cannot save a check-in
+(1 row)
+
+CREATE FUNCTION
+INSERT 0 2
+SET
+              set_config              
+--------------------------------------
+ 90000000-0000-0000-0000-000000000001
+(1 row)
+
+                     lives_ok                      
+---------------------------------------------------
+ ok 12 - an athlete can save a bodyweight check-in
+(1 row)
+
+                    is                     
+-------------------------------------------
+ ok 13 - history stores the new bodyweight
+(1 row)
+
+                            is                             
+-----------------------------------------------------------
+ ok 14 - current private profile weight updates atomically
+(1 row)
+
+              set_config              
+--------------------------------------
+ 90000000-0000-0000-0000-000000000002
+(1 row)
+
+                        is                        
+--------------------------------------------------
+ ok 15 - another athlete cannot read the check-in
+(1 row)
+
+                           throws_ok                            
+----------------------------------------------------------------
+ ok 16 - another athlete cannot replace an existing check-in id
+(1 row)
+
+                                 lives_ok                                  
+---------------------------------------------------------------------------
+ ok 17 - the owner-only table grant supports local history synchronization
+(1 row)
+
+                              is                              
+--------------------------------------------------------------
+ ok 18 - row-level security still rejects cross-owner inserts
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608090002_lift_removal_service_permissions.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..6
+(1 row)
+
+                        ok                         
+---------------------------------------------------
+ ok 1 - service workflow can read removal requests
+(1 row)
+
+                         ok                          
+-----------------------------------------------------
+ ok 2 - service workflow can create removal requests
+(1 row)
+
+                         ok                          
+-----------------------------------------------------
+ ok 3 - service workflow can update removal requests
+(1 row)
+
+                               ok                                
+-----------------------------------------------------------------
+ ok 4 - service workflow cannot directly delete removal requests
+(1 row)
+
+                            ok                             
+-----------------------------------------------------------
+ ok 5 - authenticated clients cannot read removal requests
+(1 row)
+
+                                  ok                                  
+----------------------------------------------------------------------
+ ok 6 - authenticated clients cannot create removal requests directly
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608210001_protect_username_mutations.test.sql:3: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+ plan  
+-------
+ 1..14
+(1 row)
+
+                 has_table                 
+-------------------------------------------
+ ok 1 - username change audit table exists
+(1 row)
+
+                  has_function                   
+-------------------------------------------------
+ ok 2 - explicit username change function exists
+(1 row)
+
+                    has_trigger                    
+---------------------------------------------------
+ ok 3 - profile identity protection trigger exists
+(1 row)
+
+                         ok                         
+----------------------------------------------------
+ ok 4 - implicit claim_username function is removed
+(1 row)
+
+                              ok                               
+---------------------------------------------------------------
+ ok 5 - authenticated clients cannot directly update usernames
+(1 row)
+
+INSERT 0 1
+              set_config              
+--------------------------------------
+ a1000000-0000-0000-0000-000000000001
+(1 row)
+
+SET
+                           is                            
+---------------------------------------------------------
+ ok 6 - new profiles start with their generated username
+(1 row)
+
+                 lives_ok                  
+-------------------------------------------
+ ok 7 - normal profile saves still succeed
+(1 row)
+
+                        is                         
+---------------------------------------------------
+ ok 8 - normal profile saves preserve the username
+(1 row)
+
+                  throws_ok                  
+---------------------------------------------
+ ok 9 - direct username updates are rejected
+(1 row)
+
+                               is                                
+-----------------------------------------------------------------
+ ok 10 - explicit username changes normalize the requested value
+(1 row)
+
+                          is                           
+-------------------------------------------------------
+ ok 11 - explicit username changes update the username
+(1 row)
+
+                               is                               
+----------------------------------------------------------------
+ ok 12 - explicit username changes keep the handle synchronized
+(1 row)
+
+RESET
+                      is                       
+-----------------------------------------------
+ ok 13 - explicit username changes are audited
+(1 row)
+
+SET
+                  throws_ok                  
+---------------------------------------------
+ ok 14 - stale username changes are rejected
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+ plan 
+------
+ 1..1
+(1 row)
+
+                                  ok                                  
+----------------------------------------------------------------------
+ ok 1 - authenticated playback can evaluate lift media storage policy
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+BEGIN
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/202608280001_profile_training_goals.test.sql:2: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+SET
+ plan 
+------
+ 1..8
+(1 row)
+
+                 has_table                  
+--------------------------------------------
+ ok 1 - profile goals are stored separately
+(1 row)
+
+            has_function            
+------------------------------------
+ ok 2 - goal replacement RPC exists
+(1 row)
+
+                  is_definer                   
+-----------------------------------------------
+ ok 3 - goal replacement uses server authority
+(1 row)
+
+                    ok                     
+-------------------------------------------
+ ok 4 - authenticated users can save goals
+(1 row)
+
+                    ok                    
+------------------------------------------
+ ok 5 - anonymous users cannot save goals
+(1 row)
+
+INSERT 0 2
+SET
+              set_config              
+--------------------------------------
+ 98000000-0000-0000-0000-000000000001
+(1 row)
+
+            lives_ok            
+--------------------------------
+ ok 6 - owner can replace goals
+(1 row)
+
+                is                 
+-----------------------------------
+ ok 7 - owner can read saved goals
+(1 row)
+
+              set_config              
+--------------------------------------
+ 98000000-0000-0000-0000-000000000002
+(1 row)
+
+                  is                   
+---------------------------------------
+ ok 8 - another user cannot read goals
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+ROLLBACK
+psql:/var/folders/rj/r2g59qpx3lz36l5h1_nptgy80000gn/T/liftrank-backend-tests-66073/concurrency.sql:1: NOTICE:  schema "extensions" already exists, skipping
+CREATE SCHEMA
+CREATE EXTENSION
+BEGIN
+INSERT 0 1
+INSERT 0 4
+              set_config              
+--------------------------------------
+ 11000000-0000-0000-0000-000000000001
+(1 row)
+
+                                                   join_gym                                                    
+---------------------------------------------------------------------------------------------------------------
+ (11000000-0000-0000-0000-000000000001,21000000-0000-0000-0000-000000000001,t,"2026-09-05 22:10:55.81405-04",)
+(1 row)
+
+                                                    join_gym                                                    
+----------------------------------------------------------------------------------------------------------------
+ (11000000-0000-0000-0000-000000000001,21000000-0000-0000-0000-000000000002,f,"2026-09-05 22:10:55.815063-04",)
+(1 row)
+
+COMMIT
+BEGIN
+ plan 
+------
+ 1..4
+(1 row)
+
+ dblink_connect 
+----------------
+ OK
+(1 row)
+
+ dblink_connect 
+----------------
+ OK
+(1 row)
+
+                            is                            
+----------------------------------------------------------
+ ok 1 - first competing join is dispatched asynchronously
+(1 row)
+
+                            is                             
+-----------------------------------------------------------
+ ok 2 - second competing join is dispatched asynchronously
+(1 row)
+
+CREATE FUNCTION
+CREATE TABLE
+INSERT 0 2
+                             is                             
+------------------------------------------------------------
+ ok 3 - only one of two concurrent third-gym joins succeeds
+(1 row)
+
+                               is                               
+----------------------------------------------------------------
+ ok 4 - concurrent joins cannot exceed three active memberships
+(1 row)
+
+ dblink_disconnect 
+-------------------
+ OK
+(1 row)
+
+ dblink_disconnect 
+-------------------
+ OK
+(1 row)
+
+ finish 
+--------
+(0 rows)
+
+DELETE 1
+DELETE 4
+COMMIT
+Two clean resets passed. Expected database errors are limited to rejected competing fourth-gym joins.
+2026-09-05 22:10:54.262 EDT [66726] ERROR:  A user may join at most three active gyms
+2026-09-05 22:10:55.824 EDT [67050] ERROR:  A user may join at most three active gyms

@@ -1,0 +1,5 @@
+step|status|log
+required_scheme|pass|/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/release-evidence/mandatory-refresh-20260905/required-scheme.log
+publish_readiness.services|pass|/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/release-evidence/mandatory-refresh-20260905/ios-services-readiness.log
+publish_readiness.app_store_metadata|pass|/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/release-evidence/mandatory-refresh-20260905/app-store-metadata-readiness.log
+backend.pg_tap_suite|pass|/Users/robertjeanty/Documents/ChatGPT/Lift Rivals App/release-evidence/mandatory-refresh-20260905/backend-pgtap.log

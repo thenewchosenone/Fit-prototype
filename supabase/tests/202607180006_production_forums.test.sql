@@ -1,0 +1,12 @@
+begin;
+create schema if not exists extensions;create extension if not exists pgtap with schema extensions;set local search_path=public,extensions;
+select plan(8);
+select has_table('public','forum_communities','forum communities exist');
+select has_table('public','forum_posts','forum posts exist');
+select has_table('public','forum_comments','forum comments exist');
+select has_table('public','forum_reports','forum reporting exists');
+select has_function('public','join_forum_community',array['uuid','text'],'membership join function exists');
+select has_function('public','moderate_forum_post',array['uuid','text','text'],'forum moderation exists');
+select has_function('public','get_message_threads',array[]::text[],'production message list exists');
+select has_function('public','send_message',array['uuid','text'],'production message send exists');
+select * from finish();rollback;
