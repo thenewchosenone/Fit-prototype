@@ -2138,25 +2138,6 @@ final class RankingCalculatorTests: XCTestCase {
         }
     }
 
-    func testProgressTimeRangesCoverAllSupportedHorizons() throws {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
-        let reference = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: 4, hour: 12)))
-
-        XCTAssertEqual(
-            calendar.dateComponents([.year, .month, .day], from: TrainingTrackerView.ProgressTimeRange.fourWeeks.startDate(from: reference, calendar: calendar)),
-            DateComponents(year: 2026, month: 9, day: 6)
-        )
-        XCTAssertEqual(
-            calendar.dateComponents([.year, .month, .day], from: TrainingTrackerView.ProgressTimeRange.sixMonths.startDate(from: reference, calendar: calendar)),
-            DateComponents(year: 2026, month: 4, day: 4)
-        )
-        XCTAssertEqual(
-            calendar.dateComponents([.year, .month, .day], from: TrainingTrackerView.ProgressTimeRange.oneYear.startDate(from: reference, calendar: calendar)),
-            DateComponents(year: 2025, month: 10, day: 4)
-        )
-    }
-
     func testProfileHistoryDateRangesUseExpectedCutoffs() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))

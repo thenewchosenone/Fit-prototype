@@ -16,6 +16,7 @@ struct LiftPrimaryButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(isEnabled ? Color.clear : Color.liftSurfaceBorder, lineWidth: 1)
             }
+            .contentShape(Rectangle())
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
             .animation(LiftMotion.quick, value: configuration.isPressed)
     }
@@ -52,6 +53,7 @@ struct LiftCompactProminentButtonStyle: ButtonStyle {
             .foregroundStyle(isEnabled ? Color.liftOnAccent : Color.liftTextDisabled)
             .background(isEnabled ? Color.liftLime.opacity(configuration.isPressed ? 0.82 : 1) : Color.liftLime.opacity(0.35))
             .clipShape(Capsule())
+            .contentShape(Capsule())
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .animation(LiftMotion.quick, value: configuration.isPressed)
     }
@@ -97,6 +99,7 @@ struct NativeIconButton: View {
             ZStack(alignment: .topTrailing) {
                 Image(systemName: symbolName)
                     .font(.subheadline.weight(.semibold))
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     .foregroundStyle(tint)
                     .frame(width: LiftDesign.minimumTouchTarget, height: LiftDesign.minimumTouchTarget)
                     .background(Color.liftCard)

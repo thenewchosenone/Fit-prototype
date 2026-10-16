@@ -8,6 +8,12 @@ final class LiftRankUITests: XCTestCase {
     private func launchDemo(arguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTestingDemoMode"] + arguments
+        if !arguments.contains("-UIPreferredContentSizeCategoryName") {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
+        }
+        if !arguments.contains("-liftrank.appearance") {
+            app.launchArguments += ["-liftrank.appearance", "Dark"]
+        }
         app.launch()
         return app
     }
@@ -334,7 +340,19 @@ final class LiftRankUITests: XCTestCase {
     }
 
     func testSetEntryMovesAcrossRowsAndDismissesKeyboardAfterFinalWeight() {
-        let app = launchDemo(arguments: ["-uiTestingActiveWorkout", "-uiTestingActiveWorkoutWithExercise"])
+        auditSetEntryKeyboard()
+    }
+
+    func testSetEntryKeyboardAtAccessibilitySize() {
+        auditSetEntryKeyboard(arguments: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
+    }
+
+    func testSetEntryKeyboardInLightAppearance() {
+        auditSetEntryKeyboard(arguments: ["-liftrank.appearance", "Light"])
+    }
+
+    private func auditSetEntryKeyboard(arguments: [String] = []) {
+        let app = launchDemo(arguments: ["-uiTestingActiveWorkout", "-uiTestingActiveWorkoutWithExercise"] + arguments)
         let resume = app.buttons["home.activeWorkout.resume"]
         XCTAssertTrue(resume.waitForExistence(timeout: 8))
         resume.tap()
@@ -346,18 +364,39 @@ final class LiftRankUITests: XCTestCase {
         let keyboardAction = app.buttons["workout.setInput.keyboardAction"]
         let firstReps = app.textFields["workout.set.1.reps"]
         let firstWeight = app.textFields["workout.set.1.weight"]
+        for _ in 0..<4 {
+            if firstReps.exists { break }
+            app.swipeUp()
+        }
         XCTAssertTrue(firstReps.waitForExistence(timeout: 5))
         let setEntryScreenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         setEntryScreenshot.name = "Active workout set entry layout"
         setEntryScreenshot.lifetime = .keepAlways
         add(setEntryScreenshot)
-        XCTAssertTrue(app.buttons["workout.set.1.previousValues"].waitForExistence(timeout: 5))
+        let previousValues = app.buttons["workout.set.1.previousValues"]
+        XCTAssertTrue(previousValues.waitForExistence(timeout: 5))
+        XCTAssertTrue(previousValues.label.contains("lb"))
+        XCTAssertFalse(previousValues.label.contains("kg"))
         firstReps.tap()
         firstReps.typeText("8")
         XCTAssertTrue(keyboardAction.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.keyboards.firstMatch.exists)
+        let keyboardScreenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        keyboardScreenshot.name = "Set entry with keyboard visible"
+        keyboardScreenshot.lifetime = .keepAlways
+        add(keyboardScreenshot)
+        let hideKeyboard = app.buttons["workout.setInput.hideKeyboard"]
+        XCTAssertTrue(hideKeyboard.waitForExistence(timeout: 3))
+        for _ in 0..<3 {
+            hideKeyboard.tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+            XCTAssertEqual(firstReps.value as? String, "8")
+            firstReps.tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 3))
+        }
         keyboardAction.tap()
-        firstWeight.typeText("100")
-        XCTAssertEqual(firstWeight.value as? String, "100")
+        firstWeight.typeText("100.5")
+        XCTAssertEqual(firstWeight.value as? String, "100.5")
 
         let fields = [
             ("workout.set.2.reps", "8"),
@@ -370,11 +409,16 @@ final class LiftRankUITests: XCTestCase {
             let field = app.textFields[identifier]
             XCTAssertTrue(field.waitForExistence(timeout: 3))
             field.typeText(value)
+            XCTAssertEqual(field.value as? String, value)
         }
 
         XCTAssertEqual(keyboardAction.label, "Done")
         keyboardAction.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+        let finalScreenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        finalScreenshot.name = "Set entry after final Done"
+        finalScreenshot.lifetime = .keepAlways
+        add(finalScreenshot)
     }
 
     func testActiveWorkoutCanCreateAndAddCustomExercise() {
@@ -573,12 +617,112 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label ENDSWITH %@", "Completed week")).firstMatch.exists)
     }
 
+    func testStrengthLayoutAudit() {
+        auditStrengthLayout(arguments: [], name: "Dark")
+    }
+
+    func testStrengthLayoutAuditInLightAppearance() {
+        auditStrengthLayout(arguments: ["-liftrank.appearance", "Light"], name: "Light")
+    }
+
+    func testStrengthLayoutAuditAtAccessibilitySize() {
+        auditStrengthLayout(arguments: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"], name: "Accessibility")
+    }
+
+    private func auditStrengthLayout(arguments: [String], name: String) {
+        let app = launchDemo(arguments: ["-uiTestingNoActiveWorkout"] + arguments)
+        XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
+        tab("track", in: app).tap()
+        XCTAssertTrue(app.buttons["tracker.segment.progress"].waitForExistence(timeout: 5))
+        app.buttons["tracker.segment.progress"].tap()
+        let categories = app.segmentedControls["tracker.progress.category"]
+        XCTAssertTrue(categories.waitForExistence(timeout: 5))
+        categories.buttons["Strength"].tap()
+
+        func capture(_ section: String) {
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = "Strength \(name) · \(section)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+
+        func reveal(_ element: XCUIElement) {
+            for _ in 0..<32 {
+                let top = app.buttons["tracker.segment.progress"].frame.maxY + 10
+                let bottom = tab("track", in: app).frame.minY - 12
+                if element.exists && element.frame.minY >= top && element.frame.maxY <= bottom { break }
+                let above = element.exists && element.frame.minY < top
+                let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: above ? 0.45 : 0.76))
+                let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: above ? 0.68 : 0.5))
+                start.press(forDuration: 0.1, thenDragTo: end)
+            }
+            XCTAssertTrue(element.isHittable)
+        }
+
+        XCTAssertTrue(app.staticTexts["Am I getting stronger?"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Chest,")).firstMatch.exists)
+        capture("Summary")
+        let steps = app.buttons["Suggested next steps"]
+        reveal(steps)
+        steps.tap()
+        let reviewPlan = app.buttons["tracker.strength.reviewPlan"]
+        reveal(reviewPlan)
+        capture("Suggested next steps bottom")
+        reveal(steps)
+        steps.tap()
+        let records = app.staticTexts["Strength records · all time"]
+        reveal(records)
+        app.swipeUp()
+        capture("Strength records")
+        let picker = app.buttons["tracker.progress.exercisePicker"]
+        reveal(picker)
+        capture("Exercise metrics")
+        picker.tap()
+        XCTAssertTrue(app.navigationBars["Choose exercise"].waitForExistence(timeout: 5))
+        capture("Exercise picker")
+        app.navigationBars["Choose exercise"].buttons["Done"].tap()
+        let estimatedMaxChart = app.descendants(matching: .any)["tracker.strength.estimatedMaxChart"].firstMatch
+        reveal(estimatedMaxChart)
+        capture("Estimated max chart")
+        let weightChart = app.descendants(matching: .any)["tracker.strength.weightChart"].firstMatch
+        reveal(weightChart)
+        capture("Weight chart")
+        weightChart.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)).tap()
+        let selectedPerformance = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "Selected performance")).firstMatch
+        XCTAssertTrue(selectedPerformance.waitForExistence(timeout: 5))
+        XCTAssertTrue(selectedPerformance.label.contains(" lb"))
+        XCTAssertFalse(selectedPerformance.label.contains(" kg"))
+        reveal(selectedPerformance)
+        capture("Selected performance")
+        let viewWorkout = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "View workout ·")).firstMatch
+        reveal(viewWorkout)
+        viewWorkout.tap()
+        XCTAssertTrue(app.buttons["More workout actions"].waitForExistence(timeout: 5))
+        app.buttons["Done"].tap()
+        let recordsDisclosure = app.buttons["Records and recent sessions"]
+        reveal(recordsDisclosure)
+        capture("Exercise progress summary")
+        recordsDisclosure.tap()
+        let repRecords = app.staticTexts["Best sets by rep range · last 28 days"]
+        reveal(repRecords)
+        capture("Exercise records")
+        XCTAssertFalse(app.staticTexts["Bodyweight"].exists)
+        XCTAssertFalse(app.buttons["Log bodyweight"].exists)
+        let summary = app.staticTexts["Am I getting stronger?"]
+        for _ in 0..<32 where !summary.isHittable { app.swipeDown() }
+        XCTAssertTrue(summary.isHittable)
+        app.swipeDown()
+    }
+
     func testRecentStrengthLiftOpensItsChart() {
         let app = launchDemo()
         XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
         tab("track", in: app).tap()
         app.buttons["tracker.segment.progress"].tap()
         app.segmentedControls["tracker.progress.category"].buttons["Strength"].tap()
+        let breakdown = app.buttons["Lift breakdown by muscle"]
+        XCTAssertTrue(breakdown.waitForExistence(timeout: 5))
+        breakdown.tap()
         let chest = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Chest")).firstMatch
         for _ in 0..<6 where !chest.isHittable { app.swipeUp() }
         XCTAssertTrue(chest.isHittable)
@@ -597,6 +741,7 @@ final class LiftRankUITests: XCTestCase {
         let app = launchDemo()
         XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
         tab("track", in: app).tap()
+        XCTAssertTrue(app.buttons["tracker.segment.progress"].waitForExistence(timeout: 5))
         app.buttons["tracker.segment.progress"].tap()
         let categories = app.segmentedControls["tracker.progress.category"]
         XCTAssertTrue(categories.waitForExistence(timeout: 5))
@@ -608,6 +753,7 @@ final class LiftRankUITests: XCTestCase {
         screenshot.name = "Recent strength summary"
         screenshot.lifetime = .keepAlways
         add(screenshot)
+        app.buttons["Training coverage"].tap()
         let workload = app.buttons.matching(NSPredicate(format: "label == %@", "Review muscle workload")).firstMatch
         for _ in 0..<30 {
             let top = app.buttons["tracker.segment.progress"].frame.maxY + 10
@@ -693,7 +839,7 @@ final class LiftRankUITests: XCTestCase {
     }
 
     func testExerciseLibraryFilterSheetRemainsUsableAtAccessibilitySize() {
-        let app = launchDemo()
+        let app = launchDemo(arguments: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
         XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
         tab("track", in: app).tap()
         let library = app.buttons["tracker.segment.library"]
@@ -757,7 +903,7 @@ final class LiftRankUITests: XCTestCase {
     }
 
     func testWorkoutHistoryCalendarRemainsUsableAtAccessibilitySize() {
-        let app = launchDemo()
+        let app = launchDemo(arguments: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
         XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
         tab("track", in: app).tap()
         app.buttons["tracker.segment.progress"].tap()
@@ -766,12 +912,18 @@ final class LiftRankUITests: XCTestCase {
         let calendarTitle = app.staticTexts["Workout calendar"]
         for _ in 0..<12 where !calendarTitle.isHittable { app.swipeUp() }
         XCTAssertTrue(calendarTitle.isHittable)
-        let day = app.buttons.matching(
+        let days = app.buttons.matching(
             NSPredicate(format: "label CONTAINS %@", "completed workout")
-        ).firstMatch
-        XCTAssertTrue(day.waitForExistence(timeout: 5))
-        for _ in 0..<6 where !day.isHittable { app.swipeUp() }
+        )
+        XCTAssertTrue(days.firstMatch.waitForExistence(timeout: 5))
+        for _ in 0..<6 where !days.allElementsBoundByIndex.contains(where: { $0.isHittable }) { app.swipeUp() }
+        guard let visibleDay = days.allElementsBoundByIndex.first(where: { $0.isHittable }) else {
+            XCTFail("No calendar date is visible")
+            return
+        }
+        let day = app.buttons[visibleDay.label]
         XCTAssertTrue(day.isHittable)
+        XCTAssertLessThan(day.staticTexts.firstMatch.frame.height, 44)
         day.tap()
         XCTAssertTrue(day.isSelected)
 
@@ -816,7 +968,22 @@ final class LiftRankUITests: XCTestCase {
     }
 
     func testScreenAuditNavigation() {
-        let app = launchDemo()
+        auditScreenNavigation(contentSize: "UICTContentSizeCategoryL")
+    }
+
+    func testScreenAuditNavigationAtAccessibilitySize() {
+        auditScreenNavigation(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
+    }
+
+    func testScreenAuditNavigationInLightAppearance() {
+        auditScreenNavigation(contentSize: "UICTContentSizeCategoryL", appearance: "Light")
+    }
+
+    private func auditScreenNavigation(contentSize: String, appearance: String = "Dark") {
+        let app = launchDemo(arguments: [
+            "-UIPreferredContentSizeCategoryName", contentSize,
+            "-liftrank.appearance", appearance
+        ])
         func capture(_ name: String) {
             let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
             attachment.name = name
@@ -824,8 +991,38 @@ final class LiftRankUITests: XCTestCase {
             add(attachment)
         }
         XCTAssertTrue(tab("home", in: app).waitForExistence(timeout: 8))
+        for name in ["home", "leaderboards", "track", "forum", "profile"] {
+            let button = tab(name, in: app)
+            XCTAssertTrue(button.isHittable, "Main tab must remain visible: \(name)")
+            XCTAssertGreaterThanOrEqual(button.frame.minX, app.frame.minX)
+            XCTAssertLessThanOrEqual(button.frame.maxX, app.frame.maxX)
+        }
         XCTAssertTrue(app.staticTexts["Personal 3-lift total"].waitForExistence(timeout: 5))
         capture("Audit Home")
+        let homeScroll = app.scrollViews.firstMatch
+        let bodyweight = app.buttons["home.quickAction.bodyweight"]
+        for _ in 0..<16 where !bodyweight.isHittable { homeScroll.swipeUp() }
+        XCTAssertTrue(bodyweight.isHittable)
+        bodyweight.tap()
+        XCTAssertTrue(app.navigationBars["Bodyweight Entry"].waitForExistence(timeout: 5))
+        let weight = app.textFields["Enter weight"]
+        for _ in 0..<6 where !weight.isHittable { app.scrollViews.firstMatch.swipeUp() }
+        XCTAssertTrue(weight.isHittable)
+        weight.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        capture("Audit Bodyweight keyboard")
+        app.navigationBars["Bodyweight Entry"].buttons["Cancel"].tap()
+        let recentPR = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@", "Open ", " PR,")).firstMatch
+        for _ in 0..<16 where !recentPR.isHittable || recentPR.frame.maxY > tab("home", in: app).frame.minY {
+            homeScroll.swipeUp()
+        }
+        XCTAssertTrue(recentPR.isHittable)
+        XCTAssertLessThanOrEqual(recentPR.frame.maxY, tab("home", in: app).frame.minY)
+        capture("Audit Home recent PR")
+        recentPR.tap()
+        XCTAssertTrue(app.navigationBars["PR details"].waitForExistence(timeout: 5))
+        capture("Audit PR details")
+        app.navigationBars["PR details"].buttons["Done"].tap()
         let track = tab("track", in: app)
         track.tap()
         if !app.buttons["tracker.segment.today"].waitForExistence(timeout: 5) {
@@ -841,6 +1038,9 @@ final class LiftRankUITests: XCTestCase {
                     XCTAssertTrue(scheduledStart.isHittable)
                 }
             }
+            if section == "library" && contentSize == "UICTContentSizeCategoryAccessibilityXXXL" {
+                XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Jump to exercises beginning with ")).count, 0)
+            }
             capture("Audit Track \(section)")
         }
         let categories = app.segmentedControls["tracker.progress.category"]
@@ -850,10 +1050,35 @@ final class LiftRankUITests: XCTestCase {
         }
         for name in ["leaderboards", "forum", "profile"] {
             tab(name, in: app).tap()
+            if name == "forum" && contentSize == "UICTContentSizeCategoryAccessibilityXXXL" {
+                let feedPicker = app.buttons["forum.feed"]
+                XCTAssertTrue(feedPicker.isHittable)
+                XCTAssertGreaterThanOrEqual(feedPicker.frame.minX, app.frame.minX)
+                XCTAssertLessThanOrEqual(feedPicker.frame.maxX, app.frame.maxX)
+
+                let filters = app.buttons["forum.filters"]
+                XCTAssertTrue(filters.isHittable)
+                filters.tap()
+                let communityPicker = app.buttons["forum.community"]
+                XCTAssertTrue(communityPicker.isHittable)
+                XCTAssertGreaterThanOrEqual(communityPicker.frame.minX, app.frame.minX)
+                XCTAssertLessThanOrEqual(communityPicker.frame.maxX, app.frame.maxX)
+                app.buttons["Done"].tap()
+            }
+            if name == "profile" {
+                for identifier in ["me.header.settings", "me.header.editProfile"] {
+                    let button = app.buttons[identifier]
+                    XCTAssertGreaterThanOrEqual(button.frame.width, 44)
+                    XCTAssertGreaterThanOrEqual(button.frame.height, 44)
+                }
+            }
             capture("Audit \(name)")
         }
         XCTAssertTrue(app.buttons["me.personalProfile"].exists)
-        app.buttons["me.publicProfile"].tap()
+        let publicProfile = app.buttons["me.publicProfile"]
+        for _ in 0..<10 where !publicProfile.isHittable { app.scrollViews.firstMatch.swipeUp() }
+        XCTAssertTrue(publicProfile.isHittable)
+        publicProfile.tap()
         capture("Audit Public profile")
         app.navigationBars.buttons.firstMatch.tap()
         tab("profile", in: app).tap()
@@ -868,7 +1093,7 @@ final class LiftRankUITests: XCTestCase {
     }
 
     func testLeaderboardControlsStayInsideViewportAtAccessibilitySize() throws {
-        let app = launchDemo(arguments: ["-uiTestingCompetitionFixture"])
+        let app = launchDemo(arguments: ["-uiTestingCompetitionFixture", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
         let leaderboardTab = tab("leaderboards", in: app)
         XCTAssertTrue(leaderboardTab.waitForExistence(timeout: 8))
         leaderboardTab.tap()
@@ -1051,6 +1276,10 @@ final class LiftRankUITests: XCTestCase {
 
         let previewScroll = app.scrollViews["training.programPreview.screen"]
         let editSetup = app.buttons["Edit existing setup"]
+        let otherSetup = app.buttons["Other setup options"]
+        for _ in 0..<20 where !otherSetup.isHittable { previewScroll.swipeDown() }
+        XCTAssertTrue(otherSetup.isHittable)
+        otherSetup.tap()
         XCTAssertTrue(editSetup.waitForExistence(timeout: 5))
         for _ in 0..<20 {
             let frame = editSetup.frame
@@ -1808,48 +2037,49 @@ final class LiftRankUITests: XCTestCase {
         var app = launchDemo(arguments: ["-uiTestingPersistWorkoutSnapshots"])
         XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
         tab("track", in: app).tap()
-        var progress = app.buttons["tracker.segment.progress"]
+        let progress = app.buttons["tracker.segment.progress"]
         XCTAssertTrue(progress.waitForExistence(timeout: 5))
         progress.tap()
         app.segmentedControls["tracker.progress.category"].buttons["Strength"].tap()
 
-        let relativeTotalText = app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS %@", "×")
-        ).firstMatch
-        XCTAssertTrue(relativeTotalText.waitForExistence(timeout: 5))
-        let initialRelativeTotal = relativeTotalText.label
+        let relativeTotal = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "×")).firstMatch
+        XCTAssertTrue(relativeTotal.waitForExistence(timeout: 5))
+        let initialRelativeTotal = relativeTotal.label
+        XCTAssertFalse(app.staticTexts["Bodyweight"].exists)
+        XCTAssertFalse(app.buttons["Log bodyweight"].exists)
 
-        var noWeight = app.staticTexts["No bodyweight logged yet"]
-        for _ in 0..<8 where !noWeight.isHittable { app.swipeUp() }
-        XCTAssertTrue(noWeight.waitForExistence(timeout: 5))
-        app.buttons["Log bodyweight"].firstMatch.tap()
-        XCTAssertTrue(app.navigationBars["Bodyweight Entry"].waitForExistence(timeout: 5))
+        func openHomeBodyweightEditor() {
+            let homeTab = tab("home", in: app)
+            if !homeTab.exists { app.navigationBars.buttons["Me"].tap() }
+            tab("home", in: app).tap()
+            let bodyweightAction = app.buttons["home.quickAction.bodyweight"]
+            let homeScroll = app.scrollViews.firstMatch
+            for _ in 0..<16 where !bodyweightAction.isHittable { homeScroll.swipeUp() }
+            XCTAssertTrue(bodyweightAction.isHittable)
+            bodyweightAction.tap()
+            XCTAssertTrue(app.navigationBars["Bodyweight Entry"].waitForExistence(timeout: 5))
+        }
+
+        openHomeBodyweightEditor()
         let weight = app.textFields["Enter weight"]
         XCTAssertTrue(weight.waitForExistence(timeout: 5))
         let originalValue = weight.value as? String ?? ""
         XCTAssertFalse(originalValue.isEmpty)
         app.navigationBars["Bodyweight Entry"].buttons["Save"].tap()
 
-        let trendPrompt = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "One entry logged" )).firstMatch
-        XCTAssertTrue(trendPrompt.waitForExistence(timeout: 5))
-        let createdRow = app.buttons.matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", originalValue, "edit")).firstMatch
-        XCTAssertTrue(createdRow.waitForExistence(timeout: 5))
-        for _ in 0..<8 where !createdRow.isHittable { app.swipeUp() }
-        app.swipeUp()
-        XCTAssertTrue(createdRow.isHittable)
-        createdRow.tap()
-
-        XCTAssertTrue(app.navigationBars["Bodyweight Entry"].waitForExistence(timeout: 5))
-        XCTAssertTrue(weight.waitForExistence(timeout: 5))
+        openHomeBodyweightEditor()
         weight.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
         weight.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: originalValue.count) + "182")
         app.navigationBars["Bodyweight Entry"].buttons["Save"].tap()
-        var editedRow = app.buttons.matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "182", "edit")).firstMatch
-        XCTAssertTrue(editedRow.waitForExistence(timeout: 5))
-        for _ in 0..<8 where !relativeTotalText.isHittable { app.swipeDown() }
-        XCTAssertTrue(relativeTotalText.isHittable)
-        XCTAssertNotEqual(relativeTotalText.label, initialRelativeTotal)
+
+        tab("track", in: app).tap()
+        XCTAssertTrue(progress.waitForExistence(timeout: 5))
+        progress.tap()
+        app.segmentedControls["tracker.progress.category"].buttons["Strength"].tap()
+        let updatedRelativeTotal = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "×")).firstMatch
+        XCTAssertTrue(updatedRelativeTotal.waitForExistence(timeout: 5))
+        XCTAssertNotEqual(updatedRelativeTotal.label, initialRelativeTotal)
 
         tab("profile", in: app).tap()
         app.buttons["me.personalProfile"].tap()
@@ -1867,29 +2097,21 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(relaunchedProfileWeight.waitForExistence(timeout: 5))
         XCTAssertTrue(relaunchedProfileWeight.label.contains("182"))
 
-        app.navigationBars.buttons["Me"].tap()
-        tab("track", in: app).tap()
-        progress = app.buttons["tracker.segment.progress"]
-        progress.tap()
-        app.segmentedControls["tracker.progress.category"].buttons["Strength"].tap()
-        noWeight = app.staticTexts["No bodyweight logged yet"]
-        editedRow = app.buttons.matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "182", "edit")).firstMatch
-        for _ in 0..<8 where !editedRow.isHittable { app.swipeUp() }
-        app.swipeUp()
-        XCTAssertTrue(editedRow.isHittable)
-
-        editedRow.tap()
-        XCTAssertTrue(app.navigationBars["Bodyweight Entry"].waitForExistence(timeout: 5))
-        app.buttons.matching(identifier: "Delete Entry").firstMatch.tap()
+        openHomeBodyweightEditor()
+        app.buttons["Delete Entry"].tap()
         let deleteConfirmation = app.sheets["Delete this bodyweight entry?"].buttons["Delete Entry"]
         XCTAssertTrue(deleteConfirmation.waitForExistence(timeout: 5))
         deleteConfirmation.tap()
         XCTAssertTrue(app.navigationBars["Bodyweight Entry"].waitForNonExistence(timeout: 5))
-        XCTAssertTrue(noWeight.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "182", "edit")).firstMatch.exists)
+
+        tab("track", in: app).tap()
+        XCTAssertTrue(progress.waitForExistence(timeout: 5))
+        progress.tap()
+        app.segmentedControls["tracker.progress.category"].buttons["Strength"].tap()
         let missingBodyweightSummary = app.staticTexts["Needs total and bodyweight"]
         for _ in 0..<8 where !missingBodyweightSummary.isHittable { app.swipeDown() }
         XCTAssertTrue(missingBodyweightSummary.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Bodyweight"].exists)
 
         tab("profile", in: app).tap()
         app.buttons["me.personalProfile"].tap()
@@ -1906,22 +2128,15 @@ final class LiftRankUITests: XCTestCase {
             NSPredicate(format: "label BEGINSWITH %@", "Logged weight ·")
         ).firstMatch
         XCTAssertFalse(persistedProfileWeight.waitForExistence(timeout: 2))
-
-        app.navigationBars.buttons["Me"].tap()
-        tab("track", in: app).tap()
-        progress = app.buttons["tracker.segment.progress"]
-        progress.tap()
-        app.segmentedControls["tracker.progress.category"].buttons["Strength"].tap()
-        let persistedNoWeight = app.staticTexts["No bodyweight logged yet"]
-        for _ in 0..<8 where !persistedNoWeight.isHittable { app.swipeUp() }
-        XCTAssertTrue(persistedNoWeight.waitForExistence(timeout: 5))
     }
 
     func testEditProfileKeepsUnsavedFieldsAfterPhotoManager() {
         let app = launchDemo()
-        XCTAssertTrue(tab("profile", in: app).waitForExistence(timeout: 8))
-        tab("profile", in: app).tap()
+        let meTab = tab("profile", in: app)
+        XCTAssertTrue(meTab.waitForExistence(timeout: 8))
+        meTab.tap()
         let edit = app.buttons["Edit athlete profile"]
+        if !edit.waitForExistence(timeout: 5) { meTab.tap() }
         XCTAssertTrue(edit.waitForExistence(timeout: 5))
         edit.tap()
         let name = app.textFields["editProfile.displayName"]
@@ -1950,7 +2165,7 @@ final class LiftRankUITests: XCTestCase {
     }
 
     func testProfilePhotoLibraryOpensAtAccessibilitySize() {
-        let app = launchDemo()
+        let app = launchDemo(arguments: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
         XCTAssertTrue(tab("profile", in: app).waitForExistence(timeout: 8))
         tab("profile", in: app).tap()
         let edit = app.buttons["Edit athlete profile"]
@@ -1960,8 +2175,15 @@ final class LiftRankUITests: XCTestCase {
         app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Profile photo")).firstMatch.tap()
         XCTAssertTrue(app.navigationBars["Profile Photo"].waitForExistence(timeout: 5))
         app.buttons["Choose Photo"].tap()
-        let firstPhoto = app.cells.firstMatch
-        XCTAssertTrue(firstPhoto.waitForExistence(timeout: 15))
+        let photoAvailable = NSPredicate { _, _ in
+            app.cells.allElementsBoundByIndex.contains { $0.isHittable }
+        }
+        expectation(for: photoAvailable, evaluatedWith: app)
+        waitForExpectations(timeout: 30)
+        guard let firstPhoto = app.cells.allElementsBoundByIndex.first(where: { $0.isHittable }) else {
+            XCTFail("The photo picker did not expose a selectable image")
+            return
+        }
         firstPhoto.tap()
         XCTAssertTrue(app.staticTexts["Adjust Photo"].waitForExistence(timeout: 10))
         let cropScreenshot = XCTAttachment(screenshot: app.screenshot())
@@ -2088,6 +2310,7 @@ final class LiftRankUITests: XCTestCase {
         exerciseSearch.typeText("Barbell Bench Press")
         let bench = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Barbell Bench Press")).firstMatch
         XCTAssertTrue(bench.waitForExistence(timeout: 5))
+        XCTAssertFalse(bench.label.localizedCaseInsensitiveContains("push exercise"))
         bench.tap()
 
         let substitute = app.buttons["exercise.findSubstitute"]
@@ -2624,7 +2847,10 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(otherAthlete.waitForExistence(timeout: 5))
         otherAthlete.tap()
 
-        let liftOptions = app.buttons.matching(
+        let activity = app.buttons["profile.section.submissions"]
+        XCTAssertTrue(activity.waitForExistence(timeout: 5))
+        activity.tap()
+        let liftOptions = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "profile.liftOptions.")
         ).firstMatch
         XCTAssertTrue(liftOptions.waitForExistence(timeout: 5))
@@ -2843,7 +3069,7 @@ final class LiftRankUITests: XCTestCase {
 
     func testAuthenticationFormProvidesResponsiveValidation() {
         let app = XCUIApplication()
-        app.launchArguments += ["-uiTestingAuthentication"]
+        app.launchArguments += ["-uiTestingAuthentication", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"]
         app.launch()
 
         let submit = app.buttons["authentication.email.submit"]

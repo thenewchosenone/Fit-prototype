@@ -8,18 +8,12 @@ struct FloatingTabItem: Identifiable {
 }
 
 struct FloatingTabBar: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var selection: AppTab
     let items: [FloatingTabItem]
 
     var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                ScrollView(.horizontal) { navigationGroup(items) }
-            } else {
-                navigationGroup(items)
-            }
-        }
+        navigationGroup(items)
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
@@ -47,11 +41,12 @@ struct FloatingTabBar: View {
                             .foregroundStyle(item.tab == selection ? Color.liftAccentText : Color.liftTextSecondary)
                         Text(item.title)
                             .font(.caption2.weight(.semibold))
-                            .lineLimit(2)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                             .multilineTextAlignment(.center)
                             .foregroundStyle(item.tab == selection ? Color.liftAccentText : Color.liftTextSecondary)
                     }
-                    .frame(minWidth: dynamicTypeSize.isAccessibilitySize ? 100 : LiftDesign.minimumTouchTarget, maxWidth: .infinity, minHeight: LiftDesign.minimumTouchTarget)
+                    .frame(minWidth: LiftDesign.minimumTouchTarget, maxWidth: .infinity, minHeight: LiftDesign.minimumTouchTarget)
                     .padding(.vertical, 8)
                     .contentShape(Rectangle())
                 }
@@ -60,6 +55,9 @@ struct FloatingTabBar: View {
                 .accessibilityIdentifier("mainTab.\(String(describing: item.tab))")
                 .accessibilityAddTraits(item.tab == selection ? .isSelected : [])
                 .accessibilityValue(item.tab == selection ? "selected" : "not selected")
+                .accessibilityShowsLargeContentViewer {
+                    Label(item.title, systemImage: item.icon)
+                }
             }
         }
     }

@@ -29,14 +29,6 @@ extension TrainingTrackerView {
                 CreateWorkoutPlanView()
                     .environmentObject(appState)
             }
-            .sheet(item: $selectedBodyweightEntry) { entry in
-                BodyweightEntryEditor(entry: entry) { updatedEntry in
-                    appState.updateBodyweight(updatedEntry)
-                } onDelete: { entry in
-                    appState.deleteBodyweight(entry)
-                }
-                .presentationDetents([.medium])
-            }
             .sheet(isPresented: $showingLibraryFilters) {
                 ExerciseLibraryFilterSheet(
                     applied: $libraryFilters,
@@ -222,7 +214,7 @@ extension TrainingTrackerView {
                     scrollProxy.scrollTo("tracker-content-top", anchor: .top)
                 }
                 .overlay(alignment: .trailing) {
-                    if segment == .library && librarySearch.isEmpty {
+                    if segment == .library && librarySearch.isEmpty && !dynamicTypeSize.isAccessibilitySize {
                         libraryAlphabetIndex(scrollProxy: scrollProxy, sections: libraryPresentation.sections)
                             .padding(.trailing, 2)
                     }
@@ -402,6 +394,7 @@ extension TrainingTrackerView {
             VStack(spacing: 8) {
                 Text(option.rawValue)
                     .font(.subheadline.weight(segment == option ? .bold : .medium))
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     .foregroundStyle(segment == option ? Color.liftText : Color.liftMuted)
                 Rectangle()
                     .fill(segment == option ? Color.liftBlue : Color.clear)
@@ -416,6 +409,7 @@ extension TrainingTrackerView {
         .fixedSize(horizontal: !fillsAvailableWidth, vertical: false)
         .accessibilityIdentifier("tracker.segment.\(option.rawValue.lowercased())")
         .accessibilityAddTraits(segment == option ? .isSelected : [])
+        .accessibilityShowsLargeContentViewer { Text(option.rawValue) }
     }
 
     private var today: some View {
@@ -426,14 +420,6 @@ extension TrainingTrackerView {
                         .font(.title3.weight(.black))
                 }
                 Spacer()
-            }
-
-            if let insight = visiblePlateauInsights.first {
-                PlateauAlertCard(insight: insight) {
-                    selectedPlateauInsight = insight
-                } dismiss: {
-                    dismissPlateauInsight(insight)
-                }
             }
 
             todayWorkoutStatusSection
@@ -481,6 +467,14 @@ extension TrainingTrackerView {
                 Label("Start freestyle workout", systemImage: "plus")
             }
             .buttonStyle(LiftSecondaryButtonStyle())
+
+            if let insight = visiblePlateauInsights.first {
+                PlateauAlertCard(insight: insight) {
+                    selectedPlateauInsight = insight
+                } dismiss: {
+                    dismissPlateauInsight(insight)
+                }
+            }
 
         }
     }

@@ -264,6 +264,7 @@ struct LeaderboardFilterControl: View {
                         .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(Color.liftMuted)
@@ -282,6 +283,7 @@ struct LeaderboardTableHeader: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let resultCount: Int
     var valueTitle = "Total"
+    var showsMovement = true
 
     var body: some View {
         Group {
@@ -292,7 +294,9 @@ struct LeaderboardTableHeader: View {
                 HStack(spacing: 8) {
                     Text("#  Lifter").frame(maxWidth: .infinity, alignment: .leading)
                     Text(valueTitle).frame(width: 76, alignment: .trailing)
-                    Text("Move").frame(width: 48, alignment: .trailing)
+                    if showsMovement {
+                        Text("Move").frame(width: 48, alignment: .trailing)
+                    }
                 }
             }
         }
@@ -317,6 +321,7 @@ struct CompactLeaderboardRow: View {
     var preferredUnit: UnitSystem = .pounds
     var isExerciseLeaderboard = false
     var showsGym = false
+    var showsMovement = true
 
     private var rankColor: Color {
         LeaderboardRankPresentation.color(for: entry.rank)
@@ -343,7 +348,7 @@ struct CompactLeaderboardRow: View {
         .background(isCurrentUser ? Color.liftBlue.opacity(0.09) : Color.clear)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Rank \(entry.rank), \(entry.profile.displayName), at \(entry.profile.username), \(isCurrentUser ? "you, " : "")\(entry.lift.resolvedEvidenceStatus.displayName), \(valueText), \(movementAccessibility(movement))")
+        .accessibilityLabel("Rank \(entry.rank), \(entry.profile.displayName), at \(entry.profile.username), \(isCurrentUser ? "you, " : "")\(entry.lift.resolvedEvidenceStatus.displayName), \(valueText), \(detailText), \(movementAccessibility(movement))")
         .accessibilityHint("Opens lifter profile")
     }
 
@@ -359,36 +364,44 @@ struct CompactLeaderboardRow: View {
                     Text(entry.profile.displayName)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
-                    if entry.lift.verificationStatus != .selfReported {
-                        Image(systemName: "checkmark.seal.fill")
+                    if entry.lift.resolvedEvidenceStatus == .videoBacked {
+                        Image(systemName: "video.fill")
                             .font(.caption2)
                             .foregroundStyle(Color.liftAccentText)
                     }
                     if isCurrentUser {
                         Text("YOU")
-                            .font(.system(size: 8, weight: .black))
+                            .font(.caption2.weight(.bold))
                             .foregroundStyle(Color.liftAccentText)
                     }
                 }
                 if showsGym {
-                    Text(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)
+                    Text(entry.profile.hideGym ? "@\(entry.profile.username)" : entry.profile.primaryGymName)
+                        .font(.caption2)
+                        .foregroundStyle(Color.liftMuted)
+                        .lineLimit(1)
+                } else {
+                    Text("@\(entry.profile.username)")
                         .font(.caption2)
                         .foregroundStyle(Color.liftMuted)
                         .lineLimit(1)
                 }
                 Text(detailText)
                     .font(.caption2)
-                    .foregroundStyle(Color.liftMuted.opacity(0.84))
-                    .lineLimit(1)
+                    .foregroundStyle(Color.liftMuted)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Text(valueText)
                 .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
                 .frame(width: 76, alignment: .trailing)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            if movement != .unavailable {
-                movementLabel(movement).frame(width: 48, alignment: .trailing)
+            if showsMovement {
+                movementLabel(movement)
+                    .frame(width: 48, alignment: .trailing)
             }
         }
     }
@@ -409,6 +422,10 @@ struct CompactLeaderboardRow: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(isCurrentUser ? "@\(entry.profile.username) · You" : "@\(entry.profile.username)")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
@@ -417,11 +434,20 @@ struct CompactLeaderboardRow: View {
                     .font(.headline.weight(.semibold))
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
-                if movement != .unavailable {
+                if showsMovement, movement != .unavailable {
                     movementLabel(movement)
                 }
             }
-
+            Text(detailText)
+                .font(.caption)
+                .foregroundStyle(Color.liftMuted)
+                .fixedSize(horizontal: false, vertical: true)
+            if showsGym, !entry.profile.hideGym, !entry.profile.primaryGymName.isEmpty {
+                Text(entry.profile.primaryGymName)
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -433,7 +459,7 @@ struct CompactLeaderboardRow: View {
             case .down(let amount):
                 Label("\(amount)", systemImage: "arrow.down").foregroundStyle(Color.liftRed)
             case .unavailable:
-                EmptyView()
+                Text("—").foregroundStyle(Color.liftMuted)
             }
         }
         .font(.caption.weight(.bold))
@@ -450,14 +476,13 @@ struct CompactLeaderboardRow: View {
 
     private var detailText: String {
         if let breakdown = entry.powerliftingBreakdown, !isExerciseLeaderboard {
-            return "@\(entry.profile.username) • S \(formatted(breakdown.squatKilograms)) • B \(formatted(breakdown.benchKilograms)) • D \(formatted(breakdown.deadliftKilograms))"
+            return "S \(formatted(breakdown.squatKilograms)) · B \(formatted(breakdown.benchKilograms)) · D \(formatted(breakdown.deadliftKilograms))"
         }
-        let location = ProfileDisplayFormatting.location(
-            city: entry.profile.city,
-            region: entry.profile.state,
-            hidden: entry.profile.hideCity
-        )
-        return "@\(entry.profile.username) • \(entry.lift.repetitions) rep\(entry.lift.repetitions == 1 ? "" : "s") • \(formattedBodyweight) BW • \(location)"
+        if rankingType == .total || rankingType == .relativeTotal {
+            return "@\(entry.profile.username) · \(formattedBodyweight) BW"
+        }
+        let context = isExerciseLeaderboard ? "\(entry.lift.repetitions) rep\(entry.lift.repetitions == 1 ? "" : "s")" : entry.lift.exerciseName
+        return "\(context) · \(formattedBodyweight) BW"
     }
 
     private var formattedBodyweight: String {

@@ -123,23 +123,25 @@ enum MeasurementFormatting {
     static func workoutSetText(
         set: WorkoutSetLog,
         trackingKind: ExerciseTrackingKind,
+        preferredUnit: UnitSystem? = nil,
         includeRepLabel: Bool = false,
         format: (Double) -> String = RankingCalculator.format
     ) -> String {
         let reps = set.reps ?? 0
-        let weight = set.weight ?? 0
+        let unit = preferredUnit ?? set.recordedUnit
+        let weight = convert(set.weight ?? 0, from: set.recordedUnit, to: unit)
         switch trackingKind {
         case .weightReps:
             let repLabel = includeRepLabel ? " \(reps == 1 ? "rep" : "reps")" : ""
-            return "\(formatRecordedWeight(weight, unit: set.recordedUnit, format: format)) × \(reps)\(repLabel)"
+            return "\(formatRecordedWeight(weight, unit: unit, format: format)) × \(reps)\(repLabel)"
         case .bodyweightReps, .repsOnly:
             return "\(reps) \(reps == 1 ? "rep" : "reps")"
         case .assistedBodyweight:
-            return "\(reps) \(reps == 1 ? "rep" : "reps") @ \(formatRecordedWeight(weight, unit: set.recordedUnit, format: format)) assist"
+            return "\(reps) \(reps == 1 ? "rep" : "reps") @ \(formatRecordedWeight(weight, unit: unit, format: format)) assist"
         case .time:
             return shortClockText(TimeInterval(reps))
         case .weightTime:
-            return "\(formatRecordedWeight(weight, unit: set.recordedUnit, format: format)) x \(shortClockText(TimeInterval(reps)))"
+            return "\(formatRecordedWeight(weight, unit: unit, format: format)) x \(shortClockText(TimeInterval(reps)))"
         }
     }
 
@@ -165,5 +167,63 @@ enum MeasurementFormatting {
     static func shortDurationText(_ duration: TimeInterval) -> String {
         let minutes = max(0, Int(duration) / 60)
         return minutes >= 60 ? "\(minutes / 60)h \(minutes % 60)m" : "\(minutes)m"
+    }
+
+    static func awardDisplay(for achievement: Achievement, unit: UnitSystem) -> Achievement {
+        var display = achievement
+        if achievement.title == "1 Training Hours" {
+            display.title = "1 Training Hour"
+            display.description = "Accumulate 1 hour of training time."
+        } else if let liftMilestone = liftAwardMilestone(for: achievement.title) {
+            let formattedWeight = formattedAwardWeight(pounds: liftMilestone.pounds, unit: unit)
+            display.title = "\(formattedWeight) \(liftMilestone.exercise)"
+            display.description = "\(liftMilestone.exercise) \(formattedWeight.lowercased())."
+        } else if let totalPounds = totalAwardPounds(for: achievement.title) {
+            let formattedTotal = formattedAwardWeight(pounds: totalPounds, unit: unit)
+            display.title = "\(formattedTotal) Total"
+            display.description = "Build a \(formattedTotal) bench, squat, and deadlift total."
+        } else if let volumeKilograms = volumeAwardKilograms(for: achievement.title) {
+            let formattedVolume = formattedAwardWeight(kilograms: volumeKilograms, unit: unit)
+            display.title = "\(formattedVolume) Lifted Volume"
+            display.description = "Move \(formattedVolume) of lifted working-set volume."
+        }
+        return display
+    }
+
+    static func formattedAwardWeight(pounds: Double, unit: UnitSystem) -> String {
+        formattedAwardWeight(kilograms: RankingCalculator.poundsToKilograms(pounds), unit: unit)
+    }
+
+    static func formattedAwardWeight(kilograms: Double, unit: UnitSystem) -> String {
+        MeasurementFormatting.formatDisplayedWeight(kilograms, unit: unit) { value in
+            Int(value.rounded()).formatted()
+        }
+    }
+
+    static func liftAwardMilestone(for title: String) -> (pounds: Double, exercise: String)? {
+        for exercise in ["Bench", "Squat", "Deadlift"] where title.hasSuffix(" \(exercise)") {
+            let valueText = title.replacingOccurrences(of: " \(exercise)", with: "").replacingOccurrences(of: ",", with: "")
+            guard let pounds = Double(valueText) else { return nil }
+            return (pounds, exercise)
+        }
+        return nil
+    }
+
+    static func totalAwardPounds(for title: String) -> Double? {
+        guard title.hasSuffix(" lb Total") else { return nil }
+        let valueText = title
+            .replacingOccurrences(of: " lb Total", with: "")
+            .replacingOccurrences(of: ",", with: "")
+        return Double(valueText)
+    }
+
+    static func volumeAwardKilograms(for title: String) -> Double? {
+        let suffix = title.hasSuffix(" kg Lifted Volume")
+            ? " kg Lifted Volume"
+            : title.hasSuffix(" kg Volume") ? " kg Volume" : nil
+        guard let suffix else { return nil }
+        let valueText = title.replacingOccurrences(of: suffix, with: "")
+            .replacingOccurrences(of: ",", with: "")
+        return Double(valueText)
     }
 }

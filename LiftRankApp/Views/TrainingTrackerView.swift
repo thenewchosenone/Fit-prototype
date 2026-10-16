@@ -33,7 +33,6 @@ struct TrainingTrackerView: View {
     @State var selectedProgramTemplate: WorkoutProgramTemplate?
     @State var isProgramLibraryExpanded = false
     @State var showingProgressionEditor = false
-    @State var selectedBodyweightEntry: BodyweightEntry?
     @State var selectedCompletedWorkout: CompletedWorkout?
     @State var focusedWorkoutSetID: UUID?
     @State var didOpenUITestFocusedWorkoutSet = false
@@ -54,7 +53,6 @@ struct TrainingTrackerView: View {
     @State var selectedExerciseStrengthTrendDate: Date?
     @State var selectedPlateauInsight: PlateauInsight?
     @State var selectedVolumeWeek: VolumeWeekSelection = .thisWeek
-    @State var selectedProgressRange: ProgressTimeRange = .twelveWeeks
     @AppStorage("liftrank.dismissedPlateauInsights") var dismissedPlateauInsightIDs = ""
     let isEmbeddedInTab: Bool
 

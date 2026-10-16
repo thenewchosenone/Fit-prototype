@@ -291,6 +291,10 @@ extension AppState {
         activeWorkoutStore.setAutomaticRestTimerEnabled(enabled)
     }
 
+    func setActiveWorkoutRestTime(for exerciseID: UUID, seconds: Int) {
+        activeWorkoutStore.setRestTime(for: exerciseID, seconds: seconds)
+    }
+
     @discardableResult
     func substituteActiveWorkoutExercise(
         _ exercise: WorkoutExerciseSnapshot,

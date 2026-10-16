@@ -180,7 +180,7 @@ struct RecentPRDetailView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             NavigationLink {
-                CompletedWorkoutDetailView(workout: context.workout)
+                CompletedWorkoutDetailView(workout: context.workout, isPresentedModally: false)
                     .environmentObject(appState)
             } label: {
                 Label("View full workout", systemImage: "list.bullet.rectangle")
@@ -464,7 +464,7 @@ struct StreakDetailView: View {
                                 .overlay {
                                     Image(systemName: day <= trainingDaysThisWeek ? "checkmark" : "circle")
                                         .font(.caption2.weight(.black))
-                                        .foregroundStyle(day <= trainingDaysThisWeek ? Color.liftBackground : Color.liftMuted)
+                                        .foregroundStyle(day <= trainingDaysThisWeek ? Color.liftOnAccent : Color.liftMuted)
                                 }
                             Text("\(day)")
                                 .font(.caption2.weight(.bold))

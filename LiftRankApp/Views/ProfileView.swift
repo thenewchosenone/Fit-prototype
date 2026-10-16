@@ -7,6 +7,7 @@ enum ProfileSurface {
 
 struct ProfileView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.dynamicTypeSize) var dynamicTypeSize
     private let initialProfile: UserProfile
     var profile: UserProfile {
         guard initialProfile.id == appState.currentProfile.id else { return initialProfile }

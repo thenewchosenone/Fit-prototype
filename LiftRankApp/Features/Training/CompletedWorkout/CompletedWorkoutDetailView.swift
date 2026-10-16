@@ -4,23 +4,34 @@ struct CompletedWorkoutDetailView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     let workout: CompletedWorkout
+    let isPresentedModally: Bool
     @Binding var focusedSetID: UUID?
     @State private var showingDeleteConfirmation = false
     @State private var editingWorkout: CompletedWorkout?
+    @State private var showingRoutineSaveError = false
 
-    init(workout: CompletedWorkout, focusedSetID: Binding<UUID?> = .constant(nil)) {
+    init(workout: CompletedWorkout, focusedSetID: Binding<UUID?> = .constant(nil), isPresentedModally: Bool = true) {
         self.workout = workout
+        self.isPresentedModally = isPresentedModally
         self._focusedSetID = focusedSetID
     }
 
+    @ViewBuilder
     var body: some View {
+        if isPresentedModally {
+            NavigationStack { detailContent }
+        } else {
+            detailContent
+        }
+    }
+
+    private var detailContent: some View {
         let presentation = appState.completedWorkoutPresentation(for: workout)
         let displayedWorkout = presentation.workout
         let exercises = presentation.exercises
         let completedSetsByExercise = presentation.completedSetsByExercise
         let trackingKinds = presentation.trackingKinds
-        return NavigationStack {
-            AppBackground {
+        return AppBackground {
                 ScrollViewReader { scrollProxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
@@ -33,7 +44,7 @@ struct CompletedWorkoutDetailView: View {
                                 HStack(spacing: 8) {
                                     detailMetric("Duration", MeasurementFormatting.shortDurationText(displayedWorkout.duration), "timer")
                                     detailMetric("Sets", "\(displayedWorkout.completedWorkingSets.count)", "checkmark.circle")
-                                    detailMetric("Volume", MeasurementFormatting.formatRecordedWeight(displayedWorkout.totalVolume, unit: displayedWorkout.unit), "scalemass")
+                                    detailMetric("Volume", MeasurementFormatting.formatRecordedVolume(displayedWorkout.totalVolume, recordedUnit: displayedWorkout.unit, preferredUnit: appState.currentProfile.preferredUnit), "scalemass")
                                 }
                             }
                             .padding(14)
@@ -69,10 +80,10 @@ struct CompletedWorkoutDetailView: View {
                                                 Text(set.isWarmup ? "Warm-up \(set.setNumber)" : "Set \(set.setNumber)")
                                                     .foregroundStyle(set.isWarmup ? Color.liftGold : Color.liftMuted)
                                                 Spacer()
-                                                Text(MeasurementFormatting.workoutSetText(set: set, trackingKind: trackingKind))
+                                                Text(MeasurementFormatting.workoutSetText(set: set, trackingKind: trackingKind, preferredUnit: appState.currentProfile.preferredUnit))
                                                     .font(.subheadline.weight(.bold).monospacedDigit())
                                                 if let rpe = set.rpe {
-                                                    Text("@ \(rpe)")
+                                                    Text("RPE \(rpe)")
                                                         .font(.caption.weight(.bold))
                                                         .foregroundStyle(Color.liftAccentText)
                                                 }
@@ -136,9 +147,12 @@ struct CompletedWorkoutDetailView: View {
             }
             .navigationTitle("Workout details")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+                if isPresentedModally {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { dismiss() }
+                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -152,7 +166,16 @@ struct CompletedWorkoutDetailView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu("More", systemImage: "ellipsis") {
-                        Button("Save as routine", systemImage: "bookmark") { _ = appState.saveWorkoutAsRoutine(displayedWorkout) }
+                        Button("Save as routine", systemImage: "bookmark") {
+                            guard appState.saveWorkoutAsRoutine(displayedWorkout) else {
+                                showingRoutineSaveError = true
+                                return
+                            }
+                            dismiss()
+                            appState.trainingTrackerStartOnProgress = false
+                            appState.requestedTrackerSegment = "Plans"
+                            appState.selectedTab = 2
+                        }
                         Button("Edit workout", systemImage: "pencil") { editingWorkout = displayedWorkout }
                         Button("Delete workout", systemImage: "trash", role: .destructive) { showingDeleteConfirmation = true }
                     }
@@ -168,13 +191,17 @@ struct CompletedWorkoutDetailView: View {
             } message: {
                 Text("This removes the workout from your history. Any linked public lift submissions stay public.")
             }
+            .alert("Couldn’t save routine", isPresented: $showingRoutineSaveError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("The routine couldn’t be created. Please try again.")
+            }
             .sheet(item: $editingWorkout) { workout in
                 CompletedWorkoutEditView(workout: workout) { updated in
                     appState.updateCompletedWorkout(updated)
                     editingWorkout = nil
                 }
             }
-        }
     }
 
     private func detailMetric(_ title: String, _ value: String, _ symbol: String) -> some View {
@@ -260,6 +287,7 @@ private struct CompletedWorkoutEditView: View {
     }
 
     private var canSave: Bool {
+        guard draft.sets.allSatisfy({ $0.rpe.map { (1...10).contains($0) } ?? true }) else { return false }
         let completedSets = draft.sets.filter { $0.isComplete && !$0.isWarmup }
         return !completedSets.isEmpty && completedSets.allSatisfy { set in
             guard let exercise = draft.exercises.first(where: { $0.id == set.prescriptionID }) else { return false }
@@ -320,7 +348,7 @@ private struct CompletedWorkoutEditView: View {
                 }
             }
             if !canSave {
-                Text("Before saving, enter valid reps or duration and any required weight for each completed set.")
+                Text("Before saving, enter valid reps or duration and required weight. RPE must be 1–10 or None.")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
             }
@@ -353,7 +381,29 @@ private struct CompletedWorkoutEditView: View {
                         value: doubleBinding(at: index, keyPath: \.weight)
                     )
                 }
-                editableField("RPE", value: intBinding(at: index, keyPath: \.rpe))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("RPE (1–10)")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Color.liftMuted)
+                    Picker("Set \(set.setNumber) RPE", selection: $draft.sets[index].rpe) {
+                        Text("None").tag(nil as Int?)
+                        ForEach(1...10, id: \.self) { value in
+                            Text("\(value)").tag(Optional(value))
+                        }
+                        if let rpe = set.rpe, !(1...10).contains(rpe) {
+                            Text("Invalid: \(rpe)").tag(Optional(rpe))
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity, minHeight: LiftDesign.minimumTouchTarget)
+                    .background(Color.liftCard)
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                }
+            }
+            if let rpe = set.rpe, !(1...10).contains(rpe) {
+                Text("Choose an RPE from 1 to 10, or None, before saving.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftRed)
             }
         }
         .padding(10)
@@ -367,6 +417,7 @@ private struct CompletedWorkoutEditView: View {
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(Color.liftMuted)
             TextField("-", text: value)
+                .accessibilityLabel(title)
                 .keyboardType(.decimalPad)
                 .font(.subheadline.weight(.bold).monospacedDigit())
                 .padding(.horizontal, 10)

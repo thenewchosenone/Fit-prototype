@@ -34,12 +34,13 @@ private struct ProfileSectionNavigation: View {
                         Text(section.rawValue)
                     }
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(isSelected ? Color.liftText : Color.liftMuted)
+                    .foregroundStyle(isSelected ? Color.liftOnAccent : Color.liftMuted)
                     .padding(.horizontal, 14)
                     .frame(minHeight: LiftDesign.minimumTouchTarget)
                     .background(isSelected ? Color.liftLime : Color.liftSurfaceElevated)
                     .clipShape(Capsule())
                     .accessibilityIdentifier("profile.section.\(section.id)")
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
             }
         }

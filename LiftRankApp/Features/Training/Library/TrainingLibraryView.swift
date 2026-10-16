@@ -30,8 +30,6 @@ extension TrainingTrackerView {
             selectedLibraryExercise = exercise
         } label: {
             HStack(spacing: 12) {
-                ExerciseCatalogIcon(exercise: exercise)
-                    .frame(width: 44, height: 44)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(exercise.name)
                         .font(.subheadline.weight(.semibold))
@@ -52,7 +50,8 @@ extension TrainingTrackerView {
                     .foregroundStyle(Color.liftMuted)
             }
             .padding(.horizontal, 12)
-            .frame(minHeight: 64)
+            .padding(.vertical, 10)
+            .frame(minHeight: 56)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -137,13 +136,14 @@ extension TrainingTrackerView {
                                 .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
                                 .background(Color.liftCardRaised.opacity(0.7))
                                 .id("library-letter-\(section.letter)")
+                                .accessibilityAddTraits(.isHeader)
 
                             ForEach(Array(section.results.enumerated()), id: \.element.id) { index, result in
                                 libraryRow(result)
                                 if index < section.results.count - 1 {
                                     Divider()
                                         .overlay(Color.liftOverlay)
-                                        .padding(.leading, 68)
+                                        .padding(.leading, 12)
                                 }
                             }
                         }
@@ -155,7 +155,7 @@ extension TrainingTrackerView {
                         }
                     }
                 }
-                .padding(.trailing, librarySearch.isEmpty ? 16 : 0)
+                .padding(.trailing, librarySearch.isEmpty && !dynamicTypeSize.isAccessibilitySize ? 16 : 0)
             }
         }
     }
@@ -205,7 +205,7 @@ extension TrainingTrackerView {
                         if libraryFilters.activeCategoryCount > 0 {
                             Text("\(libraryFilters.activeCategoryCount)")
                                 .font(.system(size: 9, weight: .black))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.liftOnAccent)
                                 .frame(minWidth: 16, minHeight: 16)
                                 .background(Color.liftBlue)
                                 .clipShape(Circle())

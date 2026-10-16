@@ -134,7 +134,7 @@ struct MainTabView: View {
     private var tabItems: [FloatingTabItem] {
         var items: [FloatingTabItem] = [
             .init(tab: .home, icon: "house.fill", title: "Home"),
-            .init(tab: .leaderboards, icon: "trophy.fill", title: "Leaderboards"),
+            .init(tab: .leaderboards, icon: "trophy.fill", title: "Rankings"),
             .init(tab: .track, icon: "dumbbell.fill", title: "Track"),
         ]
 
@@ -152,7 +152,7 @@ struct MainTabView: View {
         case .submitLift:
             SubmitLiftView().environmentObject(appState).presentationDetents([.large])
         case .leaderboardFilters:
-            LeaderboardFiltersView().environmentObject(appState).presentationDetents([.medium, .large])
+            LeaderboardFiltersView().environmentObject(appState).presentationDetents([.large])
         case .editProfile:
             EditProfileView().environmentObject(appState).presentationDetents([.large])
         case .moderatorReview:
@@ -191,13 +191,6 @@ private enum ForumSort: String, CaseIterable, Identifiable {
         case .discussed: return "Most discussed"
         }
     }
-    var icon: String {
-        switch self {
-        case .top: return "arrow.up"
-        case .new: return "sparkles"
-        case .discussed: return "bubble.left.and.bubble.right"
-        }
-    }
 }
 
 private enum ForumFeed: String, CaseIterable, Identifiable {
@@ -228,12 +221,16 @@ private enum ForumCommentSort: String, CaseIterable, Identifiable {
 
 private struct ForumView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var groups: [ForumCommunity] = []
     @State private var posts: [ForumPost] = []
     @State private var selectedGroupID: UUID?
     @State private var joinedGroupIDs: Set<UUID> = []
     @State private var membershipStatuses: [UUID: String] = [:]
     @State private var showingComposer = false
+    @State private var showingFeedFilters = false
+    @State private var draftSelectedGroupID: UUID?
+    @State private var draftSort: ForumSort = .top
     @State private var sort: ForumSort = .top
     @State private var feed: ForumFeed = .all
     @State private var searchText = ""
@@ -252,7 +249,6 @@ private struct ForumView: View {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     forumHeader
                     forumFeedPicker
-                    forumGroupPicker
                     if isLoading { ProgressView().frame(maxWidth: .infinity).padding(40) }
                     else if let message { LiftEmptyState(title: "Forum unavailable", message: message) }
                     else if feedPosts.isEmpty {
@@ -291,6 +287,7 @@ private struct ForumView: View {
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search discussions and communities")
         .sheet(isPresented: $showingComposer) { ForumComposerView(groups: groups, selectedGroupID: selectedGroupID) { await loadPosts() }.environmentObject(appState) }
+        .sheet(isPresented: $showingFeedFilters) { forumFilterSheet }
         .sheet(isPresented: $showingCommunityDirectory) {
                 ForumCommunityDirectoryView(
                     groups: groups,
@@ -305,6 +302,10 @@ private struct ForumView: View {
             )
         }
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button { showingCommunityDirectory = true } label: { Image(systemName: "square.grid.2x2") }
+                    .accessibilityLabel("Browse communities")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showingComposer = true } label: { Image(systemName: "plus") }
                     .accessibilityLabel("New discussion")
@@ -337,33 +338,19 @@ private struct ForumView: View {
         .padding(.horizontal, 16)
     }
 
-    private var forumGroupPicker: some View {
-        HStack(spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    forumChip(title: "All communities", id: nil)
-                    ForEach(filteredGroups) { group in forumChip(title: group.name, id: group.id) }
-                }
-            }
-            Button {
-                showingCommunityDirectory = true
-            } label: {
-                Image(systemName: "square.grid.2x2")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(Color.liftAccentText)
-                    .frame(width: LiftDesign.minimumTouchTarget, height: LiftDesign.minimumTouchTarget)
-                    .background(Color.liftSurfaceElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Browse communities")
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color.liftBackground)
-    }
-
     private var forumFeedPicker: some View {
         HStack(spacing: 8) {
+            if dynamicTypeSize.isAccessibilitySize {
+                Picker("Feed", selection: $feed) {
+                    ForEach(ForumFeed.allCases) { option in
+                        Text(option.rawValue).tag(option)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(Color.liftAccentText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("forum.feed")
+            } else {
             HStack(spacing: 4) {
                 ForEach(ForumFeed.allCases) { option in
                     Button(option.rawValue) { feed = option }
@@ -375,28 +362,79 @@ private struct ForumView: View {
             }
             .padding(4)
             .background(Color.liftSurfaceElevated, in: Capsule())
+            }
 
-            Menu {
-                ForEach(ForumSort.allCases) { option in
-                    Button { sort = option } label: {
-                        Label(option.title, systemImage: option.icon)
+            Button {
+                draftSelectedGroupID = selectedGroupID
+                draftSort = sort
+                showingFeedFilters = true
+            } label: {
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        Image(systemName: "slider.horizontal.3")
+                    } else {
+                        Label(activeForumFilterCount == 0 ? "Filters" : "Filters · \(activeForumFilterCount)", systemImage: "slider.horizontal.3")
+                            .font(.subheadline.weight(.semibold))
                     }
                 }
-            } label: {
-                Image(systemName: sort.icon)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(Color.liftAccentText)
-                    .frame(width: LiftDesign.minimumTouchTarget, height: LiftDesign.minimumTouchTarget)
-                    .background(Color.liftSurfaceElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .foregroundStyle(Color.liftAccentText)
+                .padding(.horizontal, 12)
+                .frame(minHeight: LiftDesign.minimumTouchTarget)
+                .background(Color.liftSurfaceElevated, in: Capsule())
             }
-            .accessibilityLabel("Sort discussions by \(sort.title)")
+            .buttonStyle(.plain)
+            .accessibilityLabel("Forum filters. Community: \(selectedGroup?.name ?? "All communities"). Sort: \(sort.title)")
+            .accessibilityIdentifier("forum.filters")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(Color.liftBackground)
     }
 
+    private var forumFilterSheet: some View {
+        NavigationStack {
+            Form {
+                Section("Community") {
+                    Picker("Community", selection: $draftSelectedGroupID) {
+                        Text("All communities").tag(nil as UUID?)
+                        ForEach(groups) { group in Text(group.name).tag(Optional(group.id)) }
+                    }
+                    .accessibilityIdentifier("forum.community")
+                }
+
+                Section("Sort discussions") {
+                    Picker("Sort", selection: $draftSort) {
+                        ForEach(ForumSort.allCases) { option in Text(option.title).tag(option) }
+                    }
+                    .accessibilityIdentifier("forum.sort")
+                }
+            }
+            .navigationTitle("Forum filters")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Reset") {
+                        draftSelectedGroupID = nil
+                        draftSort = .top
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        let communityChanged = selectedGroupID != draftSelectedGroupID
+                        selectedGroupID = draftSelectedGroupID
+                        sort = draftSort
+                        showingFeedFilters = false
+                        if communityChanged { Task { await loadPosts() } }
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
     private var selectedGroup: ForumCommunity? { groups.first { $0.id == selectedGroupID } }
+    private var activeForumFilterCount: Int { (selectedGroupID == nil ? 0 : 1) + (sort == .top ? 0 : 1) }
 
     private var emptyFeedTitle: String {
         switch feed {
@@ -426,15 +464,6 @@ private struct ForumView: View {
         }
     }
 
-    private var filteredGroups: [ForumCommunity] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return groups }
-        return groups.filter { group in
-            group.name.localizedCaseInsensitiveContains(query) ||
-            group.summary.localizedCaseInsensitiveContains(query)
-        }
-    }
-
     private var filteredPosts: [ForumPost] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return feedPosts }
@@ -460,14 +489,6 @@ private struct ForumView: View {
                 return joinedGroupIDs.contains(communityID)
             }
         }
-    }
-
-    private func forumChip(title: String, id: UUID?) -> some View {
-        Button(title) { selectedGroupID = id; Task { await loadPosts() } }
-            .font(.subheadline.weight(.semibold)).foregroundStyle(selectedGroupID == id ? Color.liftOnAccent : Color.liftText)
-            .padding(.horizontal, 14).frame(minHeight: 36)
-            .background(selectedGroupID == id ? Color.liftLime : Color.liftSurfaceElevated, in: Capsule())
-            .overlay(Capsule().stroke(Color.liftSurfaceBorder.opacity(selectedGroupID == id ? 0 : 1), lineWidth: 1))
     }
 
     private func load() async {
@@ -793,7 +814,7 @@ private struct ForumPostCard: View {
         NavigationLink {
             ForumThreadView(post: post, highlightedCommentID: nil).environmentObject(appState)
         } label: {
-            VStack(alignment: .leading, spacing: 11) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 9) {
                     forumAvatar
                     VStack(alignment: .leading, spacing: 2) {
@@ -810,20 +831,21 @@ private struct ForumPostCard: View {
                     }
                     Spacer()
                 }
-                if post.isPinned || post.isLocked {
+                if post.isPinned || post.isLocked || !post.kind.isEmpty {
                     HStack(spacing: 7) {
+                        if !post.kind.isEmpty { forumBadge(post.kind, icon: post.kind == "Question" ? "questionmark.circle" : "text.bubble") }
                         if post.isPinned { forumBadge("Pinned", icon: "pin.fill") }
                         if post.isLocked { forumBadge("Locked", icon: "lock.fill") }
                     }
                 }
                 Text(post.title)
-                    .font(.title3.weight(.bold))
+                    .font(.headline.weight(.bold))
                     .foregroundStyle(Color.liftText)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(post.body)
                     .font(.subheadline)
                     .foregroundStyle(Color.liftTextSecondary)
-                    .lineLimit(3)
+                    .lineLimit(2)
                 if let tag = post.tag, tag != "demo" {
                     Text(tag.uppercased())
                         .font(.caption.weight(.bold))
@@ -847,7 +869,7 @@ private struct ForumPostCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.vertical, 10)
             .background(Color.liftBackground)
         }
         .buttonStyle(.plain)
@@ -1485,6 +1507,7 @@ private struct ForumThreadView: View {
 
 private struct MeHubContentView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showsTrainingDetails = false
     @State private var selectedTopLiftCard: TopLiftCardDestination?
 
@@ -1500,7 +1523,9 @@ private struct MeHubContentView: View {
 
                 LazyVStack(alignment: .leading, spacing: 14) {
                     VStack(alignment: .leading, spacing: 12) {
-                        HStack(alignment: .top, spacing: 12) {
+                        (dynamicTypeSize.isAccessibilitySize
+                         ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+                         : AnyLayout(HStackLayout(alignment: .top, spacing: 12))) {
                             ProfileAvatar(profile: profile, size: 66)
                                 .accessibilityIdentifier("me.profileHeader")
                             VStack(alignment: .leading, spacing: 4) {
@@ -1514,9 +1539,11 @@ private struct MeHubContentView: View {
                                     .foregroundStyle(Color.liftGold)
                             }
 
-                            Spacer()
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                            VStack(spacing: 8) {
+                            (dynamicTypeSize.isAccessibilitySize
+                             ? AnyLayout(HStackLayout(spacing: 8))
+                             : AnyLayout(VStackLayout(spacing: 8))) {
                                 compactHeaderIconButton("gearshape.fill", "Open settings", accessibilityIdentifier: "me.header.settings") {
                                     appState.showingSettings = true
                                 }
@@ -1570,7 +1597,7 @@ private struct MeHubContentView: View {
                     CompactSectionHeader(title: "Top submitted lifts")
                         .accessibilityIdentifier("me.section.topLifts")
                     if hasLoggedTopLifts {
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 10) {
                             topLiftCardButton("Bench", exerciseID: "bench", lift: bestStrengthLifts["bench"], preferredUnit: preferredUnit)
                             topLiftCardButton("Squat", exerciseID: "squat", lift: bestStrengthLifts["squat"], preferredUnit: preferredUnit)
                             topLiftCardButton("Deadlift", exerciseID: "deadlift", lift: bestStrengthLifts["deadlift"], preferredUnit: preferredUnit)
@@ -1605,7 +1632,7 @@ private struct MeHubContentView: View {
                             }
                             .buttonStyle(.plain)
 
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: dynamicTypeSize.isAccessibilitySize ? 1 : 3), spacing: 8) {
                                 topLiftCardButton("Bench", exerciseID: "bench", lift: nil, preferredUnit: preferredUnit)
                                 topLiftCardButton("Squat", exerciseID: "squat", lift: nil, preferredUnit: preferredUnit)
                                 topLiftCardButton("Deadlift", exerciseID: "deadlift", lift: nil, preferredUnit: preferredUnit)
@@ -1729,6 +1756,8 @@ private struct MeHubContentView: View {
                 .background(Color.liftCard)
                 .clipShape(Circle())
                 .overlay(Circle().stroke(Color.liftSurfaceBorder, lineWidth: 1))
+                .frame(width: LiftDesign.minimumTouchTarget, height: LiftDesign.minimumTouchTarget)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
@@ -1741,6 +1770,7 @@ private struct MeHubContentView: View {
                 .font(.subheadline.weight(.black))
             Text(title)
                 .font(.caption2.weight(.semibold))
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 .foregroundStyle(Color.liftMuted)
         }
         .frame(maxWidth: .infinity)
@@ -1779,22 +1809,28 @@ private struct MeHubContentView: View {
         return HStack(spacing: 13) {
             Image(systemName: symbol)
                 .font(.subheadline.weight(.bold))
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 .foregroundStyle(iconColor)
                 .frame(width: 34, height: 34)
                 .background(iconColor.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).font(.subheadline.weight(.bold)).foregroundStyle(textColor)
-                Text(subtitle).font(.caption).foregroundStyle(Color.liftMuted).lineLimit(2)
+                Text(subtitle).font(.caption).foregroundStyle(Color.liftMuted)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                if dynamicTypeSize.isAccessibilitySize, let badge {
+                    Text(badge).font(.caption.weight(.black)).foregroundStyle(Color.liftGold)
+                }
             }
             Spacer(minLength: 8)
-            if let badge {
+            if let badge, !dynamicTypeSize.isAccessibilitySize {
                 Text(badge)
                     .font(.caption.weight(.black))
                     .foregroundStyle(Color.liftGold)
             }
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.bold))
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 .foregroundStyle(chevronColor)
         }
         .padding(.horizontal, 11)
@@ -2123,7 +2159,7 @@ struct AwardsView: View {
     }
 
     private func awardTile(_ achievement: Achievement, unlocked: Bool, status: String? = nil) -> some View {
-        let display = awardDisplay(for: achievement)
+        let display = MeasurementFormatting.awardDisplay(for: achievement, unit: appState.currentProfile.preferredUnit)
         return VStack(alignment: .leading, spacing: 9) {
             Image(systemName: achievement.symbolName)
                 .font(.title3.weight(.bold))
@@ -2138,65 +2174,6 @@ struct AwardsView: View {
             }
         }
         .padding(14).frame(maxWidth: .infinity, minHeight: 112, alignment: .leading).liftSurface()
-    }
-
-    private func awardDisplay(for achievement: Achievement) -> Achievement {
-        var display = achievement
-        let unit = appState.currentProfile.preferredUnit
-        if achievement.title == "1 Training Hours" {
-            display.title = "1 Training Hour"
-            display.description = "Accumulate 1 hour of training time."
-        } else if let liftMilestone = liftAwardMilestone(for: achievement.title) {
-            let formattedWeight = formattedAwardWeight(pounds: liftMilestone.pounds, unit: unit)
-            display.title = "\(formattedWeight) \(liftMilestone.exercise)"
-            display.description = "\(liftMilestone.exercise) \(formattedWeight.lowercased())."
-        } else if let totalPounds = totalAwardPounds(for: achievement.title) {
-            let formattedTotal = formattedAwardWeight(pounds: totalPounds, unit: unit)
-            display.title = "\(formattedTotal) Total"
-            display.description = "Build a \(formattedTotal) bench, squat, and deadlift total."
-        } else if let volumeKilograms = volumeAwardKilograms(for: achievement.title) {
-            let formattedVolume = formattedAwardWeight(kilograms: volumeKilograms, unit: unit)
-            display.title = "\(formattedVolume) Lifted Volume"
-            display.description = "Move \(formattedVolume) of lifted working-set volume."
-        }
-        return display
-    }
-
-    private func formattedAwardWeight(pounds: Double, unit: UnitSystem) -> String {
-        formattedAwardWeight(kilograms: RankingCalculator.poundsToKilograms(pounds), unit: unit)
-    }
-
-    private func formattedAwardWeight(kilograms: Double, unit: UnitSystem) -> String {
-        MeasurementFormatting.formatDisplayedWeight(kilograms, unit: unit) { value in
-            Int(value.rounded()).formatted()
-        }
-    }
-
-    private func liftAwardMilestone(for title: String) -> (pounds: Double, exercise: String)? {
-        for exercise in ["Bench", "Squat", "Deadlift"] where title.hasSuffix(" \(exercise)") {
-            let valueText = title.replacingOccurrences(of: " \(exercise)", with: "").replacingOccurrences(of: ",", with: "")
-            guard let pounds = Double(valueText) else { return nil }
-            return (pounds, exercise)
-        }
-        return nil
-    }
-
-    private func totalAwardPounds(for title: String) -> Double? {
-        guard title.hasSuffix(" lb Total") else { return nil }
-        let valueText = title
-            .replacingOccurrences(of: " lb Total", with: "")
-            .replacingOccurrences(of: ",", with: "")
-        return Double(valueText)
-    }
-
-    private func volumeAwardKilograms(for title: String) -> Double? {
-        let suffix = title.hasSuffix(" kg Lifted Volume")
-            ? " kg Lifted Volume"
-            : title.hasSuffix(" kg Volume") ? " kg Volume" : nil
-        guard let suffix else { return nil }
-        let valueText = title.replacingOccurrences(of: suffix, with: "")
-            .replacingOccurrences(of: ",", with: "")
-        return Double(valueText)
     }
 
     private func progressAwardItems(
@@ -2301,26 +2278,26 @@ struct AwardsView: View {
             guard let target = parseLeadingValue(from: title) else { return nil }
             let count = appState.workoutPlans.count
             metric = metricProgress(current: Double(count), target: target, status: "\(count) / \(Int(target)) programs")
-        } else if let liftMilestone = liftAwardMilestone(for: title) {
+        } else if let liftMilestone = MeasurementFormatting.liftAwardMilestone(for: title) {
             let current = liftMilestone.exercise == "Bench" ? bestBench : (liftMilestone.exercise == "Squat" ? bestSquat : bestDeadlift)
             let target = RankingCalculator.poundsToKilograms(liftMilestone.pounds)
             metric = metricProgress(
                 current: current,
                 target: target,
-                status: "\(formattedAwardWeight(kilograms: min(current, target), unit: preferredUnit)) / \(formattedAwardWeight(kilograms: target, unit: preferredUnit))"
+                status: "\(MeasurementFormatting.formattedAwardWeight(kilograms: min(current, target), unit: preferredUnit)) / \(MeasurementFormatting.formattedAwardWeight(kilograms: target, unit: preferredUnit))"
             )
-        } else if let totalPounds = totalAwardPounds(for: title) {
+        } else if let totalPounds = MeasurementFormatting.totalAwardPounds(for: title) {
             let target = RankingCalculator.poundsToKilograms(totalPounds)
             metric = metricProgress(
                 current: totalPowerlifting,
                 target: target,
-                status: "\(formattedAwardWeight(kilograms: min(totalPowerlifting, target), unit: preferredUnit)) / \(formattedAwardWeight(kilograms: target, unit: preferredUnit))"
+                status: "\(MeasurementFormatting.formattedAwardWeight(kilograms: min(totalPowerlifting, target), unit: preferredUnit)) / \(MeasurementFormatting.formattedAwardWeight(kilograms: target, unit: preferredUnit))"
             )
-        } else if let volumeKilograms = volumeAwardKilograms(for: title) {
+        } else if let volumeKilograms = MeasurementFormatting.volumeAwardKilograms(for: title) {
             metric = metricProgress(
                 current: stats.lifetimeWorkingSetVolume,
                 target: volumeKilograms,
-                status: "\(formattedAwardWeight(kilograms: min(stats.lifetimeWorkingSetVolume, volumeKilograms), unit: preferredUnit)) / \(formattedAwardWeight(kilograms: volumeKilograms, unit: preferredUnit))"
+                status: "\(MeasurementFormatting.formattedAwardWeight(kilograms: min(stats.lifetimeWorkingSetVolume, volumeKilograms), unit: preferredUnit)) / \(MeasurementFormatting.formattedAwardWeight(kilograms: volumeKilograms, unit: preferredUnit))"
             )
         } else if let streakTarget = parseLeadingValue(from: title), title.contains("Week Workout Streak") {
             metric = metricProgress(current: Double(stats.currentStreak), target: streakTarget, status: "\(stats.currentStreak) / \(Int(streakTarget)) weeks")
@@ -2346,7 +2323,7 @@ struct AwardsView: View {
             metric = metricProgress(
                 current: current,
                 target: target,
-                status: "\(formattedAwardWeight(kilograms: min(current, target), unit: preferredUnit)) / \(formattedAwardWeight(kilograms: target, unit: preferredUnit))"
+                status: "\(MeasurementFormatting.formattedAwardWeight(kilograms: min(current, target), unit: preferredUnit)) / \(MeasurementFormatting.formattedAwardWeight(kilograms: target, unit: preferredUnit))"
             )
         } else if title.hasSuffix(" Rival"), let rivalTier = rivalTier(for: title) {
             let currentTier = tierSummary.overallTier == .unranked ? 0 : tierSummary.overallTier.rawValue

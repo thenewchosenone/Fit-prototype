@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProgramPlanDetailView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var selectedWeekID: UUID?
     @Binding var detailTab: String
     @Binding var selectedSessionForAdd: WorkoutSession?
@@ -33,16 +34,18 @@ struct ProgramPlanDetailView: View {
             return text.contains("deload") || text.contains("rest") || text.contains("recovery")
         } ?? false
         return VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
+            (dynamicTypeSize.isAccessibilitySize
+             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+             : AnyLayout(HStackLayout(alignment: .center, spacing: 12))) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Program details")
                         .font(.headline.weight(.bold))
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text("\(weeks.count) scheduled weeks")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
                 Menu {
                     Button {
                         detailTab = "Weeks"

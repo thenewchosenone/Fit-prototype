@@ -50,6 +50,7 @@ protocol ActiveWorkoutRepository: AnyObject {
     func updateCompletedWorkout(_ workout: CompletedWorkout)
     func rebuildWorkoutHistoryDerivedState()
     func removeExerciseFromActiveWorkout(_ exercise: WorkoutExerciseSnapshot)
+    func setRestTimeForActiveWorkoutExercise(_ exerciseID: UUID, seconds: Int)
     func setAutomaticRestTimerEnabledForActiveWorkout(_ enabled: Bool)
     func updateWorkoutSetLog(_ log: WorkoutSetLog)
 

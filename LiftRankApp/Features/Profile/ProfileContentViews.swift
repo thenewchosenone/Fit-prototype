@@ -744,7 +744,7 @@ struct ProfilePhotoManagerView: View {
                     PhotosPicker(selection: $item, matching: .images) {
                         Label(hasExistingOrPendingPhoto ? "Replace Photo" : "Choose Photo", systemImage: "photo")
                             .font(.headline.weight(.bold))
-                            .foregroundStyle(Color.liftBackground)
+                            .foregroundStyle(Color.liftOnAccent)
                             .frame(maxWidth: .infinity, minHeight: 50)
                     }
                     .buttonStyle(LiftCompactProminentButtonStyle())

@@ -425,6 +425,10 @@ final class ActiveWorkoutStore {
         repository.setAutomaticRestTimerEnabledForActiveWorkout(enabled)
     }
 
+    func setRestTime(for exerciseID: UUID, seconds: Int) {
+        repository.setRestTimeForActiveWorkoutExercise(exerciseID, seconds: seconds)
+    }
+
     func setDefaultRestTimerEnabled(_ enabled: Bool) {
         repository.workoutPreferences.defaultRestTimerEnabled = enabled
         repository.scheduleWorkoutSnapshotPersistence()

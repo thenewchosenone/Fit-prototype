@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ExerciseLibraryFilterSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var applied: ExerciseLibraryFilterSelection
     let exercises: [TrainingExerciseCatalogItem]
     let searchText: String
@@ -112,7 +113,7 @@ struct ExerciseLibraryFilterSheet: View {
     private func filterSectionTitle<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title).font(.headline)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], alignment: .leading, spacing: 8) {
+            LazyVGrid(columns: dynamicTypeSize.isAccessibilitySize ? [GridItem(.flexible())] : [GridItem(.adaptive(minimum: 104), spacing: 8)], alignment: .leading, spacing: 8) {
                 content()
             }
         }
@@ -122,12 +123,12 @@ struct ExerciseLibraryFilterSheet: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Text(title)
-                    .lineLimit(2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                     .multilineTextAlignment(.center)
                 if selected { Image(systemName: "checkmark") }
             }
             .font(.caption.weight(.bold))
-            .foregroundStyle(selected ? .white : Color.liftMuted)
+            .foregroundStyle(selected ? Color.liftOnAccent : Color.liftMuted)
             .padding(.horizontal, 11)
             .frame(maxWidth: .infinity, minHeight: 40)
             .background(selected ? Color.liftBlue : Color.liftCard)
@@ -138,6 +139,7 @@ struct ExerciseLibraryFilterSheet: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(title)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
@@ -282,21 +284,19 @@ struct AddExerciseToWorkoutView: View {
     @State private var restSeconds = 120
 
     private let repGoals = ["1-5", "6-8", "8-12", "12-15", "15-20"]
-    private let restOptions = [60, 90, 120, 180]
+    private let restOptions = [60, 90, 120, 180, 240, 300]
 
     var body: some View {
         AppBackground {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 14) {
-                        ExerciseCatalogIcon(exercise: exercise)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(exercise.name).font(.title3.bold())
-                            Text("\(exercise.bodyPart) • \(exercise.equipment)")
-                                .font(.subheadline)
-                                .foregroundStyle(Color.liftMuted)
-                        }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(exercise.name).font(.title3.bold())
+                        Text("\(exercise.bodyPart) • \(exercise.equipment)")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.liftMuted)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
                     .liftSurface()
 
@@ -307,7 +307,7 @@ struct AddExerciseToWorkoutView: View {
                         Text("Rest time").font(.headline)
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 82), spacing: 8)], spacing: 8) {
                             ForEach(restOptions, id: \.self) { seconds in
-                                ProgramChoiceChip(title: "\(seconds) sec", isSelected: restSeconds == seconds) {
+                                ProgramChoiceChip(title: restTimeLabel(seconds), isSelected: restSeconds == seconds) {
                                     restSeconds = seconds
                                 }
                             }
@@ -335,6 +335,10 @@ struct AddExerciseToWorkoutView: View {
             restSeconds = exercise.defaultRestSeconds
         }
     }
+
+    private func restTimeLabel(_ seconds: Int) -> String {
+        seconds.isMultiple(of: 60) ? "\(seconds / 60) min" : "\(seconds) sec"
+    }
 }
 
 struct ProgramChoiceRow: View {
@@ -345,7 +349,7 @@ struct ProgramChoiceRow: View {
     var body: some View {
         Button(action: action) {
             HStack {
-                Text(title).font(.headline).foregroundStyle(.white)
+                Text(title).font(.headline).foregroundStyle(Color.liftText)
                 Spacer()
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(isSelected ? Color.liftAccentText : Color.liftMuted)
@@ -383,7 +387,7 @@ struct ProgramChoiceChip: View {
         Button(action: action) {
             Text(title)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(isSelected ? .white : Color.liftMuted)
+                .foregroundStyle(isSelected ? Color.liftOnAccent : Color.liftMuted)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .padding(.horizontal, 12)
                 .background(isSelected ? Color.liftBlue : Color.liftScrim)
@@ -584,11 +588,10 @@ struct ProgramAddExercisePickerView: View {
         let isSelected = selectedExerciseIDs.contains(exercise.id)
 
         return HStack(spacing: 12) {
-            ExerciseCatalogIcon(exercise: exercise)
             VStack(alignment: .leading, spacing: 4) {
                 Text(exercise.name)
                     .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.liftText)
                 if let reason = result.reasonLabel {
                     Text(reason)
                         .font(.caption2.weight(.bold))
@@ -648,7 +651,7 @@ struct ProgramAddExercisePickerView: View {
                     Spacer()
                     Image(systemName: "arrow.right")
                 }
-                .foregroundStyle(selectedExerciseIDs.isEmpty ? Color.liftMuted : Color.liftBackground)
+                .foregroundStyle(selectedExerciseIDs.isEmpty ? Color.liftMuted : Color.liftOnAccent)
                 .padding(.horizontal, 17)
                 .frame(height: 50)
                 .background(selectedExerciseIDs.isEmpty ? Color.liftCard : Color.liftBlue)

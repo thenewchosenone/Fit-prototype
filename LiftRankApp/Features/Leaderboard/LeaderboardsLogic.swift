@@ -15,23 +15,14 @@ extension LeaderboardsView {
         return entries.filter { entry in
             containsLeaderboardSearchTerm(entry.profile.username, query: query) ||
             containsLeaderboardSearchTerm(entry.profile.displayName, query: query) ||
-            containsLeaderboardSearchTerm(entry.profile.primaryGymName, query: query) ||
-            containsLeaderboardSearchTerm(entry.profile.city, query: query) ||
+            (!entry.profile.hideGym && containsLeaderboardSearchTerm(entry.profile.primaryGymName, query: query)) ||
+            (!entry.profile.hideCity && containsLeaderboardSearchTerm(entry.profile.city, query: query)) ||
             containsLeaderboardSearchTerm(entry.lift.exerciseName, query: query)
         }
     }
 
     private func containsLeaderboardSearchTerm(_ value: String, query: String) -> Bool {
         value.range(of: query, options: .caseInsensitive) != nil
-    }
-
-    var currentUserEntry: LeaderboardEntry? {
-        visibleEntries.first {
-            LeaderboardIdentityPresentation.isCurrentUser(
-                entryProfileID: $0.profile.id,
-                activeProfileID: appState.currentProfile.id
-            )
-        }
     }
 
     var bodyweightClass: WeightClass? {
@@ -46,12 +37,12 @@ extension LeaderboardsView {
         var count = 0
         if appState.leaderboardFilters.exerciseID != nil { count += 1 }
         if appState.leaderboardFilters.gymID != nil { count += 1 }
-        if appState.leaderboardFilters.city != nil || appState.leaderboardFilters.state != nil { count += 1 }
+        if appState.leaderboardFilters.city != nil || appState.leaderboardFilters.state != nil || appState.leaderboardFilters.country != nil { count += 1 }
         if appState.leaderboardFilters.sexCategory != nil { count += 1 }
         if appState.leaderboardFilters.ageGroup != nil { count += 1 }
         if appState.leaderboardFilters.weightClassID != nil { count += 1 }
         if appState.leaderboardFilters.experienceLevel != nil { count += 1 }
-        if appState.leaderboardFilters.verificationLevel != nil { count += 1 }
+        if !appState.verifiedOnly || appState.leaderboardFilters.verificationLevel != nil { count += 1 }
         if appState.leaderboardFilters.repetitionCount != nil { count += 1 }
         if appState.leaderboardFilters.timeRange != "All time" { count += 1 }
         return count
@@ -125,18 +116,23 @@ extension LeaderboardsView {
         appState.leaderboardFilters.gymID == nil &&
         appState.leaderboardFilters.city == nil &&
         appState.leaderboardFilters.state == nil &&
+        appState.leaderboardFilters.country == nil &&
         appState.leaderboardFilters.weightClassID == nil
     }
 
     var filterBar: some View {
         let showsExercise = ![.total, .relativeTotal].contains(appState.leaderboardFilters.rankingType)
         return VStack(spacing: 8) {
-            HStack(spacing: 8) {
+            (dynamicTypeSize.isAccessibilitySize
+             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+             : AnyLayout(HStackLayout(spacing: 8))) {
                 scopeFilterControl
                 moreFiltersControl
             }
             if showsExercise {
-                HStack(spacing: 8) {
+                (dynamicTypeSize.isAccessibilitySize
+                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                 : AnyLayout(HStackLayout(spacing: 8))) {
                     exerciseFilterControl
                     if appState.leaderboardFilters.exerciseID != nil { repetitionsFilterControl }
                 }
@@ -176,8 +172,7 @@ extension LeaderboardsView {
             .font(.caption.weight(.bold))
             .foregroundStyle(Color.liftAccentText)
             .frame(minWidth: 44, minHeight: 44)
-            .padding(.horizontal, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
             .liftSurface(radius: 10, raised: true)
         }
         .buttonStyle(.plain)
@@ -192,6 +187,7 @@ extension LeaderboardsView {
             TextField("Search lifters, gyms, exercises", text: $searchText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .submitLabel(.search)
             if !searchText.isEmpty {
                 Button {
                     searchText = ""
@@ -199,6 +195,7 @@ extension LeaderboardsView {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(Color.liftMuted)
+                        .frame(minWidth: 44, minHeight: 44)
                 }
                 .accessibilityLabel("Clear leaderboard search")
             }
@@ -218,13 +215,15 @@ extension LeaderboardsView {
                 Text("No ranked lifters")
                     .font(.headline)
                 Text(hasSearch
-                     ? "No lifters match this search. Try another name, gym, city, or exercise."
+                     ? "No ranked lifters match this search. Try another name, gym, city, or exercise."
                      : hasFilters
                         ? "No lifters match \(rankingScopeDescription) with these filters. Broaden or reset them to continue."
                         : leaderboardEvidenceMessage ?? "No eligible lifts have reached this leaderboard yet.")
                     .font(.subheadline)
                     .foregroundStyle(Color.liftMuted)
-                HStack {
+                (dynamicTypeSize.isAccessibilitySize
+                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                 : AnyLayout(HStackLayout(spacing: 8))) {
                     if hasSearch {
                         Button("Clear search") {
                             searchText = ""
@@ -278,9 +277,9 @@ extension LeaderboardsView {
                 return appState.currentProfile.primaryGymName
             }
         }
-        if appState.leaderboardFilters.city == appState.currentProfile.city { return "My city" }
-        if let state = appState.leaderboardFilters.state, !state.isEmpty { return "My state" }
-        if let country = appState.leaderboardFilters.country, !country.isEmpty { return "My country" }
+        if let city = appState.leaderboardFilters.city, !city.isEmpty { return city }
+        if let state = appState.leaderboardFilters.state, !state.isEmpty { return state }
+        if let country = appState.leaderboardFilters.country, !country.isEmpty { return country }
         if let bodyweightClass,
            appState.leaderboardFilters.weightClassID == bodyweightClass.id { return "My weight class" }
         return isGlobalScope ? "Global" : "Custom"
@@ -334,17 +333,25 @@ extension LeaderboardsView {
                     sectionTitle: "Gyms"
                 )
             }
-            return broadScopes + gymScopes
+            let availableScopes = broadScopes.filter { option in
+                switch option.id {
+                case "city": !appState.currentProfile.city.isEmpty
+                case "state": !appState.currentProfile.state.isEmpty
+                case "country": !(appState.currentProfile.countryCode ?? "").isEmpty
+                case "class": bodyweightClass != nil
+                default: true
+                }
+            }
+            return availableScopes + gymScopes
         case .exercise:
-            return [.init(id: "all", title: "All exercises", symbol: "dumbbell.fill")] + MockData.exercises.map { exercise in
+            return [.init(id: "all", title: "All exercises")] + MockData.exercises.map { exercise in
                 let catalogExercise = MockData.trainingExerciseLibrary.first {
                     $0.rankingExerciseID == exercise.id || $0.id == exercise.id
                 }
                 return LeaderboardOption(
                     id: exercise.id,
                     title: exercise.name,
-                    symbol: catalogExercise?.symbolName ?? exercise.symbolName,
-                    exerciseCatalogID: catalogExercise?.id
+                    subtitle: catalogExercise.map { "\($0.equipment) · \($0.resolvedMuscleProfile.primaryDescription)" }
                 )
             }
         case .repetitions:
@@ -379,11 +386,18 @@ extension LeaderboardsView {
         switch selector {
         case .scope:
             if let gymID = appState.leaderboardFilters.gymID { return "gym:\(gymID.uuidString)" }
-            if appState.leaderboardFilters.city == appState.currentProfile.city { return "city" }
-            if appState.leaderboardFilters.state == appState.currentProfile.state { return "state" }
-            if appState.leaderboardFilters.country == appState.currentProfile.countryCode { return "country" }
+            if let city = appState.leaderboardFilters.city, !city.isEmpty {
+                return city == appState.currentProfile.city ? "city" : "custom"
+            }
+            if let state = appState.leaderboardFilters.state, !state.isEmpty {
+                return state == appState.currentProfile.state ? "state" : "custom"
+            }
+            if let country = appState.leaderboardFilters.country, !country.isEmpty {
+                return country == appState.currentProfile.countryCode ? "country" : "custom"
+            }
             if let bodyweightClass,
                appState.leaderboardFilters.weightClassID == bodyweightClass.id { return "class" }
+            if appState.leaderboardFilters.weightClassID != nil { return "custom" }
             return "global"
         case .exercise: return appState.leaderboardFilters.exerciseID ?? "all"
         case .repetitions: return appState.leaderboardFilters.repetitionCount.map(String.init) ?? "all"

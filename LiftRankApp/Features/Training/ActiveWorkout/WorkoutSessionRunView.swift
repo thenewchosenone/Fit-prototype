@@ -411,9 +411,22 @@ struct WorkoutSessionRunView: View {
                 Text(exercise.exerciseName)
                     .font(.headline.weight(.bold))
                     .foregroundStyle(Color.liftText)
-                Text("\(progress.plannedWorkingSets) × \(exercise.targetReps) • \(exercise.restSeconds)s rest")
+                Text("\(progress.plannedWorkingSets) × \(exercise.targetReps)")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
+                Menu {
+                    ForEach([60, 90, 120, 180, 240, 300], id: \.self) { seconds in
+                        Button(activeRestTimeLabel(seconds)) {
+                            appState.setActiveWorkoutRestTime(for: exercise.id, seconds: seconds)
+                        }
+                    }
+                } label: {
+                    Label("Rest: \(activeRestTimeLabel(exercise.restSeconds))", systemImage: "timer")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.liftAccentText)
+                }
+                .accessibilityLabel("Rest time, \(activeRestTimeLabel(exercise.restSeconds))")
+                .accessibilityHint("Choose a different rest timer for this exercise")
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 5) {
@@ -430,6 +443,10 @@ struct WorkoutSessionRunView: View {
                 .stroke(progress.isComplete ? Color.liftGreen.opacity(0.28) : Color.liftOverlay, lineWidth: 1)
         }
         .contentShape(Rectangle())
+    }
+
+    private func activeRestTimeLabel(_ seconds: Int) -> String {
+        seconds.isMultiple(of: 60) ? "\(seconds / 60) min" : "\(seconds) sec"
     }
 
     private var workoutControls: some View {
@@ -633,7 +650,7 @@ private struct IncompleteWorkoutFinishPrompt: View {
                 HStack(alignment: .top, spacing: 14) {
                     Image(systemName: "exclamationmark")
                         .font(.title3.weight(.black))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.liftOnAccent)
                         .frame(width: 48, height: 48)
                         .background(Color.liftBlue)
                         .clipShape(Circle())

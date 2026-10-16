@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct PrescriptionTrackView: View {
     @EnvironmentObject private var appState: AppState
@@ -7,6 +8,7 @@ struct PrescriptionTrackView: View {
     let catalogExercise: TrainingExerciseCatalogItem
     @State private var restEndsAt: Date?
     @State private var showingExerciseInfo = false
+    @State private var showingExerciseHistory = false
     @State private var activeLogs: [WorkoutSetLog] = []
     @State private var activeLogIDs: [UUID] = []
     @State private var cachedPreviousLogsBySetNumber: [Int: WorkoutSetLog] = [:]
@@ -38,9 +40,6 @@ struct PrescriptionTrackView: View {
                     ].compactMap { $0 }.joined(separator: " · ")
                     let targetSummary = "Target: \(progress.plannedWorkingSets) × \(exercise.targetReps)" +
                         (targetDetails.isEmpty ? "" : " · \(targetDetails)")
-                    let previousMetric = previousLogs[1].map {
-                        "Last \($0.reps ?? 0) × \(RankingCalculator.format($0.weight ?? 0))"
-                    }
                     List {
                             VStack(alignment: .leading, spacing: 12) {
                                 if dynamicTypeSize.isAccessibilitySize {
@@ -79,11 +78,29 @@ struct PrescriptionTrackView: View {
                                     HStack(spacing: 8) {
                                         compactExerciseMetric(restMetric, "timer")
                                         compactExerciseMetric(volumeMetric, "scalemass")
-                                        if let previousMetric {
-                                            compactExerciseMetric(previousMetric, "clock.arrow.circlepath")
-                                        }
                                     }
                                 }
+                                (dynamicTypeSize.isAccessibilitySize
+                                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                                 : AnyLayout(HStackLayout(spacing: 12))) {
+                                    Button {
+                                        showingExerciseHistory = true
+                                    } label: {
+                                        Label("View history", systemImage: "clock.arrow.circlepath")
+                                            .frame(maxWidth: .infinity, minHeight: LiftDesign.minimumTouchTarget)
+                                    }
+                                    .accessibilityIdentifier("workout.exercise.history")
+                                    Button {
+                                        showingExerciseInfo = true
+                                    } label: {
+                                        Label("Exercise details", systemImage: "info.circle")
+                                            .frame(maxWidth: .infinity, minHeight: LiftDesign.minimumTouchTarget)
+                                    }
+                                    .accessibilityIdentifier("workout.exercise.details")
+                                }
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.liftAccentText)
+                                .buttonStyle(.plain)
                             }
                             .padding(14)
                             .background(Color.liftCard)
@@ -93,11 +110,6 @@ struct PrescriptionTrackView: View {
                                     .stroke(Color.liftOverlay, lineWidth: 1)
                             }
                             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .onTapGesture {
-                                showingExerciseInfo = true
-                            }
-                            .accessibilityAddTraits(.isButton)
-                            .accessibilityHint("Shows exercise information")
                             .listRowInsets(EdgeInsets(top: 8, leading: 18, bottom: 8, trailing: 18))
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
@@ -178,6 +190,7 @@ struct PrescriptionTrackView: View {
                     .onChange(of: focusedInput) { _, focus in
                         guard let focus else { return }
                         DispatchQueue.main.async {
+                            guard focusedInput == focus else { return }
                             withAnimation(.easeInOut(duration: 0.25)) {
                                 proxy.scrollTo(focus.logID, anchor: .center)
                             }
@@ -185,12 +198,28 @@ struct PrescriptionTrackView: View {
                     }
                     .toolbar {
                         ToolbarItemGroup(placement: .keyboard) {
+                            Button {
+                                focusedInput = nil
+                                UIApplication.shared.sendAction(
+                                    #selector(UIResponder.resignFirstResponder),
+                                    to: nil,
+                                    from: nil,
+                                    for: nil
+                                )
+                            } label: {
+                                Image(systemName: "keyboard.chevron.compact.down")
+                                    .frame(minWidth: LiftDesign.minimumTouchTarget, minHeight: LiftDesign.minimumTouchTarget)
+                            }
+                            .accessibilityLabel("Hide keyboard")
+                            .accessibilityIdentifier("workout.setInput.hideKeyboard")
+                            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                             Spacer()
                             Button(keyboardActionTitle) {
                                 advanceKeyboardFocus(using: proxy)
                             }
                             .font(.headline.weight(.bold))
                             .accessibilityIdentifier("workout.setInput.keyboardAction")
+                            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                         }
                     }
                 }
@@ -200,6 +229,7 @@ struct PrescriptionTrackView: View {
                 } label: {
                     Label("Add another set", systemImage: "plus")
                         .font(.headline.weight(.bold))
+                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 15)
                         .background(Color.liftCard)
@@ -218,10 +248,13 @@ struct PrescriptionTrackView: View {
         }
         .navigationTitle("Track exercise")
         .navigationBarTitleDisplayMode(.inline)
-        .alert(catalogExercise.name, isPresented: $showingExerciseInfo) {
-            Button("Done", role: .cancel) {}
-        } message: {
-            Text(exerciseDescription(for: catalogExercise))
+        .navigationDestination(isPresented: $showingExerciseInfo) {
+            ExerciseLibraryDetailView(exercise: catalogExercise)
+                .environmentObject(appState)
+        }
+        .navigationDestination(isPresented: $showingExerciseHistory) {
+            ExerciseLibraryDetailView(exercise: catalogExercise, startsOnHistory: true)
+                .environmentObject(appState)
         }
         .onAppear {
             ensureTargetSetsExist()
@@ -252,12 +285,14 @@ struct PrescriptionTrackView: View {
             Haptics.light()
             return
         }
-        withAnimation(.easeInOut(duration: 0.25)) {
-            proxy.scrollTo(nextInput.logID, anchor: .center)
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            guard self.focusedInput == focusedInput else { return }
+        if nextInput.logID == focusedInput.logID {
             self.focusedInput = nextInput
+        } else {
+            proxy.scrollTo(nextInput.logID, anchor: .center)
+            DispatchQueue.main.async {
+                guard self.focusedInput == focusedInput else { return }
+                self.focusedInput = nextInput
+            }
         }
         Haptics.light()
     }
@@ -315,29 +350,19 @@ struct PrescriptionTrackView: View {
             .clipShape(Capsule())
     }
 
-    private func exerciseDescription(for exercise: TrainingExerciseCatalogItem) -> String {
-        guard let guidance = exercise.guidance else {
-            return "\(exercise.bodyPart) exercise using \(exercise.equipment)."
-        }
-
-        if guidance.cues.isEmpty {
-            return guidance.summary
-        }
-
-        return "\(guidance.summary)\n\nCues: \(guidance.cues.joined(separator: " • "))"
-    }
-
     @ViewBuilder
     private var setColumnHeader: some View {
         if !dynamicTypeSize.isAccessibilitySize {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Text("SET").frame(width: 34)
-                Text("PREVIOUS").frame(maxWidth: .infinity)
-                Text(trackingKind.repsHeader).frame(width: 64)
+                Text("PREV").frame(maxWidth: .infinity)
+                    .accessibilityLabel("Previous workout")
+                Text(trackingKind.repsHeader).frame(width: 56)
                 if trackingKind.requiresWeight {
-                    Text(weightHeader).frame(width: 72)
+                    Text(weightHeader).frame(width: 64)
                 }
-                Color.clear.frame(width: 38, height: 1)
+                Color.clear.frame(width: LiftDesign.minimumTouchTarget, height: 1)
+                Color.clear.frame(width: LiftDesign.minimumTouchTarget, height: 1)
             }
             .font(.caption2.weight(.black))
             .tracking(0.7)

@@ -298,39 +298,7 @@ extension HomeView {
         .accessibilityLabel("\(value) week streak")
     }
 
-    var balancedOverview: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            dashboardSectionHeader("Overview")
-
-            if usesStackedOverview {
-                VStack(spacing: 12) {
-                    if appState.activeWorkout == nil { trainingOverviewCard }
-                    strengthOverviewCard
-                }
-            } else {
-                HStack(alignment: .top, spacing: 12) {
-                    if appState.activeWorkout == nil { trainingOverviewCard }
-                    strengthOverviewCard
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .onGeometryChange(for: CGFloat.self) { geometry in
-            geometry.size.width
-        } action: { width in
-            homeContentWidth = width
-        }
-    }
-
-    var usesStackedOverview: Bool {
-        dynamicTypeSize.isAccessibilitySize || (homeContentWidth > 0 && homeContentWidth < 340)
-    }
-
     var trainingOverviewCard: some View {
-        let currentWeekNumber = appState.currentSelectedProgramWeek?.weekNumber
-            ?? appState.selectedPlanWeeks.first?.weekNumber
-            ?? 1
-        let balance = appState.strengthBalance(for: currentWeekNumber)
         let today = scheduledWorkoutToday
         let missed = today == nil ? appState.missedScheduledWorkout() : nil
         let todayComplete = today != nil && todayScheduledSessionCompleted
@@ -364,13 +332,13 @@ extension HomeView {
                 Text(homeTrainingTitle(today: today, missed: missed, todayComplete: todayComplete, programComplete: programComplete))
                     .font(.subheadline.weight(.black))
                     .foregroundStyle(Color.liftText)
-                    .lineLimit(2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                     .multilineTextAlignment(.leading)
 
                 Text(homeTrainingSubtitle(today: today, missed: missed, todayComplete: todayComplete, programComplete: programComplete))
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
-                    .lineLimit(2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
 
                 Spacer(minLength: 2)
 
@@ -379,18 +347,17 @@ extension HomeView {
                       : active
                         ? "Resume workout"
                         : missed == nil
-                          ? (today == nil ? "Open Programs" : "Focus: \(balance.weakest)")
+                          ? (today == nil ? "Open Programs" : "Open workout")
                           : "Log missed workout",
                       systemImage: todayComplete || programComplete
                         ? "chart.bar.fill"
                         : active
                           ? "play.fill"
                           : missed == nil
-                            ? (today == nil ? "list.bullet.rectangle" : "scope")
+                            ? (today == nil ? "list.bullet.rectangle" : "arrow.right")
                             : "arrow.uturn.backward.circle")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.liftMuted)
-                    .lineLimit(1)
+                    .foregroundStyle(Color.liftAccentText)
             }
             .frame(maxWidth: .infinity, minHeight: 128, alignment: .leading)
             .padding(16)
@@ -501,7 +468,14 @@ extension HomeView {
     }
 
     var strengthOverviewCard: some View {
-        let summary = appState.strengthTierSummary
+        let awards = appState.achievements
+        let unlockedTitles = Set(appState.achievementUnlocks.map(\.title))
+        let earnedCount = awards.filter { unlockedTitles.contains($0.title) }.count
+        let latestUnlock = appState.achievementUnlocks.max { $0.unlockedAt < $1.unlockedAt }
+        let latestAward = awards.first { $0.title == latestUnlock?.title }
+            .map { MeasurementFormatting.awardDisplay(for: $0, unit: appState.currentProfile.preferredUnit) }
+        let nextAward = awards.first { !unlockedTitles.contains($0.title) }
+            .map { MeasurementFormatting.awardDisplay(for: $0, unit: appState.currentProfile.preferredUnit) }
         return Button {
             showingAwards = true
         } label: {
@@ -512,31 +486,51 @@ extension HomeView {
                         .tracking(1)
                         .foregroundStyle(Color.liftAccentText)
                     Spacer()
-                    Image(systemName: "medal.fill")
+                    Image(systemName: latestAward?.symbolName ?? "medal.fill")
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(Color.liftGold)
                 }
 
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text(summary.overallTier.label)
+                    Text("\(earnedCount) earned")
                         .font(.title2.weight(.black))
                         .foregroundStyle(Color.liftText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
                 }
 
-                Text("\(summary.completedRequiredLiftCount) of \(summary.requiredLiftCount) lifts logged")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.liftMuted)
+                if let latestAward {
+                    Text("Latest: \(latestAward.title)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.liftGold)
+                } else {
+                    Text("Your first badge is waiting")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                }
 
-                strengthMetric
+                if !awards.isEmpty {
+                    ProgressView(value: Double(earnedCount), total: Double(awards.count))
+                        .tint(Color.liftGold)
+                        .accessibilityLabel("Award collection")
+                        .accessibilityValue("\(earnedCount) of \(awards.count) earned")
+                }
+                if let nextAward {
+                    Text("Aim for: \(nextAward.title)")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                } else {
+                    Label("All awards earned", systemImage: "checkmark.seal.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.liftGold)
+                }
 
                 Spacer(minLength: 2)
 
                 HStack {
-                    Label(summary.nextTier.map { "Next: \($0.label)" } ?? "Top tier reached", systemImage: "chart.line.uptrend.xyaxis")
+                    Text("View all awards")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.liftMuted)
+                        .foregroundStyle(Color.liftAccentText)
                     Spacer()
                     Image(systemName: "arrow.right")
                         .font(.caption.weight(.bold))
@@ -548,30 +542,11 @@ extension HomeView {
             .liftSurface()
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Open awards, \(summary.overallTier.label), \(summary.completedRequiredLiftCount) of \(summary.requiredLiftCount) lifts logged")
-    }
-
-    @ViewBuilder
-    var strengthMetric: some View {
-        let preferredUnit = appState.currentProfile.preferredUnit
-        let totalPounds = appState.powerliftingTotal
-        let topTrackedOneRepMaxPounds = appState.progressExerciseOptions()
-            .compactMap { option -> Double? in
-                guard let kilograms = appState.exerciseRecords(for: option.id).bestEstimatedOneRepMaxKilograms else { return nil }
-                return RankingCalculator.kilogramsToPounds(kilograms)
-            }
-            .max() ?? 0
-        let primaryStrengthPounds = totalPounds > 0 ? totalPounds : topTrackedOneRepMaxPounds
-        if primaryStrengthPounds > 0 {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(totalPounds > 0 ? "Personal 3-lift total" : "Top estimated 1RM")
-                    .font(.caption2)
-                    .foregroundStyle(Color.liftMuted)
-                Text("\(Int(MeasurementFormatting.convert(primaryStrengthPounds, from: .pounds, to: preferredUnit))) \(preferredUnit.shortLabel)")
-                    .font(.subheadline.weight(.bold).monospacedDigit())
-                    .foregroundStyle(Color.liftAccentText)
-            }
-        }
+        .accessibilityLabel("Open awards, \(earnedCount) earned")
+        .accessibilityValue([
+            latestAward.map { "Latest: \($0.title)" },
+            nextAward.map { "Aim for: \($0.title)" }
+        ].compactMap { $0 }.joined(separator: ". "))
     }
 
     var highlights: some View {
@@ -591,15 +566,64 @@ extension HomeView {
     }
 
 
+    @ViewBuilder
+    var lastWorkout: some View {
+        if let workout = appState.completedWorkouts.max(by: { $0.completedAt < $1.completedAt }) {
+            let completedExerciseIDs = Set(workout.completedWorkingSets.map(\.prescriptionID))
+            let trainedExercises = workout.exercises
+                .filter { completedExerciseIDs.contains($0.id) }
+            NavigationLink {
+                CompletedWorkoutDetailView(workout: workout, isPresentedModally: false)
+                    .environmentObject(appState)
+            } label: {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Label("LAST WORKOUT", systemImage: "checkmark.circle.fill")
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(Color.liftAccentText)
+                        Spacer(minLength: 8)
+                        Text(workout.completedAt, format: .dateTime.month(.abbreviated).day())
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.liftMuted)
+                    }
+                    Text(workout.name)
+                        .font(.title3.weight(.black))
+                        .foregroundStyle(Color.liftText)
+                    Text("\(MeasurementFormatting.shortDurationText(workout.duration)) · \(workout.completedWorkingSets.count) sets · \(trainedExercises.count) exercises")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.liftMuted)
+                    if workout.totalVolume > 0 {
+                        Label("\(MeasurementFormatting.formatRecordedVolume(workout.totalVolume, recordedUnit: workout.unit, preferredUnit: appState.currentProfile.preferredUnit)) lifted", systemImage: "scalemass")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(Color.liftAccentText)
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .homePanelStyle()
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("home.lastWorkout")
+        }
+    }
+
     var recentPRs: some View {
         let recentLifts = Array(appState.currentUserLifts.sorted {
             if $0.performedAt != $1.performedAt { return $0.performedAt > $1.performedAt }
             return $0.createdAt > $1.createdAt
         }.prefix(3))
         return VStack(alignment: .leading, spacing: 12) {
-            dashboardSectionHeader("Recent submitted PRs", actionTitle: "Submit lift") {
+            dashboardSectionHeader("Your PR highlights", actionTitle: "Submit lift") {
                 appState.showingSubmitSheet = true
             }
+
+            Text("Big lifts. Your progress, on display.")
+                .font(.subheadline)
+                .foregroundStyle(Color.liftMuted)
 
             VStack(spacing: 0) {
                 if recentLifts.isEmpty {
@@ -636,30 +660,32 @@ extension HomeView {
                         Button {
                             appState.router.sheet = .recentPR(lift)
                         } label: {
-                            HStack(spacing: 13) {
-                                Group {
-                                    if let catalogExercise = MockData.trainingExerciseLibrary.first(where: {
-                                        $0.id == lift.exerciseID || $0.rankingExerciseID == lift.exerciseID
-                                    }) {
-                                        ExerciseCatalogIcon(exercise: catalogExercise)
-                                            .scaleEffect(0.72)
-                                    } else {
-                                        ExerciseNameIcon(name: lift.exerciseName, fallbackSymbol: liftSymbol(for: lift.exerciseName))
-                                            .font(.headline)
-                                            .foregroundStyle(Color.liftGold)
-                                    }
-                                }
+                            HStack(alignment: .top, spacing: 13) {
+                                Image(systemName: index == 0 ? "trophy.fill" : liftSymbol(for: lift.exerciseName))
+                                    .font(.title3.weight(.bold))
+                                    .foregroundStyle(Color.liftGold)
                                 .frame(width: 42, height: 42)
                                 .background(Color.liftGold.opacity(0.11))
                                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                                 VStack(alignment: .leading, spacing: 3) {
+                                    if index == 0 {
+                                        Text("LATEST SUBMISSION")
+                                            .font(.caption2.weight(.black))
+                                            .tracking(0.8)
+                                            .foregroundStyle(Color.liftGold)
+                                    }
                                     Text(lift.exerciseName)
                                         .font(.subheadline.weight(.bold))
                                         .foregroundStyle(Color.liftText)
-                                Text("\(prSourceLabel(for: lift)) · " + MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true))
-                                    .font(.caption)
-                                    .foregroundStyle(Color.liftMuted)
+                                    Text(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true))
+                                        .font(.title2.weight(.black).monospacedDigit())
+                                        .foregroundStyle(Color.liftAccentText)
+                                    if lift.visibility == .privateLift {
+                                        Label("Private PR", systemImage: "lock.fill")
+                                            .font(.caption)
+                                            .foregroundStyle(Color.liftMuted)
+                                    }
                                     VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus, compact: true)
                                         .padding(.top, 3)
                                 }
@@ -694,13 +720,6 @@ extension HomeView {
         lift.videoAssetID != nil || lift.localVideoURL != nil || lift.remoteVideoURL != nil
     }
 
-    func prSourceLabel(for lift: LiftSubmission) -> String {
-        if lift.visibility == .privateLift { return "Private PR" }
-        return lift.resolvedEvidenceStatus == .videoBacked
-            ? "Video-backed submission"
-            : "Self-reported submission"
-    }
-
     func liftSymbol(for exerciseName: String) -> String {
         let normalized = exerciseName.lowercased()
         if normalized.contains("squat") { return "figure.strengthtraining.functional" }
@@ -725,10 +744,6 @@ extension HomeView {
         return "figure.strengthtraining.functional"
     }
 
-    var weeklyActivity: some View {
-        WeeklyTrainingDayGoalCard(summary: homeWeeklySummary)
-    }
-
     func openWeeklyProgress() {
         appState.trainingTrackerStartOnProgress = true
         appState.requestedTrackerSegment = "Progress"
@@ -750,9 +765,6 @@ extension HomeView {
         return "Good evening"
     }
 
-    var homeWeeklySummary: HomeWeeklySummary {
-        appState.homeWeeklySummary()
-    }
 }
 
 struct WeeklyTrainingDayGoalCard: View {
@@ -863,12 +875,17 @@ extension HomeView {
                 LazyVStack(alignment: .leading, spacing: 18) {
                     header
                     workoutStatus
-                    workoutSyncStatus
+                    (dynamicTypeSize.isAccessibilitySize
+                     ? AnyLayout(VStackLayout(spacing: 12))
+                     : AnyLayout(HStackLayout(alignment: .top, spacing: 12))) {
+                        if appState.activeWorkout == nil { trainingOverviewCard }
+                        strengthOverviewCard
+                    }
+                    lastWorkout
                     trainingAlerts
-                    balancedOverview
-                    highlights
                     recentPRs
-                    weeklyActivity
+                    workoutSyncStatus
+                    highlights
                 }
                 .padding(.horizontal, LiftDesign.screenHorizontalPadding)
                 .padding(.top, 8)

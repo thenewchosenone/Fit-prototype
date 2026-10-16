@@ -129,6 +129,7 @@ struct LeaderboardRow: View {
 struct LeaderboardFiltersView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var customRepText = ""
     @State private var expandedFilterGroups: Set<String> = ["Exercise and reps", "Evidence and time"]
     @State private var locationOptions: [String] = []
@@ -256,11 +257,11 @@ struct LeaderboardFiltersView: View {
 
                         filterGroup("Location", symbol: "mappin.and.ellipse") {
                             optionRow("Quick location") {
-                                optionButton("Global", isActive: appState.leaderboardFilters.gymID == nil && appState.leaderboardFilters.city == nil && appState.leaderboardFilters.state == nil) {
+                                optionButton("Global", isActive: appState.leaderboardFilters.gymID == nil && appState.leaderboardFilters.city == nil && appState.leaderboardFilters.state == nil && appState.leaderboardFilters.country == nil) {
                                     clearLocationFilter()
                                 }
                                 if !appState.currentProfile.city.isEmpty {
-                                    optionButton("My city: \(shortLocation(appState.currentProfile.city, appState.currentProfile.state))", isActive: appState.leaderboardFilters.cityID == appState.currentProfile.cityID && appState.leaderboardFilters.city == appState.currentProfile.city) {
+                                    optionButton("My city: \(shortLocation(appState.currentProfile.city, appState.currentProfile.state))", isActive: appState.leaderboardFilters.gymID == nil && appState.leaderboardFilters.city == appState.currentProfile.city && appState.leaderboardFilters.state == appState.currentProfile.state) {
                                         applyLocation(
                                             cityID: appState.currentProfile.cityID,
                                             city: appState.currentProfile.city,
@@ -452,7 +453,7 @@ struct LeaderboardFiltersView: View {
                     .font(.title2)
                     .foregroundStyle(Color.liftAccentText)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("\(resultCount) matching \(resultCount == 1 ? "lifter" : "lifters")")
+                    Text(appState.isLeaderboardRequestPending ? "Updating results…" : appState.competitionStore.leaderboardError != nil ? "Results unavailable" : "\(resultCount) matching \(resultCount == 1 ? "lifter" : "lifters")")
                         .font(.headline)
                     Text("Results update as you change filters.")
                         .font(.caption)
@@ -468,13 +469,12 @@ struct LeaderboardFiltersView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Label("Quick filters", systemImage: "line.3.horizontal.decrease.circle.fill")
                     .font(.headline)
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 8) {
                     ForEach(["all", "city", "class"], id: \.self) { filter in
                         switch filter {
                         case "all":
-                            quickFilterButton("All lifters", symbol: "globe") {
-                                appState.leaderboardFilters = LeaderboardFilters(exerciseID: appState.leaderboardFilters.exerciseID)
-                                appState.verifiedOnly = false
+                            quickFilterButton("Global", symbol: "globe") {
+                                clearLocationFilter()
                             }
                         case "city":
                             quickFilterButton("My city", symbol: "mappin.and.ellipse") {
@@ -485,11 +485,13 @@ struct LeaderboardFiltersView: View {
                                     countryCode: nil
                                 )
                             }
+                            .disabled(appState.currentProfile.city.isEmpty)
                         default:
                             quickFilterButton("My weight class", symbol: "person.crop.rectangle.stack") {
                                 appState.leaderboardFilters.sexCategory = appState.currentProfile.sexCategory
                                 appState.leaderboardFilters.weightClassID = bodyweightClass?.id
                             }
+                            .disabled(bodyweightClass == nil)
                         }
                     }
                 }
@@ -646,7 +648,7 @@ struct LeaderboardFiltersView: View {
     private func weightClassChips(_ classes: [WeightClass]) -> some View {
         LeaderboardChipFlowLayout(spacing: 8) {
             ForEach(classes) { weightClass in
-                optionButton(weightClass.name, isActive: appState.leaderboardFilters.weightClassID == weightClass.id) {
+                optionButton(RankingFormatting.weightClassDisplayName(weightClass, preferredUnit: appState.currentProfile.preferredUnit), isActive: appState.leaderboardFilters.weightClassID == weightClass.id) {
                     appState.leaderboardFilters.sexCategory = weightClass.sexCategory
                     appState.leaderboardFilters.weightClassID = weightClass.id
                 }
@@ -663,12 +665,14 @@ struct LeaderboardFiltersView: View {
                 .font(.caption.weight(.bold))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
+                .frame(minHeight: 44)
                 .background(isActive ? Color.liftBlue : Color.liftBlue.opacity(0.10))
-                .foregroundStyle(isActive ? Color.white : Color.liftAccentText)
+                .foregroundStyle(isActive ? Color.liftOnAccent : Color.liftAccentText)
                 .clipShape(Capsule())
-                .fixedSize(horizontal: true, vertical: false)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
         .accessibilityIdentifier("leaderboard.filters.option.\(identifierComponent(title))")
     }
 
@@ -679,7 +683,8 @@ struct LeaderboardFiltersView: View {
         } label: {
             Label(title, systemImage: symbol)
                 .font(.caption.weight(.bold))
-                .frame(maxWidth: .infinity, minHeight: 42)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .fixedSize(horizontal: false, vertical: true)
                 .background(Color.liftBlue.opacity(0.14))
                 .foregroundStyle(Color.liftAccentText)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -716,7 +721,7 @@ private struct LeaderboardChipFlowLayout: Layout {
             subviews[index].place(
                 at: CGPoint(x: bounds.minX + point.x, y: bounds.minY + point.y),
                 anchor: .topLeading,
-                proposal: .unspecified
+                proposal: ProposedViewSize(width: min(bounds.width, subviews[index].sizeThatFits(.unspecified).width), height: nil)
             )
         }
     }
@@ -728,7 +733,7 @@ private struct LeaderboardChipFlowLayout: Layout {
         var rowHeight: CGFloat = 0
 
         for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
+            let size = subview.sizeThatFits(ProposedViewSize(width: min(width, subview.sizeThatFits(.unspecified).width), height: nil))
             if x > 0, x + size.width > width {
                 x = 0
                 y += rowHeight + spacing

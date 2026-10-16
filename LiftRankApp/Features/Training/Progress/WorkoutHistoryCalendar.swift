@@ -192,6 +192,7 @@ struct WorkoutHistoryCalendar: View {
                 ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                     Text(symbol)
                         .font(.caption2.weight(.bold))
+                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                         .foregroundStyle(Color.liftMuted)
                         .frame(maxWidth: .infinity)
                 }
@@ -232,6 +233,8 @@ struct WorkoutHistoryCalendar: View {
             VStack(spacing: 2) {
                 Text(day.date.map { String(calendar.component(.day, from: $0)) } ?? "")
                     .font(.caption.weight(isSelected || day.workoutCount > 0 ? .bold : .medium).monospacedDigit())
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                    .lineLimit(1)
                     .foregroundStyle(isSelected ? Color.liftOnAccent : day.date == nil ? Color.clear : Color.liftText)
                 Circle()
                     .fill(day.workoutCount > 0 ? (isSelected ? Color.liftOnAccent : Color.liftBlue) : Color.clear)

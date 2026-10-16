@@ -48,7 +48,6 @@ struct ActiveWorkoutAddExercisePickerView: View {
                                 let isExisting = existingIDs.contains(exercise.id)
                                 let isSelected = selectedIDs.contains(exercise.id)
                                 HStack(spacing: 12) {
-                                    ExerciseCatalogIcon(exercise: exercise)
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(exercise.name)
                                             .font(.subheadline.weight(.bold))

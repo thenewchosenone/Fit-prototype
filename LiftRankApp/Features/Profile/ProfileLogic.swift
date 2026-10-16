@@ -131,7 +131,9 @@ extension ProfileView {
     var header: some View {
         LiftCard(padding: 14, radius: 12) {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 12) {
+                (dynamicTypeSize.isAccessibilitySize
+                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+                 : AnyLayout(HStackLayout(spacing: 12))) {
                     Button {
                         if isCurrentUser { showingPhotoManager = true }
                     } label: {
@@ -151,7 +153,7 @@ extension ProfileView {
                                 .foregroundStyle(Color.liftMuted)
                         }
                     }
-                    Spacer()
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     if isCurrentUser {
                         HStack(spacing: 8) {
                             NativeIconButton(symbolName: "camera.fill", accessibilityLabel: "Change profile photo") {
@@ -167,7 +169,7 @@ extension ProfileView {
                     Label(identityLocation, systemImage: profile.hideGym && profile.hideCity ? "eye.slash" : "location")
                         .font(.subheadline)
                         .foregroundStyle(Color.liftMuted)
-                        .lineLimit(2)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 }
                 if let bio = profile.bio?.trimmingCharacters(in: .whitespacesAndNewlines), !bio.isEmpty {
                     Text(bio)

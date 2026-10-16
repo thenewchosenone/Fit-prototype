@@ -16,17 +16,28 @@ extension LeaderboardsView {
         let leaderboardEntries = allEntries
         let matchingEntries = visibleEntries(from: leaderboardEntries)
         let entries = Array(matchingEntries.prefix(leaderboardPage * 100))
-        let currentEntry = matchingEntries.first { $0.profile.id == appState.currentProfile.id }
+        let currentEntry = leaderboardEntries.first { $0.profile.id == appState.currentProfile.id }
+        let showsMovement = matchingEntries.contains { $0.rankMovement != 0 }
+        let evidenceTitle = appState.verifiedOnly ? "Video-backed rankings" : (appState.leaderboardFilters.verificationLevel == .selfReported ? "Self-reported rankings" : "All lift evidence")
+        let rankText = appState.isLeaderboardRequestPending
+            ? "Updating…"
+            : appState.competitionStore.leaderboardError != nil
+                ? "Unavailable"
+                : currentEntry.map { "#\($0.rank)" } ?? "Not listed"
 
         return AppBackground {
             VStack(spacing: 0) {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                            HStack {
-                                Text("\(rankScopeTitle): \(RankingFormatting.leaderboardRankText(rank: currentEntry?.rank))")
-                                Spacer()
-                                Text("\(matchingEntries.count) lifters")
+                            (dynamicTypeSize.isAccessibilitySize
+                             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                             : AnyLayout(HStackLayout())) {
+                                Text("\(rankScopeTitle): \(rankText)")
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                if !appState.isLeaderboardRequestPending, appState.competitionStore.leaderboardError == nil {
+                                    Text("\(matchingEntries.count) \(matchingEntries.count == 1 ? "lifter" : "lifters")\(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : " found")")
+                                }
                             }
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(Color.liftMuted)
@@ -40,18 +51,21 @@ extension LeaderboardsView {
                                 Button {
                                     showsRankingExplanation.toggle()
                                 } label: {
-                                    Label(appState.verifiedOnly ? "Video-backed rankings" : (appState.leaderboardFilters.verificationLevel == .selfReported ? "Self-reported rankings" : "All lift evidence"), systemImage: "info.circle")
-                                        .accessibilityLabel("How this ranking works")
+                                    Label(evidenceTitle, systemImage: "info.circle")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(Color.liftAccentText)
+                                        .frame(minHeight: 44, alignment: .leading)
+                                        .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityLabel("\(evidenceTitle). How this ranking works")
+                                .accessibilityValue(showsRankingExplanation ? "Expanded" : "Collapsed")
                                 .padding(.horizontal, 16)
                                 .padding(.bottom, 8)
                                 if showsRankingExplanation {
                                     let explanation = switch appState.leaderboardFilters.rankingType {
                                     case .relativeTotal: "Relative total divides each lifter’s best bench press, squat, and deadlift total by their bodyweight."
-                                    case .total: "Total adds each lifter’s best eligible bench press, squat, and deadlift."
+                                    case .total: "Total adds each lifter’s best eligible bench press, squat, and deadlift. You can rank with one or two of these lifts; missing lifts add nothing to your total. S, B, and D show squat, bench, and deadlift when a breakdown is available."
                                     case .absolute: "Absolute ranks lifters by the heaviest eligible lift. Choose an exercise to compare the same movement."
                                     case .poundForPound: "Pound-for-pound divides the lifted weight by bodyweight. A higher multiple ranks higher."
                                     case .mostImproved: "Most improved ranks percentage gains over each lifter’s earlier best for the same exercise. It compares eligible lifts within the selected time range: \(appState.leaderboardFilters.timeRange.lowercased()). At least two results are needed for a comparison."
@@ -68,14 +82,15 @@ extension LeaderboardsView {
                                     .padding(.horizontal, 16).padding(.bottom, 8)
                             }
 
-                            if currentUserEntry != nil {
+                            if currentEntry != nil, !appState.isLeaderboardRequestPending, appState.competitionStore.leaderboardError == nil {
                                 Button {
+                                    searchText = ""
                                     appState.leaderboardFocusRequestID = UUID()
                                 } label: {
                                     Label("Jump to my rank", systemImage: "location.fill")
                                         .font(.caption.weight(.bold))
                                         .foregroundStyle(Color.liftAccentText)
-                                        .frame(maxWidth: .infinity, minHeight: 36)
+                                        .frame(maxWidth: .infinity, minHeight: 44)
                                         .background(Color.liftBlue.opacity(0.12))
                                         .clipShape(Capsule())
                                 }
@@ -123,7 +138,8 @@ extension LeaderboardsView {
                                                     isCurrentUser: entry.profile.id == appState.currentProfile.id,
                                                     preferredUnit: appState.currentProfile.preferredUnit,
                                                     isExerciseLeaderboard: appState.leaderboardFilters.exerciseID != nil,
-                                                    showsGym: true
+                                                    showsGym: appState.leaderboardFilters.gymID == nil,
+                                                    showsMovement: showsMovement
                                                 )
                                             }
                                             .buttonStyle(.plain)
@@ -153,12 +169,14 @@ extension LeaderboardsView {
                                     }
                                     .background(Color.liftCard.opacity(0.44))
                                 } header: {
-                                    LeaderboardTableHeader(resultCount: entries.count, valueTitle: valueColumnTitle)
+                                    LeaderboardTableHeader(resultCount: matchingEntries.count, valueTitle: valueColumnTitle, showsMovement: showsMovement)
                                 }
                             }
                         }
                         .padding(.bottom, 16)
                     }
+                    .scrollDismissesKeyboard(.interactively)
+                    .refreshable { await appState.refreshLeaderboard() }
                     .onAppear {
                         appState.normalizeLeaderboardFilters()
                         focusCurrentUserIfNeeded(using: proxy)
@@ -227,9 +245,12 @@ extension LeaderboardsView {
                     athleteSearchResults = []
                     return
                 }
+                athleteSearchResults = []
                 try? await Task.sleep(for: .milliseconds(250))
                 guard !Task.isCancelled else { return }
-                athleteSearchResults = await appState.searchAthletes(query)
+                let results = await appState.searchAthletes(query)
+                guard !Task.isCancelled else { return }
+                athleteSearchResults = results
             }
             .task(id: appState.leaderboardRequestKey) {
                 leaderboardPage = 1

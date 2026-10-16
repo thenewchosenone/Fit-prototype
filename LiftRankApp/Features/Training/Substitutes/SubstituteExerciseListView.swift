@@ -29,14 +29,6 @@ struct SubstituteExerciseListView: View {
                                 Group {
                                     if dynamicTypeSize.isAccessibilitySize {
                                         VStack(alignment: .leading, spacing: 8) {
-                                            HStack {
-                                                ExerciseCatalogIcon(exercise: recommendation.exercise)
-                                                    .frame(width: 48, height: 48)
-                                                Spacer()
-                                                Image(systemName: "chevron.right")
-                                                    .font(.caption.weight(.bold))
-                                                    .foregroundStyle(Color.liftMuted)
-                                            }
                                             Text(recommendation.exercise.name)
                                                 .font(.subheadline.weight(.bold))
                                                 .foregroundStyle(Color.liftText)
@@ -48,8 +40,6 @@ struct SubstituteExerciseListView: View {
                                         }
                                     } else {
                                         HStack(spacing: 13) {
-                                            ExerciseCatalogIcon(exercise: recommendation.exercise)
-                                                .frame(width: 48, height: 48)
                                             VStack(alignment: .leading, spacing: 4) {
                                                 Text(recommendation.exercise.name)
                                                     .font(.subheadline.weight(.bold))

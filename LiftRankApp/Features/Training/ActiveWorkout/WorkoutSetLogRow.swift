@@ -103,7 +103,7 @@ struct WorkoutSetLogRow: View {
 
             if showingDetails {
                 setOptionsControls
-            } else {
+            } else if dynamicTypeSize.isAccessibilitySize {
                 HStack {
                     if let rpe = draft.rpe, !draft.isWarmup {
                         Text("RPE \(rpe)").font(.caption).foregroundStyle(Color.liftMuted)
@@ -111,6 +111,8 @@ struct WorkoutSetLogRow: View {
                     Spacer()
                     setOptionsButton
                 }
+            } else if let rpe = draft.rpe, !draft.isWarmup {
+                Text("RPE \(rpe)").font(.caption).foregroundStyle(Color.liftMuted)
             }
 
             if showingDetails && !draft.isWarmup {
@@ -188,17 +190,21 @@ struct WorkoutSetLogRow: View {
     private var previousSummary: String {
         guard let previousLog else { return "—" }
         let reps = previousLog.reps ?? 0
+        let weight = MeasurementFormatting.formatRecordedWeight(
+            MeasurementFormatting.convert(previousLog.weight ?? 0, from: previousLog.recordedUnit, to: draft.recordedUnit),
+            unit: draft.recordedUnit
+        )
         switch trackingKind {
         case .weightReps:
-            return "\(reps) × \(MeasurementFormatting.formatRecordedWeight(previousLog.weight ?? 0, unit: previousLog.recordedUnit))"
+            return "\(reps) × \(weight)"
         case .bodyweightReps, .repsOnly:
             return "\(reps) reps"
         case .assistedBodyweight:
-            return "\(reps) × \(MeasurementFormatting.formatRecordedWeight(previousLog.weight ?? 0, unit: previousLog.recordedUnit)) assist"
+            return "\(reps) × \(weight) assist"
         case .time:
             return MeasurementFormatting.shortClockText(TimeInterval(reps))
         case .weightTime:
-            return "\(MeasurementFormatting.shortClockText(TimeInterval(reps))) × \(MeasurementFormatting.formatRecordedWeight(previousLog.weight ?? 0, unit: previousLog.recordedUnit))"
+            return "\(MeasurementFormatting.shortClockText(TimeInterval(reps))) × \(weight)"
         }
     }
 
@@ -217,12 +223,13 @@ struct WorkoutSetLogRow: View {
                 }
             }
         } else {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 setNumberBadge
                 previousValuesButton
                 repsInput
                 if trackingKind.requiresWeight { weightInput }
                 completionButton
+                setOptionsButton
             }
         }
     }
@@ -233,7 +240,7 @@ struct WorkoutSetLogRow: View {
             .foregroundStyle(draft.isComplete ? Color.liftOnAccent : Color.liftText)
             .frame(
                 width: dynamicTypeSize.isAccessibilitySize ? 56 : 34,
-                height: dynamicTypeSize.isAccessibilitySize ? 56 : 38
+                height: dynamicTypeSize.isAccessibilitySize ? 56 : LiftDesign.minimumTouchTarget
             )
             .background(draft.isComplete ? Color.liftGreen : Color.liftCardRaised)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -243,13 +250,16 @@ struct WorkoutSetLogRow: View {
         Button {
             usePreviousValues()
         } label: {
-            Text(previousLog == nil ? "No previous set" : "Prev · \(previousSummary)")
+            Text(dynamicTypeSize.isAccessibilitySize
+                 ? (previousLog == nil ? "No previous set" : "Prev · \(previousSummary)")
+                 : (previousLog == nil ? "—" : previousSummary))
                 .font(.caption.weight(.bold).monospacedDigit())
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.8)
                 .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(previousLog == nil ? Color.liftMuted : Color.liftAccentText)
-                .frame(maxWidth: .infinity, minHeight: dynamicTypeSize.isAccessibilitySize ? 56 : 38)
+                .frame(maxWidth: .infinity, minHeight: dynamicTypeSize.isAccessibilitySize ? 56 : LiftDesign.minimumTouchTarget)
                 .background(Color.liftScrim)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
@@ -260,7 +270,7 @@ struct WorkoutSetLogRow: View {
     }
 
     private var repsInput: some View {
-        compactField(trackingKind.usesDuration ? "Sec" : "Reps", text: $repsText, width: 64, field: .reps)
+        compactField(trackingKind.usesDuration ? "Sec" : "Reps", text: $repsText, width: 56, field: .reps)
             .keyboardType(.numberPad)
             .onChange(of: repsText) { _, _ in
                 draft.reps = parsedReps
@@ -270,7 +280,7 @@ struct WorkoutSetLogRow: View {
     }
 
     private var weightInput: some View {
-        compactField(weightPlaceholder, text: $weightText, width: 72, field: .weight)
+        compactField(weightPlaceholder, text: $weightText, width: 64, field: .weight)
             .keyboardType(.decimalPad)
             .onChange(of: weightText) { _, _ in
                 draft.weight = parsedWeight
@@ -287,8 +297,8 @@ struct WorkoutSetLogRow: View {
                 .font(.subheadline.weight(.black))
                 .foregroundStyle(draft.isComplete ? Color.liftOnAccent : Color.liftAccentText)
                 .frame(
-                    width: dynamicTypeSize.isAccessibilitySize ? 56 : 38,
-                    height: dynamicTypeSize.isAccessibilitySize ? 56 : 38
+                    width: dynamicTypeSize.isAccessibilitySize ? 56 : LiftDesign.minimumTouchTarget,
+                    height: dynamicTypeSize.isAccessibilitySize ? 56 : LiftDesign.minimumTouchTarget
                 )
                 .background(draft.isComplete ? Color.liftGreen : Color.liftBlue.opacity(0.12))
                 .clipShape(Circle())
@@ -323,7 +333,6 @@ struct WorkoutSetLogRow: View {
                     rpeButtons
                 }
                 Spacer(minLength: 0)
-                setOptionsButton
             }
             .padding(.top, 1)
         }
@@ -342,8 +351,8 @@ struct WorkoutSetLogRow: View {
                     .font(.caption.weight(.black).monospacedDigit())
                     .foregroundStyle(draft.rpe == value ? Color.liftOnAccent : Color.liftText)
                     .frame(
-                        maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : 30,
-                        minHeight: dynamicTypeSize.isAccessibilitySize ? 48 : 28
+                        maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : LiftDesign.minimumTouchTarget,
+                        minHeight: dynamicTypeSize.isAccessibilitySize ? 48 : LiftDesign.minimumTouchTarget
                     )
                     .background(draft.rpe == value ? rpeTint(value) : rpeTint(value).opacity(0.12))
                     .clipShape(Circle())
@@ -358,10 +367,13 @@ struct WorkoutSetLogRow: View {
         Button {
             showingDetails.toggle()
         } label: {
-            Label(showingDetails ? "Done" : "Effort & options", systemImage: showingDetails ? "checkmark" : "ellipsis.circle")
+            Image(systemName: showingDetails ? "checkmark" : "ellipsis")
+                .frame(width: LiftDesign.minimumTouchTarget)
                 .font(.caption.weight(.semibold))
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 .foregroundStyle(Color.liftMuted)
                 .frame(minHeight: LiftDesign.minimumTouchTarget)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(showingDetails ? "Hide set options" : "Show set options")
@@ -380,7 +392,7 @@ struct WorkoutSetLogRow: View {
             .focused($focusedInput, equals: WorkoutSetInputFocus(logID: draft.id, field: field))
             .frame(
                 maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : width,
-                minHeight: dynamicTypeSize.isAccessibilitySize ? 56 : 38
+                minHeight: dynamicTypeSize.isAccessibilitySize ? 56 : LiftDesign.minimumTouchTarget
             )
             .background(Color.liftScrim)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))

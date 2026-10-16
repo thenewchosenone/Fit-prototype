@@ -201,6 +201,14 @@ extension DemoRepository {
         scheduleWorkoutSnapshotPersistence()
     }
 
+    func setRestTimeForActiveWorkoutExercise(_ exerciseID: UUID, seconds: Int) {
+        guard var workout = activeWorkout,
+              let index = workout.exercises.firstIndex(where: { $0.id == exerciseID }) else { return }
+        workout.exercises[index].restSeconds = seconds
+        activeWorkout = workout
+        scheduleWorkoutSnapshotPersistence()
+    }
+
     @discardableResult
     func reorderActiveWorkout(exerciseIDs: [UUID]) -> Bool {
         guard var workout = activeWorkout else { return false }

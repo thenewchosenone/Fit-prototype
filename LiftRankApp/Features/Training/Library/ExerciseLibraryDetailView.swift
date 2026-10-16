@@ -10,6 +10,11 @@ struct ExerciseLibraryDetailView: View {
     @State private var selectedWorkout: CompletedWorkout?
     @State private var showsChartTable = false
 
+    init(exercise: TrainingExerciseCatalogItem, startsOnHistory: Bool = false) {
+        self.exercise = exercise
+        _selectedTab = State(initialValue: startsOnHistory ? .history : .about)
+    }
+
     private enum ExerciseDetailTab: String, CaseIterable, Identifiable {
         case about = "About"
         case history = "History"
@@ -77,7 +82,9 @@ struct ExerciseLibraryDetailView: View {
                         if let image = phase.image {
                             image.resizable().scaledToFit()
                         } else if phase.error != nil {
-                            ExerciseCatalogIcon(exercise: exercise)
+                            Text("Illustration unavailable")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
                         } else {
                             ProgressView().frame(maxWidth: .infinity, minHeight: 180)
                         }
@@ -162,7 +169,7 @@ struct ExerciseLibraryDetailView: View {
                         HStack(alignment: .top, spacing: 12) {
                             Text("\(index + 1)")
                                 .font(.caption.weight(.black))
-                                .foregroundStyle(Color.liftBackground)
+                                .foregroundStyle(Color.liftOnAccent)
                                 .frame(width: 24, height: 24)
                                 .background(Color.white)
                                 .clipShape(Circle())
@@ -405,21 +412,10 @@ struct ExerciseLibraryDetailView: View {
                         .foregroundStyle(Color.liftAccentText)
                 }
 
-                HStack(spacing: -7) {
-                    ForEach(substitutes.prefix(3)) { recommendation in
-                        ExerciseCatalogIcon(exercise: recommendation.exercise)
-                            .frame(width: 38, height: 38)
-                            .background(Color.liftCard)
-                            .clipShape(Circle())
-                            .overlay { Circle().stroke(Color.liftBackground, lineWidth: 2) }
-                    }
-                    Spacer()
-                    Text(substitutes.prefix(2).map(\.exercise.name).joined(separator: " • "))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.liftMuted)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.trailing)
-                }
+                Text(substitutes.prefix(2).map(\.exercise.name).joined(separator: " • "))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.liftMuted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(14)
             .contentShape(Rectangle())

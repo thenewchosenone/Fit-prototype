@@ -17,31 +17,6 @@ extension TrainingTrackerView {
         }
     }
 
-    enum ProgressTimeRange: String, CaseIterable, Identifiable {
-        case fourWeeks = "4 weeks"
-        case eightWeeks = "8 weeks"
-        case twelveWeeks = "12 weeks"
-        case sixMonths = "6 months"
-        case oneYear = "1 year"
-
-        var id: String { rawValue }
-
-        func startDate(from date: Date = .now, calendar: Calendar = .current) -> Date {
-            switch self {
-            case .fourWeeks:
-                return calendar.date(byAdding: .weekOfYear, value: -4, to: date) ?? date
-            case .eightWeeks:
-                return calendar.date(byAdding: .weekOfYear, value: -8, to: date) ?? date
-            case .twelveWeeks:
-                return calendar.date(byAdding: .weekOfYear, value: -12, to: date) ?? date
-            case .sixMonths:
-                return calendar.date(byAdding: .month, value: -6, to: date) ?? date
-            case .oneYear:
-                return calendar.date(byAdding: .year, value: -1, to: date) ?? date
-            }
-        }
-    }
-
     enum TrackerSegment: String, CaseIterable, Hashable {
         case today = "Today"
         case plans = "Plans"

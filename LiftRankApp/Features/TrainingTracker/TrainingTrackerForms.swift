@@ -8,6 +8,7 @@ struct CreateWorkoutPlanView: View {
     var body: some View {
         NavigationStack {
             AppBackground {
+                ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     LiftCard {
                         VStack(alignment: .leading, spacing: 12) {
@@ -23,6 +24,7 @@ struct CreateWorkoutPlanView: View {
                     Spacer()
                 }
                 .padding()
+                }
             }
             .navigationTitle("New Plan")
             .toolbar {
@@ -58,6 +60,7 @@ struct BodyweightEntryEditor: View {
     var body: some View {
         NavigationStack {
             AppBackground {
+                ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     LiftSheetHeader(
                         title: appState.bodyweightEntries.contains(where: { $0.id == draft.id }) ? "Edit bodyweight" : "Log bodyweight",
@@ -86,6 +89,8 @@ struct BodyweightEntryEditor: View {
                     Spacer()
                 }
                 .padding(18)
+                }
+                .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle("Bodyweight Entry")
             .navigationBarTitleDisplayMode(.inline)
