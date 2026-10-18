@@ -22,6 +22,12 @@ final class MockAuthenticationService: AuthenticationService {
 #endif
         return nil
     }
+    func signInAnonymously() async throws -> AccountSession {
+        AccountSession(userID: repository.currentProfile.id, email: nil, expiresAt: .now.addingTimeInterval(3_600), isGuest: true)
+    }
+    func addEmailToGuestAccount(email: String, password: String) async throws -> AccountSession {
+        AccountSession(userID: repository.currentProfile.id, email: email, expiresAt: .now.addingTimeInterval(3_600))
+    }
     func signUp(email: String, password: String) async throws -> AccountSession { throw LiftRankServiceError.invalidCredentials }
     func signIn(email: String, password: String) async throws -> AccountSession { throw LiftRankServiceError.invalidCredentials }
     func requestPasswordReset(email: String) async throws {}
@@ -321,7 +327,6 @@ final class MockNotificationService: NotificationService {
     func revokeDevice(deviceID: String) async throws {}
 }
 
-#if DEBUG
 @MainActor
 final class MockForumService: ForumService {
     private let repository: DemoRepository
@@ -451,7 +456,6 @@ final class MockForumService: ForumService {
         )]
     }
 }
-#endif
 
 @MainActor
 final class MockWorkoutSyncService: WorkoutSyncService {

@@ -12,7 +12,7 @@ This document records evidence for the 11-phase public-launch plan. A phase is c
 ## Submitted archive baseline - July 29, 2026
 
 - The preserved local archive was created July 24 at 11:53 PM ET for `Lift Rivals 1.0.0`; its bundled build number is `2`.
-- Xcode Organizer records successful validation and upload to App Store Connect, with upload metadata for builds `3` and `4`. Future uploads must use a build number greater than `4`.
+- Xcode Organizer records successful validation and upload to App Store Connect, with upload metadata for historical builds `3` and `4`. The current local submission candidate is version `1.0`, build `29`; confirm App Store Connect has not already used that number before upload, and use a higher number if it has.
 - The archived Release app resolves the production Supabase project `ikjgbsrlriqiusuvezco` and contains only its public publishable client key.
 - The archived app bundle is approximately 11 MB and includes three demo leaderboard GIFs. Current source removes those resources from future Release bundles.
 - The archive's arm64 dSYM UUID is `C9327D2A-E3B1-330B-9624-7AE1F607781E`; the archived executable SHA-256 is `707fd1580c6f0af372098473c14da8387640e406e7ab40f385299c967dc23349`.
@@ -133,3 +133,14 @@ This document records evidence for the 11-phase public-launch plan. A phase is c
 - Complete physical-device testing, including camera/photo selection, video upload/playback, keyboard behavior, background/foreground recovery, and account linking/deletion.
 - Verify Apple Developer capabilities and distribution signing, Sign in with Apple account linking, APNs credentials and live delivery, and TestFlight installation.
 - Complete legal, App Store privacy disclosure, accessibility, support/moderation workflow, and original/licensed media-rights reviews.
+
+## App Store resubmission preparation — October 17, 2026
+
+- Updated the App Store handoff to candidate 1.0 (30) in `docs/app-store-launch-metadata.md`. The Terms page that currently renders is `https://liftrivals.com/terms/`; `/terms-of-use/` returns 404.
+- The current production crash in training-progress volume calculation was traced to duplicate exercise catalog IDs and fixed by retaining the first matching catalog entry. The regression test and full iPhone simulator unit suite passed: 408 tests, zero failures.
+- Selected review-flow UI checks passed adaptive plans, demo account deletion, sign-in validation, and fresh onboarding. Two existing UI expectations failed: the ranking fixture did not contain its expected athlete, and the profile layout test expects strength sections absent from the current view. Those failures remain unresolved.
+- Created and exported the signed App Store archive and IPA for version 1.0, build 30. Archive signing includes the production APNs and Sign in with Apple entitlements, and uses the production Supabase configuration. No service-role credential or email placeholder was found in the archived executable. Archive: `/Users/robertjeanty/Library/Developer/Xcode/Archives/2026-10-17/LiftRivals-1.0-30.xcarchive`; IPA: `/private/tmp/liftrivals-export-30/LiftRank.ipa`.
+- Xcode Organizer confirmed “LiftRank 1.0 (30) uploaded.” App Store Connect finished processing it and now lists build 30 as **Ready to Submit** in the existing “Lift Rivals Testing” group.
+- Replaced and saved the rejected version's App Review notes: removed the stale Build 4 claim, added build 30 setup/testing steps, current contact name, supported device/OS details, backend/service list, account deletion path, region statement, and current legal/support URLs. Sign-in remains required and the existing demo credential fields are populated; they still need an exact-build login check.
+- The isolated PostgreSQL/pgTAP release gate could not run because this Mac has no PostgreSQL `initdb`; no remote migration was attempted.
+- Still required before Update Review: install build 30 through TestFlight; perform a clean-install and sign-in/Sign in with Apple walkthrough on the connected iPhone (Apple authentication may require Robert to complete the Face ID/system prompt); verify the exact demo credentials, workout tracking, rankings/social, reporting/blocking, and account deletion; test iPad compatibility on an iPad; record and attach a video matching build 30; confirm current screenshots and store metadata; cover the oldest supported iOS runtime; run isolated SQL security tests; resolve the two UI gate failures and complete the remaining review-flow checks. Do not select Update Review until these gates are complete.

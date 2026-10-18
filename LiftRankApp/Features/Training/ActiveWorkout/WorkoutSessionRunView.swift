@@ -49,11 +49,11 @@ struct WorkoutSessionRunView: View {
                                 } else {
                                     HStack {
                                         Text("Exercises")
-                                            .font(.title3.weight(.black))
+                                            .font(LiftTypography.sectionTitle)
                                         Spacer()
                                         if isReorderingExercises {
                                             Text("Reorder mode")
-                                                .font(.caption.weight(.bold))
+                                                .font(LiftTypography.compactEmphasis)
                                                 .foregroundStyle(Color.liftAccentText)
                                         }
                                     }
@@ -253,7 +253,7 @@ struct WorkoutSessionRunView: View {
             HStack {
                 Button { dismiss() } label: {
                     Image(systemName: "chevron.down")
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                         .frame(width: 44, height: 44)
                         .background(Color.liftCard)
                         .clipShape(Circle())
@@ -263,11 +263,11 @@ struct WorkoutSessionRunView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(workout.dayLabel.uppercased())
-                        .font(.caption2.weight(.black))
+                        .font(.caption2.weight(.bold))
                         .tracking(1.2)
                         .foregroundStyle(Color.liftAccentText)
                     Text(workout.name)
-                        .font(.headline.weight(.black))
+                        .font(LiftTypography.cardTitle)
                         .lineLimit(2)
                 }
 
@@ -276,12 +276,12 @@ struct WorkoutSessionRunView: View {
                 if workout.pausedAt == nil {
                     TimelineView(.periodic(from: .now, by: 5)) { context in
                         Text(elapsedText(workout, at: context.date))
-                            .font(.subheadline.weight(.black).monospacedDigit())
+                            .font(.subheadline.weight(.bold).monospacedDigit())
                             .foregroundStyle(Color.liftAccentText)
                     }
                 } else {
                     Text(elapsedText(workout, at: workout.pausedAt ?? .now))
-                        .font(.subheadline.weight(.black).monospacedDigit())
+                        .font(.subheadline.weight(.bold).monospacedDigit())
                         .foregroundStyle(Color.liftAccentText)
                 }
 
@@ -311,7 +311,7 @@ struct WorkoutSessionRunView: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                         .frame(width: 44, height: 44)
                         .background(Color.liftCard)
                         .clipShape(Circle())
@@ -321,7 +321,7 @@ struct WorkoutSessionRunView: View {
 
             if workout.pausedAt != nil {
                 Label("Workout paused", systemImage: "pause.circle.fill")
-                    .font(.caption.weight(.bold))
+                    .font(LiftTypography.compactEmphasis)
                     .foregroundStyle(Color.liftGold)
             }
 
@@ -376,7 +376,7 @@ struct WorkoutSessionRunView: View {
                         _ = appState.moveActiveWorkoutExercise(exercise, direction: -1)
                     } label: {
                         Image(systemName: "chevron.up")
-                            .font(.caption.weight(.black))
+                            .font(LiftTypography.compactEmphasis)
                             .frame(width: 28, height: 20)
                     }
                     .buttonStyle(.plain)
@@ -384,12 +384,12 @@ struct WorkoutSessionRunView: View {
                         _ = appState.moveActiveWorkoutExercise(exercise, direction: 1)
                     } label: {
                         Image(systemName: "chevron.down")
-                            .font(.caption.weight(.black))
+                            .font(LiftTypography.compactEmphasis)
                             .frame(width: 28, height: 20)
                     }
                     .buttonStyle(.plain)
                     Image(systemName: "line.3.horizontal")
-                        .font(.caption2.weight(.black))
+                        .font(.caption2.weight(.bold))
                         .foregroundStyle(Color.liftMuted)
                 }
                 .foregroundStyle(Color.liftAccentText)
@@ -399,7 +399,7 @@ struct WorkoutSessionRunView: View {
                 .overlay(alignment: .bottomTrailing) {
                     if progress.isComplete {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 9, weight: .black))
+                            .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(Color.liftOnAccent)
                             .frame(width: 18, height: 18)
                             .background(Color.liftGreen)
@@ -409,7 +409,7 @@ struct WorkoutSessionRunView: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(exercise.exerciseName)
-                    .font(.headline.weight(.bold))
+                    .font(LiftTypography.cardTitle)
                     .foregroundStyle(Color.liftText)
                 Text("\(progress.plannedWorkingSets) × \(exercise.targetReps)")
                     .font(.caption)
@@ -431,7 +431,7 @@ struct WorkoutSessionRunView: View {
             Spacer()
             VStack(alignment: .trailing, spacing: 5) {
                 Text(progress.isComplete ? "Done" : "\(progress.completedWorkingSets)/\(progress.plannedWorkingSets)")
-                    .font(.caption.weight(.black))
+                    .font(LiftTypography.compactEmphasis)
                     .foregroundStyle(progress.isComplete ? Color.liftGreen : Color.liftMuted)
             }
         }
@@ -453,7 +453,7 @@ struct WorkoutSessionRunView: View {
         HStack(spacing: 10) {
             Button { presentedSheet = .addExercise } label: {
                 Image(systemName: "plus")
-                    .font(.headline.weight(.bold))
+                    .font(LiftTypography.cardTitle)
                     .frame(width: 52, height: 52)
                     .background(Color.liftCard)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -478,7 +478,7 @@ struct WorkoutSessionRunView: View {
             } label: {
                 HStack {
                     Text("Finish workout")
-                        .font(.headline.weight(.black))
+                        .font(LiftTypography.cardTitle)
                     Spacer()
                     Image(systemName: "checkmark.circle.fill")
                 }
@@ -494,7 +494,7 @@ struct WorkoutSessionRunView: View {
                     showingSkipConfirmation = true
                 } label: {
                     Image(systemName: "forward.end.fill")
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                         .frame(width: 52, height: 52)
                         .background(Color.liftCard)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -586,7 +586,7 @@ private struct ActiveWorkoutSubstitutePickerView: View {
                                                 .frame(width: 48, height: 48)
                                             VStack(alignment: .leading, spacing: 4) {
                                                 Text(substitute.name)
-                                                    .font(.subheadline.weight(.bold))
+                                                    .font(LiftTypography.rowEmphasis)
                                                     .foregroundStyle(Color.liftText)
                                                 Text(recommendation.reasons.joined(separator: " • "))
                                                     .font(.caption)
@@ -600,7 +600,7 @@ private struct ActiveWorkoutSubstitutePickerView: View {
                                             }
                                             Spacer(minLength: 8)
                                             Image(systemName: alreadyInWorkout ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath")
-                                                .font(.headline.weight(.bold))
+                                                .font(LiftTypography.cardTitle)
                                                 .foregroundStyle(alreadyInWorkout ? Color.liftMuted : Color.liftAccentText)
                                         }
                                         .padding(14)
@@ -649,7 +649,7 @@ private struct IncompleteWorkoutFinishPrompt: View {
             VStack(alignment: .leading, spacing: 22) {
                 HStack(alignment: .top, spacing: 14) {
                     Image(systemName: "exclamationmark")
-                        .font(.title3.weight(.black))
+                        .font(LiftTypography.sectionTitle)
                         .foregroundStyle(Color.liftOnAccent)
                         .frame(width: 48, height: 48)
                         .background(Color.liftBlue)
@@ -658,7 +658,7 @@ private struct IncompleteWorkoutFinishPrompt: View {
 
                     VStack(alignment: .leading, spacing: 5) {
                         Text("You have sets remaining")
-                            .font(.title3.weight(.black))
+                            .font(LiftTypography.sectionTitle)
                             .foregroundStyle(Color.liftText)
                         Text("Review your logged sets, or keep training to finish this workout.")
                             .font(.subheadline)
@@ -670,10 +670,10 @@ private struct IncompleteWorkoutFinishPrompt: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .firstTextBaseline) {
                         Text("Workout progress")
-                            .font(.subheadline.weight(.bold))
+                            .font(LiftTypography.rowEmphasis)
                         Spacer()
                         Text("\(remainingSets) left")
-                            .font(.subheadline.weight(.black))
+                            .font(LiftTypography.rowEmphasis)
                             .foregroundStyle(Color.liftAccentText)
                             .monospacedDigit()
                     }

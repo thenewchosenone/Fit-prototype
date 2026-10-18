@@ -72,7 +72,7 @@ struct TopLiftCardDetailSheet: View {
                         unit: lift.unit,
                         repetitions: lift.repetitions
                     ))
-                    .font(.title3.weight(.bold))
+                    .font(LiftTypography.sectionTitle)
                     Text("Performed \(LiftTimeFormatter.shortDateTime(lift.performedAt))")
                         .font(.subheadline)
                         .foregroundStyle(Color.liftMuted)
@@ -136,7 +136,7 @@ struct TopLiftCardDetailSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack(alignment: .firstTextBaseline) {
                                 Text(entry.exerciseName)
-                                    .font(.subheadline.weight(.bold))
+                                    .font(LiftTypography.rowEmphasis)
                                 Spacer()
                                 Text("\(entry.workoutName) · \(LiftTimeFormatter.shortDateTime(entry.workoutSet.performedAt))")
                                     .font(.caption)
@@ -163,7 +163,7 @@ struct TopLiftCardDetailSheet: View {
                                     performedAt: entry.workoutSet.performedAt
                                 )
                             }
-                            .font(.subheadline.weight(.bold))
+                            .font(LiftTypography.rowEmphasis)
                             .foregroundStyle(Color.liftAccentText)
                             .frame(minHeight: LiftDesign.minimumTouchTarget, alignment: .leading)
                         }
@@ -185,7 +185,7 @@ struct TopLiftCardDetailSheet: View {
             LiftCard {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(MeasurementFormatting.formatDisplayedWeight(breakdown.totalKilograms, unit: unit))
-                        .font(.title2.weight(.black))
+                        .font(.title2.weight(.bold))
                     Text("Sum of submitted one-rep-max squat, bench, and deadlift records.")
                         .font(.subheadline)
                         .foregroundStyle(Color.liftMuted)

@@ -131,7 +131,7 @@ private struct ProfileVideoThumbnail: View {
             }
             Color.liftScrim
             Image(systemName: "play.fill")
-                .font(.headline.weight(.bold))
+                .font(LiftTypography.cardTitle)
                 .foregroundStyle(.white)
                 .shadow(radius: 3)
         }
@@ -193,7 +193,7 @@ private struct ProfileLiftVideoDetailView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         VStack(alignment: .leading, spacing: 5) {
                             Text(lift.exerciseName)
-                                .font(.title2.weight(.black))
+                                .font(.title2.weight(.bold))
                             Text("\(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions)) • \(LiftTimeFormatter.shortDateTime(lift.performedAt))")
                                 .font(.subheadline)
                                 .foregroundStyle(Color.liftMuted)
@@ -629,7 +629,7 @@ struct EditProfileView: View {
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                             .foregroundStyle(Color.liftMuted)
                     }
                     .frame(minHeight: 44)
@@ -743,7 +743,7 @@ struct ProfilePhotoManagerView: View {
 
                     PhotosPicker(selection: $item, matching: .images) {
                         Label(hasExistingOrPendingPhoto ? "Replace Photo" : "Choose Photo", systemImage: "photo")
-                            .font(.headline.weight(.bold))
+                            .font(LiftTypography.cardTitle)
                             .foregroundStyle(Color.liftOnAccent)
                             .frame(maxWidth: .infinity, minHeight: 50)
                     }
@@ -753,7 +753,7 @@ struct ProfilePhotoManagerView: View {
                         LiftCard {
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("Preview")
-                                    .font(.headline.weight(.bold))
+                                    .font(LiftTypography.cardTitle)
                                 Text("Keep the new photo, adjust it again, or discard it before saving.")
                                     .font(.subheadline)
                                     .foregroundStyle(Color.liftMuted)
@@ -1189,7 +1189,7 @@ struct GymDirectoryView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                         VStack(alignment: .leading, spacing: 3) {
                             Text(gym.name)
-                                .font(.subheadline.weight(.bold))
+                                .font(LiftTypography.rowEmphasis)
                                 .foregroundStyle(Color.liftText)
                             Text([gym.city, gym.state].filter { !$0.isEmpty }.joined(separator: ", "))
                                 .font(.caption)
@@ -1198,15 +1198,15 @@ struct GymDirectoryView: View {
                         Spacer()
                         if appState.isPrimaryGym(gym) {
                             Text("Primary")
-                                .font(.caption2.weight(.black))
+                                .font(.caption2.weight(.bold))
                                 .foregroundStyle(Color.liftGold)
                         } else if appState.isGymJoined(gym) {
                             Text("Joined")
-                                .font(.caption2.weight(.black))
+                                .font(.caption2.weight(.bold))
                                 .foregroundStyle(Color.liftGreen)
                         }
                         Image(systemName: "chevron.right")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                             .foregroundStyle(Color.liftMuted)
                     }
                     .padding(12)

@@ -33,7 +33,7 @@ private struct ProfileSectionNavigation: View {
                     Button(action: { select(section) }) {
                         Text(section.rawValue)
                     }
-                    .font(.caption.weight(.bold))
+                    .font(LiftTypography.compactEmphasis)
                     .foregroundStyle(isSelected ? Color.liftOnAccent : Color.liftMuted)
                     .padding(.horizontal, 14)
                     .frame(minHeight: LiftDesign.minimumTouchTarget)
@@ -226,7 +226,7 @@ extension ProfileView {
             }
         } message: { lift in
             if lift.requiresCoordinatedRemoval {
-                Text("Remove \(lift.exerciseName)? This removes the lift, its video, and its ranking record. This cannot be undone.")
+                Text("Remove \(lift.exerciseName)? This removes the lift and its video. This cannot be undone.")
             } else {
                 Text("Delete \(lift.exerciseName)? This permanently removes the submission and cannot be undone.")
             }

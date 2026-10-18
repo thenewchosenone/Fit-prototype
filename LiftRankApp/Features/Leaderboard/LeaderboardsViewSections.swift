@@ -18,50 +18,41 @@ extension LeaderboardsView {
         let entries = Array(matchingEntries.prefix(leaderboardPage * 100))
         let currentEntry = leaderboardEntries.first { $0.profile.id == appState.currentProfile.id }
         let showsMovement = matchingEntries.contains { $0.rankMovement != 0 }
-        let evidenceTitle = appState.verifiedOnly ? "Video-backed rankings" : (appState.leaderboardFilters.verificationLevel == .selfReported ? "Self-reported rankings" : "All lift evidence")
-        let rankText = appState.isLeaderboardRequestPending
-            ? "Updating…"
-            : appState.competitionStore.leaderboardError != nil
-                ? "Unavailable"
-                : currentEntry.map { "#\($0.rank)" } ?? "Not listed"
 
         return AppBackground {
             VStack(spacing: 0) {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                            (dynamicTypeSize.isAccessibilitySize
-                             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
-                             : AnyLayout(HStackLayout())) {
-                                Text("\(rankScopeTitle): \(rankText)")
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                if !appState.isLeaderboardRequestPending, appState.competitionStore.leaderboardError == nil {
-                                    Text("\(matchingEntries.count) \(matchingEntries.count == 1 ? "lifter" : "lifters")\(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : " found")")
-                                }
-                            }
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.liftMuted)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-
                             LeaderboardTabBar(selection: rankingTypeBinding, types: availableRankingTypes)
-                            filterBar.padding(.vertical, 10)
+                            filterBar.padding(.top, 8).padding(.bottom, 10)
+                            activeFilterChips.padding(.bottom, 8)
 
-                            Group {
+                            (dynamicTypeSize.isAccessibilitySize
+                             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                             : AnyLayout(HStackLayout(spacing: 8))) {
+                                Text(appState.isLeaderboardRequestPending
+                                     ? "Updating results…"
+                                     : appState.competitionStore.leaderboardError != nil
+                                        ? "Results unavailable"
+                                        : "\(matchingEntries.count) \(matchingEntries.count == 1 ? "lifter" : "lifters")\(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : " found") · \(appState.leaderboardFilters.timeRange)")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.liftMuted)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 Button {
                                     showsRankingExplanation.toggle()
                                 } label: {
-                                    Label(evidenceTitle, systemImage: "info.circle")
+                                    Label("How ranks work", systemImage: "info.circle")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(Color.liftAccentText)
-                                        .frame(minHeight: 44, alignment: .leading)
-                                        .contentShape(Rectangle())
+                                        .frame(minHeight: 44)
                                 }
                                 .buttonStyle(.plain)
-                                .accessibilityLabel("\(evidenceTitle). How this ranking works")
                                 .accessibilityValue(showsRankingExplanation ? "Expanded" : "Collapsed")
-                                .padding(.horizontal, 16)
-                                .padding(.bottom, 8)
+                            }
+                            .padding(.horizontal, 16)
+
+                            Group {
                                 if showsRankingExplanation {
                                     let explanation = switch appState.leaderboardFilters.rankingType {
                                     case .relativeTotal: "Relative total divides each lifter’s best bench press, squat, and deadlift total by their bodyweight."
@@ -82,20 +73,40 @@ extension LeaderboardsView {
                                     .padding(.horizontal, 16).padding(.bottom, 8)
                             }
 
-                            if currentEntry != nil, !appState.isLeaderboardRequestPending, appState.competitionStore.leaderboardError == nil {
+                            if let currentEntry, !appState.isLeaderboardRequestPending, appState.competitionStore.leaderboardError == nil {
                                 Button {
                                     searchText = ""
                                     appState.leaderboardFocusRequestID = UUID()
                                 } label: {
-                                    Label("Jump to my rank", systemImage: "location.fill")
-                                        .font(.caption.weight(.bold))
-                                        .foregroundStyle(Color.liftAccentText)
-                                        .frame(maxWidth: .infinity, minHeight: 44)
-                                        .background(Color.liftBlue.opacity(0.12))
-                                        .clipShape(Capsule())
+                                    HStack(spacing: 12) {
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text("Your rank")
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(Color.liftMuted)
+                                            Text("#\(currentEntry.rank)")
+                                                .font(LiftTypography.sectionTitle)
+                                                .foregroundStyle(Color.liftText)
+                                        }
+                                        Spacer()
+                                        VStack(alignment: .trailing, spacing: 3) {
+                                            Text(RankingFormatting.leaderboardValueText(for: currentEntry, rankingType: appState.leaderboardFilters.rankingType, preferredUnit: appState.currentProfile.preferredUnit))
+                                                .font(LiftTypography.cardTitle)
+                                                .foregroundStyle(Color.liftText)
+                                            Text("View your result")
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(Color.liftAccentText)
+                                        }
+                                        Image(systemName: "chevron.right")
+                                            .font(LiftTypography.compactEmphasis)
+                                            .foregroundStyle(Color.liftMuted)
+                                    }
+                                    .padding(14)
+                                    .liftSurface(radius: 16)
                                 }
                                 .buttonStyle(.plain)
                                 .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .accessibilityLabel("Your rank number \(currentEntry.rank). View your result")
                                 .accessibilityIdentifier("leaderboard.jumpToMyRank")
                             }
 
@@ -159,7 +170,7 @@ extension LeaderboardsView {
                                                 leaderboardPage += 1
                                             } label: {
                                                 Text("Load more lifters")
-                                                    .font(.subheadline.weight(.bold))
+                                                    .font(LiftTypography.rowEmphasis)
                                                     .frame(maxWidth: .infinity, minHeight: 48)
                                             }
                                             .buttonStyle(.plain)
@@ -176,7 +187,7 @@ extension LeaderboardsView {
                         .padding(.bottom, 16)
                     }
                     .scrollDismissesKeyboard(.interactively)
-                    .refreshable { await appState.refreshLeaderboard() }
+                    .refreshable { await appState.refreshLeaderboard(force: true) }
                     .onAppear {
                         appState.normalizeLeaderboardFilters()
                         focusCurrentUserIfNeeded(using: proxy)
@@ -199,7 +210,8 @@ extension LeaderboardsView {
                     .accessibilityLabel("Submit a lift")
                     .accessibilityIdentifier("leaderboard.submitLift")
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    moreFiltersControl
                     Button {
                         Haptics.light()
                         withAnimation(.easeInOut(duration: 0.2)) {
@@ -280,13 +292,13 @@ extension LeaderboardsView {
         LiftCard {
             VStack(alignment: .leading, spacing: 10) {
                 Label("Leaderboard unavailable", systemImage: "exclamationmark.triangle.fill")
-                    .font(.headline.weight(.bold))
+                    .font(LiftTypography.cardTitle)
                     .foregroundStyle(Color.liftGold)
                 Text(message)
                     .font(.subheadline)
                     .foregroundStyle(Color.liftMuted)
                 Button {
-                    Task { await appState.refreshLeaderboard() }
+                    Task { await appState.refreshLeaderboard(force: true) }
                 } label: {
                     Label("Retry", systemImage: "arrow.clockwise")
                         .frame(maxWidth: .infinity)

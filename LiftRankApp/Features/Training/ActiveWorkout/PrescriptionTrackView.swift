@@ -14,6 +14,12 @@ struct PrescriptionTrackView: View {
     @State private var cachedPreviousLogsBySetNumber: [Int: WorkoutSetLog] = [:]
     @FocusState private var focusedInput: WorkoutSetInputFocus?
 
+    private var usesAdaptiveProgression: Bool {
+        trackingKind == .weightReps && appState.workoutPlanProgressionSettings.contains {
+            $0.planID == appState.activeWorkout?.sourcePlanID && $0.method == .adaptive
+        }
+    }
+
     var body: some View {
         AppBackground {
             VStack(spacing: 0) {
@@ -47,11 +53,11 @@ struct PrescriptionTrackView: View {
                                         ExerciseCatalogIcon(exercise: catalogExercise)
                                         Spacer(minLength: 0)
                                         Text("\(progress.completedWorkingSets)/\(progress.plannedWorkingSets)")
-                                            .font(.headline.weight(.black).monospacedDigit())
+                                            .font(.headline.weight(.bold).monospacedDigit())
                                             .foregroundStyle(progress.isComplete ? Color.liftGreen : Color.liftAccentText)
                                     }
                                     Text(exercise.exerciseName)
-                                        .font(.title3.weight(.black))
+                                        .font(LiftTypography.sectionTitle)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                     Text(targetSummary)
                                         .font(.caption)
@@ -62,16 +68,22 @@ struct PrescriptionTrackView: View {
                                         ExerciseCatalogIcon(exercise: catalogExercise)
                                         VStack(alignment: .leading, spacing: 3) {
                                             Text(exercise.exerciseName)
-                                                .font(.title3.weight(.black))
+                                                .font(LiftTypography.sectionTitle)
                                             Text(targetSummary)
                                                 .font(.caption)
                                                 .foregroundStyle(Color.liftMuted)
                                         }
                                         Spacer()
                                         Text("\(progress.completedWorkingSets)/\(progress.plannedWorkingSets)")
-                                            .font(.headline.weight(.black).monospacedDigit())
+                                            .font(.headline.weight(.bold).monospacedDigit())
                                             .foregroundStyle(progress.isComplete ? Color.liftGreen : Color.liftAccentText)
                                     }
+                                }
+
+                                if usesAdaptiveProgression {
+                                    Text("Log effort for every working set so your next suggested weight can increase. RPE 7 means about 3 reps left.")
+                                        .font(.caption)
+                                        .foregroundStyle(Color.liftMuted)
                                 }
 
                                 if !dynamicTypeSize.isAccessibilitySize {
@@ -118,7 +130,7 @@ struct PrescriptionTrackView: View {
                                !substitutionIDs.isEmpty {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Specific substitutions")
-                                        .font(.caption.weight(.bold))
+                                        .font(LiftTypography.compactEmphasis)
                                         .foregroundStyle(Color.liftMuted)
                                     ForEach(Array(substitutionIDs.prefix(2).enumerated()), id: \.element) { index, exerciseID in
                                         if let substitute = appState.trainingExerciseLibrary.first(where: { $0.id == exerciseID }) {
@@ -130,7 +142,7 @@ struct PrescriptionTrackView: View {
                                                         .font(.subheadline.weight(.semibold))
                                                     Spacer()
                                                     Image(systemName: "arrow.triangle.2.circlepath")
-                                                        .font(.caption.weight(.bold))
+                                                        .font(LiftTypography.compactEmphasis)
                                                 }
                                                 .padding(.horizontal, 12)
                                                 .padding(.vertical, 10)
@@ -158,6 +170,7 @@ struct PrescriptionTrackView: View {
                                     log: log,
                                     trackingKind: trackingKind,
                                     previousLog: previousLogs[log.setNumber],
+                                    showsEffortControls: usesAdaptiveProgression,
                                     focusedInput: $focusedInput,
                                     onDelete: { appState.deleteSetLog($0) },
                                     onApplyCompletion: { appState.applyWorkoutSetCompletion($0, isComplete: $1, source: .manual) },
@@ -217,7 +230,7 @@ struct PrescriptionTrackView: View {
                             Button(keyboardActionTitle) {
                                 advanceKeyboardFocus(using: proxy)
                             }
-                            .font(.headline.weight(.bold))
+                            .font(LiftTypography.cardTitle)
                             .accessibilityIdentifier("workout.setInput.keyboardAction")
                             .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                         }
@@ -228,7 +241,7 @@ struct PrescriptionTrackView: View {
                     _ = appState.addSetLog(to: exercise)
                 } label: {
                     Label("Add another set", systemImage: "plus")
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 15)
@@ -364,7 +377,7 @@ struct PrescriptionTrackView: View {
                 Color.clear.frame(width: LiftDesign.minimumTouchTarget, height: 1)
                 Color.clear.frame(width: LiftDesign.minimumTouchTarget, height: 1)
             }
-            .font(.caption2.weight(.black))
+            .font(.caption2.weight(.bold))
             .tracking(0.7)
             .foregroundStyle(Color.liftMuted)
             .padding(.horizontal, 10)
@@ -389,7 +402,7 @@ struct PrescriptionTrackView: View {
             let remaining = max(0, Int(endsAt.timeIntervalSince(context.date)))
             HStack(spacing: 12) {
                 Image(systemName: "timer")
-                    .font(.headline.weight(.bold))
+                    .font(LiftTypography.cardTitle)
                     .foregroundStyle(Color.liftOnAccent)
                     .frame(width: 40, height: 40)
                     .background(Color.liftBlue)
@@ -397,11 +410,11 @@ struct PrescriptionTrackView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("REST")
-                        .font(.caption2.weight(.black))
+                        .font(.caption2.weight(.bold))
                         .tracking(1)
                         .foregroundStyle(Color.liftAccentText)
                     Text(remaining > 0 ? "\(remaining / 60):\(String(format: "%02d", remaining % 60))" : "Ready")
-                        .font(.title2.weight(.black).monospacedDigit())
+                        .font(.title2.weight(.bold).monospacedDigit())
                 }
 
                 Spacer()
@@ -410,7 +423,7 @@ struct PrescriptionTrackView: View {
                     restEndsAt = nil
                     appState.updateActiveRestTimer(endsAt: nil, exerciseID: nil)
                 }
-                .font(.subheadline.weight(.bold))
+                .font(LiftTypography.rowEmphasis)
                 .foregroundStyle(Color.liftAccentText)
             }
             .padding(.horizontal, 18)

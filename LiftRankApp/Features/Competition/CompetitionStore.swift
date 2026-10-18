@@ -42,6 +42,8 @@ final class CompetitionStore: ObservableObject {
     private var loadingLeaderboardVerifiedOnly: Bool?
     private var loadedLeaderboardFilters: LeaderboardFilters?
     private var loadedLeaderboardVerifiedOnly: Bool?
+    private var lastLeaderboardRefreshAt: Date?
+    private var loadedLeaderboardUserID: UUID?
     private var activeUploadID: UUID?
     private var achievementRefreshTask: Task<Void, Never>?
     private var cachedLeaderboardEntries: [LeaderboardEntry]?
@@ -132,7 +134,7 @@ final class CompetitionStore: ObservableObject {
         if !force,
            hasLoadedProductionData,
            let lastProductionRefreshAt,
-           now().timeIntervalSince(lastProductionRefreshAt) < 30 {
+           now().timeIntervalSince(lastProductionRefreshAt) < 300 {
             return
         }
         guard loadingProductionUserID != userID else { return }
@@ -156,7 +158,6 @@ final class CompetitionStore: ObservableObject {
         }
         hasLoadedProductionData = true
         lastProductionRefreshAt = now()
-        await refreshLeaderboard()
     }
 
     func gymLeaderboardEntries(gymID: UUID) async throws -> [LeaderboardEntry] {
@@ -172,15 +173,24 @@ final class CompetitionStore: ObservableObject {
         return Array(entries.prefix(5))
     }
 
-    func refreshLeaderboard() async {
+    func refreshLeaderboard(force: Bool = false) async {
         guard let leaderboardService else { return }
         let userID = repository.currentProfile.id
         let requestFilters = filters
         let requestVerifiedOnly = verifiedOnly
+        if !force,
+           loadedLeaderboardUserID == userID,
+           loadedLeaderboardFilters == requestFilters,
+           loadedLeaderboardVerifiedOnly == requestVerifiedOnly,
+           let lastLeaderboardRefreshAt,
+           now().timeIntervalSince(lastLeaderboardRefreshAt) < 300 {
+            return
+        }
         guard !isLeaderboardLoading ||
                 loadingLeaderboardUserID != userID ||
                 loadingLeaderboardFilters != requestFilters ||
                 loadingLeaderboardVerifiedOnly != requestVerifiedOnly else { return }
+        lastLeaderboardRefreshAt = nil
         let requestID = makeID()
         leaderboardRequestID = requestID
         loadingLeaderboardUserID = userID
@@ -196,6 +206,8 @@ final class CompetitionStore: ObservableObject {
             guard leaderboardRequestID == requestID else { return }
             loadedLeaderboardFilters = requestFilters
             loadedLeaderboardVerifiedOnly = requestVerifiedOnly
+            lastLeaderboardRefreshAt = now()
+            loadedLeaderboardUserID = userID
             if remoteLeaderboardEntries != entries {
                 remoteLeaderboardEntries = entries
             }
@@ -245,7 +257,7 @@ final class CompetitionStore: ObservableObject {
         let userID = repository.currentProfile.id
         if !force,
            let lastCurrentUserTotalRefreshAt,
-           now().timeIntervalSince(lastCurrentUserTotalRefreshAt) < 30 {
+           now().timeIntervalSince(lastCurrentUserTotalRefreshAt) < 300 {
             return
         }
         guard loadingCurrentUserTotalUserID != userID else { return }
@@ -881,7 +893,9 @@ final class CompetitionStore: ObservableObject {
         leaderboardRequestID = nil
         loadedLeaderboardFilters = nil
         loadedLeaderboardVerifiedOnly = nil
+        lastLeaderboardRefreshAt = nil
         isLeaderboardLoading = false
+        loadedLeaderboardUserID = nil
         activeUploadID = nil
         achievementRefreshTask?.cancel()
         achievementRefreshTask = nil

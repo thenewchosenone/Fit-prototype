@@ -5,7 +5,7 @@ struct LiftPrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 19, weight: .black, design: .rounded))
+            .font(.system(size: 19, weight: .bold))
             .frame(maxWidth: .infinity)
             .frame(minHeight: 58)
             .padding(.horizontal, 16)
@@ -27,7 +27,7 @@ struct SecondaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .semibold, design: .rounded))
+            .font(.system(size: 16, weight: .semibold))
             .frame(maxWidth: .infinity)
             .frame(minHeight: LiftDesign.minimumTouchTarget)
             .padding(.horizontal, 14)
@@ -47,7 +47,7 @@ struct LiftCompactProminentButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .semibold, design: .rounded))
+            .font(.system(size: 16, weight: .semibold))
             .padding(.horizontal, 18)
             .padding(.vertical, 9)
             .foregroundStyle(isEnabled ? Color.liftOnAccent : Color.liftTextDisabled)
@@ -108,7 +108,7 @@ struct NativeIconButton: View {
 
                 if let badge, badge > 0 {
                     Text("\(badge)")
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(Color.liftOnAccent)
                         .frame(minWidth: 17, minHeight: 17)
                         .background(Color.liftRed)
@@ -152,7 +152,7 @@ struct LiftActionRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(Color.liftTextPrimary)
                     if let subtitle {
                         Text(subtitle)
@@ -168,7 +168,7 @@ struct LiftActionRow: View {
                         .foregroundStyle(Color.liftTextSecondary)
                 }
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
+                    .font(LiftTypography.compactEmphasis)
                     .foregroundStyle(Color.liftTextSecondary)
             }
             .padding(.horizontal, 14)

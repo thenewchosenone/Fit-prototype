@@ -50,7 +50,7 @@ struct TodayWorkoutLaunchCard: View {
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "figure.strengthtraining.traditional")
-                    .font(.headline.weight(.bold))
+                    .font(LiftTypography.cardTitle)
                     .foregroundStyle(Color.liftAccentText)
                     .frame(width: 44, height: 44)
                     .background(Color.liftBlue.opacity(0.12))
@@ -58,7 +58,7 @@ struct TodayWorkoutLaunchCard: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(eyebrow)
-                        .font(.caption2.weight(.black))
+                        .font(.caption2.weight(.bold))
                         .tracking(0.9)
                         .foregroundStyle(Color.liftAccentText)
                     Text(planName)
@@ -67,7 +67,7 @@ struct TodayWorkoutLaunchCard: View {
                         .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(session.name)
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                         .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -90,10 +90,10 @@ struct TodayWorkoutLaunchCard: View {
             Button(action: onStart) {
                 HStack {
                     Text(actionTitle)
-                        .font(.subheadline.weight(.bold))
+                        .font(LiftTypography.rowEmphasis)
                     Spacer()
                     Image(systemName: "arrow.right")
-                        .font(.subheadline.weight(.bold))
+                        .font(LiftTypography.rowEmphasis)
                 }
                 .foregroundStyle(Color.liftOnAccent)
                 .padding(.horizontal, 14)
@@ -124,18 +124,18 @@ struct ActiveWorkoutResumeCard: View {
             VStack(alignment: .leading, spacing: 11) {
                 HStack(spacing: 12) {
                     Image(systemName: workout.pausedAt == nil ? "waveform.path.ecg" : "pause.fill")
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                         .foregroundStyle(Color.liftOnAccent)
                         .frame(width: 44, height: 44)
                         .background(Color.liftGreen)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     VStack(alignment: .leading, spacing: 3) {
                         Text(workout.pausedAt == nil ? "ACTIVE WORKOUT" : "PAUSED WORKOUT")
-                            .font(.caption2.weight(.black))
+                            .font(.caption2.weight(.bold))
                             .tracking(1)
                             .foregroundStyle(Color.liftGreen)
                         Text(workout.name)
-                            .font(.headline.weight(.black))
+                            .font(LiftTypography.cardTitle)
                             .foregroundStyle(Color.liftText)
                     }
                     Spacer()

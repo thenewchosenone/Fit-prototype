@@ -225,27 +225,11 @@ extension TrainingTrackerView {
 
     private var controls: some View {
         VStack(spacing: 0) {
-            Group {
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Tracker")
-                            .font(.title3.weight(.black))
-                        HStack(spacing: 8) {
-                            if segment == .today || segment == .plans {
-                                planSelectionMenu.frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            trackerHeaderActions
-                        }
-                    }
-                } else {
-                    HStack(spacing: 8) {
-                        Text("Tracker")
-                            .font(.title3.weight(.black))
-                        if segment == .today || segment == .plans { planSelectionMenu }
-                        Spacer(minLength: 0)
-                        trackerHeaderActions
-                    }
-                }
+            HStack(spacing: 8) {
+                Text("Tracker")
+                    .font(LiftTypography.sectionTitle)
+                Spacer(minLength: 0)
+                trackerHeaderActions
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
@@ -295,47 +279,6 @@ extension TrainingTrackerView {
         .background(Color.liftBackground)
     }
 
-    private var planSelectionMenu: some View {
-        Menu {
-            if appState.workoutPlans.isEmpty {
-                Button {
-                    isProgramLibraryExpanded = true
-                    withAnimation(.snappy) { segment = .plans }
-                } label: {
-                    Label("Browse workout programs", systemImage: "books.vertical.fill")
-                }
-            } else {
-                Picker("Plan", selection: Binding(get: { appState.selectedWorkoutPlanID }, set: { _ = appState.selectWorkoutPlan($0 == AppState.noWorkoutPlanID ? nil : $0) })) {
-                    Text("Freestyle · no active program").tag(AppState.noWorkoutPlanID)
-                    ForEach(appState.workoutPlans) { plan in
-                        Text(plan.name).tag(plan.id)
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 7) {
-                Image(systemName: "folder.fill")
-                    .font(.caption)
-                    .foregroundStyle(Color.liftAccentText)
-                Text(selectedPlanName)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.liftText)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                    .fixedSize(horizontal: false, vertical: true)
-                Image(systemName: "chevron.down")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(Color.liftMuted)
-            }
-            .padding(.horizontal, 10)
-            .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
-            .background(Color.liftCard)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay { RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.liftOverlay, lineWidth: 1) }
-        }
-        .disabled(appState.activeWorkout != nil)
-        .accessibilityLabel(appState.selectedWorkoutPlan == nil ? "No workout plan selected; browse workout programs" : "Active plan, \(selectedPlanName)")
-    }
-
     @ViewBuilder
     private var trackerHeaderActions: some View {
         if segment == .plans {
@@ -378,7 +321,7 @@ extension TrainingTrackerView {
 
     private var trackerOptionsButtonLabel: some View {
         Image(systemName: "ellipsis")
-            .font(.headline.weight(.bold))
+            .font(LiftTypography.cardTitle)
             .frame(width: 44, height: 44)
             .background(Color.liftCard)
             .clipShape(Circle())
@@ -417,7 +360,7 @@ extension TrainingTrackerView {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Today's training")
-                        .font(.title3.weight(.black))
+                        .font(LiftTypography.sectionTitle)
                 }
                 Spacer()
             }
@@ -438,7 +381,7 @@ extension TrainingTrackerView {
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Browse Workout Programs")
-                            .font(.subheadline.weight(.bold))
+                            .font(LiftTypography.rowEmphasis)
                             .foregroundStyle(Color.liftText)
                         Text("Bodybuilding, powerlifting, cables, free weights, and more")
                             .font(.caption)
@@ -449,7 +392,7 @@ extension TrainingTrackerView {
                     Spacer(minLength: 4)
 
                     Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftAccentText)
                 }
                 .padding(12)
@@ -495,7 +438,7 @@ extension TrainingTrackerView {
             LiftCard {
                 VStack(alignment: .leading, spacing: 10) {
                     Label("Program finished", systemImage: "checkmark.seal.fill")
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                         .foregroundStyle(Color.liftGreen)
                     Text("You reached the end of \(selectedPlanName). Review saved workouts in your history and skipped sessions in Plans, or choose another program.")
                         .font(.caption)
@@ -514,7 +457,7 @@ extension TrainingTrackerView {
             LiftCard {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("No workouts in this plan yet")
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                     Text("Add a workout day in Plans, or start a freestyle workout.")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
@@ -564,7 +507,7 @@ extension TrainingTrackerView {
             LiftCard {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Rest day", systemImage: "bed.double.fill")
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                     Text("Next up: \(nextWorkout.session.name) · \(LiftTimeFormatter.shortDateNoTime(nextWorkout.date))")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
@@ -627,19 +570,23 @@ extension TrainingTrackerView {
             if appState.workoutPlans.isEmpty {
                 LiftCard {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("No saved plans yet")
-                            .font(.headline.weight(.bold))
-                        Text("Browse a ready-made program above or create your own plan.")
+                        Text(appState.workoutSyncStore.planSyncState == .needsAttention ? "Saved plans unavailable" : "No saved plans yet")
+                            .font(LiftTypography.cardTitle)
+                        Text(appState.workoutSyncStore.planSyncState == .needsAttention
+                             ? "We couldn’t check whether you have saved plans. Retry sync to check your account."
+                             : "Browse a ready-made program above or create your own plan.")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
-                        Button {
-                            showingCreatePlan = true
-                        } label: {
-                            Label("Create plan", systemImage: "plus")
-                                .frame(maxWidth: .infinity)
+                        if appState.workoutSyncStore.planSyncState != .needsAttention {
+                            Button {
+                                showingCreatePlan = true
+                            } label: {
+                                Label("Create plan", systemImage: "plus")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(LiftCompactProminentButtonStyle())
+                            .disabled(appState.activeWorkout != nil)
                         }
-                        .buttonStyle(LiftCompactProminentButtonStyle())
-                        .disabled(appState.activeWorkout != nil)
                     }
                 }
             } else {
@@ -659,7 +606,7 @@ extension TrainingTrackerView {
                             showingCreatePlan = true
                         } label: {
                             Label("New", systemImage: "plus")
-                                .font(.caption.weight(.bold))
+                                .font(LiftTypography.compactEmphasis)
                                 .frame(minHeight: 44)
                         }
                         .buttonStyle(.plain)
@@ -731,7 +678,7 @@ extension TrainingTrackerView {
                         .frame(width: 30)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Browse Workout Programs")
-                            .font(.subheadline.weight(.bold))
+                            .font(LiftTypography.rowEmphasis)
                             .foregroundStyle(Color.liftText)
                         Text("\(appState.workoutProgramTemplates.count) ready-made programs")
                             .font(.caption)
@@ -740,10 +687,10 @@ extension TrainingTrackerView {
                     }
                     Spacer()
                     Text(isProgramLibraryExpanded ? "Hide" : "Browse")
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftAccentText)
                     Image(systemName: "chevron.down")
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftMuted)
                         .rotationEffect(.degrees(isProgramLibraryExpanded ? 180 : 0))
                 }
@@ -763,7 +710,7 @@ extension TrainingTrackerView {
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: template.category == .powerlifting ? "trophy.fill" : "figure.strengthtraining.traditional")
-                                    .font(.subheadline.weight(.bold))
+                                    .font(LiftTypography.rowEmphasis)
                                     .foregroundStyle(Color.liftAccentText)
                                     .frame(width: 42, height: 42)
                                     .background(Color.liftBlue.opacity(0.12))
@@ -771,7 +718,7 @@ extension TrainingTrackerView {
 
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(template.name)
-                                        .font(.subheadline.weight(.bold))
+                                        .font(LiftTypography.rowEmphasis)
                                         .foregroundStyle(Color.liftText)
                                         .multilineTextAlignment(.leading)
                                         .fixedSize(horizontal: false, vertical: true)
@@ -793,7 +740,7 @@ extension TrainingTrackerView {
 
                                 VStack(alignment: .trailing, spacing: 5) {
                                     Text(WorkoutProgramCatalog.scheduleVariants(for: template).count > 1 ? "2–6 DAYS" : "\(template.daysPerWeek) DAYS")
-                                        .font(.system(size: 9, weight: .black, design: .rounded))
+                                        .font(.system(size: 9, weight: .bold))
                                         .tracking(0.4)
                                         .foregroundStyle(Color.liftAccentText)
                                         .padding(.horizontal, 8)

@@ -269,7 +269,7 @@ private struct ForumView: View {
                                     ProgressView().frame(maxWidth: .infinity)
                                 } else {
                                     Text("Load more discussions")
-                                        .font(.subheadline.weight(.bold))
+                                        .font(LiftTypography.rowEmphasis)
                                         .frame(maxWidth: .infinity)
                                 }
                             }
@@ -354,7 +354,7 @@ private struct ForumView: View {
             HStack(spacing: 4) {
                 ForEach(ForumFeed.allCases) { option in
                     Button(option.rawValue) { feed = option }
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(feed == option ? Color.liftOnAccent : Color.liftMuted)
                         .frame(maxWidth: .infinity, minHeight: 34)
                         .background(feed == option ? Color.liftLime : Color.clear, in: Capsule())
@@ -606,7 +606,7 @@ private struct ForumCommunityDirectoryView: View {
     private var directoryIntro: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Find training communities")
-                .font(.title3.weight(.black))
+                .font(LiftTypography.sectionTitle)
             Text("Find communities that match your training goals. Join one to see its discussions in Following.")
                 .font(.subheadline)
                 .foregroundStyle(Color.liftTextSecondary)
@@ -630,7 +630,7 @@ private struct ForumCommunityDirectoryView: View {
                     }
                 VStack(alignment: .leading, spacing: 3) {
                     Text(group.name)
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                     Text(group.category)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.liftAccentText)
@@ -655,7 +655,7 @@ private struct ForumCommunityDirectoryView: View {
                     onCommunitySelected()
                 } label: {
                     Text("View discussions")
-                        .font(.subheadline.weight(.bold))
+                        .font(LiftTypography.rowEmphasis)
                         .frame(maxWidth: .infinity, minHeight: 38)
                 }
                 .buttonStyle(LiftCompactProminentButtonStyle())
@@ -664,7 +664,7 @@ private struct ForumCommunityDirectoryView: View {
                     Task { await onMembershipChanged(group) }
                 } label: {
                     Text(isJoined ? (membershipStatus == "Muted" ? "Muted" : "Joined") : (membershipStatus == "Pending" ? "Pending" : "Join"))
-                        .font(.subheadline.weight(.bold))
+                        .font(LiftTypography.rowEmphasis)
                         .frame(minWidth: 70, minHeight: 38)
                 }
                 .buttonStyle(.bordered)
@@ -839,7 +839,7 @@ private struct ForumPostCard: View {
                     }
                 }
                 Text(post.title)
-                    .font(.headline.weight(.bold))
+                    .font(LiftTypography.cardTitle)
                     .foregroundStyle(Color.liftText)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(post.body)
@@ -848,7 +848,7 @@ private struct ForumPostCard: View {
                     .lineLimit(2)
                 if let tag = post.tag, tag != "demo" {
                     Text(tag.uppercased())
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftAccentText)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
@@ -862,7 +862,7 @@ private struct ForumPostCard: View {
                     forumMetric(icon: "bubble.left.and.bubble.right", label: String(post.commentCount) + " replies")
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftMuted)
                 }
                 .padding(.top, 2)
@@ -879,7 +879,7 @@ private struct ForumPostCard: View {
         ZStack {
             Circle().fill(Color.liftLime.opacity(0.9))
             Image(systemName: "figure.strengthtraining.traditional")
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .foregroundStyle(Color.liftOnAccent)
         }
         .frame(width: 38, height: 38)
@@ -899,7 +899,7 @@ private struct ForumPostCard: View {
 
     private func forumMetric(icon: String, label: String) -> some View {
         Label(label, systemImage: icon)
-            .font(.caption.weight(.bold))
+            .font(LiftTypography.compactEmphasis)
             .foregroundStyle(Color.liftMuted)
             .accessibilityElement(children: .combine)
     }
@@ -985,7 +985,7 @@ private struct ForumThreadView: View {
                                 }
                             }
                             Text(thread.post.title)
-                                .font(.title2.weight(.black))
+                                .font(.title2.weight(.bold))
                             Text(thread.post.body)
                                 .font(.body)
                                 .foregroundStyle(Color.liftTextSecondary)
@@ -1023,7 +1023,7 @@ private struct ForumThreadView: View {
 
                         HStack {
                             Text("\(thread.comments.count) comments")
-                                .font(.headline.weight(.bold))
+                                .font(LiftTypography.cardTitle)
                             Spacer()
                             Menu {
                                 ForEach(ForumCommentSort.allCases) { option in
@@ -1033,7 +1033,7 @@ private struct ForumThreadView: View {
                                 }
                             } label: {
                                 Label(commentSort.title, systemImage: commentSort.icon)
-                                    .font(.caption.weight(.bold))
+                                    .font(LiftTypography.compactEmphasis)
                                     .foregroundStyle(Color.liftAccentText)
                             }
                             .accessibilityLabel("Comment sort")
@@ -1197,7 +1197,7 @@ private struct ForumThreadView: View {
         ZStack {
             Circle().fill(Color.liftLime.opacity(0.9))
             Image(systemName: "figure.strengthtraining.traditional")
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .foregroundStyle(Color.liftOnAccent)
         }
         .frame(width: 38, height: 38)
@@ -1218,7 +1218,7 @@ private struct ForumThreadView: View {
     private func threadAction(icon: String, label: String) -> some View {
         HStack(spacing: 5) {
             Image(systemName: icon).font(.subheadline.weight(.semibold))
-            if !label.isEmpty { Text(label).font(.caption.weight(.bold)) }
+            if !label.isEmpty { Text(label).font(LiftTypography.compactEmphasis) }
         }
         .foregroundStyle(Color.liftMuted)
         .padding(.horizontal, 12)
@@ -1232,7 +1232,7 @@ private struct ForumThreadView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     Text(authorDisplayName(for: comment.authorID, isDemo: isDemoReadOnly))
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                     Text("•")
                                     Text(LiftTimeFormatter.relativeNoSeconds(from: comment.createdAt))
                                         .font(.caption2)
@@ -1530,12 +1530,12 @@ private struct MeHubContentView: View {
                                 .accessibilityIdentifier("me.profileHeader")
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(displayName)
-                                    .font(.title3.weight(.black))
+                                    .font(LiftTypography.sectionTitle)
                                 Text(handle)
                                     .font(.caption)
                                     .foregroundStyle(profile.username.isEmpty ? Color.liftAccentText : Color.liftMuted)
                                 Text("Tier \(tierSummary.overallTier.label)")
-                                    .font(.caption.weight(.bold))
+                                    .font(LiftTypography.compactEmphasis)
                                     .foregroundStyle(Color.liftGold)
                             }
 
@@ -1562,10 +1562,10 @@ private struct MeHubContentView: View {
                             HStack {
                                 Image(systemName: "person.text.rectangle.fill")
                                 Text("View public profile")
-                                    .font(.subheadline.weight(.bold))
+                                    .font(LiftTypography.rowEmphasis)
                                 Spacer()
                                 Image(systemName: "arrow.up.right")
-                                    .font(.caption.weight(.bold))
+                                    .font(LiftTypography.compactEmphasis)
                             }
                             .padding(.vertical, 8)
                             .padding(.horizontal, 10)
@@ -1580,7 +1580,7 @@ private struct MeHubContentView: View {
                         HStack(spacing: 0) {
                             meHeaderStat("Workouts", trainingStats.totalWorkouts.formatted())
                             Divider().frame(height: 28).overlay(Color.liftSeparator)
-                            meHeaderStat("PRs", trainingStats.prCount.formatted())
+                            meHeaderStat("Workout PRs", trainingStats.prCount.formatted())
                             Divider().frame(height: 28).overlay(Color.liftSeparator)
                             meHeaderStat("Streak", "\(trainingStats.currentStreak)w")
                         }
@@ -1619,10 +1619,10 @@ private struct MeHubContentView: View {
                                 HStack {
                                     Image(systemName: "plus.circle.fill")
                                     Text("Submit a new lift")
-                                        .font(.subheadline.weight(.bold))
+                                        .font(LiftTypography.rowEmphasis)
                                     Spacer()
                                     Image(systemName: "arrow.right")
-                                        .font(.caption.weight(.bold))
+                                        .font(LiftTypography.compactEmphasis)
                                 }
                                 .padding(10)
                                 .frame(maxWidth: .infinity)
@@ -1697,7 +1697,7 @@ private struct MeHubContentView: View {
                 await appState.refreshProductionLifts(force: true)
             }
         }
-        .navigationTitle("Me")
+        .toolbar(.hidden, for: .navigationBar)
         .task {
             await appState.refreshProductionLifts()
         }
@@ -1767,7 +1767,7 @@ private struct MeHubContentView: View {
     private func meHeaderStat(_ title: String, _ value: String) -> some View {
         VStack(spacing: 2) {
             Text(value)
-                .font(.subheadline.weight(.black))
+                .font(LiftTypography.rowEmphasis)
             Text(title)
                 .font(.caption2.weight(.semibold))
                 .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
@@ -1783,11 +1783,11 @@ private struct MeHubContentView: View {
         let horizontalPadding: CGFloat = compact ? 10 : 14
         return VStack(alignment: .leading, spacing: 8) {
             Image(systemName: "dumbbell.fill").foregroundStyle(Color.liftGold)
-            Text(title.uppercased()).font(.caption.weight(.black)).foregroundStyle(Color.liftMuted)
+            Text(title.uppercased()).font(LiftTypography.compactEmphasis).foregroundStyle(Color.liftMuted)
             Text(
                 value.map { "\(MeasurementFormatting.formatDisplayedWeight($0, unit: preferredUnit))\(suffix.isEmpty ? "" : " \(suffix)")" } ?? "—"
             )
-                .font(.subheadline.weight(.black))
+                .font(LiftTypography.rowEmphasis)
             Text(showHelp ? "No lift submission yet" : "Best submitted lift")
                 .font(.caption)
                 .foregroundStyle(Color.liftMuted)
@@ -1808,28 +1808,28 @@ private struct MeHubContentView: View {
         let chevronColor = isDestructive ? Color.liftRed : Color.liftMuted
         return HStack(spacing: 13) {
             Image(systemName: symbol)
-                .font(.subheadline.weight(.bold))
+                .font(LiftTypography.rowEmphasis)
                 .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 .foregroundStyle(iconColor)
                 .frame(width: 34, height: 34)
                 .background(iconColor.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(.subheadline.weight(.bold)).foregroundStyle(textColor)
+                Text(title).font(LiftTypography.rowEmphasis).foregroundStyle(textColor)
                 Text(subtitle).font(.caption).foregroundStyle(Color.liftMuted)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                 if dynamicTypeSize.isAccessibilitySize, let badge {
-                    Text(badge).font(.caption.weight(.black)).foregroundStyle(Color.liftGold)
+                    Text(badge).font(LiftTypography.compactEmphasis).foregroundStyle(Color.liftGold)
                 }
             }
             Spacer(minLength: 8)
             if let badge, !dynamicTypeSize.isAccessibilitySize {
                 Text(badge)
-                    .font(.caption.weight(.black))
+                    .font(LiftTypography.compactEmphasis)
                     .foregroundStyle(Color.liftGold)
             }
             Image(systemName: "chevron.right")
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 .foregroundStyle(chevronColor)
         }
@@ -1931,11 +1931,11 @@ struct AwardsView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("RIVAL TIER")
-                                    .font(.caption2.weight(.black))
+                                    .font(.caption2.weight(.bold))
                                     .tracking(1.2)
                                     .foregroundStyle(Color.liftGold)
                                 Text(tierSummary.overallTier.label)
-                                    .font(.title.weight(.black))
+                                    .font(.title.weight(.bold))
                             }
                             Spacer()
                             Image(systemName: "medal.fill")
@@ -1972,7 +1972,7 @@ struct AwardsView: View {
                             )
                         ) {
                             Label("Share Rival Tier card", systemImage: "square.and.arrow.up")
-                                .font(.headline.weight(.bold))
+                                .font(LiftTypography.cardTitle)
                                 .frame(maxWidth: .infinity, minHeight: 44)
                         }
                         .buttonStyle(.borderedProminent)
@@ -1983,7 +1983,7 @@ struct AwardsView: View {
                             prepareRivalTierShareImage(summary: tierSummary)
                         } label: {
                             Label("Prepare Rival Tier card", systemImage: "square.and.arrow.up")
-                                .font(.headline.weight(.bold))
+                                .font(LiftTypography.cardTitle)
                                 .frame(maxWidth: .infinity, minHeight: 44)
                         }
                         .buttonStyle(.borderedProminent)
@@ -2093,10 +2093,10 @@ struct AwardsView: View {
         VStack(alignment: .leading, spacing: 7) {
             HStack {
                 Text(lift.exerciseName)
-                    .font(.subheadline.weight(.bold))
+                    .font(LiftTypography.rowEmphasis)
                 Spacer()
                 Text(lift.estimatedOneRepMaxKilograms == nil ? "Not logged" : lift.currentTier.label)
-                    .font(.caption.weight(.bold))
+                    .font(LiftTypography.compactEmphasis)
                     .foregroundStyle(lift.estimatedOneRepMaxKilograms == nil ? Color.liftMuted : Color.liftGold)
             }
             ProgressView(value: lift.progressToNextTier)
@@ -2129,11 +2129,11 @@ struct AwardsView: View {
         } label: {
             VStack(alignment: .leading, spacing: 8) {
                 Image(systemName: "trophy.fill").foregroundStyle(Color.liftGold)
-                Text(title.uppercased()).font(.caption.weight(.black)).foregroundStyle(Color.liftMuted)
+                Text(title.uppercased()).font(LiftTypography.compactEmphasis).foregroundStyle(Color.liftMuted)
                 Text(valueKilograms.map {
                     MeasurementFormatting.formatDisplayedWeight($0, unit: preferredUnit)
                 } ?? "—")
-                    .font(.headline.weight(.black))
+                    .font(LiftTypography.cardTitle)
                 Text(best != nil ? "Best submitted lift" : workoutEstimate != nil ? "Estimated 1RM from workouts" : "No workout lift yet")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
@@ -2148,12 +2148,12 @@ struct AwardsView: View {
     private func totalRecord(preferredUnit: UnitSystem) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Image(systemName: "dumbbell.fill").foregroundStyle(Color.liftGold)
-            Text("Total").font(.caption.weight(.black)).foregroundStyle(Color.liftMuted)
+            Text("Total").font(LiftTypography.compactEmphasis).foregroundStyle(Color.liftMuted)
             Text(RankingFormatting.threeLiftTotalText(
                 totalPounds: appState.powerliftingTotal,
                 preferredUnit: preferredUnit
             ))
-            .font(.headline.weight(.black))
+            .font(LiftTypography.cardTitle)
         }
         .padding(14).frame(maxWidth: .infinity, minHeight: 112, alignment: .leading).liftSurface()
     }
@@ -2162,10 +2162,10 @@ struct AwardsView: View {
         let display = MeasurementFormatting.awardDisplay(for: achievement, unit: appState.currentProfile.preferredUnit)
         return VStack(alignment: .leading, spacing: 9) {
             Image(systemName: achievement.symbolName)
-                .font(.title3.weight(.bold))
+                .font(LiftTypography.sectionTitle)
                 .foregroundStyle(unlocked ? Color.liftGold : Color.liftMuted)
                 .accessibilityHidden(true)
-            Text(display.title).font(.subheadline.weight(.bold)).foregroundStyle(unlocked ? Color.liftText : Color.liftMuted).lineLimit(2)
+            Text(display.title).font(LiftTypography.rowEmphasis).foregroundStyle(unlocked ? Color.liftText : Color.liftMuted).lineLimit(2)
                 .accessibilityLabel("\(display.title), \(unlocked ? "earned" : "locked")")
             if let status {
                 Text(status).font(.caption2.weight(.semibold)).foregroundStyle(Color.liftMuted)
@@ -2396,11 +2396,11 @@ private struct RivalTierShareCard: View {
             HStack {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("LIFT RIVALS")
-                        .font(.system(size: 18, weight: .black))
+                        .font(.system(size: 18, weight: .bold))
                         .tracking(3)
                         .foregroundStyle(Color.liftGold)
                     Text(profile.displayName)
-                        .font(.system(size: 34, weight: .black, design: .rounded))
+                        .font(.system(size: 34, weight: .bold))
                         .foregroundStyle(.white)
                     Text("@\(profile.username)")
                         .font(.system(size: 18, weight: .semibold))
@@ -2408,17 +2408,17 @@ private struct RivalTierShareCard: View {
                 }
                 Spacer()
                 Image(systemName: "medal.fill")
-                    .font(.system(size: 42, weight: .black))
+                    .font(.system(size: 42, weight: .bold))
                     .foregroundStyle(Color.liftGold)
             }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("RIVAL TIER")
-                    .font(.system(size: 16, weight: .black))
+                    .font(.system(size: 16, weight: .bold))
                     .tracking(2)
                     .foregroundStyle(Color.white.opacity(0.62))
                 Text(summary.overallTier.label)
-                    .font(.system(size: 58, weight: .black, design: .rounded))
+                    .font(.system(size: 58, weight: .bold))
                     .foregroundStyle(.white)
             }
 
@@ -2440,7 +2440,7 @@ private struct RivalTierShareCard: View {
                         }
                         Spacer()
                         Text(lift.currentTier.label)
-                            .font(.system(size: 17, weight: .black))
+                            .font(.system(size: 17, weight: .bold))
                             .foregroundStyle(Color.liftGold)
                     }
                     .padding(16)
@@ -2451,7 +2451,7 @@ private struct RivalTierShareCard: View {
 
             Spacer()
             Text("TRAIN. PROVE. RISE.")
-                .font(.system(size: 15, weight: .black))
+                .font(.system(size: 15, weight: .bold))
                 .tracking(2.5)
                 .foregroundStyle(Color.white.opacity(0.5))
                 .frame(maxWidth: .infinity)
@@ -2487,11 +2487,13 @@ struct AuthenticationView: View {
     var body: some View {
         AppBackground {
             ScrollView {
-                VStack(spacing: 20) {
-                    Spacer(minLength: 46)
-                    Image(systemName: "lock.shield.fill")
-                        .font(.system(size: 54, weight: .bold))
-                        .foregroundStyle(Color.liftAccentText)
+                VStack(spacing: 16) {
+                    Image("BrandLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 64, height: 64)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .accessibilityLabel("Lift Rivals logo")
                     Text("Lift Rivals").font(.largeTitle.bold())
                     Text("Sign in to save your profile, sync workouts, and connect with other lifters.")
                         .foregroundStyle(Color.liftMuted)
@@ -2514,7 +2516,7 @@ struct AuthenticationView: View {
 
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Email").font(.caption.weight(.semibold)).foregroundStyle(Color.liftMuted)
-                            TextField("name@example.com", text: $email)
+                            TextField("", text: $email)
                                 .accessibilityLabel("Email")
                                 .textContentType(.emailAddress)
                                 .keyboardType(.emailAddress)
@@ -2665,26 +2667,43 @@ struct AuthenticationView: View {
                             .foregroundStyle(Color.liftAccentText)
                     }
 
+#if DEBUG
                     if AppState.allowsDemoMode {
-                        Divider().overlay(Color.liftOverlay)
-                        Button {
+                        Button("Explore demo") {
                             Task { await appState.enterDemoMode() }
-                        } label: {
-                            Label("Explore demo", systemImage: "person.crop.circle.badge.checkmark")
-                                .frame(maxWidth: .infinity)
-                                .frame(minHeight: 48)
                         }
-                        .buttonStyle(.bordered)
-                        .tint(Color.liftAccentText)
-                        Text("Demo progress stays on this device and does not affect your account.")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
-                            .multilineTextAlignment(.center)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.liftMuted)
                     }
+#endif
                     Spacer(minLength: 28)
                 }
                 .padding(.horizontal, 24)
+                .padding(.top, 12)
             }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 8) {
+                Divider().overlay(Color.liftOverlay)
+                Button {
+                    Task { await appState.enterGuestMode() }
+                } label: {
+                    Label("Continue as Guest", systemImage: "person.crop.circle.badge.checkmark")
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 48)
+                }
+                .buttonStyle(.bordered)
+                .tint(Color.liftAccentText)
+                .disabled(appState.accountOperationInProgress)
+                Text("Start your profile without an email. Add an email later in Settings to sign in on another device.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 8)
+            .padding(.bottom, 8)
+            .background(Color.liftBackground)
         }
         .sheet(isPresented: $showingReset) {
             NavigationStack {
@@ -2734,7 +2753,7 @@ struct AuthenticationView: View {
     private func emailConfirmationNotice(for email: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Label("Confirmation email sent", systemImage: "envelope.badge.fill")
-                .font(.headline.weight(.bold))
+                .font(LiftTypography.cardTitle)
                 .foregroundStyle(Color.liftAccentText)
 
             Text("We sent a confirmation link to")
@@ -2742,7 +2761,7 @@ struct AuthenticationView: View {
                 .foregroundStyle(Color.liftMuted)
 
             Text(email)
-                .font(.subheadline.weight(.bold))
+                .font(LiftTypography.rowEmphasis)
                 .textSelection(.enabled)
 
             Text("Open the email, tap the link, then return here to sign in. Check spam if it does not arrive within a few minutes.")
@@ -2811,7 +2830,7 @@ struct PasswordUpdateView: View {
                             }
 
                             Text("Choose a new password")
-                                .font(.system(size: 30, weight: .black, design: .rounded))
+                                .font(.title.weight(.semibold))
                             Text("Your recovery link is verified. Set a new password to secure your Lift Rivals account.")
                                 .font(.subheadline)
                                 .foregroundStyle(Color.liftMuted)
@@ -2836,7 +2855,7 @@ struct PasswordUpdateView: View {
                         LiftCard(padding: 15, radius: 18) {
                             VStack(alignment: .leading, spacing: 11) {
                                 Text("Password requirements")
-                                    .font(.subheadline.weight(.bold))
+                                    .font(LiftTypography.rowEmphasis)
                                 requirementRow(
                                     "At least 10 characters",
                                     isSatisfied: hasMinimumLength,
@@ -2898,7 +2917,7 @@ struct PasswordUpdateView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(label)
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .foregroundStyle(Color.liftMuted)
             HStack(spacing: 10) {
                 Image(systemName: "lock.fill")

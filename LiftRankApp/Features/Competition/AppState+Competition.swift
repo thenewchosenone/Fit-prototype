@@ -68,9 +68,9 @@ extension AppState {
         ].joined(separator: "|")
     }
 
-    func refreshLeaderboard() async {
+    func refreshLeaderboard(force: Bool = false) async {
         guard isAuthenticated || isDemoMode else { return }
-        await competitionStore.refreshLeaderboard()
+        await competitionStore.refreshLeaderboard(force: force)
     }
 
     func onboardingLeaderboardPreview(filters: LeaderboardFilters) async -> [LeaderboardEntry] {

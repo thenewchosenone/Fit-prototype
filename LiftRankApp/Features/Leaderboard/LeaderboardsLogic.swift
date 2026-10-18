@@ -51,7 +51,7 @@ extension LeaderboardsView {
     var athleteSearchSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("ATHLETES")
-                .font(.caption2.weight(.black))
+                .font(.caption2.weight(.bold))
                 .tracking(1)
                 .foregroundStyle(Color.liftMuted)
                 .padding(.horizontal, 14)
@@ -64,7 +64,7 @@ extension LeaderboardsView {
                         ProfileAvatar(profile: profile, size: 42)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(profile.displayName)
-                                .font(.subheadline.weight(.bold))
+                                .font(LiftTypography.rowEmphasis)
                                 .foregroundStyle(Color.liftText)
                             Text("@\(profile.username)")
                                 .font(.caption)
@@ -72,7 +72,7 @@ extension LeaderboardsView {
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                             .foregroundStyle(Color.liftMuted)
                     }
                     .padding(.horizontal, 14)
@@ -127,8 +127,8 @@ extension LeaderboardsView {
              ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
              : AnyLayout(HStackLayout(spacing: 8))) {
                 scopeFilterControl
-                moreFiltersControl
             }
+            evidenceFilterControl
             if showsExercise {
                 (dynamicTypeSize.isAccessibilitySize
                  ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
@@ -159,25 +159,121 @@ extension LeaderboardsView {
         }
     }
 
-    private var moreFiltersControl: some View {
+    var moreFiltersControl: some View {
         Button {
             Haptics.light()
             appState.showingLeaderboardFilters = true
         } label: {
-            HStack(spacing: 6) {
+            ZStack(alignment: .topTrailing) {
                 Image(systemName: "slider.horizontal.3")
-                Text("Filters")
-                if activeFilterCount > 0 { Text("\(activeFilterCount)") }
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.liftAccentText)
+                    .frame(width: 44, height: 44)
+                if activeFilterCount > 0 {
+                    Text("\(activeFilterCount)")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Color.liftOnAccent)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Color.liftLime, in: Capsule())
+                        .offset(x: -2, y: 2)
+                }
             }
-            .font(.caption.weight(.bold))
-            .foregroundStyle(Color.liftAccentText)
-            .frame(minWidth: 44, minHeight: 44)
-            .padding(.horizontal, 12)
-            .liftSurface(radius: 10, raised: true)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("More filters, \(activeFilterCount) active")
         .accessibilityIdentifier("leaderboard.filter.more")
+    }
+
+    private var evidenceFilterControl: some View {
+        return Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 6) {
+                    ForEach(["video", "self", "all"], id: \.self) { id in evidenceButton(id, title: evidenceTitle(for: id)) }
+                }
+            } else {
+                HStack(spacing: 6) {
+                    ForEach(["video", "self", "all"], id: \.self) { id in evidenceButton(id, title: evidenceTitle(for: id)) }
+                }
+            }
+        }
+        .padding(4)
+        .background(Color.liftSurfaceElevated, in: Capsule())
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Lift evidence")
+    }
+
+    private func evidenceTitle(for id: String) -> String {
+        switch id {
+        case "video": return "Video-backed"
+        case "self": return "Self-reported"
+        default: return "All lifts"
+        }
+    }
+
+    private func evidenceButton(_ id: String, title: String) -> some View {
+        let isSelected = selectedOptionID(for: .verification) == id
+        return Button {
+            apply(id, for: .verification)
+        } label: {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(isSelected ? Color.liftOnAccent : Color.liftMuted)
+                .frame(maxWidth: .infinity, minHeight: 38)
+                .padding(.horizontal, 6)
+                .background(isSelected ? Color.liftLime : Color.clear, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("leaderboard.evidence.\(id)")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    @ViewBuilder
+    var activeFilterChips: some View {
+        let filters = appState.leaderboardFilters
+        if filters.sexCategory != nil || filters.ageGroup != nil || filters.weightClassID != nil || filters.experienceLevel != nil || filters.timeRange != "All time" {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    if let sex = filters.sexCategory {
+                        activeFilterChip(sex.rawValue) {
+                            appState.leaderboardFilters.sexCategory = nil
+                            appState.leaderboardFilters.weightClassID = nil
+                        }
+                    }
+                    if let ageGroup = filters.ageGroup {
+                        activeFilterChip(ageGroup) { appState.leaderboardFilters.ageGroup = nil }
+                    }
+                    if let weightClassID = filters.weightClassID {
+                        let title = WeightClassCatalog.all.first { $0.id == weightClassID }
+                            .map { RankingFormatting.weightClassDisplayName($0, preferredUnit: appState.currentProfile.preferredUnit) } ?? "Weight class"
+                        activeFilterChip(title) { appState.leaderboardFilters.weightClassID = nil }
+                    }
+                    if let experience = filters.experienceLevel {
+                        activeFilterChip(experience.rawValue) { appState.leaderboardFilters.experienceLevel = nil }
+                    }
+                    if filters.timeRange != "All time" {
+                        activeFilterChip(filters.timeRange) { appState.leaderboardFilters.timeRange = "All time" }
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+    }
+
+    private func activeFilterChip(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Text(title).lineLimit(1)
+                Image(systemName: "xmark").font(.caption2.weight(.bold))
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Color.liftAccentText)
+            .padding(.horizontal, 10)
+            .frame(minHeight: 34)
+            .background(Color.liftSurfaceElevated, in: Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     var searchField: some View {

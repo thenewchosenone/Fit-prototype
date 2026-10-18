@@ -20,6 +20,23 @@ final class SupabaseAuthenticationService: AuthenticationService {
         }
     }
 
+    func signInAnonymously() async throws -> AccountSession {
+        do { return accountSession(try await client.auth.signInAnonymously()) }
+        catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func addEmailToGuestAccount(email: String, password: String) async throws -> AccountSession {
+        do {
+            let current = try await client.auth.session
+            guard current.user.isAnonymous else { throw LiftRankServiceError.permissionDenied }
+            _ = try await client.auth.update(
+                user: UserAttributes(email: email, password: password),
+                redirectTo: SupabaseConfiguration.authCallbackURL
+            )
+            return accountSession(try await client.auth.session)
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
     func signUp(email: String, password: String) async throws -> AccountSession {
         do {
             let response = try await client.auth.signUp(email: email, password: password)
@@ -41,10 +58,12 @@ final class SupabaseAuthenticationService: AuthenticationService {
     func signIn(email: String, password: String) async throws -> AccountSession {
         do {
             let session = try await client.auth.signIn(email: email, password: password)
-            _ = try await client.auth.setSession(
-                accessToken: session.accessToken,
-                refreshToken: session.refreshToken
-            )
+            if client.auth.currentSession?.user.id != session.user.id {
+                _ = try await client.auth.setSession(
+                    accessToken: session.accessToken,
+                    refreshToken: session.refreshToken
+                )
+            }
             return accountSession(session)
         }
         catch { throw SupabaseServiceErrorMapper.map(error) }
@@ -87,7 +106,8 @@ final class SupabaseAuthenticationService: AuthenticationService {
         AccountSession(
             userID: session.user.id,
             email: session.user.email,
-            expiresAt: Date(timeIntervalSince1970: TimeInterval(session.expiresAt))
+            expiresAt: Date(timeIntervalSince1970: TimeInterval(session.expiresAt)),
+            isGuest: session.user.isAnonymous
         )
     }
 }

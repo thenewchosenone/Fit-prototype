@@ -84,10 +84,10 @@ struct ProgramSessionCard: View {
                                 .foregroundStyle(Color.liftText)
                             Spacer()
                             Text(showsExercises ? "Hide" : "Show")
-                                .font(.caption.weight(.bold))
+                                .font(LiftTypography.compactEmphasis)
                                 .foregroundStyle(Color.liftAccentText)
                             Image(systemName: showsExercises ? "chevron.up" : "chevron.down")
-                                .font(.caption.weight(.bold))
+                                .font(LiftTypography.compactEmphasis)
                                 .foregroundStyle(Color.liftMuted)
                         }
                         .contentShape(Rectangle())
@@ -112,7 +112,7 @@ struct ProgramSessionCard: View {
                                         .foregroundStyle(Color.liftMuted)
                                         .lineLimit(1)
                                     if let kilograms = prescription.targetLoadKilograms {
-                                        Text("Target: \(MeasurementFormatting.convert(kilograms, from: .kilograms, to: appState.currentProfile.preferredUnit).formatted(.number.precision(.fractionLength(0...1)))) \(appState.currentProfile.preferredUnit.shortLabel)")
+                                        Text("Suggested weight: \(MeasurementFormatting.convert(kilograms, from: .kilograms, to: appState.currentProfile.preferredUnit).formatted(.number.precision(.fractionLength(0...1)))) \(appState.currentProfile.preferredUnit.shortLabel)")
                                             .font(.caption2).foregroundStyle(Color.liftAccentText)
                                     } else if !ExerciseTrackingKind(catalogExercise(for: prescription).trackingType).usesDuration, let rir = prescription.targetRIR {
                                         Text("Target: \(rir) reps in reserve").font(.caption2).foregroundStyle(Color.liftMuted)

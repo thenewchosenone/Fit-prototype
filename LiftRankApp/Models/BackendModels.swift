@@ -9,6 +9,7 @@ struct AccountSession: Equatable, Sendable {
     let userID: UUID
     let email: String?
     let expiresAt: Date?
+    var isGuest: Bool = false
 }
 
 enum AccountStatus: Equatable {
@@ -18,6 +19,7 @@ enum AccountStatus: Equatable {
     case needsLegalAcceptance
     case authenticated
     case demo
+    case guest
     case configurationRequired
     case failure(String)
 }

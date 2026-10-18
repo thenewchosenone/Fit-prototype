@@ -39,7 +39,7 @@ struct ProgramPlanDetailView: View {
              : AnyLayout(HStackLayout(alignment: .center, spacing: 12))) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Program details")
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                         .fixedSize(horizontal: false, vertical: true)
                     Text("\(weeks.count) scheduled weeks")
                         .font(.caption)
@@ -111,14 +111,14 @@ struct ProgramPlanDetailView: View {
                 LiftCard {
                     HStack(alignment: .top, spacing: 12) {
                         Image(systemName: isRecoveryWeek ? "figure.mind.and.body" : "arrow.up.right")
-                            .font(.headline.weight(.bold))
+                            .font(LiftTypography.cardTitle)
                             .foregroundStyle(isRecoveryWeek ? Color.liftGold : Color.liftAccentText)
                             .frame(width: 38, height: 38)
                             .background((isRecoveryWeek ? Color.liftGold : Color.liftBlue).opacity(0.14))
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         VStack(alignment: .leading, spacing: 4) {
                             Text(selectedPhase?.name ?? "Base Phase")
-                                .font(.subheadline.weight(.bold))
+                                .font(LiftTypography.rowEmphasis)
                             Text(isRecoveryWeek ? "Recovery week within this phase" : (selectedPhase?.goal ?? "Build consistent training momentum."))
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
@@ -259,7 +259,7 @@ struct ProgramPlanDetailView: View {
             } label: {
                 VStack(spacing: 1) {
                     Text(selectedWeek?.title ?? "Select week")
-                        .font(.subheadline.weight(.bold))
+                        .font(LiftTypography.rowEmphasis)
                         .foregroundStyle(Color.liftText)
                         .lineLimit(2)
                         .multilineTextAlignment(.center)
@@ -306,14 +306,14 @@ struct ProgramPlanDetailView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
                     Image(systemName: "calendar.badge.plus")
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                         .foregroundStyle(Color.liftAccentText)
                         .frame(width: 38, height: 38)
                         .background(Color.liftBlue.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Build your first week")
-                            .font(.headline.weight(.bold))
+                            .font(LiftTypography.cardTitle)
                         Text("Add a week, then create workout days for it.")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -342,7 +342,7 @@ struct ProgramPlanDetailView: View {
                     LiftCard {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("No workout days yet")
-                                .font(.headline.weight(.bold))
+                                .font(LiftTypography.cardTitle)
                             Text("Add workout days like Monday Push, Tuesday Pull, or Friday Legs.")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
@@ -387,7 +387,7 @@ struct ProgramPlanDetailView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
                             Label("Session queue", systemImage: "play.list")
-                                .font(.headline.weight(.bold))
+                                .font(LiftTypography.cardTitle)
                             Spacer()
                             Text("\(appState.selectedPlanQueuedSessions.count) sessions")
                                 .font(.caption.weight(.semibold))
@@ -399,7 +399,7 @@ struct ProgramPlanDetailView: View {
                         ForEach(Array(appState.selectedPlanQueuedSessions.enumerated()), id: \.element.id) { index, session in
                             HStack(spacing: 8) {
                                 Text("\(index + 1)")
-                                    .font(.caption.weight(.bold))
+                                    .font(LiftTypography.compactEmphasis)
                                     .foregroundStyle(Color.liftMuted)
                                     .frame(width: 20)
                                 Text(session.name)
@@ -471,7 +471,7 @@ struct ProgramPlanDetailView: View {
                 LiftCard {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Current week · \(selectedWeek.title)")
-                            .font(.headline.weight(.bold))
+                            .font(LiftTypography.cardTitle)
                         if !plannedSessions.isEmpty {
                             Text("\(completedSessions.count) of \(plannedSessions.count) workouts have all planned sets completed")
                                 .foregroundStyle(Color.liftMuted)

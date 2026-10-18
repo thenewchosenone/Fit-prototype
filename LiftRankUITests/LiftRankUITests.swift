@@ -2611,24 +2611,17 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(submit.waitForExistence(timeout: 5))
         XCTAssertFalse(submit.isEnabled)
         XCTAssertTrue(app.staticTexts["lift.submitReason"].waitForExistence(timeout: 5))
-        let verification = app.switches["Require lift video"]
-        let scrollView = app.scrollViews.firstMatch
-        var attempts = 0
-        while (!verification.isHittable || verification.frame.maxY >= app.staticTexts["lift.submitReason"].frame.minY) && attempts < 8 {
-            scrollView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
-                .press(forDuration: 0.05, thenDragTo: scrollView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)))
-            attempts += 1
-        }
-        XCTAssertTrue(verification.waitForExistence(timeout: 5))
-        XCTAssertTrue(verification.isHittable)
-        XCTAssertGreaterThanOrEqual(verification.frame.minY, app.navigationBars["Submit Lift"].frame.maxY)
-        verification.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
-        XCTAssertTrue(submit.isEnabled)
+        XCTAssertFalse(app.switches["Require lift video"].exists)
+        let submitReady = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isEnabled == true"),
+            object: submit
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [submitReady], timeout: 8), .completed)
         submit.tap()
 
         XCTAssertTrue(app.staticTexts["lift.submissionResult"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.staticTexts["Current leaderboard placement"].exists)
-        XCTAssertTrue(app.staticTexts["Video filter active"].exists)
+        XCTAssertTrue(app.staticTexts["Self-reported"].exists)
+        XCTAssertTrue(app.staticTexts["This lift is saved, but no playable video is attached."].exists)
         XCTAssertTrue(app.buttons["lift.submissionDone"].exists)
     }
 
@@ -2750,7 +2743,6 @@ final class LiftRankUITests: XCTestCase {
                 app.staticTexts["Video-backed"].waitForExistence(timeout: 5),
                 "The lift was saved, but the selected video was not uploaded and linked."
             )
-            XCTAssertTrue(app.staticTexts["Current leaderboard placement"].exists)
             return
         }
         if alert.exists {
@@ -2914,19 +2906,87 @@ final class LiftRankUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Track your lifts. See your progress."].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.images["Lift Rivals logo"].exists)
         app.buttons["Get started"].tap()
         XCTAssertTrue(app.staticTexts["What are you training for?"].waitForExistence(timeout: 5))
-        app.buttons["onboarding.focus.bodybuilding"].tap()
+        XCTAssertFalse(app.buttons["Continue"].isEnabled)
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "onboarding.goal.")).count, 4)
+        XCTAssertFalse(app.staticTexts["Training style (optional) · choose one"].exists)
+        let stronger = app.buttons["onboarding.goal.get_stronger"]
+        for _ in 0..<5 where stronger.frame.maxY >= app.buttons["onboarding.next"].frame.minY {
+            app.scrollViews.firstMatch.swipeUp()
+        }
+        XCTAssertTrue(stronger.isHittable)
+        stronger.tap()
+        XCTAssertTrue(stronger.isSelected)
+        XCTAssertTrue(app.buttons["Continue"].isEnabled)
+        let goalsScreenshot = XCTAttachment(screenshot: app.screenshot())
+        goalsScreenshot.name = "Primary training goals"
+        goalsScreenshot.lifetime = .keepAlways
+        add(goalsScreenshot)
         app.buttons["Continue"].tap()
 
-        XCTAssertTrue(app.staticTexts["Build your lifter profile."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Set up your profile."].waitForExistence(timeout: 5))
         XCTAssertEqual(app.textFields["Username"].value as? String, "launch_lifter")
+        let profileScreenshot = XCTAttachment(screenshot: app.screenshot())
+        profileScreenshot.name = "Onboarding profile identity"
+        profileScreenshot.lifetime = .keepAlways
+        add(profileScreenshot)
+        let bodyweight = app.textFields["onboarding.bodyweight"]
+        for _ in 0..<5 where bodyweight.frame.maxY >= app.buttons["onboarding.next"].frame.minY {
+            app.scrollViews.firstMatch.swipeUp()
+        }
+        bodyweight.tap()
+        if let current = bodyweight.value as? String, current != "Not set" {
+            bodyweight.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
+        }
+        app.buttons["Done"].tap()
+        XCTAssertEqual(bodyweight.value as? String, "Not set")
+        bodyweight.tap()
+        bodyweight.typeText("185.5")
+        app.buttons["Done"].tap()
+        XCTAssertEqual(bodyweight.value as? String, "185.5")
+        let trainingScreenshot = XCTAttachment(screenshot: app.screenshot())
+        trainingScreenshot.name = "Onboarding measurements"
+        trainingScreenshot.lifetime = .keepAlways
+        add(trainingScreenshot)
+        let city = app.buttons["onboarding.location.city"]
+        for _ in 0..<5 where city.frame.maxY >= app.buttons["onboarding.next"].frame.minY {
+            app.scrollViews.firstMatch.swipeUp()
+        }
+        city.tap()
+        XCTAssertTrue(app.staticTexts["Common cities"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["onboarding.city.search"].exists)
+        let cityScreenshot = XCTAttachment(screenshot: app.screenshot())
+        cityScreenshot.name = "Onboarding common cities"
+        cityScreenshot.lifetime = .keepAlways
+        add(cityScreenshot)
+        app.buttons["Orlando"].tap()
+        XCTAssertTrue(city.label.contains("Orlando"))
+        city.tap()
+        let citySearch = app.textFields["onboarding.city.search"]
+        citySearch.tap()
+        citySearch.typeText("Mia")
+        let miami = app.buttons["Miami"]
+        XCTAssertTrue(miami.waitForExistence(timeout: 5))
+        miami.tap()
+        XCTAssertTrue(city.label.contains("Miami"))
+        city.tap()
+        XCTAssertTrue(app.staticTexts["Common cities"].waitForExistence(timeout: 5))
+        app.buttons["Done"].tap()
         app.buttons["Continue"].tap()
         XCTAssertTrue(app.staticTexts["What are your best lifts?"].waitForExistence(timeout: 5))
         app.buttons["I’ll add my lifts later"].tap()
 
-        XCTAssertTrue(app.staticTexts["You’re ready to compete."].waitForExistence(timeout: 5))
-        app.buttons["Enter Lift Rivals"].tap()
+        XCTAssertTrue(app.staticTexts["Before you compete"].waitForExistence(timeout: 8))
+        app.buttons["legal.back"].tap()
+        XCTAssertTrue(app.staticTexts["What are your best lifts?"].waitForExistence(timeout: 5))
+        app.buttons["Previous step"].tap()
+        XCTAssertEqual(app.textFields["Username"].value as? String, "launch_lifter")
+        XCTAssertEqual(app.textFields["onboarding.bodyweight"].value as? String, "185.5")
+        XCTAssertTrue(app.buttons["onboarding.location.city"].label.contains("Miami"))
+        app.buttons["Continue"].tap()
+        app.buttons["I’ll add my lifts later"].tap()
         XCTAssertTrue(app.staticTexts["Before you compete"].waitForExistence(timeout: 8))
     }
 
@@ -2937,11 +2997,10 @@ final class LiftRankUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["Get started"].waitForExistence(timeout: 8))
         app.buttons["Get started"].tap()
-        let powerlifting = app.buttons["onboarding.focus.powerlifting"]
-        for _ in 0..<5 where !powerlifting.isHittable {
+        let powerlifting = app.buttons["onboarding.goal.powerlifting"]
+        for _ in 0..<5 where powerlifting.frame.maxY >= app.buttons["onboarding.next"].frame.minY {
             app.scrollViews.firstMatch.swipeUp()
         }
-        app.scrollViews.firstMatch.swipeUp()
         XCTAssertTrue(powerlifting.isHittable)
         powerlifting.tap()
         XCTAssertTrue(powerlifting.isSelected)
@@ -2962,7 +3021,7 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertEqual(value.label, "1")
     }
 
-    func testFreshOnboardingRequiresProfileDetailsBeforeAdvancing() {
+    func testFreshOnboardingAllowsOptionalProfileDetailsToWait() {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTestingOnboarding"]
         app.launch()
@@ -2971,21 +3030,29 @@ final class LiftRankUITests: XCTestCase {
         app.buttons["Get started"].tap()
         XCTAssertTrue(app.staticTexts["What are you training for?"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Continue"].isEnabled)
-        app.buttons["onboarding.focus.generalFitness"].tap()
+        let focus = app.buttons["onboarding.goal.generalFitness"]
+        for _ in 0..<5 where focus.frame.maxY >= app.buttons["onboarding.next"].frame.minY {
+            app.scrollViews.firstMatch.swipeUp()
+        }
+        focus.tap()
         app.buttons["Continue"].tap()
 
-        XCTAssertTrue(app.staticTexts["Build your lifter profile."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Set up your profile."].waitForExistence(timeout: 5))
         let username = app.textFields["Username"]
         XCTAssertTrue(username.exists)
-        XCTAssertTrue(app.buttons["onboarding.location.country"].exists)
-        XCTAssertTrue(app.buttons["onboarding.location.region"].exists)
-        XCTAssertTrue(app.buttons["onboarding.location.city"].exists)
+        XCTAssertTrue(app.buttons["onboarding.photo"].exists)
+        XCTAssertTrue(app.textFields["Bio (optional)"].exists)
 
+        app.buttons["Continue"].tap()
+        XCTAssertTrue(app.staticTexts["Choose a username to continue."].exists)
         username.tap()
         username.typeText("fresh_lifter")
+        app.buttons["Done"].tap()
         app.buttons["Continue"].tap()
 
-        XCTAssertTrue(app.staticTexts["Build your lifter profile."].exists)
+        XCTAssertTrue(app.staticTexts["What are your best lifts?"].waitForExistence(timeout: 5))
+        app.buttons["Enter Lift Rivals"].tap()
+        XCTAssertTrue(app.staticTexts["Before you compete"].waitForExistence(timeout: 8))
     }
 
     func testUnauthenticatedRoutingDoesNotExposeDemoEntryInReleaseContract() {
@@ -2994,9 +3061,15 @@ final class LiftRankUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Lift Rivals"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.images["Lift Rivals logo"].exists)
         XCTAssertTrue(app.textFields["Email"].exists)
         XCTAssertTrue(app.secureTextFields["Password"].exists)
         XCTAssertTrue(app.buttons["Sign In"].exists)
+        XCTAssertTrue(app.buttons["Continue as Guest"].isHittable)
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Authentication guest entry"
+        attachment.lifetime = .keepAlways
+        add(attachment)
         let createAccount = app.segmentedControls.buttons["Create Account"]
         XCTAssertTrue(createAccount.exists)
         createAccount.tap()

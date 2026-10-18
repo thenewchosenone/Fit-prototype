@@ -92,7 +92,10 @@ enum SupabaseServiceErrorMapper {
         let message = String(describing: error).lowercased()
         if message.contains("invalid login") || message.contains("invalid credentials") { return .invalidCredentials }
         if message.contains("jwt") || (message.contains("session") && message.contains("expired")) { return .sessionExpired }
-        if message.contains("profiles_username_lower_unique") || (message.contains("username") && message.contains("duplicate")) { return .usernameUnavailable }
+        if message.contains("profiles_username_lower_unique") ||
+            (message.contains("username") && ["duplicate", "already in use", "already taken"].contains(where: message.contains)) {
+            return .usernameUnavailable
+        }
         if message.contains("three active gyms") { return .gymLimitReached }
         if message.contains("choose another primary gym") { return .primaryGymRequired }
         if message.contains("permission denied") || message.contains("42501") { return .permissionDenied }

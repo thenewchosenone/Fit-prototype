@@ -9,6 +9,7 @@ struct LiftRankApp: App {
     @UIApplicationDelegateAdaptor(LiftRankApplicationDelegate.self) private var applicationDelegate
     private let modelContainer: ModelContainer?
     private let localDataError: String?
+    @State private var onboardingInProgress = false
     @StateObject private var appState: AppState
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("liftrank.appearance") private var appearanceValue = LiftAppearance.system.rawValue
@@ -54,15 +55,25 @@ struct LiftRankApp: App {
                 AccountLoadingView()
             case .signedOut, .configurationRequired, .failure:
                 AuthenticationView()
-            case .needsOnboarding:
-                OnboardingView {}
-            case .needsLegalAcceptance:
-                LegalAcceptanceView()
-            case .authenticated, .demo:
+            case .needsOnboarding, .needsLegalAcceptance:
+                if onboardingInProgress || appState.accountStatus == .needsOnboarding {
+                    OnboardingView {}
+                        .onAppear { onboardingInProgress = true }
+                } else {
+                    LegalAcceptanceView(onBack: {
+                        Task { await appState.signOutAccount() }
+                    }, backTitle: "Back to sign in")
+                }
+            case .authenticated, .demo, .guest:
                 MainTabView(router: appState.router)
             }
         }
         .environmentObject(appState)
+        .onChange(of: appState.accountStatus) { _, status in
+            if status != .needsOnboarding && status != .needsLegalAcceptance {
+                onboardingInProgress = false
+            }
+        }
         .task { await appState.restoreAccount() }
         .onOpenURL { url in Task { await appState.handleAuthCallback(url) } }
         .sheet(isPresented: $appState.showingPasswordUpdate) {

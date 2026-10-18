@@ -28,9 +28,10 @@ final class SessionStore: ObservableObject {
     }
 
     var isDemoMode: Bool { status == .demo }
+    var isGuestMode: Bool { session?.isGuest == true }
 
     var isAuthenticated: Bool {
-        status == .authenticated || status == .needsOnboarding || status == .needsLegalAcceptance
+        status == .authenticated || status == .needsOnboarding || status == .needsLegalAcceptance || status == .guest
     }
 
     var isAuthenticationConfigured: Bool { authenticationService?.isConfigured == true }
@@ -51,6 +52,24 @@ final class SessionStore: ObservableObject {
         let restored = try await authenticationService.restoreSession()
         session = restored
         return restored
+    }
+
+    @discardableResult
+    func signInAnonymously() async throws -> AccountSession {
+        guard let authenticationService else { throw LiftRankServiceError.configurationMissing }
+        let anonymousSession = try await authenticationService.signInAnonymously()
+        session = anonymousSession
+        message = nil
+        status = .needsOnboarding
+        return anonymousSession
+    }
+
+    @discardableResult
+    func addEmailToGuestAccount(email: String, password: String) async throws -> AccountSession {
+        guard let authenticationService else { throw LiftRankServiceError.configurationMissing }
+        let upgradedSession = try await authenticationService.addEmailToGuestAccount(email: email, password: password)
+        session = upgradedSession
+        return upgradedSession
     }
 
     @discardableResult
@@ -142,7 +161,7 @@ final class SessionStore: ObservableObject {
             !acceptedKeys.contains("\($0.kind.rawValue):\($0.version)")
         }
         outstandingLegalDocuments = outstanding
-        status = outstanding.isEmpty ? .authenticated : .needsLegalAcceptance
+        status = outstanding.isEmpty ? (session?.isGuest == true ? .guest : .authenticated) : .needsLegalAcceptance
         return outstanding
     }
 

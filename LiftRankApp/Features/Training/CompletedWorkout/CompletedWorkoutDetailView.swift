@@ -37,7 +37,7 @@ struct CompletedWorkoutDetailView: View {
                         VStack(alignment: .leading, spacing: 16) {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(displayedWorkout.name)
-                                    .font(.title2.weight(.black))
+                                    .font(.title2.weight(.bold))
                                 Text(LiftTimeFormatter.shortDateTime(displayedWorkout.completedAt))
                                     .font(.subheadline)
                                     .foregroundStyle(Color.liftMuted)
@@ -68,7 +68,7 @@ struct CompletedWorkoutDetailView: View {
                                                 .accessibilityHidden(true)
                                             VStack(alignment: .leading, spacing: 3) {
                                                 Text(exercise.exerciseName)
-                                                    .font(.headline.weight(.bold))
+                                                    .font(LiftTypography.cardTitle)
                                                 Text(muscleProfile.primaryDescription)
                                                     .font(.caption)
                                                     .foregroundStyle(Color.liftMuted)
@@ -84,7 +84,7 @@ struct CompletedWorkoutDetailView: View {
                                                     .font(.subheadline.weight(.bold).monospacedDigit())
                                                 if let rpe = set.rpe {
                                                     Text("RPE \(rpe)")
-                                                        .font(.caption.weight(.bold))
+                                                        .font(LiftTypography.compactEmphasis)
                                                         .foregroundStyle(Color.liftAccentText)
                                                 }
                                             }
@@ -112,7 +112,7 @@ struct CompletedWorkoutDetailView: View {
                             if !displayedWorkout.notes.isEmpty {
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text("Notes")
-                                        .font(.headline.weight(.bold))
+                                        .font(LiftTypography.cardTitle)
                                     Text(displayedWorkout.notes)
                                         .font(.subheadline)
                                         .foregroundStyle(Color.liftMuted)
@@ -210,7 +210,7 @@ struct CompletedWorkoutDetailView: View {
                 .font(.caption2)
                 .foregroundStyle(Color.liftMuted)
             Text(value)
-                .font(.subheadline.weight(.black).monospacedDigit())
+                .font(.subheadline.weight(.bold).monospacedDigit())
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -300,7 +300,7 @@ private struct CompletedWorkoutEditView: View {
     private var detailsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Workout")
-                .font(.headline.weight(.bold))
+                .font(LiftTypography.cardTitle)
 
             DatePicker("Completed", selection: $draft.completedAt, displayedComponents: [.date, .hourAndMinute])
                 .font(.subheadline.weight(.semibold))
@@ -323,7 +323,7 @@ private struct CompletedWorkoutEditView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(exercise.exerciseName)
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                     Text(exercise.bodyPart)
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
@@ -333,7 +333,7 @@ private struct CompletedWorkoutEditView: View {
                     addSet(to: exercise)
                 } label: {
                     Label("Set", systemImage: "plus")
-                        .font(.caption.weight(.black))
+                        .font(LiftTypography.compactEmphasis)
                 }
                 .buttonStyle(.bordered)
             }
@@ -362,7 +362,7 @@ private struct CompletedWorkoutEditView: View {
         return VStack(spacing: 8) {
             HStack {
                 Toggle(set.isWarmup ? "Warm-up \(set.setNumber)" : "Set \(set.setNumber)", isOn: $draft.sets[index].isComplete)
-                    .font(.subheadline.weight(.bold))
+                    .font(LiftTypography.rowEmphasis)
                 Button(role: .destructive) {
                     deleteSet(set, from: exercise)
                 } label: {

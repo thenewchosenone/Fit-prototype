@@ -15,6 +15,7 @@ struct WorkoutSetLogRow: View {
     let log: WorkoutSetLog
     let previousLog: WorkoutSetLog?
     let trackingKind: ExerciseTrackingKind
+    let showsEffortControls: Bool
     let onDelete: (WorkoutSetLog) -> Void
     let onApplyCompletion: (WorkoutSetLog, Bool) -> Bool
     let onAttemptAutomaticCompletion: (WorkoutSetLog) -> Bool
@@ -26,6 +27,7 @@ struct WorkoutSetLogRow: View {
         log: WorkoutSetLog,
         trackingKind: ExerciseTrackingKind = .weightReps,
         previousLog: WorkoutSetLog? = nil,
+        showsEffortControls: Bool = false,
         focusedInput: FocusState<WorkoutSetInputFocus?>.Binding,
         onDelete: @escaping (WorkoutSetLog) -> Void,
         onApplyCompletion: @escaping (WorkoutSetLog, Bool) -> Bool,
@@ -42,6 +44,7 @@ struct WorkoutSetLogRow: View {
         self.log = log
         self.previousLog = previousLog
         self.trackingKind = trackingKind
+        self.showsEffortControls = showsEffortControls
         self.onDelete = onDelete
         self.onApplyCompletion = onApplyCompletion
         self.onAttemptAutomaticCompletion = onAttemptAutomaticCompletion
@@ -81,7 +84,7 @@ struct WorkoutSetLogRow: View {
                         persistDraft()
                     } label: {
                         Label(draft.isWarmup ? "Warm-up set" : "Working set", systemImage: draft.isWarmup ? "flame.fill" : "dumbbell.fill")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                             .frame(minHeight: 36)
                     }
                     .buttonStyle(.bordered)
@@ -96,12 +99,12 @@ struct WorkoutSetLogRow: View {
                         onDelete(draft)
                     } label: {
                         Label("Delete", systemImage: "trash")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                     }
                 }
             }
 
-            if showingDetails {
+            if showingDetails || (showsEffortControls && !draft.isWarmup) {
                 setOptionsControls
             } else if dynamicTypeSize.isAccessibilitySize {
                 HStack {
@@ -115,7 +118,7 @@ struct WorkoutSetLogRow: View {
                 Text("RPE \(rpe)").font(.caption).foregroundStyle(Color.liftMuted)
             }
 
-            if showingDetails && !draft.isWarmup {
+            if (showingDetails || showsEffortControls) && !draft.isWarmup {
                 Text("RPE rates set effort out of 10. A 10 means you could not complete another rep.")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
@@ -236,7 +239,7 @@ struct WorkoutSetLogRow: View {
 
     private var setNumberBadge: some View {
         Text("\(draft.setNumber)")
-            .font(.subheadline.weight(.black).monospacedDigit())
+            .font(.subheadline.weight(.bold).monospacedDigit())
             .foregroundStyle(draft.isComplete ? Color.liftOnAccent : Color.liftText)
             .frame(
                 width: dynamicTypeSize.isAccessibilitySize ? 56 : 34,
@@ -294,7 +297,7 @@ struct WorkoutSetLogRow: View {
             toggleCompletion()
         } label: {
             Image(systemName: draft.isComplete ? "checkmark" : "circle")
-                .font(.subheadline.weight(.black))
+                .font(LiftTypography.rowEmphasis)
                 .foregroundStyle(draft.isComplete ? Color.liftOnAccent : Color.liftAccentText)
                 .frame(
                     width: dynamicTypeSize.isAccessibilitySize ? 56 : LiftDesign.minimumTouchTarget,
@@ -313,8 +316,8 @@ struct WorkoutSetLogRow: View {
         if dynamicTypeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: 8) {
                 if !draft.isWarmup {
-                    Text("RPE")
-                        .font(.caption.weight(.black))
+                    Text("Effort (RPE)")
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftMuted)
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 8) {
                         rpeButtons
@@ -326,10 +329,10 @@ struct WorkoutSetLogRow: View {
         } else {
             HStack(spacing: 6) {
                 if !draft.isWarmup {
-                    Text("RPE")
-                        .font(.caption2.weight(.black))
+                    Text("Effort")
+                        .font(.caption2.weight(.bold))
                         .foregroundStyle(Color.liftMuted)
-                        .frame(width: 34, alignment: .leading)
+                        .frame(width: 40, alignment: .leading)
                     rpeButtons
                 }
                 Spacer(minLength: 0)
@@ -348,7 +351,7 @@ struct WorkoutSetLogRow: View {
                 Haptics.light()
             } label: {
                 Text("\(value)")
-                    .font(.caption.weight(.black).monospacedDigit())
+                    .font(.caption.weight(.bold).monospacedDigit())
                     .foregroundStyle(draft.rpe == value ? Color.liftOnAccent : Color.liftText)
                     .frame(
                         maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : LiftDesign.minimumTouchTarget,

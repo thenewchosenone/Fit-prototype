@@ -203,18 +203,18 @@ struct SectionHeader: View {
             VStack(alignment: .leading, spacing: 2) {
                 if let eyebrow {
                     Text(eyebrow.uppercased())
-                        .font(.system(size: 11, weight: .black, design: .rounded))
+                        .font(.caption2.weight(.bold))
                         .tracking(0.8)
                         .foregroundStyle(Color.liftAccentText)
                 }
                 Text(title)
-                    .font(.system(size: 26, weight: .heavy, design: .rounded))
+                    .font(.system(size: 30, weight: .bold))
                     .foregroundStyle(Color.liftTextPrimary)
             }
             Spacer()
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(Color.liftAccentText)
                     .padding(.horizontal, 12)
                     .frame(minHeight: LiftDesign.minimumTouchTarget)
@@ -237,18 +237,18 @@ struct CompactSectionHeader: View {
             VStack(alignment: .leading, spacing: 2) {
                 if let eyebrow {
                     Text(eyebrow.uppercased())
-                        .font(.system(size: 11, weight: .black, design: .rounded))
+                        .font(.system(size: 11, weight: .bold))
                         .tracking(0.8)
                         .foregroundStyle(Color.liftAccentText)
                 }
                 Text(title)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(LiftTypography.sectionTitle)
                     .foregroundStyle(Color.liftTextPrimary)
             }
             Spacer()
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.liftAccentText)
                     .frame(minHeight: LiftDesign.minimumTouchTarget)
             }
@@ -291,13 +291,13 @@ struct MetricCard: View {
                     Image(systemName: symbolName)
                         .foregroundStyle(tint)
                     Text(title)
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .font(.system(size: 11, weight: .bold))
                         .tracking(0.4)
                         .foregroundStyle(Color.liftTextSecondary)
                     Spacer()
                 }
                 Text(value)
-                    .font(.system(size: 56, weight: .black, design: .rounded))
+                    .font(.system(size: 56, weight: .bold))
                     .minimumScaleFactor(0.7)
                     .foregroundStyle(Color.liftTextPrimary)
                     .lineLimit(1)
@@ -325,7 +325,7 @@ struct CompactMetric: View {
                 .lineLimit(1)
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(value)
-                    .font(.subheadline.weight(.black))
+                    .font(LiftTypography.rowEmphasis)
                     .minimumScaleFactor(0.65)
                 Text(unit)
                     .font(.caption2.weight(.bold))
@@ -352,7 +352,7 @@ struct LiftEmptyState: View {
                 emptyStateIcon(size: 38, font: .subheadline.weight(.semibold))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .font(.subheadline.weight(.bold))
+                        .font(LiftTypography.rowEmphasis)
                     Text(message)
                         .font(.caption)
                         .foregroundStyle(Color.liftTextSecondary)
@@ -361,7 +361,7 @@ struct LiftEmptyState: View {
                 Spacer(minLength: 4)
                 if let actionTitle, let action {
                     Button(actionTitle, action: action)
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftAccentText)
                         .frame(minHeight: LiftDesign.minimumTouchTarget)
                 }
@@ -384,7 +384,7 @@ struct LiftEmptyState: View {
                     .multilineTextAlignment(.center)
                 if let actionTitle, let action {
                     Button(actionTitle, action: action)
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Color.liftAccentText)
                         .frame(minHeight: LiftDesign.minimumTouchTarget)
                 }
@@ -420,7 +420,7 @@ struct LiftSheetHeader: View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 34, weight: .black, design: .rounded))
+                    .font(.title2.weight(.semibold))
                     .foregroundStyle(Color.liftTextPrimary)
                 if let subtitle {
                     Text(subtitle)

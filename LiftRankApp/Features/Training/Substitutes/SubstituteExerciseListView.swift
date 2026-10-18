@@ -11,11 +11,11 @@ struct SubstituteExerciseListView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Alternatives to")
-                            .font(.caption.weight(.black))
+                            .font(LiftTypography.compactEmphasis)
                             .tracking(1)
                             .foregroundStyle(Color.liftAccentText)
                         Text(sourceExercise.name)
-                            .font(.title2.weight(.black))
+                            .font(.title2.weight(.bold))
                         Text("Choose an exercise to review its muscles, technique, history, and records.")
                             .font(.subheadline)
                             .foregroundStyle(Color.liftMuted)
@@ -30,7 +30,7 @@ struct SubstituteExerciseListView: View {
                                     if dynamicTypeSize.isAccessibilitySize {
                                         VStack(alignment: .leading, spacing: 8) {
                                             Text(recommendation.exercise.name)
-                                                .font(.subheadline.weight(.bold))
+                                                .font(LiftTypography.rowEmphasis)
                                                 .foregroundStyle(Color.liftText)
                                                 .fixedSize(horizontal: false, vertical: true)
                                             Text(recommendation.reasons.joined(separator: " • "))
@@ -42,7 +42,7 @@ struct SubstituteExerciseListView: View {
                                         HStack(spacing: 13) {
                                             VStack(alignment: .leading, spacing: 4) {
                                                 Text(recommendation.exercise.name)
-                                                    .font(.subheadline.weight(.bold))
+                                                    .font(LiftTypography.rowEmphasis)
                                                     .foregroundStyle(Color.liftText)
                                                 Text(recommendation.reasons.joined(separator: " • "))
                                                     .font(.caption)
@@ -51,7 +51,7 @@ struct SubstituteExerciseListView: View {
                                             }
                                             Spacer(minLength: 8)
                                             Image(systemName: "chevron.right")
-                                                .font(.caption.weight(.bold))
+                                                .font(LiftTypography.compactEmphasis)
                                                 .foregroundStyle(Color.liftMuted)
                                         }
                                     }

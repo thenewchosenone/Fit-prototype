@@ -31,7 +31,7 @@ struct RecentPRDetailView: View {
                         if let playbackURL {
                             VStack(alignment: .leading, spacing: 10) {
                                 Text("PR video")
-                                    .font(.headline.weight(.bold))
+                                    .font(LiftTypography.cardTitle)
                                 ManagedVideoPlayer(url: playbackURL)
                                     .frame(height: 260)
                                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -106,7 +106,7 @@ struct RecentPRDetailView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(lift.exerciseName)
-                        .font(.headline.weight(.black))
+                        .font(LiftTypography.cardTitle)
                     Text(LiftTimeFormatter.shortDateTime(lift.performedAt))
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
@@ -116,12 +116,12 @@ struct RecentPRDetailView: View {
 
             HStack(alignment: .firstTextBaseline, spacing: 5) {
                 Text(MeasurementFormatting.formatWeight(lift.weight))
-                    .font(.system(size: 36, weight: .black, design: .rounded))
+                    .font(.title2.weight(.semibold).monospacedDigit())
                 Text(lift.unit.shortLabel)
-                    .font(.headline.weight(.bold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.liftMuted)
                 Text(MeasurementFormatting.repetitionText(lift.repetitions, includeLabel: true))
-                    .font(.subheadline.weight(.bold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.liftMuted)
             }
 
@@ -136,7 +136,7 @@ struct RecentPRDetailView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("PR workout set")
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                     Text("\(context.workout.name) · \(LiftTimeFormatter.shortDateTime(context.workout.completedAt))")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
@@ -149,7 +149,7 @@ struct RecentPRDetailView: View {
 
             HStack(spacing: 12) {
                 Text(context.set.isWarmup ? "W" : "\(context.set.setNumber)")
-                    .font(.caption.weight(.black).monospacedDigit())
+                    .font(.caption.weight(.bold).monospacedDigit())
                     .foregroundStyle(Color.liftAccentText)
                     .frame(width: 34, height: 34)
                     .background(Color.liftBlue.opacity(0.12))
@@ -157,7 +157,7 @@ struct RecentPRDetailView: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(context.exercise.exerciseName)
-                        .font(.subheadline.weight(.bold))
+                        .font(LiftTypography.rowEmphasis)
                     Text("Set \(context.set.setNumber)")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
@@ -167,10 +167,10 @@ struct RecentPRDetailView: View {
 
                 VStack(alignment: .trailing, spacing: 3) {
                     Text(MeasurementFormatting.workoutSetText(set: context.set, trackingKind: trackingKind(for: context.exercise)))
-                        .font(.subheadline.weight(.black).monospacedDigit())
+                        .font(.subheadline.weight(.bold).monospacedDigit())
                     if let rpe = context.set.rpe {
                         Text("RPE \(rpe)")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                             .foregroundStyle(Color.liftAccentText)
                     }
                 }
@@ -195,7 +195,7 @@ struct RecentPRDetailView: View {
     private var attemptDetails: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Attempt details")
-                .font(.headline.weight(.bold))
+                .font(LiftTypography.cardTitle)
             detailRow("Bodyweight", MeasurementFormatting.formatBodyweight(lift.bodyweightAtLift, preferredUnit: appState.currentProfile.preferredUnit))
             detailRow("Relative strength", RankingFormatting.ratioText(lift.bodyweightMultiple))
             detailRow("Evidence", lift.resolvedEvidenceStatus.displayName)
@@ -341,7 +341,7 @@ struct HomeNotificationCenterView: View {
     private func notificationRow(_ notification: NotificationItem) -> some View {
         HStack(alignment: .top, spacing: 13) {
             Image(systemName: symbol(for: notification.kind))
-                .font(.headline.weight(.bold))
+                .font(LiftTypography.cardTitle)
                 .foregroundStyle(tint(for: notification.kind))
                 .frame(width: 44, height: 44)
                 .background(tint(for: notification.kind).opacity(0.12))
@@ -369,7 +369,7 @@ struct HomeNotificationCenterView: View {
             }
 
             Image(systemName: "chevron.right")
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .foregroundStyle(Color.liftAccentText)
                 .frame(maxHeight: .infinity)
         }
@@ -385,7 +385,7 @@ struct HomeNotificationCenterView: View {
     private var emptyState: some View {
         LiftEmptyState(
             title: "You’re all caught up",
-            message: "Ranking changes, lift reviews, and achievements will appear here.",
+            message: "Lift reviews and achievements will appear here.",
             symbolName: "bell.slash.fill"
         )
     }
@@ -401,7 +401,7 @@ struct HomeNotificationCenterView: View {
 
     private func accessibilityHint(for notification: NotificationItem) -> String {
         let kind = notification.kind.lowercased()
-        if kind.contains("ranking") { return "Opens your position on the leaderboard" }
+        if kind.contains("ranking") { return "Opens your strength progress" }
         if kind.contains("friend") { return "Opens your profile" }
         if kind.contains("gym") { return "Opens your gym details" }
         if kind.contains("lift") || kind.contains("approved") || kind.contains("rejected") || kind.contains("achievement") {
@@ -440,13 +440,13 @@ struct StreakDetailView: View {
                                 LinearGradient(colors: [Color.liftGold, Color.liftOrange, Color.liftRed], startPoint: .top, endPoint: .bottom)
                         )
                     Text("\(streakWeeks)")
-                        .font(.system(size: 36, weight: .black, design: .rounded))
+                        .font(.largeTitle.weight(.semibold))
                         .offset(y: 65)
                 }
                 .padding(.bottom, 12)
 
                 Text(streakWeeks == 1 ? "1 week streak" : "\(streakWeeks) week streak")
-                    .font(.title.weight(.black))
+                    .font(.title.weight(.bold))
                 Text("\(min(trainingDaysThisWeek, weeklyTrainingDayTarget)) of \(weeklyTrainingDayTarget) training days this week")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.liftText)
@@ -463,7 +463,7 @@ struct StreakDetailView: View {
                                 .frame(width: 30, height: 30)
                                 .overlay {
                                     Image(systemName: day <= trainingDaysThisWeek ? "checkmark" : "circle")
-                                        .font(.caption2.weight(.black))
+                                        .font(.caption2.weight(.bold))
                                         .foregroundStyle(day <= trainingDaysThisWeek ? Color.liftOnAccent : Color.liftMuted)
                                 }
                             Text("\(day)")

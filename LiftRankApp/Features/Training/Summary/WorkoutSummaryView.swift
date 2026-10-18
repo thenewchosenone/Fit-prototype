@@ -253,7 +253,7 @@ struct WorkoutSummaryView: View {
                     VStack(alignment: .leading, spacing: 18) {
                         VStack(alignment: .leading, spacing: 10) {
                             Text(summary.workoutName)
-                                .font(.title2.weight(.black))
+                                .font(.title2.weight(.bold))
                             Text((appState.activeWorkout?.startedAt ?? .now).formatted(date: .abbreviated, time: .omitted))
                                 .font(.subheadline)
                                 .foregroundStyle(Color.liftMuted)
@@ -288,7 +288,7 @@ struct WorkoutSummaryView: View {
 
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Workout effort · Optional")
-                                .font(.title3.weight(.black))
+                                .font(LiftTypography.sectionTitle)
                             effortSelector
                         }
 
@@ -366,13 +366,13 @@ struct WorkoutSummaryView: View {
             VStack(alignment: .leading, spacing: 18) {
             VStack(spacing: 10) {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 34, weight: .black))
+                    .font(.system(size: 34, weight: .bold))
                     .foregroundStyle(Color.liftOnAccent)
                     .frame(width: 72, height: 72)
                     .background(Color.liftGreen)
                     .clipShape(Circle())
                 Text("Workout saved")
-                    .font(.largeTitle.weight(.black))
+                    .font(.largeTitle.weight(.bold))
                 Text(summary.workoutName)
                     .font(.headline)
                     .foregroundStyle(Color.liftMuted)
@@ -392,7 +392,7 @@ struct WorkoutSummaryView: View {
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Workout highlights")
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                     ForEach(completionHighlights, id: \.self) { highlight in
                         Label(highlight, systemImage: "trophy.fill")
                             .font(.subheadline.weight(.semibold))
@@ -408,7 +408,7 @@ struct WorkoutSummaryView: View {
             if !savedAchievementBadges.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(savedAchievementBadges.count == 1 ? "Badge earned" : "Badges earned")
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                     ForEach(savedAchievementBadges) { achievement in
                         achievementBadgeRow(achievement, fallbackTitle: achievement.title)
                     }
@@ -433,7 +433,7 @@ struct WorkoutSummaryView: View {
                     showsAllAchievements ? "Hide achievements" : "View all achievements",
                     systemImage: showsAllAchievements ? "chevron.up" : "chevron.down"
                 )
-                .font(.subheadline.weight(.bold))
+                .font(LiftTypography.rowEmphasis)
                 .foregroundStyle(Color.liftAccentText)
                 .frame(maxWidth: .infinity, minHeight: 44)
             }
@@ -443,7 +443,7 @@ struct WorkoutSummaryView: View {
             if showsAllAchievements {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("All achievements")
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                     ForEach(appState.achievements) { achievement in
                         let isUnlocked = appState.achievementUnlocks.contains { $0.title == achievement.title }
                         Label(displayAchievementTitle(achievement.title), systemImage: isUnlocked ? achievement.symbolName : "lock.fill")
@@ -477,7 +477,7 @@ struct WorkoutSummaryView: View {
     private func achievementBadgeRow(_ achievement: Achievement?, fallbackTitle: String) -> some View {
         HStack(spacing: 10) {
             Image(systemName: achievement?.symbolName ?? "medal.fill")
-                .font(.headline.weight(.bold))
+                .font(LiftTypography.cardTitle)
                 .foregroundStyle(Color.liftGold)
                 .frame(width: 38, height: 38)
                 .background(Color.liftGold.opacity(0.14))
@@ -493,7 +493,7 @@ struct WorkoutSummaryView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Next achievement", systemImage: "sparkles")
-                .font(.headline.weight(.bold))
+                .font(LiftTypography.cardTitle)
                 .foregroundStyle(Color.liftAccentText)
             Text(progress.title)
                 .font(.subheadline.weight(.semibold))
@@ -511,7 +511,7 @@ struct WorkoutSummaryView: View {
     private var prSubmissionSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Toggle("Share these PRs publicly", isOn: $sharePRs)
-                .font(.subheadline.weight(.bold))
+                .font(LiftTypography.rowEmphasis)
                 .tint(Color.liftAccentText)
             Text(sharePRs ? "\(selectedPRSetIDs.intersection(Set(prCandidates.map(\.setID))).count) selected · Submitted when you save. An attached video does not mean the lift has been reviewed." : "No PRs will be published from this workout.")
                 .font(.caption)
@@ -522,13 +522,13 @@ struct WorkoutSummaryView: View {
                 let records = (groupedRecords[exerciseID] ?? []).sorted { $0.repetitions < $1.repetitions }
                 VStack(alignment: .leading, spacing: 10) {
                     Text(records.first?.exerciseName ?? exerciseID)
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                     ForEach(records) { candidate in
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(MeasurementFormatting.recordedLiftSetText(weight: candidate.weight, unit: candidate.unit, repetitions: candidate.repetitions))
-                                        .font(.headline.weight(.black).monospacedDigit())
+                                        .font(.headline.weight(.bold).monospacedDigit())
                                         .foregroundStyle(Color.liftGold)
                                     Text(candidate.previousBestKilograms == nil ? "First recorded \(candidate.repetitions)-rep best" : "New \(candidate.repetitions)-rep best")
                                         .font(.caption)
@@ -579,7 +579,7 @@ struct WorkoutSummaryView: View {
                                                 .foregroundStyle(Color.liftGreen)
                                         }
                                     }
-                                    .font(.subheadline.weight(.bold))
+                                    .font(LiftTypography.rowEmphasis)
                                     .foregroundStyle(Color.liftAccentText)
                                     .frame(minHeight: 44)
                                 }
@@ -650,7 +650,7 @@ struct WorkoutSummaryView: View {
                         .foregroundStyle(Color.liftMuted)
                 } else {
                     Text("Matching weighted exercises · Volume")
-                        .font(.subheadline.weight(.bold))
+                        .font(LiftTypography.rowEmphasis)
                     ForEach(matchingExercises) { exercise in
                         let currentSets = currentWorkoutWorkingSets.filter { $0.prescriptionID == exercise.id }
                         let priorIDs = Set(previous.exercises.filter { $0.exerciseID == exercise.exerciseID }.map(\.id))
@@ -716,7 +716,7 @@ struct WorkoutSummaryView: View {
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(exercise.exerciseName)
-                                .font(.subheadline.weight(.bold))
+                                .font(LiftTypography.rowEmphasis)
                             let progress = appState.activeWorkoutExerciseProgress(for: exercise)
                             Text("\(progress.completedWorkingSets)/\(progress.plannedWorkingSets) working sets")
                                 .font(.caption)
@@ -919,9 +919,9 @@ struct WorkoutSummaryView: View {
         } label: {
             VStack(spacing: 5) {
                 Text("\(value)")
-                    .font(.headline.weight(.black))
+                    .font(LiftTypography.cardTitle)
                 Text(effortLabel(value))
-                    .font(.caption.weight(.bold))
+                    .font(LiftTypography.compactEmphasis)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
@@ -938,13 +938,13 @@ struct WorkoutSummaryView: View {
     private func summaryMetric(_ title: String, _ value: String, _ symbol: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Image(systemName: symbol)
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .foregroundStyle(Color.liftAccentText)
             Text(title)
                 .font(.caption2)
                 .foregroundStyle(Color.liftMuted)
             Text(value)
-                .font(.headline.weight(.black).monospacedDigit())
+                .font(.headline.weight(.bold).monospacedDigit())
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)

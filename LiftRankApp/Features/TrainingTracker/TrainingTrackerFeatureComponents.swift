@@ -12,7 +12,7 @@ struct PlateauInsightDetailView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         VStack(alignment: .leading, spacing: 6) {
                             Label("Possible plateau", systemImage: "equal.circle.fill")
-                                .font(.title3.weight(.black))
+                                .font(LiftTypography.sectionTitle)
                                 .foregroundStyle(Color.liftGold)
                             Text(insight.exerciseName)
                                 .font(.headline)
@@ -37,7 +37,7 @@ struct PlateauInsightDetailView: View {
                                             .font(.caption2.weight(.bold))
                                             .foregroundStyle(Color.liftMuted)
                                         Text(oneRepMaxDescription(performance))
-                                            .font(.subheadline.weight(.bold))
+                                            .font(LiftTypography.rowEmphasis)
                                     }
                                 }
                                 .padding(14)

@@ -27,6 +27,18 @@ Status: `[>]` active slice, `[ ]` queued, `[x]` complete. A parent remains open 
 
 ### Phase 2 — identity and privacy
 
+- [x] **Sign-in screen layout (2026-10-18):** reduced the top spacing and kept “Continue as Guest” in a bottom safe-area inset while the sign-in form scrolls.
+- [ ] **Session-expiry regression:** the “Your session expired. Please sign in again.” prompt has returned after previous fixes. Trace why it recurs and add regression coverage so tapping “Enter Lift Rivals” with a valid/restored session does not falsely expire it again.
+- [x] **Onboarding training focus (2026-10-18):** Simplified to four primary choices: Get stronger, Build muscle, Powerlifting, and General fitness. Choose one to continue; removed the overlapping optional training-style section.
+- [x] **Onboarding profile hierarchy (2026-10-18):** username, photo, bio, training details, location, and privacy are visible without expanding a disclosure. Bodyweight and height share a row; years training follows. Only the username is required here.
+- [ ] **Simplify new-user onboarding (2026-10-17):** use the short path: choose a training focus → create a basic profile → start the first workout. User approved this direction after the onboarding source audit; layout/input work is implemented, while draft recovery and the first-workout handoff remain open.
+  - [ ] Defer ranking details until the user joins rankings; keep starting lifts, gym, and photo optional. Review backend requirements before making bodyweight or location optional.
+  - [ ] Save the onboarding draft locally per account and resume the current step after relaunch; preserve entered details and privacy choices.
+  - [x] Personal details remain unset when absent. Bodyweight uses optional decimal input instead of a zero-starting wheel (2026-10-18); clearing it retains the unset value.
+  - [ ] Explain and validate username rules before advancing; surface availability or save errors beside the username field.
+  - [x] Removed the low-value “You’re ready to track” step (2026-10-18). The optional starting-lifts step now saves directly, including its skip action; progress shows four steps.
+  - [x] City selection opens common city choices for the selected region, with search for other cities, searching/retry/empty states, and optional completion later (2026-10-18). Searching preserves the selected city until another is chosen.
+  - [ ] Verify the full new-user flow, draft recovery, validation errors, optional steps, and the handoff into the first workout on iPhone and iPad.
 - [ ] **Personal/Public Profile:** keep private training history separate from the shareable athlete card, with explicit empty/partial/populated states and source labels.
 - [ ] **Settings:** complete privacy precedence, history/source behavior, legal/support entry points, and persistence/error feedback for every user-facing control.
 

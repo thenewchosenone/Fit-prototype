@@ -156,7 +156,7 @@ struct LeaderboardMetricStrip: View {
                 .foregroundStyle(Color.liftMuted)
             Spacer(minLength: 8)
             Text(value)
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .foregroundStyle(tint)
                 .lineLimit(1)
                 .minimumScaleFactor(0.58)
@@ -169,7 +169,7 @@ struct LeaderboardMetricStrip: View {
                 .font(.caption2)
                 .foregroundStyle(Color.liftMuted)
             Text(value)
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .foregroundStyle(tint)
                 .lineLimit(1)
                 .minimumScaleFactor(0.58)
@@ -355,7 +355,7 @@ struct CompactLeaderboardRow: View {
     private func compactRow(valueText: String, movement: LeaderboardMovementPresentation) -> some View {
         HStack(spacing: 8) {
             Text("\(entry.rank)")
-                .font(.subheadline.weight(.bold))
+                .font(LiftTypography.rowEmphasis)
                 .foregroundStyle(rankColor)
                 .frame(width: 26, alignment: .leading)
             ProfileAvatar(profile: entry.profile, size: 40)
@@ -410,7 +410,7 @@ struct CompactLeaderboardRow: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 12) {
                 Text("\(entry.rank)")
-                    .font(.headline.weight(.bold))
+                    .font(LiftTypography.cardTitle)
                     .foregroundStyle(rankColor)
                     .frame(minWidth: 36, minHeight: 44, alignment: .leading)
                 ProfileAvatar(profile: entry.profile, size: 44)
@@ -462,7 +462,7 @@ struct CompactLeaderboardRow: View {
                 Text("—").foregroundStyle(Color.liftMuted)
             }
         }
-        .font(.caption.weight(.bold))
+        .font(LiftTypography.compactEmphasis)
         .labelStyle(.titleAndIcon)
     }
 
@@ -607,7 +607,7 @@ struct LeaderboardOptionSheet: View {
                                 if let sectionTitle = option.sectionTitle,
                                    index == 0 || visibleOptions[index - 1].sectionTitle != sectionTitle {
                                     Text(sectionTitle)
-                                        .font(.caption.weight(.bold))
+                                        .font(LiftTypography.compactEmphasis)
                                         .foregroundStyle(Color.liftMuted)
                                         .padding(.horizontal, 20)
                                         .padding(.top, 14)

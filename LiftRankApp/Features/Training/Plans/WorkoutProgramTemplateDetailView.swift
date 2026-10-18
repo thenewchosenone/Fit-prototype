@@ -164,7 +164,7 @@ struct WorkoutProgramTemplateDetailView: View {
     private var overview: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(template.name)
-                .font(.title2.weight(.black))
+                .font(.title2.weight(.bold))
             Text(template.summary)
                 .font(.subheadline)
                 .foregroundStyle(Color.liftMuted)
@@ -237,7 +237,7 @@ struct WorkoutProgramTemplateDetailView: View {
                 Text("Weeks advance every seven days from this date. Missed workouts stay available. Use the session queue in Plans to train in order instead.")
                     .font(.caption).foregroundStyle(Color.liftMuted)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Progression").font(.caption.weight(.bold)).foregroundStyle(Color.liftMuted)
+                    Text("Progression").font(LiftTypography.compactEmphasis).foregroundStyle(Color.liftMuted)
                     ForEach(progressionMethods) { option in
                         ProgramChoiceRow(title: option.rawValue, isSelected: method == option) { method = option }
                     }
@@ -246,7 +246,7 @@ struct WorkoutProgramTemplateDetailView: View {
                         .foregroundStyle(Color.liftMuted)
                 }
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Training days").font(.caption.weight(.bold)).foregroundStyle(Color.liftMuted)
+                    Text("Training days").font(LiftTypography.compactEmphasis).foregroundStyle(Color.liftMuted)
                     ForEach(Array(template.sessions.enumerated()), id: \.offset) { index, session in
                         Group {
                             if dynamicTypeSize.isAccessibilitySize {
@@ -291,7 +291,7 @@ struct WorkoutProgramTemplateDetailView: View {
     private var trainingMaxFields: some View {
         VStack(alignment: .leading, spacing: 9) {
             Text("Training maxes")
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .foregroundStyle(Color.liftMuted)
             Text("A training max (TM) sets your program’s weights. Suggested values use 90% of your best recorded or estimated one-rep max (1RM). Review them before starting.")
                 .font(.caption2)
@@ -334,7 +334,7 @@ struct WorkoutProgramTemplateDetailView: View {
         let allExpanded = expandedSessionIndices.count == template.sessions.count
         let previewHeading = VStack(alignment: .leading, spacing: 3) {
             Text("Week 1 preview")
-                .font(.title3.weight(.black))
+                .font(LiftTypography.sectionTitle)
             Text("Tap a training day to view its exercises")
                 .font(.caption)
                 .foregroundStyle(Color.liftMuted)
@@ -342,7 +342,7 @@ struct WorkoutProgramTemplateDetailView: View {
         let expandButton = Button(allExpanded ? "Collapse" : "Expand all") {
             toggleAllSessions(expand: !allExpanded)
         }
-        .font(.caption.weight(.bold))
+        .font(LiftTypography.compactEmphasis)
         .foregroundStyle(Color.liftAccentText)
         .frame(minHeight: 44)
         .buttonStyle(.plain)
@@ -384,10 +384,10 @@ struct WorkoutProgramTemplateDetailView: View {
     private func weeklyMetric(value: String, label: String) -> some View {
         VStack(spacing: 3) {
             Text(value)
-                .font(.headline.weight(.black).monospacedDigit())
+                .font(.headline.weight(.bold).monospacedDigit())
                 .foregroundStyle(Color.liftText)
             Text(label)
-                .font(dynamicTypeSize.isAccessibilitySize ? .caption.weight(.black) : .system(size: 9, weight: .black, design: .rounded))
+                .font(dynamicTypeSize.isAccessibilitySize ? .caption.weight(.bold) : .system(size: 9, weight: .bold))
                 .tracking(dynamicTypeSize.isAccessibilitySize ? 0 : 0.7)
                 .foregroundStyle(Color.liftMuted)
         }
@@ -414,16 +414,16 @@ struct WorkoutProgramTemplateDetailView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text(weekday)
-                                    .font(.subheadline.weight(.bold))
+                                    .font(LiftTypography.rowEmphasis)
                                     .foregroundStyle(Color.liftAccentText)
                                 Spacer()
                                 Image(systemName: "chevron.down")
-                                    .font(.caption.weight(.bold))
+                                    .font(LiftTypography.compactEmphasis)
                                     .foregroundStyle(isExpanded ? Color.liftAccentText : Color.liftMuted)
                                     .rotationEffect(.degrees(isExpanded ? 180 : 0))
                             }
                             Text(session.name)
-                                .font(.headline.weight(.bold))
+                                .font(LiftTypography.cardTitle)
                                 .foregroundStyle(Color.liftText)
                                 .fixedSize(horizontal: false, vertical: true)
                             Text("\(session.exercises.count) exercises · \(setCount) working sets")
@@ -434,7 +434,7 @@ struct WorkoutProgramTemplateDetailView: View {
                         HStack(spacing: 12) {
                             VStack(spacing: 1) {
                                 Text(String(weekday.prefix(3)).uppercased())
-                                    .font(.system(size: 9, weight: .black, design: .rounded))
+                                    .font(.system(size: 9, weight: .bold))
                                     .tracking(0.4)
                             }
                             .foregroundStyle(Color.liftAccentText)
@@ -444,7 +444,7 @@ struct WorkoutProgramTemplateDetailView: View {
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(session.name)
-                                    .font(.subheadline.weight(.bold))
+                                    .font(LiftTypography.rowEmphasis)
                                     .foregroundStyle(Color.liftText)
                                 Text("\(session.exercises.count) exercises · \(setCount) working sets")
                                     .font(.caption)
@@ -454,7 +454,7 @@ struct WorkoutProgramTemplateDetailView: View {
                             Spacer(minLength: 6)
 
                             Image(systemName: "chevron.down")
-                                .font(.caption.weight(.bold))
+                                .font(LiftTypography.compactEmphasis)
                                 .foregroundStyle(isExpanded ? Color.liftAccentText : Color.liftMuted)
                                 .rotationEffect(.degrees(isExpanded ? 180 : 0))
                         }
@@ -492,7 +492,7 @@ struct WorkoutProgramTemplateDetailView: View {
                             if dynamicTypeSize.isAccessibilitySize {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text(exercise.name)
-                                        .font(.headline.weight(.bold))
+                                        .font(LiftTypography.cardTitle)
                                         .foregroundStyle(Color.liftText)
                                         .fixedSize(horizontal: false, vertical: true)
                                     Text(exercise.resolvedMuscleProfile.primaryDescription)
@@ -518,7 +518,7 @@ struct WorkoutProgramTemplateDetailView: View {
 
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(exercise.name)
-                                            .font(.caption.weight(.bold))
+                                            .font(LiftTypography.compactEmphasis)
                                             .foregroundStyle(Color.liftText)
                                             .lineLimit(1)
                                         Text(exercise.resolvedMuscleProfile.primaryDescription)

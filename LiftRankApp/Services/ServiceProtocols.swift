@@ -5,6 +5,8 @@ protocol AuthenticationService {
     var isConfigured: Bool { get }
     var isDemoMode: Bool { get }
     func restoreSession() async throws -> AccountSession?
+    func signInAnonymously() async throws -> AccountSession
+    func addEmailToGuestAccount(email: String, password: String) async throws -> AccountSession
     func signUp(email: String, password: String) async throws -> AccountSession
     func resendConfirmation(email: String) async throws
     func signIn(email: String, password: String) async throws -> AccountSession
@@ -257,6 +259,8 @@ protocol AccountDeletionService {
 // Additive defaults keep lightweight previews and focused test doubles source
 // compatible while production implementations override every launch method.
 extension AuthenticationService {
+    func signInAnonymously() async throws -> AccountSession { throw LiftRankServiceError.configurationMissing }
+    func addEmailToGuestAccount(email: String, password: String) async throws -> AccountSession { throw LiftRankServiceError.configurationMissing }
     func resendConfirmation(email: String) async throws { throw LiftRankServiceError.configurationMissing }
     func handleAuthCallback(_ url: URL) async throws -> AccountSession { throw LiftRankServiceError.configurationMissing }
     func updatePassword(_ password: String) async throws { throw LiftRankServiceError.configurationMissing }

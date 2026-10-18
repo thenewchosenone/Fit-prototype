@@ -177,19 +177,9 @@ final class AppState: ObservableObject {
 
     func recordLaunchReadyIfNeeded() {
         guard !didRecordLaunchReady,
-              accountStatus == .authenticated || accountStatus == .demo else { return }
+              accountStatus == .authenticated || accountStatus == .demo || accountStatus == .guest else { return }
         didRecordLaunchReady = true
         os_signpost(.end, log: Self.launchLog, name: "LiftRank launch", signpostID: launchSignpostID)
-    }
-
-    private func scheduleForwardedObjectWillChange() {
-        guard forwardedObjectWillChangeTask == nil else { return }
-        forwardedObjectWillChangeTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 16_000_000)
-            guard let self, !Task.isCancelled else { return }
-            self.forwardedObjectWillChangeTask = nil
-            self.objectWillChange.send()
-        }
     }
 
     var leaderboardFocusRequestID: UUID? {
@@ -207,6 +197,16 @@ final class AppState: ObservableObject {
         set { competitionStore.verifiedOnly = newValue }
     }
 
+    private func scheduleForwardedObjectWillChange() {
+        guard forwardedObjectWillChangeTask == nil else { return }
+        forwardedObjectWillChangeTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 16_000_000)
+            guard let self, !Task.isCancelled else { return }
+            self.forwardedObjectWillChangeTask = nil
+            self.objectWillChange.send()
+        }
+    }
+
     var uploadProgress: Double {
         get { competitionStore.uploadProgress }
         set { competitionStore.uploadProgress = newValue }
@@ -222,6 +222,7 @@ final class AppState: ObservableObject {
     }
 
     var isDemoMode: Bool { sessionStore.isDemoMode }
+    var isGuestMode: Bool { sessionStore.isGuestMode }
     var isAuthenticated: Bool { sessionStore.isAuthenticated }
 
     static var allowsDemoMode: Bool {
@@ -582,11 +583,7 @@ final class AppState: ObservableObject {
 
     func enterDemoMode() async {
 #if DEBUG
-        guard Self.allowsDemoMode else {
-            accountMessage = "Demo mode is unavailable in production builds."
-            accountStatus = sessionStore.isAuthenticationConfigured ? .signedOut : .configurationRequired
-            return
-        }
+        guard Self.allowsDemoMode else { return }
         selectedWorkoutPlanID = PersonalWorkoutPlanCatalog.planID
         installServiceContainer(.demo(repository: repository))
         do {
@@ -604,10 +601,28 @@ final class AppState: ObservableObject {
             accountMessage = userMessage(error)
             accountStatus = sessionStore.isAuthenticationConfigured ? .signedOut : .configurationRequired
         }
-#else
-        accountMessage = "Demo mode is unavailable in production builds."
-        accountStatus = sessionStore.isAuthenticationConfigured ? .signedOut : .configurationRequired
 #endif
+    }
+
+    func enterGuestMode() async {
+        await performAccountOperation {
+            let session = try await self.sessionStore.signInAnonymously()
+            self.accountSession = session
+            try await self.loadAuthenticatedAccount()
+            self.selectedTab = 0
+        }
+    }
+
+    func addEmailToGuestAccount(email: String, password: String) async {
+        await performAccountOperation {
+            guard self.isGuestMode else { throw LiftRankServiceError.permissionDenied }
+            guard password.count >= 10 else {
+                throw LiftRankServiceError.invalidInput("Use at least 10 characters for your password.")
+            }
+            let session = try await self.sessionStore.addEmailToGuestAccount(email: email, password: password)
+            self.accountSession = session
+            self.accountMessage = "Check your email to finish adding it to your account."
+        }
     }
 
     func signOutAccount() async {
@@ -781,7 +796,7 @@ final class AppState: ObservableObject {
         if profile.onboardingCompleted {
             AppleIdentityStore.clearPendingFullName()
             try await refreshLegalAcceptanceStatus()
-            if accountStatus == .authenticated {
+            if accountStatus == .authenticated || accountStatus == .guest {
                 await track(.weeklyReturn)
                 await requestPushRegistrationIfNeeded()
             }
@@ -791,7 +806,7 @@ final class AppState: ObservableObject {
         }
         guard accountSession?.userID == accountUserID,
               repository.currentProfile.id == accountUserID else { throw LiftRankServiceError.sessionExpired }
-        if accountStatus == .authenticated {
+        if accountStatus == .authenticated || accountStatus == .guest {
             await synchronizeWorkoutPlans()
         }
         await cacheAuthenticatedProfilePhotoIfNeeded()
@@ -799,7 +814,7 @@ final class AppState: ObservableObject {
     }
 
     private func schedulePostAuthenticationRefresh(for userID: UUID) {
-        guard accountStatus == .authenticated else { return }
+        guard accountStatus == .authenticated || accountStatus == .guest else { return }
         postAuthenticationRefreshTask?.cancel()
         postAuthenticationRefreshTask = Task { [weak self] in
             await Task.yield()
@@ -811,12 +826,12 @@ final class AppState: ObservableObject {
     private func runPostAuthenticationRefresh(for userID: UUID) async {
         guard accountSession?.userID == userID,
               repository.currentProfile.id == userID,
-              accountStatus == .authenticated,
+              accountStatus == .authenticated || accountStatus == .guest,
               !Task.isCancelled else { return }
         await refreshProductionLaunchData()
         guard accountSession?.userID == userID,
               repository.currentProfile.id == userID,
-              accountStatus == .authenticated,
+              accountStatus == .authenticated || accountStatus == .guest,
               !Task.isCancelled else { return }
         if ProcessInfo.processInfo.arguments.contains("-uiTestingStartupWorkoutSync") {
             await synchronizeCompletedWorkoutHistory()
@@ -824,12 +839,12 @@ final class AppState: ObservableObject {
         await refreshRemoteSocialState()
         guard accountSession?.userID == userID,
               repository.currentProfile.id == userID,
-              accountStatus == .authenticated,
+              accountStatus == .authenticated || accountStatus == .guest,
               !Task.isCancelled else { return }
         await synchronizeAuthenticatedBodyweightEntries(for: userID)
         guard accountSession?.userID == userID,
               repository.currentProfile.id == userID,
-              accountStatus == .authenticated,
+              accountStatus == .authenticated || accountStatus == .guest,
               !Task.isCancelled else { return }
         await cacheAuthenticatedProfilePhotoIfNeeded()
     }
@@ -839,7 +854,7 @@ final class AppState: ObservableObject {
             let entries = try await profileStore.synchronizeBodyweightEntries(repository.bodyweightEntries)
             guard accountSession?.userID == userID,
                   repository.currentProfile.id == userID,
-                  accountStatus == .authenticated else {
+                  accountStatus == .authenticated || accountStatus == .guest else {
                 throw LiftRankServiceError.sessionExpired
             }
             if repository.bodyweightEntries != entries {
@@ -859,7 +874,7 @@ final class AppState: ObservableObject {
         } catch {
             guard accountSession?.userID == userID,
                   repository.currentProfile.id == userID,
-                  accountStatus == .authenticated else { return }
+                  accountStatus == .authenticated || accountStatus == .guest else { return }
             accountMessage = userMessage(error)
         }
     }
@@ -1181,7 +1196,7 @@ final class AppState: ObservableObject {
                let profile = profileStore.profile(id: targetID) {
                 selectedProfile = profile
             }
-            selectedTab = 3
+            selectedTab = AppTab.profile.rawValue
         case .gym(let targetID):
             if let targetID,
                let gym = gyms.first(where: { $0.id == targetID }) {

@@ -26,7 +26,7 @@ struct ExerciseCatalogIcon: View {
                     .font(.system(size: 23, weight: .semibold))
                     .frame(height: 27)
                 Text(iconGroup.rawValue)
-                    .font(.system(size: 8, weight: .bold, design: .rounded))
+                    .font(.system(size: 8, weight: .bold))
                     .tracking(0.3)
             }
             .foregroundStyle(Color.liftAccentText)

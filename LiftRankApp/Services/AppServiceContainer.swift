@@ -234,6 +234,8 @@ final class UnconfiguredAuthenticationService: AuthenticationService {
     var isDemoMode: Bool { false }
     init(repository: DemoRepository) { self.repository = repository }
     func restoreSession() async throws -> AccountSession? { nil }
+    func signInAnonymously() async throws -> AccountSession { throw LiftRankServiceError.configurationMissing }
+    func addEmailToGuestAccount(email: String, password: String) async throws -> AccountSession { throw LiftRankServiceError.configurationMissing }
     func signUp(email: String, password: String) async throws -> AccountSession { throw LiftRankServiceError.configurationMissing }
     func signIn(email: String, password: String) async throws -> AccountSession { throw LiftRankServiceError.configurationMissing }
     func requestPasswordReset(email: String) async throws { throw LiftRankServiceError.configurationMissing }

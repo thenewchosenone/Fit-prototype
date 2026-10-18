@@ -36,6 +36,8 @@ struct SettingsView: View {
     @State private var hasLoadedDraft = false
     @State private var settingsSaveError: String?
     @State private var failedSettingsUpdate: (profile: UserProfile, privacy: ProfilePrivacySettings)?
+    @State private var guestEmail = ""
+    @State private var guestPassword = ""
     @Environment(\.openURL) private var openURL
 
     init(initialSection: SettingsSection? = nil) {
@@ -61,6 +63,13 @@ struct SettingsView: View {
                                 Button("Demo") { activeSection = .developer }
                             }
                         }
+                        Section("Account") {
+                            Button("Sign Out", role: .destructive) {
+                                dismiss()
+                                Task { await appState.signOutAccount() }
+                            }
+                            .disabled(appState.accountOperationInProgress)
+                        }
                     }
                     if activeSection == nil || activeSection == .units {
                     Section("Units") {
@@ -72,11 +81,30 @@ struct SettingsView: View {
                     }
                     if activeSection == .account {
                     Section("Account") {
-                        Button("Sign Out", role: .destructive) {
-                            dismiss()
-                            Task { await appState.signOutAccount() }
+                        if appState.isGuestMode {
+                            Text("Add an email and password to sign in on another device. Your profile and progress stay with this account.")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.liftMuted)
+                            TextField("Email", text: $guestEmail)
+                                .textContentType(.emailAddress)
+                                .keyboardType(.emailAddress)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                            SecureField("Password (10+ characters)", text: $guestPassword)
+                                .textContentType(.newPassword)
+                            Button(appState.accountOperationInProgress ? "Adding email…" : "Add email") {
+                                Task {
+                                    await appState.addEmailToGuestAccount(
+                                        email: guestEmail.trimmingCharacters(in: .whitespacesAndNewlines),
+                                        password: guestPassword
+                                    )
+                                    if appState.accountMessage?.hasPrefix("Check your email") == true {
+                                        guestPassword = ""
+                                    }
+                                }
+                            }
+                            .disabled(appState.accountOperationInProgress || !guestEmail.contains("@") || guestPassword.count < 10)
                         }
-                        .disabled(appState.accountOperationInProgress)
                         if appState.isAuthenticated && !appState.isDemoMode {
                             Button("Delete Account", role: .destructive) {
                                 appState.accountMessage = nil
@@ -98,7 +126,7 @@ struct SettingsView: View {
                         audiencePicker("Friend list", selection: $privacy.friendListAudience)
                         Toggle("Show lift videos", isOn: $privacy.showLiftVideos)
                         DisclosureGroup("How visibility works") {
-                            Text("Profile visibility limits who can open your profile. Field settings apply within that audience. Achievements and unlocked badges stay private. Ratio and weight-class rankings may indirectly reveal bodyweight.")
+                            Text("Profile visibility limits who can open your profile. Field settings apply within that audience. Achievements and unlocked badges stay private. Relative-strength values may indirectly reveal bodyweight.")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
                         }
@@ -375,6 +403,8 @@ enum SettingsInfoPage: String, Identifiable {
 }
 
 struct LegalAcceptanceView: View {
+    var onBack: (() -> Void)? = nil
+    var backTitle = "Back"
     @EnvironmentObject private var appState: AppState
     @State private var acknowledged: Set<LegalDocumentKind> = []
     @State private var expanded: LegalDocumentKind?
@@ -388,7 +418,7 @@ struct LegalAcceptanceView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     Text("Before you compete")
-                        .font(.system(size: 32, weight: .black, design: .rounded))
+                        .font(.title.weight(.semibold))
                     Text("Review and accept the current policies. You can open each document below before accepting.")
                         .foregroundStyle(Color.liftMuted)
 
@@ -414,7 +444,7 @@ struct LegalAcceptanceView: View {
                                 if expanded == document.kind {
                                     ForEach(document.sections, id: \.title) { section in
                                         VStack(alignment: .leading, spacing: 4) {
-                                            Text(section.title).font(.subheadline.weight(.bold))
+                                            Text(section.title).font(LiftTypography.rowEmphasis)
                                             Text(section.body).font(.subheadline).foregroundStyle(Color.liftMuted)
                                         }
                                     }
@@ -446,6 +476,27 @@ struct LegalAcceptanceView: View {
                         .foregroundStyle(Color.liftMuted)
                 }
                 .padding(20)
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let onBack {
+                HStack {
+                    Button(action: onBack) {
+                        Image(systemName: "chevron.left")
+                            .font(LiftTypography.cardTitle)
+                            .foregroundStyle(Color.liftText)
+                            .frame(width: 42, height: 42)
+                            .background(Color.liftCard)
+                            .clipShape(Circle())
+                    }
+                    .accessibilityLabel(backTitle == "Back" ? "Previous step" : backTitle)
+                    .accessibilityIdentifier("legal.back")
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 12)
+                .background(Color.liftBackground)
             }
         }
     }

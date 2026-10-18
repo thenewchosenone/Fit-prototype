@@ -5,18 +5,18 @@ extension HomeView {
     var workoutStatus: some View {
         if let active = appState.activeWorkout {
             let workoutIcon = Image(systemName: active.pausedAt == nil ? "dumbbell.fill" : "pause.fill")
-                .font(.title3.weight(.black))
+                .font(LiftTypography.sectionTitle)
                 .foregroundStyle(Color.liftOnAccent)
                 .frame(width: 48, height: 48)
                 .background(Color.liftGold)
                 .clipShape(Circle())
             let workoutDetails = VStack(alignment: .leading, spacing: 4) {
                 Text("WORKOUT IN PROGRESS")
-                    .font(.caption2.weight(.black))
+                    .font(.caption2.weight(.bold))
                     .tracking(1.1)
                     .foregroundStyle(Color.liftGold)
                 Text(active.name)
-                    .font(.headline.weight(.black))
+                    .font(LiftTypography.cardTitle)
                     .foregroundStyle(Color.liftText)
                 Text(active.pausedAt == nil ? "Continue logging your sets" : "Paused — ready when you are")
                     .font(.caption)
@@ -24,10 +24,10 @@ extension HomeView {
             }
             let resumeAction = HStack(spacing: 8) {
                 Text("Resume")
-                    .font(.subheadline.weight(.black))
+                    .font(LiftTypography.rowEmphasis)
                     .foregroundStyle(Color.liftGold)
                 Image(systemName: "arrow.right")
-                    .font(.caption.weight(.black))
+                    .font(LiftTypography.compactEmphasis)
                     .foregroundStyle(Color.liftGold)
             }
             Button {
@@ -91,7 +91,7 @@ extension HomeView {
                         .foregroundStyle(copy.3)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(copy.0)
-                            .font(.subheadline.weight(.bold))
+                            .font(LiftTypography.rowEmphasis)
                         Text(copy.1)
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -99,7 +99,7 @@ extension HomeView {
                     Spacer(minLength: 4)
                     if canRetry {
                         Text(state == .needsAttention ? "Retry sync" : "Sync now")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                             .foregroundStyle(Color.liftAccentText)
                     }
                 }
@@ -159,14 +159,14 @@ extension HomeView {
                             Image(systemName: "equal.circle.fill")
                                 .foregroundStyle(Color.liftGold)
                             Text(signalCount == 1 ? "Training alert" : "Training alerts")
-                                .font(.subheadline.weight(.bold))
+                                .font(LiftTypography.rowEmphasis)
                             Text("\(signalCount)")
-                                .font(.caption.weight(.black))
+                                .font(LiftTypography.compactEmphasis)
                                 .foregroundStyle(Color.liftAccentText)
                         }
                         if !stalledLifts.isEmpty {
                             Text("Possible plateau")
-                                .font(.caption.weight(.bold))
+                                .font(LiftTypography.compactEmphasis)
                             Text("\(stalledLiftNames)")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
@@ -174,7 +174,7 @@ extension HomeView {
                         }
                         if !recoveringMuscles.isEmpty {
                             Text("Recently trained muscles")
-                                .font(.caption.weight(.bold))
+                                .font(LiftTypography.compactEmphasis)
                             Text("\(recoveringMuscles.map { $0.muscle.displayName }.joined(separator: ", "))")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
@@ -182,19 +182,19 @@ extension HomeView {
                         }
                         if unusualVolume {
                             Text("Unusual volume")
-                                .font(.caption.weight(.bold))
+                                .font(LiftTypography.compactEmphasis)
                             Text("Volume is \(Int(((thisWeekVolume - baselineVolume) / baselineVolume * 100).rounded()))% above your prior four-week average")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
                                 .lineLimit(2)
                         }
                         Text("Open Progress")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                             .foregroundStyle(Color.liftAccentText)
                     }
                     Spacer(minLength: 4)
                     Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftMuted)
                 }
                 .padding(12)
@@ -243,13 +243,15 @@ extension HomeView {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(greeting.uppercased())
-                    .font(.caption2.weight(.black))
+                    .font(.caption2.weight(.bold))
                     .tracking(1.2)
                     .foregroundStyle(Color.liftAccentText)
-                    .lineLimit(2)
+                    .lineLimit(1)
                 Text(appState.currentProfile.displayName)
-                    .font(.title3.weight(.black))
-                    .lineLimit(2)
+                    .font(.title3.weight(.semibold))
+                    .tracking(-0.5)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
         }
     }
@@ -285,7 +287,10 @@ extension HomeView {
             Image(systemName: symbol)
                 .foregroundStyle(tint)
             Text(value)
-                .font(.subheadline.weight(.black))
+                .font(LiftTypography.rowEmphasis)
+                .monospacedDigit()
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
         }
         .padding(.horizontal, 11)
         .frame(minWidth: 44, minHeight: 44)
@@ -317,12 +322,12 @@ extension HomeView {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("TODAY")
-                        .font(.caption2.weight(.black))
+                        .font(.caption2.weight(.bold))
                         .tracking(1)
                         .foregroundStyle(Color.liftAccentText)
                     Spacer()
                     Image(systemName: todayComplete || programComplete ? "checkmark.circle.fill" : active ? "play.fill" : today == nil ? (missed == nil ? "bed.double.fill" : "exclamationmark.circle.fill") : "play.fill")
-                        .font(.caption.weight(.black))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftOnAccent)
                         .frame(width: 36, height: 36)
                         .background(Color.liftBlue)
@@ -330,7 +335,7 @@ extension HomeView {
                 }
 
                 Text(homeTrainingTitle(today: today, missed: missed, todayComplete: todayComplete, programComplete: programComplete))
-                    .font(.subheadline.weight(.black))
+                    .font(LiftTypography.rowEmphasis)
                     .foregroundStyle(Color.liftText)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                     .multilineTextAlignment(.leading)
@@ -482,18 +487,18 @@ extension HomeView {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("AWARDS")
-                        .font(.caption2.weight(.black))
+                        .font(.caption2.weight(.bold))
                         .tracking(1)
                         .foregroundStyle(Color.liftAccentText)
                     Spacer()
                     Image(systemName: latestAward?.symbolName ?? "medal.fill")
-                        .font(.subheadline.weight(.bold))
+                        .font(LiftTypography.rowEmphasis)
                         .foregroundStyle(Color.liftGold)
                 }
 
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text("\(earnedCount) earned")
-                        .font(.title2.weight(.black))
+                        .font(.title2.weight(.bold))
                         .foregroundStyle(Color.liftText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
@@ -533,7 +538,7 @@ extension HomeView {
                         .foregroundStyle(Color.liftAccentText)
                     Spacer()
                     Image(systemName: "arrow.right")
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftAccentText)
                 }
             }
@@ -579,25 +584,25 @@ extension HomeView {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
                         Label("LAST WORKOUT", systemImage: "checkmark.circle.fill")
-                            .font(.caption.weight(.black))
+                            .font(LiftTypography.compactEmphasis)
                             .foregroundStyle(Color.liftAccentText)
                         Spacer(minLength: 8)
                         Text(workout.completedAt, format: .dateTime.month(.abbreviated).day())
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                         Image(systemName: "chevron.right")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                             .foregroundStyle(Color.liftMuted)
                     }
                     Text(workout.name)
-                        .font(.title3.weight(.black))
+                        .font(LiftTypography.sectionTitle)
                         .foregroundStyle(Color.liftText)
                     Text("\(MeasurementFormatting.shortDurationText(workout.duration)) · \(workout.completedWorkingSets.count) sets · \(trainedExercises.count) exercises")
                         .font(.subheadline)
                         .foregroundStyle(Color.liftMuted)
                     if workout.totalVolume > 0 {
                         Label("\(MeasurementFormatting.formatRecordedVolume(workout.totalVolume, recordedUnit: workout.unit, preferredUnit: appState.currentProfile.preferredUnit)) lifted", systemImage: "scalemass")
-                            .font(.subheadline.weight(.bold))
+                            .font(LiftTypography.rowEmphasis)
                             .foregroundStyle(Color.liftAccentText)
                     }
                 }
@@ -638,7 +643,7 @@ extension HomeView {
                                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Log your first PR")
-                                    .font(.subheadline.weight(.bold))
+                                    .font(LiftTypography.rowEmphasis)
                                     .foregroundStyle(Color.liftText)
                                 Text("Submit a lift to start tracking personal records.")
                                     .font(.caption)
@@ -646,7 +651,7 @@ extension HomeView {
                             }
                             Spacer(minLength: 8)
                             Image(systemName: "arrow.right")
-                                .font(.caption.weight(.bold))
+                                .font(LiftTypography.compactEmphasis)
                                 .foregroundStyle(Color.liftAccentText)
                         }
                         .padding(.vertical, 8)
@@ -662,7 +667,7 @@ extension HomeView {
                         } label: {
                             HStack(alignment: .top, spacing: 13) {
                                 Image(systemName: index == 0 ? "trophy.fill" : liftSymbol(for: lift.exerciseName))
-                                    .font(.title3.weight(.bold))
+                                    .font(LiftTypography.sectionTitle)
                                     .foregroundStyle(Color.liftGold)
                                 .frame(width: 42, height: 42)
                                 .background(Color.liftGold.opacity(0.11))
@@ -671,15 +676,15 @@ extension HomeView {
                                 VStack(alignment: .leading, spacing: 3) {
                                     if index == 0 {
                                         Text("LATEST SUBMISSION")
-                                            .font(.caption2.weight(.black))
+                                            .font(.caption2.weight(.medium))
                                             .tracking(0.8)
                                             .foregroundStyle(Color.liftGold)
                                     }
                                     Text(lift.exerciseName)
-                                        .font(.subheadline.weight(.bold))
+                                        .font(.subheadline.weight(.medium))
                                         .foregroundStyle(Color.liftText)
                                     Text(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true))
-                                        .font(.title2.weight(.black).monospacedDigit())
+                                        .font(.headline.weight(.semibold).monospacedDigit())
                                         .foregroundStyle(Color.liftAccentText)
                                     if lift.visibility == .privateLift {
                                         Label("Private PR", systemImage: "lock.fill")
@@ -693,7 +698,7 @@ extension HomeView {
                                 Spacer(minLength: 8)
 
                                 Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.bold))
+                                    .font(LiftTypography.compactEmphasis)
                                     .foregroundStyle(Color.liftMuted)
                             }
                             .padding(.vertical, 11)
@@ -784,14 +789,14 @@ struct WeeklyTrainingDayGoalCard: View {
                             .tint(Color.liftGreen)
                             .scaleEffect(1.35)
                         Text("\(min(completedDays, goal))")
-                            .font(.caption.weight(.black).monospacedDigit())
+                            .font(.caption.weight(.bold).monospacedDigit())
                     }
                     .frame(width: 36, height: 36)
                     .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Label("Training-day goal", systemImage: "target")
-                            .font(.subheadline.weight(.bold))
+                            .font(LiftTypography.rowEmphasis)
                         Text(completedDays >= goal ? "Goal reached" : "\(goal - completedDays) to go")
                             .font(.caption)
                             .foregroundStyle(completedDays >= goal ? Color.liftGreen : Color.liftMuted)
@@ -815,7 +820,7 @@ struct WeeklyTrainingDayGoalCard: View {
                             .foregroundStyle(Color.liftAccentText)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Set a weekly training goal")
-                                .font(.subheadline.weight(.bold))
+                                .font(LiftTypography.rowEmphasis)
                                 .foregroundStyle(Color.liftText)
                             Text("Each day you train counts once")
                                 .font(.caption2)
@@ -823,7 +828,7 @@ struct WeeklyTrainingDayGoalCard: View {
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                             .foregroundStyle(Color.liftMuted)
                     }
                     .padding(12)
@@ -850,7 +855,7 @@ struct WeeklyTrainingDayGoalCard: View {
             }
         } label: {
             Label("\(goal ?? 0) days", systemImage: "chevron.down")
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .foregroundStyle(Color.liftAccentText)
         }
         .accessibilityIdentifier("weeklyTrainingGoal.menu")

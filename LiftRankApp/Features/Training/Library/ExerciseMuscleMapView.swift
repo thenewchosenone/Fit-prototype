@@ -114,7 +114,7 @@ struct ExerciseMuscleMap: View {
 
     private func orientationLabel(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: displayStyle == .hero ? 10 : 9, weight: .black, design: .rounded))
+            .font(.system(size: displayStyle == .hero ? 10 : 9, weight: .bold))
             .tracking(1.2)
             .foregroundStyle(Color.liftMuted)
             .frame(maxWidth: .infinity)

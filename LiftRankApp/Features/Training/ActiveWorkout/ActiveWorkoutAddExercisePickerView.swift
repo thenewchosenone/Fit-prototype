@@ -50,7 +50,7 @@ struct ActiveWorkoutAddExercisePickerView: View {
                                 HStack(spacing: 12) {
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(exercise.name)
-                                            .font(.subheadline.weight(.bold))
+                                            .font(LiftTypography.rowEmphasis)
                                             .foregroundStyle(Color.liftText)
                                         if let reason = result.reasonLabel {
                                             Text(reason)
@@ -63,7 +63,7 @@ struct ActiveWorkoutAddExercisePickerView: View {
                                     }
                                     Spacer()
                                     Image(systemName: isExisting || isSelected ? "checkmark.circle.fill" : "circle")
-                                        .font(.title3.weight(.bold))
+                                        .font(LiftTypography.sectionTitle)
                                         .foregroundStyle(isExisting ? Color.liftGreen : isSelected ? Color.liftAccentText : Color.liftMuted)
                                 }
                                 .padding(.vertical, 10)
@@ -131,10 +131,10 @@ struct ActiveWorkoutAddExercisePickerView: View {
                 Image(systemName: "plus.circle.fill")
                     .font(.headline)
                 Text("Create custom exercise")
-                    .font(.subheadline.weight(.bold))
+                    .font(LiftTypography.rowEmphasis)
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
+                    .font(LiftTypography.compactEmphasis)
             }
             .foregroundStyle(Color.liftAccentText)
             .padding(.horizontal, 13)
@@ -194,7 +194,7 @@ struct ActiveWorkoutAddExercisePickerView: View {
                     }
                 } label: {
                     Label(selectedEquipment == "All" ? "Equipment" : selectedEquipment, systemImage: "slider.horizontal.3")
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 9)
                         .background(selectedEquipment == "All" ? Color.liftCard : Color.liftBlue.opacity(0.18))
@@ -208,7 +208,7 @@ struct ActiveWorkoutAddExercisePickerView: View {
     private func filterChip(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
                 .background(isSelected ? Color.liftBlue : Color.liftCard)

@@ -206,7 +206,7 @@ struct LeaderboardFiltersView: View {
                                                 customRepText = ""
                                             }
                                         }
-                                        .font(.caption.weight(.bold))
+                                        .font(LiftTypography.compactEmphasis)
                                         .foregroundStyle(Color.liftAccentText)
                                     }
                                     .padding(12)
@@ -662,7 +662,7 @@ struct LeaderboardFiltersView: View {
             action()
         } label: {
             Text(title)
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
                 .frame(minHeight: 44)
@@ -682,7 +682,7 @@ struct LeaderboardFiltersView: View {
             action()
         } label: {
             Label(title, systemImage: symbol)
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .fixedSize(horizontal: false, vertical: true)
                 .background(Color.liftBlue.opacity(0.14))

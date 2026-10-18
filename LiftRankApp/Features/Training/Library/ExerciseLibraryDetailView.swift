@@ -168,7 +168,7 @@ struct ExerciseLibraryDetailView: View {
                     ForEach(Array(guidance.steps.enumerated()), id: \.offset) { index, step in
                         HStack(alignment: .top, spacing: 12) {
                             Text("\(index + 1)")
-                                .font(.caption.weight(.black))
+                                .font(LiftTypography.compactEmphasis)
                                 .foregroundStyle(Color.liftOnAccent)
                                 .frame(width: 24, height: 24)
                                 .background(Color.white)
@@ -241,7 +241,7 @@ struct ExerciseLibraryDetailView: View {
                             HStack(spacing: 12) {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(entry.workout.completedAt, style: .date)
-                                        .font(.subheadline.weight(.bold))
+                                        .font(LiftTypography.rowEmphasis)
                                     Text("\(entry.sets.count) working sets • \(entry.workout.name)")
                                         .font(.caption)
                                         .foregroundStyle(Color.liftMuted)
@@ -256,7 +256,7 @@ struct ExerciseLibraryDetailView: View {
                                         .foregroundStyle(Color.liftMuted)
                                 }
                                 Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.bold))
+                                    .font(LiftTypography.compactEmphasis)
                                     .foregroundStyle(Color.liftMuted)
                             }
                             .padding(14)
@@ -408,7 +408,7 @@ struct ExerciseLibraryDetailView: View {
                     }
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftAccentText)
                 }
 
@@ -470,7 +470,7 @@ struct ExerciseLibraryDetailView: View {
                     .fill(color)
                     .frame(width: 8, height: 8)
                 Text(title)
-                    .font(.caption.weight(.black))
+                    .font(LiftTypography.compactEmphasis)
                     .textCase(.uppercase)
                     .tracking(0.8)
                     .foregroundStyle(Color.liftMuted)
@@ -478,7 +478,7 @@ struct ExerciseLibraryDetailView: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 86), spacing: 8)], alignment: .leading, spacing: 8) {
                 ForEach(regions) { region in
                     Text(region.displayName)
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .lineLimit(1)
                         .minimumScaleFactor(0.78)
                         .foregroundStyle(Color.liftText)

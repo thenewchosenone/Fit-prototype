@@ -265,7 +265,7 @@ final class ProgramStore {
         let sessions = programGraph.sessionsByWeekID[week.id] ?? []
         let presentation = ProgramWeekPresentation(
             sessions: sessions,
-            prescriptions: sessions.flatMap { programGraph.prescriptionsBySessionID[$0.id] ?? [] },
+            prescriptions: sessions.flatMap { prescriptions(session: $0) },
             workoutSetLogs: workoutSetLogs,
             completedWorkouts: completedWorkouts,
             catalog: catalog

@@ -140,6 +140,13 @@ enum LiftDesign {
     static let floatingTabBarContentClearance: CGFloat = 104
 }
 
+enum LiftTypography {
+    static let sectionTitle = Font.title3.weight(.semibold)
+    static let cardTitle = Font.headline.weight(.semibold)
+    static let rowEmphasis = Font.subheadline.weight(.semibold)
+    static let compactEmphasis = Font.caption.weight(.semibold)
+}
+
 enum LiftMotion {
     static let quick = Animation.easeOut(duration: 0.2)
     static let spring = Animation.spring(response: 0.27, dampingFraction: 0.88)

@@ -97,13 +97,15 @@ private final class FlakyWorkoutPRLiftSubmitter: WorkoutPRLiftSubmitting {
 @MainActor
 private final class StaticLeaderboardService: LeaderboardService {
     let entriesToReturn: [LeaderboardEntry]
+    private(set) var requestCount = 0
 
     init(entries: [LeaderboardEntry]) {
         entriesToReturn = entries
     }
 
     func entries(filters: LeaderboardFilters, verifiedOnly: Bool) async throws -> [LeaderboardEntry] {
-        entriesToReturn
+        requestCount += 1
+        return entriesToReturn
     }
 }
 
@@ -667,7 +669,39 @@ final class RankingCalculatorTests: XCTestCase {
 
         currentDate.addTimeInterval(31)
         await store.refreshProductionData()
+        XCTAssertEqual(service.submissionsRequestCount, 2)
+
+        currentDate.addTimeInterval(270)
+        await store.refreshProductionData()
         XCTAssertEqual(service.submissionsRequestCount, 3)
+    }
+
+    @MainActor
+    func testLeaderboardCacheRefreshesForForcedRefreshExpiryAccountAndFilterChanges() async {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let service = StaticLeaderboardService(entries: [])
+        var date = Date(timeIntervalSince1970: 1_800_000_000)
+        let store = CompetitionStore(repository: repository, liftService: ToggleLiftService(submissions: []),
+                                     leaderboardService: service, now: { date })
+        await store.refreshProductionData()
+        await store.refreshLeaderboard()
+        XCTAssertEqual(service.requestCount, 1)
+        await store.refreshProductionData(force: true)
+        XCTAssertEqual(service.requestCount, 2)
+        date.addTimeInterval(299)
+        await store.refreshLeaderboard()
+        XCTAssertEqual(service.requestCount, 2)
+        date.addTimeInterval(1)
+        await store.refreshLeaderboard()
+        XCTAssertEqual(service.requestCount, 3)
+        var profile = repository.currentProfile
+        profile.id = UUID()
+        repository.currentProfile = profile
+        await store.refreshLeaderboard()
+        XCTAssertEqual(service.requestCount, 4)
+        store.filters.exerciseID = "bench"
+        await store.refreshLeaderboard()
+        XCTAssertEqual(service.requestCount, 5)
     }
 
     @MainActor
@@ -5304,6 +5338,21 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
+    func testTrainingProgressVolumeHandlesDuplicateExerciseCatalogIDs() throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let bench = try XCTUnwrap(MockData.trainingExerciseLibrary.first { $0.id == "barbell_bench_press" })
+        repository.customTrainingExercises = [bench]
+        repository.completedWorkouts = [makeCompletedWorkout(completedAt: .now)]
+
+        let totals = TrainingProgressStore(repository: repository).volumeByBodyPart(
+            planID: UUID(),
+            preferredUnit: .pounds
+        )
+
+        XCTAssertEqual(totals["Chest"], 1_125)
+    }
+
+    @MainActor
     func testRecoverySummariesCacheAndInvalidateWithWorkoutHistory() throws {
         let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
         let referenceDate = Date(timeIntervalSince1970: 1_900_000_020)
@@ -6777,6 +6826,19 @@ final class RankingCalculatorTests: XCTestCase {
         }
         let completed = try XCTUnwrap(repository.finishActiveWorkout(effort: 3, notes: "", at: start.addingTimeInterval(3600)))
         XCTAssertEqual(repository.resolvedWorkoutPrescriptions(sessionID: nextSession.id).first?.targetLoadKilograms, 101)
+        let nextWeek = try XCTUnwrap(repository.workoutWeeks.first { $0.id == nextSession.weekID })
+        let presentation = ProgramStore(repository: repository).weekPresentation(
+            for: nextWeek,
+            workoutSetLogs: repository.workoutSetLogs,
+            workoutSetLogsRevision: repository.workoutSetLogsRevision,
+            completedWorkouts: repository.completedWorkouts,
+            completedWorkoutsRevision: repository.completedWorkoutsRevision,
+            catalog: MockData.trainingExerciseLibrary,
+            accountID: repository.currentProfile.id,
+            customTrainingExercisesRevision: 0
+        )
+        XCTAssertEqual(presentation.prescriptionsBySessionID[nextSession.id]?.first?.targetLoadKilograms, 101,
+                       "The plan summary must show the same suggested weight as the workout")
         XCTAssertEqual(repository.resolvedWorkoutPrescriptions(sessionID: try session(4).id).first?.targetLoadKilograms, 90)
         XCTAssertNil(repository.workoutPrescriptions.first { $0.sessionID == nextSession.id }?.targetLoadKilograms, "Recommendations must not overwrite saved prescriptions")
 

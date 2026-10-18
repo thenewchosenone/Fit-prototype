@@ -46,7 +46,7 @@ extension TrainingTrackerView {
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
+                    .font(LiftTypography.compactEmphasis)
                     .foregroundStyle(Color.liftMuted)
             }
             .padding(.horizontal, 12)
@@ -89,7 +89,7 @@ extension TrainingTrackerView {
                                     Text(chip.title)
                                     Image(systemName: "xmark")
                                 }
-                                .font(.caption.weight(.bold))
+                                .font(LiftTypography.compactEmphasis)
                                 .foregroundStyle(Color.liftAccentText)
                                 .padding(.horizontal, 11)
                                 .frame(minHeight: 36)
@@ -103,7 +103,7 @@ extension TrainingTrackerView {
                         Button("Clear all") {
                             libraryFilters = ExerciseLibraryFilterSelection()
                         }
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftMuted)
                         .frame(minHeight: 36)
                     }
@@ -130,7 +130,7 @@ extension TrainingTrackerView {
                     ForEach(sections) { section in
                         LazyVStack(alignment: .leading, spacing: 0) {
                             Text(section.letter)
-                                .font(.caption.weight(.black))
+                                .font(LiftTypography.compactEmphasis)
                                 .foregroundStyle(Color.liftAccentText)
                                 .padding(.horizontal, 12)
                                 .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
@@ -204,7 +204,7 @@ extension TrainingTrackerView {
                             .frame(width: 44, height: 44)
                         if libraryFilters.activeCategoryCount > 0 {
                             Text("\(libraryFilters.activeCategoryCount)")
-                                .font(.system(size: 9, weight: .black))
+                                .font(.system(size: 9, weight: .bold))
                                 .foregroundStyle(Color.liftOnAccent)
                                 .frame(minWidth: 16, minHeight: 16)
                                 .background(Color.liftBlue)

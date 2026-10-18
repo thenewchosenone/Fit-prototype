@@ -127,7 +127,7 @@ struct ExerciseLibraryFilterSheet: View {
                     .multilineTextAlignment(.center)
                 if selected { Image(systemName: "checkmark") }
             }
-            .font(.caption.weight(.bold))
+            .font(LiftTypography.compactEmphasis)
             .foregroundStyle(selected ? Color.liftOnAccent : Color.liftMuted)
             .padding(.horizontal, 11)
             .frame(maxWidth: .infinity, minHeight: 40)
@@ -455,12 +455,12 @@ struct ProgramAddExercisePickerView: View {
                         LazyVStack(alignment: .leading, spacing: 9) {
                             HStack {
                                 Text("\(filteredExercises.count) exercises")
-                                    .font(.caption.weight(.bold))
+                                    .font(LiftTypography.compactEmphasis)
                                     .foregroundStyle(Color.liftMuted)
                                 Spacer()
                                 if !selectedExerciseIDs.isEmpty {
                                     Text("\(selectedExerciseIDs.count) selected")
-                                        .font(.caption.weight(.black))
+                                        .font(LiftTypography.compactEmphasis)
                                         .foregroundStyle(Color.liftAccentText)
                                 }
                             }
@@ -555,7 +555,7 @@ struct ProgramAddExercisePickerView: View {
                     }
                 } label: {
                     Label(selectedEquipment == "All" ? "Equipment" : selectedEquipment, systemImage: "slider.horizontal.3")
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 9)
                         .background(selectedEquipment == "All" ? Color.liftCard : Color.liftBlue.opacity(0.18))
@@ -569,7 +569,7 @@ struct ProgramAddExercisePickerView: View {
     private func filterChip(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
                 .background(isSelected ? Color.liftBlue : Color.liftCard)
@@ -590,7 +590,7 @@ struct ProgramAddExercisePickerView: View {
         return HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(exercise.name)
-                    .font(.subheadline.weight(.bold))
+                    .font(LiftTypography.rowEmphasis)
                     .foregroundStyle(Color.liftText)
                 if let reason = result.reasonLabel {
                     Text(reason)
@@ -647,7 +647,7 @@ struct ProgramAddExercisePickerView: View {
             } label: {
                 HStack {
                     Text(selectedExerciseIDs.isEmpty ? "Select exercises" : "Add \(selectedExerciseIDs.count) to workout")
-                        .font(.headline.weight(.black))
+                        .font(LiftTypography.cardTitle)
                     Spacer()
                     Image(systemName: "arrow.right")
                 }

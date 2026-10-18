@@ -144,7 +144,7 @@ extension ProfileView {
                         Text(profile.displayName.isEmpty
                              ? (isCurrentUser ? "Your profile" : "Athlete profile")
                              : profile.displayName)
-                            .font(.title3.weight(.bold))
+                            .font(LiftTypography.sectionTitle)
                         if !profile.username.isEmpty || isCurrentUser {
                             Text(profile.username.isEmpty
                                  ? "Add a username"
@@ -201,7 +201,7 @@ extension ProfileView {
                     Button("Complete profile") {
                         appState.showingEditProfile = true
                     }
-                    .font(.caption.weight(.bold))
+                    .font(LiftTypography.compactEmphasis)
                     .foregroundStyle(Color.liftAccentText)
                     .frame(minHeight: LiftDesign.minimumTouchTarget, alignment: .leading)
                 }
@@ -222,10 +222,10 @@ extension ProfileView {
                 .padding(.top, 18)
             } label: {
                 VStack(alignment: .leading, spacing: 3) {
-                        Text(isCurrentUser ? "Strength, rankings & awards" : "Strength & rankings")
+                        Text(isCurrentUser ? "Strength & awards" : "Strength")
                         .font(.headline)
                         .foregroundStyle(Color.liftText)
-                        Text(isCurrentUser ? "Strength progress, rankings, and achievements" : "Strength progress and rankings")
+                        Text(isCurrentUser ? "Strength progress and achievements" : "Strength progress")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
@@ -265,10 +265,10 @@ extension ProfileView {
             CompactSectionHeader(title: "Strength")
             if totalPounds <= 0 {
                 LiftEmptyState(
-                    title: "No ranked lifts yet",
+                    title: "No submitted lifts yet",
                     message: isCurrentUser
-                        ? "Submit an eligible bench press, squat, or deadlift to build your strength total."
-                        : "This athlete has no eligible three-lift total yet.",
+                        ? "Submit a bench press, squat, or deadlift to build your strength history."
+                        : "This athlete has no submitted three-lift total yet.",
                     symbolName: "dumbbell.fill",
                     actionTitle: isCurrentUser ? "Submit lift" : nil,
                     action: isCurrentUser ? { appState.showingSubmitSheet = true } : nil,
@@ -277,27 +277,13 @@ extension ProfileView {
             } else {
                 LiftCard {
                     VStack(spacing: 12) {
-                        HStack(alignment: .firstTextBaseline) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("SUBMITTED THREE-LIFT TOTAL")
-                                    .font(.caption2.weight(.bold))
-                                    .tracking(0.8)
-                                    .foregroundStyle(Color.liftMuted)
-                                Text(profileTotalText)
-                                    .font(.title2.weight(.bold))
-                            }
-                            Spacer()
-                            VStack(alignment: .trailing, spacing: 3) {
-                                if isCurrentUser {
-                                    Text("SCORE")
-                                        .font(.caption2.weight(.bold))
-                                        .foregroundStyle(Color.liftMuted)
-                                    Text(canonicalScoreText)
-                                        .font(.headline.weight(.bold))
-                                        .foregroundStyle(Color.liftAccentText)
-                                        .accessibilityIdentifier("profile.strength.score")
-                                }
-                            }
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("SUBMITTED THREE-LIFT TOTAL")
+                                .font(.caption2.weight(.bold))
+                                .tracking(0.8)
+                                .foregroundStyle(Color.liftMuted)
+                            Text(profileTotalText)
+                                .font(.title2.weight(.bold))
                         }
                         Divider().overlay(Color.liftSeparator)
                         Text("Best submitted 1RM")
@@ -346,7 +332,7 @@ extension ProfileView {
                     }
                     Spacer(minLength: 4)
                     Button("View") { appState.selectedTab = 1 }
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftAccentText)
                 }
             }
@@ -368,7 +354,7 @@ extension ProfileView {
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         VStack(alignment: .leading, spacing: 3) {
                             Text("No lift submission history yet")
-                                .font(.subheadline.weight(.bold))
+                                .font(LiftTypography.rowEmphasis)
                             Text(isCurrentUser
                                  ? "Workout history is available below. Submit lifts to build this chart."
                                  : "No submitted lifts are available to show.")
@@ -380,7 +366,7 @@ extension ProfileView {
                             Button("Submit lift") {
                                 appState.showingSubmitSheet = true
                             }
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                             .foregroundStyle(Color.liftAccentText)
                             .frame(minHeight: LiftDesign.minimumTouchTarget)
                         }
@@ -435,7 +421,7 @@ extension ProfileView {
                     let isUnlocked = unlocked(achievement)
                     HStack(spacing: 9) {
                         Image(systemName: achievement.symbolName)
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                             .foregroundStyle(isUnlocked ? Color.liftGold : Color.liftMuted)
                             .frame(width: 28, height: 28)
                             .background(Color.liftGold.opacity(isUnlocked ? 0.14 : 0))
@@ -712,7 +698,7 @@ extension ProfileView {
                                         Spacer()
                                         if event.workout != nil {
                                             Image(systemName: "chevron.right")
-                                                .font(.caption.weight(.bold))
+                                                .font(LiftTypography.compactEmphasis)
                                                 .foregroundStyle(Color.liftMuted)
                                         }
                                     }
