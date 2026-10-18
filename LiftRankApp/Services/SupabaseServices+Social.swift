@@ -120,7 +120,7 @@ private struct ForumPostDTO: Codable {
     let isPinned: Bool
     let isLocked: Bool
     let createdAt: Date
-    let forumPostVotes: [ForumVoteDTO]
+    let forumPostVotes: [ForumVoteDTO]?
     let forumComments: [ForumAggregateCountDTO]
 
     enum CodingKeys: String, CodingKey {
@@ -137,7 +137,8 @@ private struct ForumPostDTO: Codable {
     }
 
     func model(currentUserID: UUID? = nil) -> ForumPost {
-        ForumPost(id: id, communityID: communityID, gymID: gymID, authorID: authorID, kind: kind, title: title, body: body, tag: tag, liftID: liftID, isPinned: isPinned, isLocked: isLocked, createdAt: createdAt, voteCount: forumPostVotes.reduce(0) { $0 + $1.value }, commentCount: forumComments.first?.count ?? 0, currentUserVote: forumPostVotes.first(where: { $0.userID == currentUserID })?.value)
+        let votes = forumPostVotes ?? []
+        return ForumPost(id: id, communityID: communityID, gymID: gymID, authorID: authorID, kind: kind, title: title, body: body, tag: tag, liftID: liftID, isPinned: isPinned, isLocked: isLocked, createdAt: createdAt, voteCount: votes.reduce(0) { $0 + $1.value }, commentCount: forumComments.first?.count ?? 0, currentUserVote: votes.first(where: { $0.userID == currentUserID })?.value)
     }
 }
 
@@ -162,7 +163,7 @@ private struct ForumCommentDTO: Codable {
     let parentCommentID: UUID?
     let body: String
     let createdAt: Date
-    let forumCommentVotes: [ForumVoteDTO]
+    let forumCommentVotes: [ForumVoteDTO]?
 
     enum CodingKeys: String, CodingKey {
         case id, body
@@ -181,8 +182,8 @@ private struct ForumCommentDTO: Codable {
             parentCommentID: parentCommentID,
             body: body,
             createdAt: createdAt,
-            voteCount: forumCommentVotes.reduce(0) { $0 + $1.value },
-            currentUserVote: forumCommentVotes.first(where: { $0.userID == currentUserID })?.value
+            voteCount: (forumCommentVotes ?? []).reduce(0) { $0 + $1.value },
+            currentUserVote: forumCommentVotes?.first(where: { $0.userID == currentUserID })?.value
         )
     }
 }
@@ -334,10 +335,10 @@ final class SupabaseForumService: ForumService {
 
     func joinedCommunityIDs() async throws -> [UUID] {
         do {
-            let user = try await client.auth.session.user
+            guard let userID = try? await client.auth.session.user.id else { return [] }
             let rows: [ForumMembershipDTO] = try await client.from("forum_memberships")
                 .select("community_id,status")
-                .eq("user_id", value: user.id)
+                .eq("user_id", value: userID)
                 .in("status", values: ["Joined", "Muted"])
                 .execute().value
             return rows.map(\.communityID)
@@ -346,10 +347,10 @@ final class SupabaseForumService: ForumService {
 
     func communityMembershipStatuses() async throws -> [UUID: String] {
         do {
-            let user = try await client.auth.session.user
+            guard let userID = try? await client.auth.session.user.id else { return [:] }
             let rows: [ForumMembershipDTO] = try await client.from("forum_memberships")
                 .select("community_id,status")
-                .eq("user_id", value: user.id)
+                .eq("user_id", value: userID)
                 .execute().value
             return Dictionary(uniqueKeysWithValues: rows.map { ($0.communityID, $0.status) })
         } catch { throw SupabaseServiceErrorMapper.map(error) }
@@ -357,22 +358,25 @@ final class SupabaseForumService: ForumService {
 
     func posts(communityID: UUID?, limit: Int, offset: Int) async throws -> [ForumPost] {
         do {
-            let user = try await client.auth.session.user
-            var query = client.from("forum_posts").select("id,community_id,gym_id,author_id,kind,title,body,tag,lift_id,is_pinned,is_locked,created_at,forum_post_votes(user_id,value),forum_comments(count)").is("removed_at", value: nil)
+            let userID = try? await client.auth.session.user.id
+            let voteSelection = userID == nil ? "" : ",forum_post_votes(user_id,value)"
+            var query = client.from("forum_posts").select("id,community_id,gym_id,author_id,kind,title,body,tag,lift_id,is_pinned,is_locked,created_at\(voteSelection),forum_comments(count)").is("removed_at", value: nil)
             if let communityID { query = query.eq("community_id", value: communityID) }
             let pageSize = min(max(limit, 1), 100)
             let start = max(offset, 0)
             let rows: [ForumPostDTO] = try await query.order("is_pinned", ascending: false).order("created_at", ascending: false).range(from: start, to: start + pageSize - 1).execute().value
-            return rows.map { $0.model(currentUserID: user.id) }
+            return rows.map { $0.model(currentUserID: userID) }
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
     func thread(postID: UUID) async throws -> ForumThread? {
         do {
-            let user = try await client.auth.session.user
-            let post: ForumPostDTO = try await client.from("forum_posts").select("id,community_id,gym_id,author_id,kind,title,body,tag,lift_id,is_pinned,is_locked,created_at,forum_post_votes(user_id,value),forum_comments(count)").eq("id", value: postID).is("removed_at", value: nil).single().execute().value
-            let comments: [ForumCommentDTO] = try await client.from("forum_comments").select("id,post_id,author_id,parent_comment_id,body,created_at,forum_comment_votes(user_id,value)").eq("post_id", value: postID).is("removed_at", value: nil).order("created_at").execute().value
-            return ForumThread(post: post.model(currentUserID: user.id), comments: comments.map { $0.model(currentUserID: user.id) })
+            let userID = try? await client.auth.session.user.id
+            let voteSelection = userID == nil ? "" : ",forum_post_votes(user_id,value)"
+            let commentVoteSelection = userID == nil ? "" : ",forum_comment_votes(user_id,value)"
+            let post: ForumPostDTO = try await client.from("forum_posts").select("id,community_id,gym_id,author_id,kind,title,body,tag,lift_id,is_pinned,is_locked,created_at\(voteSelection),forum_comments(count)").eq("id", value: postID).is("removed_at", value: nil).single().execute().value
+            let comments: [ForumCommentDTO] = try await client.from("forum_comments").select("id,post_id,author_id,parent_comment_id,body,created_at\(commentVoteSelection)").eq("post_id", value: postID).is("removed_at", value: nil).order("created_at").execute().value
+            return ForumThread(post: post.model(currentUserID: userID), comments: comments.map { $0.model(currentUserID: userID) })
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
