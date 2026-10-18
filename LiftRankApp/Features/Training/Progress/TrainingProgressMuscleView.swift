@@ -13,6 +13,7 @@ extension TrainingTrackerView {
         let referenceDate = selectedVolumeWeek.referenceDate
         let weeks = appState.weeklyWorkingSetsByMuscle(referenceDate: referenceDate)
         return VStack(alignment: .leading, spacing: 14) {
+            muscleFatigueMap
             if let week = weeks.last {
                 if week.hasHistory {
                     muscleWorkloadList(week: week, weeks: weeks)
@@ -21,7 +22,7 @@ extension TrainingTrackerView {
                     VStack(alignment: .leading, spacing: 10) {
                         musclePeriodHeader
                         Text("No working sets logged for this week")
-                            .font(.subheadline.weight(.bold))
+                            .font(LiftTypography.rowEmphasis)
                         Text("Muscle workload uses completed workouts. Earlier weeks stay unknown until history is available.")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -32,7 +33,7 @@ extension TrainingTrackerView {
                                 withAnimation(.snappy) { segment = .today }
                             }
                         }
-                        .font(.subheadline.weight(.bold))
+                        .font(LiftTypography.rowEmphasis)
                         .foregroundStyle(Color.liftAccentText)
                         .frame(minHeight: LiftDesign.minimumTouchTarget)
                     }
@@ -42,7 +43,7 @@ extension TrainingTrackerView {
             } else {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Muscle progress is temporarily unavailable")
-                        .font(.subheadline.weight(.bold))
+                        .font(LiftTypography.rowEmphasis)
                     Text("Check the workout history sync status above, then try this section again.")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
@@ -57,13 +58,75 @@ extension TrainingTrackerView {
         }
     }
 
+    @ViewBuilder
+    private var muscleFatigueMap: some View {
+        let scores = appState.trainingProgressStore.muscleFatigueScores()
+        if !scores.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Muscle fatigue estimate")
+                        .font(LiftTypography.cardTitle)
+                    Spacer()
+                    Text("Recent work")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color.liftMuted)
+                }
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                    ForEach(scores, id: \.muscle) { item in
+                        Button {
+                            selectedProgressMuscleDate = .now
+                            selectedProgressMuscle = item.muscle
+                        } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 4) {
+                                    Text(item.muscle.displayName)
+                                        .lineLimit(1)
+                                    Spacer(minLength: 2)
+                                    Text("\(Int(item.score.rounded()))%")
+                                        .monospacedDigit()
+                                }
+                                GeometryReader { geometry in
+                                    ZStack(alignment: .leading) {
+                                        Capsule().fill(Color.liftCardRaised)
+                                        Capsule()
+                                            .fill(item.score >= 65 ? Color.orange : Color.liftAccentText)
+                                            .frame(width: geometry.size.width * min(1, item.score / 100))
+                                    }
+                                }
+                                .frame(height: 5)
+                            }
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.liftText)
+                            .padding(9)
+                            .background(Color.liftCardRaised.opacity(0.62), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(item.muscle.displayName), estimated recent training signal \(Int(item.score.rounded())) percent")
+                        .accessibilityHint("Opens this muscle's logged workload")
+                    }
+                }
+                DisclosureGroup("How to read this estimate") {
+                    Text("This is an estimate from completed sets, effort when logged, and time since training. It is not a measurement of recovery or readiness.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                        .padding(.top, 4)
+                }
+                .font(.caption.weight(.semibold))
+                .tint(Color.liftAccentText)
+            }
+            .padding(14)
+            .liftSurface(radius: 12)
+        }
+    }
+
     private var musclePeriodHeader: some View {
         let layout = dynamicTypeSize >= .xxxLarge
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
             : AnyLayout(HStackLayout(spacing: 8))
         return layout {
             Text("Muscle workload")
-                .font(.headline.weight(.bold))
+                .font(LiftTypography.cardTitle)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Menu {
                 Picker("Muscle period", selection: $selectedVolumeWeek) {
@@ -161,7 +224,6 @@ extension TrainingTrackerView {
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
             }
-            muscleAttention(referenceDate: selectedVolumeWeek.referenceDate)
             Text("Four-week primary sets")
                 .font(.subheadline.weight(.semibold))
             Menu {
@@ -288,6 +350,7 @@ extension TrainingTrackerView {
                 .foregroundStyle(Color.liftAccentText)
                 .frame(minHeight: LiftDesign.minimumTouchTarget)
             }
+            muscleAttention(referenceDate: selectedVolumeWeek.referenceDate)
             Text("\(selectedVolumeWeek.rawValue) highlighted\(selectedVolumeWeek == .thisWeek ? " · still in progress" : ""). Days and secondary sets: selected week.")
                 .font(.caption2)
                 .foregroundStyle(Color.liftMuted)
@@ -454,7 +517,7 @@ struct MuscleTrainingDetailView: View {
                         ForEach(contributions) { contribution in
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(contribution.exercise.exerciseName)
-                                    .font(.subheadline.weight(.bold))
+                                    .font(LiftTypography.rowEmphasis)
                                 Text("\(contribution.sets.count) \(contribution.isPrimary ? "primary" : "secondary") set\(contribution.sets.count == 1 ? "" : "s") · \(contribution.workout.completedAt.formatted(.dateTime.month(.abbreviated).day().year().hour().minute()))")
                                     .font(.caption)
                                     .foregroundStyle(Color.liftMuted)

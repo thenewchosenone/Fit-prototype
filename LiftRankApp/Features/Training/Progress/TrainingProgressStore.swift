@@ -221,6 +221,8 @@ final class TrainingProgressStore {
     private var cachedRecentStrengthDate: Date?
     private var cachedRecoverySummaries: [TrainingRecoverySummary]?
     private var cachedRecoverySummariesSignature: RecoverySummariesSignature?
+    private var cachedMuscleFatigueScores: [(muscle: ExerciseMuscleRegion, score: Double)]?
+    private var cachedMuscleFatigueScoresSignature: RecoverySummariesSignature?
     private var cachedWeekCompletion: Double?
     private var cachedWeekCompletionSignature: WeekCompletionSignature?
     private var cachedWorkoutHistoryIndex: WorkoutHistoryIndex?
@@ -370,6 +372,8 @@ final class TrainingProgressStore {
         cachedPlateauInsightsSignature = nil
         cachedRecoverySummaries = nil
         cachedRecoverySummariesSignature = nil
+        cachedMuscleFatigueScores = nil
+        cachedMuscleFatigueScoresSignature = nil
         cachedWeekCompletion = nil
         cachedWeekCompletionSignature = nil
         cachedWorkoutHistoryIndex = nil
@@ -533,6 +537,72 @@ final class TrainingProgressStore {
         cachedRecoverySummaries = summaries
         cachedRecoverySummariesSignature = signature
         return summaries
+    }
+
+    func muscleFatigueScores(referenceDate: Date = .now) -> [(muscle: ExerciseMuscleRegion, score: Double)] {
+        resetAccountScopedEntriesIfNeeded()
+        let referenceMinute = calendar.dateInterval(of: .minute, for: referenceDate)?.start ?? referenceDate
+        let signature = RecoverySummariesSignature(
+            referenceMinute: referenceMinute,
+            completedWorkoutsRevision: repository.completedWorkoutsRevision
+        )
+        if let cachedMuscleFatigueScores, cachedMuscleFatigueScoresSignature == signature {
+            return cachedMuscleFatigueScores
+        }
+        var events: [ExerciseMuscleRegion: [(Date, Double)]] = [:]
+        for workout in repository.completedWorkouts where workout.completedAt <= referenceDate {
+            for exercise in workout.exercises {
+                let profile = exercise.muscleProfile ?? ExerciseMuscleProfileResolver.profile(
+                    name: exercise.exerciseName,
+                    bodyPart: exercise.bodyPart
+                )
+                let primary = Set(profile.primary.map(\.trainingSummaryRegion))
+                let secondary = Set(profile.secondary.map(\.trainingSummaryRegion)).subtracting(primary)
+                guard !primary.isEmpty || !secondary.isEmpty else { continue }
+                let sets = workout.sets.filter { $0.prescriptionID == exercise.id && $0.isComplete }
+                for set in sets {
+                    let reserve = set.rpe.map { 10 - $0 }
+                    let effort: Double
+                    if let reserve {
+                        effort = reserve <= 2 ? 1 : reserve >= 6 ? 0.3 : 1 - 0.7 * Double(reserve - 2) / 4
+                    } else {
+                        effort = set.isWarmup ? 0.3 : 1
+                    }
+                    let setWeight = set.isWarmup ? 0.3 : effort
+                    for muscle in primary { events[muscle, default: []].append((workout.completedAt, setWeight)) }
+                    for muscle in secondary { events[muscle, default: []].append((workout.completedAt, setWeight * 0.4)) }
+                }
+            }
+        }
+        let slowerRecoveringMuscles: Set<ExerciseMuscleRegion> = [.quads, .hamstrings, .glutes, .adductors, .calves, .spinalErectors]
+        let fasterRecoveringMuscles: Set<ExerciseMuscleRegion> = [.frontDelts, .sideDelts, .rearDelts, .biceps, .triceps, .forearms, .abs, .obliques, .tibialis]
+        var scores: [(muscle: ExerciseMuscleRegion, score: Double)] = []
+        for (muscle, muscleEvents) in events {
+            let halfLife: Double
+            if slowerRecoveringMuscles.contains(muscle) {
+                halfLife = 48
+            } else if fasterRecoveringMuscles.contains(muscle) {
+                halfLife = 24
+            } else {
+                halfLife = 30
+            }
+            var stimulus = 0.0
+            for event in muscleEvents {
+                let ageHours = max(0, referenceDate.timeIntervalSince(event.0) / 3_600)
+                stimulus += event.1 * pow(0.5, ageHours / halfLife)
+            }
+            let score = 100.0 * (1.0 - exp(-stimulus))
+            scores.append((muscle: muscle, score: score))
+        }
+        scores.sort { left, right in
+            if left.score == right.score {
+                return left.muscle.displayName < right.muscle.displayName
+            }
+            return left.score > right.score
+        }
+        cachedMuscleFatigueScores = scores
+        cachedMuscleFatigueScoresSignature = signature
+        return scores
     }
 
     private func trackingKind(for exerciseID: String) -> ExerciseTrackingKind {
@@ -1022,9 +1092,10 @@ final class TrainingProgressStore {
 
     private func volumeByBodyPart(workouts: [CompletedWorkout], preferredUnit: UnitSystem) -> [String: Double] {
         var totals: [String: Double] = [:]
-        let trackingKindsByExerciseID = Dictionary(uniqueKeysWithValues: repository.trainingExerciseCatalog.map {
-            ($0.id, ExerciseTrackingKind($0.trackingType))
-        })
+        let trackingKindsByExerciseID = Dictionary(
+            repository.trainingExerciseCatalog.map { ($0.id, ExerciseTrackingKind($0.trackingType)) },
+            uniquingKeysWith: { first, _ in first }
+        )
         for workout in workouts {
             let workingSetsByExercise = Dictionary(
                 grouping: workout.sets.lazy.filter { $0.isComplete && !$0.isWarmup },

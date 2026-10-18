@@ -2,9 +2,10 @@ import Charts
 import SwiftUI
 
 enum TrackerProgressCategory: String, CaseIterable, Identifiable {
+    case consistency = "Consistency"
     case strength = "Strength"
     case muscle = "Muscle"
-    case consistency = "Consistency"
+    case body = "Body"
 
     var id: String { rawValue }
 }
@@ -52,8 +53,9 @@ extension TrainingTrackerView {
                     selectedDate: selectedWorkoutHistoryDate
                 )
                 progressOverviewCard
-                WeeklyTrainingDayGoalCard(summary: appState.homeWeeklySummary())
+                activityHeatmapSection
                 programConsistencySection(weekCompletion: weekCompletion)
+                WeeklyTrainingDayGoalCard(summary: appState.homeWeeklySummary())
                 recoveryInsightSection
 
                 if !appState.strainEntries.isEmpty || !appState.injuryEntries.isEmpty {
@@ -68,6 +70,7 @@ extension TrainingTrackerView {
                     let exerciseOptions = appState.progressExerciseOptions()
                     recentStrengthProgressSection
                     strengthProgressSection
+                    structuralBalanceSection(options: exerciseOptions)
 
                     if !exerciseOptions.isEmpty {
                         exerciseProgressSection(options: exerciseOptions)
@@ -78,6 +81,10 @@ extension TrainingTrackerView {
 
             if selectedProgressCategory == .muscle {
                 muscleProgress
+            }
+
+            if selectedProgressCategory == .body {
+                bodyProgressSection
             }
         }
         .onAppear {
@@ -139,7 +146,7 @@ extension TrainingTrackerView {
                         .foregroundStyle(copy.3)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(copy.0)
-                            .font(.subheadline.weight(.bold))
+                            .font(LiftTypography.rowEmphasis)
                         Text(copy.1)
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -147,7 +154,7 @@ extension TrainingTrackerView {
                     Spacer(minLength: 4)
                     if canRetry {
                         Text("Retry")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                             .foregroundStyle(Color.liftAccentText)
                     }
                 }
@@ -187,6 +194,16 @@ extension TrainingTrackerView {
 
     private var progressOverviewCard: some View {
         let summary = appState.homeWeeklySummary()
+        let workouts = appState.completedWorkouts
+        let month = Calendar.current.dateComponents([.year, .month], from: .now)
+        let thisMonthCount = workouts.filter {
+            let components = Calendar.current.dateComponents([.year, .month], from: $0.completedAt)
+            return components.year == month.year && components.month == month.month
+        }.count
+        let weekStreak = weeklyWorkoutStreak(workouts: workouts)
+        let summaryLayout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 10))
         let priorWeeks = (1...4).map { offset in
             appState.homeWeeklySummary(
                 referenceDate: Calendar.current.date(byAdding: .day, value: -7 * offset, to: .now) ?? .now
@@ -202,7 +219,7 @@ extension TrainingTrackerView {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("THIS WEEK")
-                        .font(.caption2.weight(.black))
+                        .font(.caption2.weight(.bold))
                         .tracking(1.2)
                         .foregroundStyle(Color.liftAccentText)
                     Text(summary.completedWorkoutCount == 0
@@ -222,7 +239,7 @@ extension TrainingTrackerView {
             HStack(alignment: .bottom, spacing: 16) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("\(summary.completedWorkoutCount)")
-                        .font(.system(size: 48, weight: .black, design: .rounded).monospacedDigit())
+                        .font(.title.weight(.bold).monospacedDigit())
                         .foregroundStyle(Color.liftAccentText)
                     Text("workout\(summary.completedWorkoutCount == 1 ? "" : "s") completed")
                         .font(.caption.weight(.semibold))
@@ -239,7 +256,7 @@ extension TrainingTrackerView {
                     }
                     .frame(height: 42, alignment: .bottom)
                     Text("5-WEEK VOLUME")
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .font(.system(size: 9, weight: .bold))
                         .tracking(0.6)
                         .foregroundStyle(Color.liftMuted)
                 }
@@ -256,6 +273,11 @@ extension TrainingTrackerView {
                     symbol: "scalemass.fill"
                 )
             }
+            summaryLayout {
+                progressOverviewMetric("THIS MONTH", value: "\(thisMonthCount)", symbol: "calendar")
+                progressOverviewMetric("ALL WORKOUTS", value: "\(workouts.count)", symbol: "dumbbell.fill")
+                progressOverviewMetric("WEEK STREAK", value: "\(weekStreak)", symbol: "flame.fill")
+            }
             if summary.completedWorkoutCount > 0 || baselineVolume > 0 {
                 Text(progressBaselineText(summary: summary, baselineVolume: baselineVolume))
                     .font(.caption.weight(.semibold))
@@ -270,6 +292,87 @@ extension TrainingTrackerView {
                 .stroke(Color.liftOverlay, lineWidth: 1)
         }
         .accessibilityElement(children: .contain)
+    }
+
+    private func weeklyWorkoutStreak(workouts: [CompletedWorkout], now: Date = .now, calendar sourceCalendar: Calendar = .current) -> Int {
+        let calendar = sourceCalendar
+        let dates = Set(workouts.map { calendar.startOfDay(for: $0.completedAt) })
+        var streak = 0
+        for offset in 0..<53 {
+            guard let date = calendar.date(byAdding: .weekOfYear, value: -offset, to: now),
+                  let interval = calendar.dateInterval(of: .weekOfYear, for: date) else { break }
+            if dates.contains(where: interval.contains) {
+                streak += 1
+            } else {
+                break
+            }
+        }
+        return streak
+    }
+
+    private var activityHeatmapSection: some View {
+        WorkoutActivityHeatmap(
+            workouts: appState.completedWorkouts,
+            period: $activityHeatmapPeriod,
+            measure: $activityHeatmapMeasure,
+            unit: appState.currentProfile.preferredUnit
+        )
+    }
+
+    private var bodyProgressSection: some View {
+        let entries = appState.bodyweightEntries
+            .filter { ($0.actual ?? 0) > 0 }
+            .sorted { $0.targetDate < $1.targetDate }
+        let dayLimit = ["1M": 30, "3M": 90, "1Y": 365][selectedBodyProgressPeriod]
+        let cutoff = dayLimit.flatMap { Calendar.current.date(byAdding: .day, value: -$0, to: .now) } ?? .distantPast
+        let history = entries.filter { $0.targetDate >= cutoff }
+        let unit = appState.currentProfile.preferredUnit
+        return VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Bodyweight trend")
+                    .font(LiftTypography.cardTitle)
+                if let latest = history.last, let value = latest.actual {
+                    Text(MeasurementFormatting.formatBodyweight(value, preferredUnit: unit))
+                        .font(.title2.weight(.semibold).monospacedDigit())
+                } else {
+                    Text("Log bodyweight to start tracking your trend.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                }
+            }
+            Picker("Bodyweight period", selection: $selectedBodyProgressPeriod) {
+                Text("1M").tag("1M")
+                Text("3M").tag("3M")
+                Text("1Y").tag("1Y")
+                Text("All").tag("All")
+            }
+            .pickerStyle(.segmented)
+            if history.count > 1 {
+                Chart(history, id: \.id) { entry in
+                    if let value = entry.actual {
+                        LineMark(
+                            x: .value("Date", entry.targetDate),
+                            y: .value("Bodyweight", MeasurementFormatting.convert(value, from: .pounds, to: unit))
+                        )
+                        .foregroundStyle(Color.liftAccentText)
+                        PointMark(
+                            x: .value("Date", entry.targetDate),
+                            y: .value("Bodyweight", MeasurementFormatting.convert(value, from: .pounds, to: unit))
+                        )
+                        .foregroundStyle(Color.liftGreen)
+                    }
+                }
+                .chartYAxisLabel(unit.shortLabel, position: .trailing)
+                .chartXAxis { AxisMarks(values: .automatic(desiredCount: 4)) { _ in AxisValueLabel().foregroundStyle(Color.liftMuted) } }
+                .frame(height: 180)
+            } else {
+                Text("Add another weigh-in in this period to see a trend.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+            }
+        }
+        .padding(14)
+        .liftSurface(radius: 12)
     }
 
     private func progressBaselineText(summary: HomeWeeklySummary, baselineVolume: Double) -> String {
@@ -290,11 +393,11 @@ extension TrainingTrackerView {
     private func progressOverviewMetric(_ title: String, value: String, symbol: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Label(title, systemImage: symbol)
-                .font(.system(size: 9, weight: .black, design: .rounded))
+                .font(.system(size: 9, weight: .bold))
                 .tracking(0.5)
                 .foregroundStyle(Color.liftMuted)
             Text(value)
-                .font(.headline.weight(.black).monospacedDigit())
+                .font(.headline.weight(.bold).monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
@@ -313,13 +416,12 @@ extension TrainingTrackerView {
         let nextWorkout = appState.scheduledPlanSessions(on: .now).first
             ?? appState.nextScheduledWorkout().map { (week: $0.week, session: $0.session) }
         if !insights.isEmpty {
-            Divider()
             DisclosureGroup("Suggested next steps") {
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(insights) { insight in
                         VStack(alignment: .leading, spacing: 7) {
                             Text(insight.title)
-                                .font(.subheadline.weight(.bold))
+                                .font(LiftTypography.rowEmphasis)
                             Text(insight.evidence)
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
@@ -343,7 +445,7 @@ extension TrainingTrackerView {
                             Spacer(minLength: 8)
                             Image(systemName: "arrow.right")
                         }
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftAccentText)
                     }
                     .buttonStyle(.plain)
@@ -373,14 +475,14 @@ extension TrainingTrackerView {
                             .stroke(Color.liftGreen, style: StrokeStyle(lineWidth: 8, lineCap: .round))
                             .rotationEffect(.degrees(-90))
                         Text("\(Int(completion * 100))%")
-                            .font(.system(size: 17, weight: .black, design: .rounded))
+                            .font(.system(size: 17, weight: .bold))
                             .monospacedDigit()
                     }
                     .frame(width: 72, height: 72)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Program consistency")
-                            .font(.subheadline.weight(.bold))
+                            .font(LiftTypography.rowEmphasis)
                         Text("Week \(week.weekNumber) · \(week.title)")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -440,7 +542,7 @@ extension TrainingTrackerView {
                 }
             } else {
                 Text("Program consistency")
-                    .font(.subheadline.weight(.bold))
+                    .font(LiftTypography.rowEmphasis)
                 Text("Choose a workout program to compare planned and completed sessions.")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
@@ -448,7 +550,7 @@ extension TrainingTrackerView {
                     isProgramLibraryExpanded = true
                     withAnimation(.snappy) { segment = .plans }
                 }
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .foregroundStyle(Color.liftGreen)
             }
         }
@@ -545,14 +647,14 @@ extension TrainingTrackerView {
     private func consistencyMetric(_ title: String, value: String, symbol: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Image(systemName: symbol)
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .foregroundStyle(Color.liftAccentText)
             Text(value)
-                .font(.subheadline.weight(.black).monospacedDigit())
+                .font(.subheadline.weight(.bold).monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Text(title)
-                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(Color.liftMuted)
                 .lineLimit(1)
         }
@@ -574,7 +676,7 @@ extension TrainingTrackerView {
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Recently trained muscles")
-                    .font(.headline.weight(.bold))
+                    .font(LiftTypography.cardTitle)
                 Spacer()
                 Text("last 7 days")
                     .font(.caption2.weight(.semibold))
@@ -590,7 +692,7 @@ extension TrainingTrackerView {
                         withAnimation(.snappy) { segment = .today }
                     } label: {
                         Label("Start a workout", systemImage: "play.fill")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                             .foregroundStyle(Color.liftAccentText)
                     }
                     .buttonStyle(.plain)
@@ -607,7 +709,7 @@ extension TrainingTrackerView {
                                 .frame(width: 24)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(summary.muscle.displayName)
-                                    .font(.caption.weight(.bold))
+                                    .font(LiftTypography.compactEmphasis)
                                 Text("\(summary.setCount) working sets · \(recoveryAgeText(summary.hoursSinceTraining))")
                                     .font(.caption2)
                                     .foregroundStyle(Color.liftMuted)
@@ -659,20 +761,38 @@ extension TrainingTrackerView {
         let muscles = Set(trends.flatMap(\.primaryMuscles)).sorted { $0.displayName < $1.displayName }
         let selectableExerciseIDs = Set(appState.progressExerciseOptions().map(\.id))
         let coverage = appState.trainingProgressStore.muscleAttentionInsights(trainingFocus: appState.currentProfile.trainingFocus)
-        return VStack(alignment: .leading, spacing: 12) {
-            Text("Am I getting stronger?").font(.headline.weight(.bold))
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("Am I getting stronger?").font(LiftTypography.cardTitle)
             Text("Last 14 calendar days compared with the preceding 14")
                 .font(.caption).foregroundStyle(Color.liftMuted)
             if improving + declining + steady == 0 {
                 Text("More comparable history needed")
                     .font(.subheadline.weight(.semibold))
             } else {
-                Text("\(improving) improving · \(steady) steady · \(declining) declining")
-                    .font(.subheadline.weight(.semibold))
+                let statusLayout = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+                    : AnyLayout(HStackLayout(spacing: 12))
+                statusLayout {
+                    if improving > 0 {
+                        Label("\(improving) improving", systemImage: "arrow.up.right")
+                            .foregroundStyle(Color.liftGreen)
+                    }
+                    if steady > 0 {
+                        Label("\(steady) steady", systemImage: "minus")
+                            .foregroundStyle(Color.liftMuted)
+                    }
+                    if declining > 0 {
+                        Label("\(declining) declining", systemImage: "arrow.down.right")
+                            .foregroundStyle(Color.orange)
+                    }
+                }
+                .font(.caption.weight(.semibold))
+                .padding(.vertical, 4)
             }
             trainingAttentionSection
 
             if !trends.isEmpty {
+                Divider()
                 DisclosureGroup {
                     ForEach(muscles) { muscle in
                         let lifts = trends.filter { $0.primaryMuscles.contains(muscle) }
@@ -744,6 +864,7 @@ extension TrainingTrackerView {
                 .tint(Color.liftAccentText)
             }
 
+            Divider()
             DisclosureGroup {
                 if !coverage.isEmpty {
                     ForEach(coverage) { insight in
@@ -769,6 +890,7 @@ extension TrainingTrackerView {
             .font(.subheadline.weight(.semibold))
             .tint(Color.liftAccentText)
 
+            Divider()
             DisclosureGroup {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Each lift needs at least two logged training days in each period. Changes over 1% are marked improving or declining; smaller changes are steady.")
@@ -808,12 +930,9 @@ extension TrainingTrackerView {
         return VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Strength records · all time")
-                    .font(.headline.weight(.bold))
-                Text("Estimated one-rep max, calculated from completed working sets of up to 10 reps.")
+                    .font(LiftTypography.cardTitle)
+                Text("Estimated 1RM · bars compare each lift with your strongest")
                     .font(.caption)
-                    .foregroundStyle(Color.liftMuted)
-                Text("Bars compare your three lifts with your strongest; tiers use bodyweight-based standards.")
-                    .font(.caption2)
                     .foregroundStyle(Color.liftMuted)
             }
 
@@ -832,37 +951,25 @@ extension TrainingTrackerView {
 
                 if !supplementalLifts.isEmpty {
                     Text("Other tracked lifts · all time")
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftMuted)
                     supplementalLiftCards(Array(supplementalLifts))
                     .accessibilityElement(children: .contain)
                 }
 
-                if appState.currentProfile.primaryGymID != UUID(uuidString: "00000000-0000-0000-0000-000000000000")!,
-                   !appState.currentProfile.primaryGymName.isEmpty {
-                    let gymID = appState.currentProfile.primaryGymID
-                    Button {
-                        appState.leaderboardFilters = LeaderboardFilters(
-                            exerciseID: nil,
-                            rankingType: .total,
-                            gymID: gymID
-                        )
-                        appState.verifiedOnly = true
-                        appState.leaderboardFocusRequestID = UUID()
-                        appState.selectedTab = 1
-                    } label: {
-                        Label("Compare 3-lift total at \(appState.currentProfile.primaryGymName)", systemImage: "trophy")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(Color.liftAccentText)
-                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.75)
-                            .frame(maxWidth: .infinity, minHeight: LiftDesign.minimumTouchTarget)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("tracker.progress.compareAtGym")
-                }
             }
+
+            DisclosureGroup("How strength records are estimated") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Estimated one-rep max uses completed working sets of up to 10 reps.")
+                    Text("Bars compare your three lifts with your strongest; tiers use bodyweight-based standards.")
+                }
+                .font(.caption)
+                .foregroundStyle(Color.liftMuted)
+                .padding(.top, 4)
+            }
+            .font(.caption.weight(.semibold))
+            .tint(Color.liftAccentText)
         }
         .padding(14)
         .background(Color.liftCard)
@@ -871,6 +978,65 @@ extension TrainingTrackerView {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.liftOverlay, lineWidth: 1)
         }
+    }
+
+    private func structuralBalanceSection(options: [TrainingExerciseCatalogItem]) -> some View {
+        func bestEstimate(namedAnyOf names: [String]) -> Double? {
+            for name in names {
+                let matches = options.filter { $0.name.localizedCaseInsensitiveContains(name) }
+                if let value = matches.compactMap({ appState.exerciseRecords(for: $0.id).bestEstimatedOneRepMaxKilograms }).max() {
+                    return value
+                }
+            }
+            return nil
+        }
+
+        let squat = bestEstimate(namedAnyOf: ["barbell back squat", "high-bar squat", "back squat", "squat"])
+        let comparisons: [(String, Double?, Double)] = [
+            ("Bench press", bestEstimate(namedAnyOf: ["barbell bench press", "bench press"]), 75),
+            ("Deadlift", bestEstimate(namedAnyOf: ["conventional deadlift", "barbell deadlift", "deadlift"]), 120),
+            ("Overhead press", bestEstimate(namedAnyOf: ["standing military press", "military press", "overhead press"]), 45)
+        ]
+
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Structural balance")
+                .font(LiftTypography.cardTitle)
+            Text("Estimated lift ratios compared with a squat-based reference. This is a training comparison, not a diagnosis.")
+                .font(.caption)
+                .foregroundStyle(Color.liftMuted)
+
+            if let squat, squat > 0 {
+                ForEach(Array(comparisons.enumerated()), id: \.offset) { _, comparison in
+                    let (title, estimate, target) = comparison
+                    HStack(spacing: 8) {
+                        Text(title)
+                            .font(.subheadline)
+                            .lineLimit(1)
+                        Spacer(minLength: 4)
+                        if let estimate {
+                            let ratio = estimate / squat * 100
+                            let status = ratio >= target ? "In range" : ratio >= target - 5 ? "Near" : "Below"
+                            Text("\(Int(ratio.rounded()))% / \(Int(target))% · \(status)")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(ratio < target - 5 ? Color.orange : Color.liftMuted)
+                        } else {
+                            Text("Log this lift")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                        }
+                    }
+                }
+                Text("Reference ratios: bench 75%, deadlift 120%, overhead press 45% of squat. Estimates use completed weighted working sets of 1–10 reps.")
+                    .font(.caption2)
+                    .foregroundStyle(Color.liftMuted)
+            } else {
+                Text("Log a squat and the comparison lifts to see your ratios.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+            }
+        }
+        .padding(14)
+        .liftSurface(radius: 12)
     }
 
     @ViewBuilder
@@ -891,14 +1057,14 @@ extension TrainingTrackerView {
         let tierLabel = lift.estimatedOneRepMaxKilograms == nil ? "No data" : lift.currentTier.label
         return VStack(alignment: .leading, spacing: 8) {
             Text(lift.exerciseName.uppercased())
-                .font(.caption.weight(.black))
+                .font(LiftTypography.compactEmphasis)
                 .tracking(0.4)
                 .foregroundStyle(Color.liftMuted)
                 .lineLimit(1)
             Text(lift.estimatedOneRepMaxKilograms.map {
                 MeasurementFormatting.formatDisplayedWeight($0, unit: appState.currentProfile.preferredUnit)
             } ?? "—")
-                .font(.headline.weight(.black).monospacedDigit())
+                .font(.headline.weight(.bold).monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.75)
             GeometryReader { geometry in
@@ -964,14 +1130,14 @@ extension TrainingTrackerView {
         let record = appState.exerciseRecords(for: lift.id)
         return VStack(alignment: .leading, spacing: 4) {
             Text(lift.name)
-                .font(.caption.weight(.black))
+                .font(LiftTypography.compactEmphasis)
                 .foregroundStyle(Color.liftMuted)
                 .lineLimit(2)
                 .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? nil : 32, alignment: .topLeading)
             Text(record.bestEstimatedOneRepMaxKilograms.map {
                 MeasurementFormatting.formatDisplayedWeight($0, unit: appState.currentProfile.preferredUnit)
             } ?? "—")
-                .font(.subheadline.weight(.black).monospacedDigit())
+                .font(.subheadline.weight(.bold).monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.7)
         }
@@ -1011,9 +1177,9 @@ extension TrainingTrackerView {
                     .tracking(0.5)
                     .foregroundStyle(Color.liftMuted)
             }
-            .font(.caption2.weight(.black))
+            .font(.caption2.weight(.bold))
             Text(value)
-                .font(.headline.weight(.black).monospacedDigit())
+                .font(.headline.weight(.bold).monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.75)
             Text(detail)
@@ -1050,7 +1216,8 @@ extension TrainingTrackerView {
         let exerciseID = selectedProgressExerciseID ?? options.first?.id
         let exercise = options.first { $0.id == exerciseID }
         let now = Date.now
-        let start = Calendar.current.date(byAdding: .day, value: -27, to: Calendar.current.startOfDay(for: now))!
+        let periodDays = ["1M": 30, "3M": 90, "1Y": 365][selectedStrengthTrendPeriod]
+        let start = periodDays.flatMap { Calendar.current.date(byAdding: .day, value: -$0 + 1, to: Calendar.current.startOfDay(for: now)) } ?? .distantPast
         let recoveryIDs = Set(appState.trainingProgressStore.completedWorkouts
             .filter { $0.completedAt >= start && $0.completedAt <= now && appState.trainingProgressStore.isRecoveryWorkout($0) }
             .map(\.id))
@@ -1061,14 +1228,14 @@ extension TrainingTrackerView {
 
         return VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Exercise progress · last 28 days")
+                Text("Exercise progress · \(selectedStrengthTrendPeriod == "All" ? "all time" : "last \(selectedStrengthTrendPeriod)")")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.liftMuted)
                 Button {
                     showingProgressExercisePicker = true
                 } label: {
                     Label(exercise?.name ?? "Exercise", systemImage: "chevron.down")
-                        .font(.title3.weight(.bold))
+                        .font(LiftTypography.sectionTitle)
                         .foregroundStyle(Color.liftAccentText)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(minHeight: LiftDesign.minimumTouchTarget, alignment: .leading)
@@ -1083,6 +1250,13 @@ extension TrainingTrackerView {
                     }
                 }
             }
+            Picker("Exercise progress period", selection: $selectedStrengthTrendPeriod) {
+                Text("1M").tag("1M")
+                Text("3M").tag("3M")
+                Text("1Y").tag("1Y")
+                Text("All").tag("All")
+            }
+            .pickerStyle(.segmented)
 
             if chartPoints.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
@@ -1093,7 +1267,7 @@ extension TrainingTrackerView {
                         withAnimation(.snappy) { segment = .today }
                     } label: {
                         Label("Log this exercise", systemImage: "play.fill")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                             .foregroundStyle(Color.liftAccentText)
                     }
                     .buttonStyle(.plain)
@@ -1141,19 +1315,19 @@ extension TrainingTrackerView {
     private var strainAndInjurySection: some View {
         VStack(alignment: .leading, spacing: 11) {
             Text("Strain & injuries")
-                .font(.headline.weight(.bold))
+                .font(LiftTypography.cardTitle)
 
             if let latestStrain = appState.latestStrainEntry {
                 HStack(spacing: 10) {
                     Image(systemName: "heart.text.square.fill")
-                        .font(.caption.weight(.black))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftAccentText)
                         .frame(width: 30, height: 30)
                         .background(Color.liftBlue.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Latest strain: \(latestStrain.strain)/10")
-                            .font(.subheadline.weight(.bold))
+                            .font(LiftTypography.rowEmphasis)
                             .foregroundStyle(Color.liftText)
                         if !latestStrain.notes.isEmpty {
                             Text(latestStrain.notes)
@@ -1185,7 +1359,7 @@ extension TrainingTrackerView {
                                 .foregroundStyle(Color.liftText)
                             Spacer()
                             Text("\(entry.strain)/10")
-                                .font(.caption.weight(.black).monospacedDigit())
+                                .font(.caption.weight(.bold).monospacedDigit())
                                 .foregroundStyle(Color.liftAccentText)
                         }
                         .padding(.horizontal, 10)
@@ -1223,7 +1397,7 @@ extension TrainingTrackerView {
                             }
                             Spacer()
                             Text(injury.status == .resolved ? "Resolved" : "Active")
-                                .font(.caption.weight(.bold))
+                                .font(LiftTypography.compactEmphasis)
                                 .foregroundStyle(injury.status == .resolved ? Color.liftGreen : Color.liftGold)
                         }
                     }
@@ -1326,7 +1500,7 @@ private struct StrengthExerciseCharts: View {
                         .foregroundStyle(Color.liftMuted)
                 }
                 Text("Estimated 1RM trend")
-                    .font(.caption.weight(.bold))
+                    .font(LiftTypography.compactEmphasis)
                     .foregroundStyle(Color.liftMuted)
                     .padding(.top, 2)
 
@@ -1361,7 +1535,7 @@ private struct StrengthExerciseCharts: View {
             }
 
             Text("Weight trend")
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .foregroundStyle(Color.liftMuted)
                 .padding(.top, 2)
             Text(chartPoints.count == 1
@@ -1442,7 +1616,7 @@ private struct StrengthSelectedPerformance: View {
                 if let set = workout.sets.first(where: { $0.id == selectedPoint.id }) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Selected performance")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                         Text(LiftTimeFormatter.shortDateNoTime(workout.completedAt))
                             .font(.caption2)
                             .foregroundStyle(Color.liftMuted)
@@ -1454,7 +1628,7 @@ private struct StrengthSelectedPerformance: View {
                                     MeasurementFormatting.normalizeToKilograms(weight, unit: set.recordedUnit),
                                     unit: appState.currentProfile.preferredUnit
                                 ))
-                                    .font(.caption.weight(.black).monospacedDigit())
+                                    .font(.caption.weight(.bold).monospacedDigit())
                             }
                             if let reps = set.reps {
                                 Text("× \(reps) reps")
@@ -1482,7 +1656,7 @@ private struct StrengthSelectedPerformance: View {
                         "View workout · \(LiftTimeFormatter.shortDateNoTime(workout.completedAt))",
                         systemImage: "arrow.up.right.square"
                     )
-                    .font(.caption.weight(.bold))
+                    .font(LiftTypography.compactEmphasis)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(Color.liftAccentText)
@@ -1508,7 +1682,7 @@ private struct StrengthExerciseRecords: View {
         Group {
             if !prs.isEmpty {
                 Text("Best sets by rep range · last 28 days")
-                    .font(.caption.weight(.bold))
+                    .font(LiftTypography.compactEmphasis)
                     .foregroundStyle(Color.liftMuted)
                     .padding(.top, 2)
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 8) {
@@ -1518,7 +1692,7 @@ private struct StrengthExerciseRecords: View {
                                 .font(.caption2)
                                 .foregroundStyle(Color.liftMuted)
                             Text("\(RankingCalculator.format(pr.weight)) \(pr.unit.shortLabel)")
-                                .font(.caption.weight(.black).monospacedDigit())
+                                .font(.caption.weight(.bold).monospacedDigit())
                                 .foregroundStyle(Color.liftText)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1551,7 +1725,7 @@ private struct StrengthExerciseRecords: View {
 
             if !repRangeProgressions.isEmpty {
                 Text("Rep-range progression")
-                    .font(.caption.weight(.bold))
+                    .font(LiftTypography.compactEmphasis)
                     .foregroundStyle(Color.liftMuted)
                     .padding(.top, 2)
                 ForEach(repRangeProgressions.suffix(4).reversed()) { progression in
@@ -1567,7 +1741,7 @@ private struct StrengthExerciseRecords: View {
                          : AnyLayout(HStackLayout(alignment: .center, spacing: 12))) {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(LiftTimeFormatter.shortDateNoTime(progression.date))
-                                    .font(.caption.weight(.bold))
+                                    .font(LiftTypography.compactEmphasis)
                                     .foregroundStyle(Color.liftText)
                                 Text("Target \(progression.targetReps) reps")
                                     .font(.caption2)
@@ -1580,7 +1754,7 @@ private struct StrengthExerciseRecords: View {
                                     .foregroundStyle(Color.liftMuted)
                                 if let bestWeight = progression.bestInRangeWeight {
                                     Text("Best \(RankingCalculator.format(bestWeight)) \(appState.currentProfile.preferredUnit.shortLabel)")
-                                        .font(.caption.weight(.black).monospacedDigit())
+                                        .font(.caption.weight(.bold).monospacedDigit())
                                         .foregroundStyle(Color.liftText)
                                 }
                             }
@@ -1614,14 +1788,14 @@ private struct ExerciseProgressMetric: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Image(systemName: symbol)
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .foregroundStyle(Color.liftAccentText)
             Text(title)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(Color.liftMuted)
                 .fixedSize(horizontal: false, vertical: true)
             Text(value)
-                .font(.caption.weight(.black).monospacedDigit())
+                .font(.caption.weight(.bold).monospacedDigit())
                 .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.85)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
         }
