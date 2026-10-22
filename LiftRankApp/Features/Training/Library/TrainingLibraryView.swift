@@ -47,7 +47,7 @@ extension TrainingTrackerView {
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(LiftTypography.compactEmphasis)
-                    .foregroundStyle(Color.liftMuted)
+                    .foregroundStyle(Color.liftAccentText)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
@@ -163,7 +163,7 @@ extension TrainingTrackerView {
     private var librarySearchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(Color.liftMuted)
+                .foregroundStyle(Color.liftAccentText)
             TextField("Search exercises", text: $librarySearch)
                 .textFieldStyle(.plain)
                 .focused($isLibrarySearchFocused)
@@ -172,7 +172,7 @@ extension TrainingTrackerView {
                     librarySearch = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(Color.liftMuted)
+                        .foregroundStyle(Color.liftAccentText)
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)

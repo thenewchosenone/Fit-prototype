@@ -33,6 +33,7 @@ struct TrainingTrackerView: View {
     @State var selectedProgramTemplate: WorkoutProgramTemplate?
     @State var isProgramLibraryExpanded = false
     @State var showingProgressionEditor = false
+    @State var showingScheduleEditor = false
     @State var selectedCompletedWorkout: CompletedWorkout?
     @State var focusedWorkoutSetID: UUID?
     @State var didOpenUITestFocusedWorkoutSet = false

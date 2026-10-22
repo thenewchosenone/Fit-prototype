@@ -98,11 +98,6 @@ struct OnboardingView: View {
             profile = appState.currentProfile
             profile.username = AppleIdentityStore.usernameSuggestion(from: appState.pendingAppleFullName) ?? ""
             profile.displayName = ""
-            profile.hideExactAge = false
-            profile.hideBodyweight = false
-            profile.hideCity = false
-            profile.hideGym = false
-            profile.hideLiftVideos = false
             bio = profile.bio ?? ""
             yearsTraining = max(0, profile.yearsExperience)
             selectedCountryCode = ""
@@ -182,7 +177,7 @@ struct OnboardingView: View {
                     } label: {
                         Image(systemName: "rectangle.portrait.and.arrow.right")
                             .font(.headline.weight(.semibold))
-                            .foregroundStyle(Color.liftMuted)
+                            .foregroundStyle(Color.liftAccentText)
                             .frame(width: 42, height: 42)
                     }
                     .accessibilityLabel("Sign out")
@@ -211,7 +206,7 @@ struct OnboardingView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 150, height: 150)
-                    .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                    .clipShape(Circle())
                     .accessibilityLabel("Lift Rivals logo")
                 .frame(maxWidth: .infinity)
 
@@ -313,7 +308,7 @@ struct OnboardingView: View {
                     Spacer()
                     Image(systemName: "chevron.up.chevron.down")
                         .font(LiftTypography.compactEmphasis)
-                        .foregroundStyle(Color.liftMuted)
+                        .foregroundStyle(Color.liftAccentText)
                 }
             }
             .padding(15)
@@ -460,7 +455,7 @@ struct OnboardingView: View {
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .foregroundStyle(Color.liftMuted)
+                            .foregroundStyle(Color.liftAccentText)
                     }
                     .padding(16)
                     .background(Color.liftCard)
@@ -577,7 +572,7 @@ struct OnboardingView: View {
                     .multilineTextAlignment(.trailing)
                 Image(systemName: "chevron.up.chevron.down")
                     .font(LiftTypography.compactEmphasis)
-                    .foregroundStyle(Color.liftMuted)
+                    .foregroundStyle(Color.liftAccentText)
             }
             .padding(15)
             .background(Color.liftCard)

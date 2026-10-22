@@ -252,8 +252,8 @@ enum MockData {
         experienceLevel: .beginner,
         profileImageName: "person.crop.circle.fill",
         hideExactAge: false,
-        hideBodyweight: false,
-        hideCity: false,
+        hideBodyweight: true,
+        hideCity: true,
         hideGym: false,
         hideLiftVideos: false
     )

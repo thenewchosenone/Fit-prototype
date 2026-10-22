@@ -282,7 +282,7 @@ struct MetricCard: View {
     let value: String
     let subtitle: String
     var symbolName = "chart.bar.fill"
-    var tint = Color.liftLime
+    var tint = Color.liftAccentText
 
     var body: some View {
         DashboardCard {
@@ -315,7 +315,7 @@ struct CompactMetric: View {
     let value: String
     let unit: String
     let symbolName: String
-    var tint = Color.liftLime
+    var tint = Color.liftAccentText
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -433,7 +433,7 @@ struct LiftSheetHeader: View {
                 Button(action: close) {
                     Image(systemName: "xmark")
                         .font(.title3)
-                        .foregroundStyle(Color.liftTextSecondary)
+                        .foregroundStyle(Color.liftAccentText)
                         .frame(width: 44, height: 44)
                         .background(Color.liftCard)
                         .clipShape(Circle())

@@ -342,7 +342,7 @@ struct HomeNotificationCenterView: View {
         HStack(alignment: .top, spacing: 13) {
             Image(systemName: symbol(for: notification.kind))
                 .font(LiftTypography.cardTitle)
-                .foregroundStyle(tint(for: notification.kind))
+                .foregroundStyle(Color.liftAccentText)
                 .frame(width: 44, height: 44)
                 .background(tint(for: notification.kind).opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
@@ -413,7 +413,7 @@ struct HomeNotificationCenterView: View {
     private func tint(for kind: String) -> Color {
         let value = kind.lowercased()
         if value.contains("approved") { return .liftGreen }
-        if value.contains("ranking") { return .liftBlue }
+        if value.contains("ranking") { return .liftAccentText }
         if value.contains("achievement") { return .liftGold }
         return .liftPurple
     }

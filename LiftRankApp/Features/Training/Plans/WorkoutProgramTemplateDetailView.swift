@@ -6,6 +6,7 @@ struct WorkoutProgramTemplateDetailView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let sourceTemplate: WorkoutProgramTemplate
+    let editingPlanID: UUID?
     @State private var trainingDays: Int
     @State private var method: WorkoutProgressionMethod
     @State private var startDate = Date.now
@@ -16,8 +17,10 @@ struct WorkoutProgramTemplateDetailView: View {
     @State private var editingExisting = false
     @State private var expandedSessionIndices: Set<Int> = [0]
 
-    init(template: WorkoutProgramTemplate) {
+    init(template: WorkoutProgramTemplate, editingPlanID: UUID? = nil) {
         self.sourceTemplate = template
+        self.editingPlanID = editingPlanID
+        _editingExisting = State(initialValue: editingPlanID != nil)
         _trainingDays = State(initialValue: template.daysPerWeek)
         _method = State(initialValue: template.defaultProgression)
         _scheduledWeekdays = State(initialValue: template.sessions.map(\.dayIndex))
@@ -50,7 +53,8 @@ struct WorkoutProgramTemplateDetailView: View {
     }
 
     private var existingPlan: WorkoutPlan? {
-        appState.workoutPlans.filter { plan in
+        if let editingPlanID { return appState.workoutPlans.first { $0.id == editingPlanID } }
+        return appState.workoutPlans.filter { plan in
             appState.workoutPlanProgressionSettings.contains { settings in
                 settings.planID == plan.id && scheduleVariants.contains { $0.id == settings.sourceTemplateID }
             }
@@ -139,7 +143,7 @@ struct WorkoutProgramTemplateDetailView: View {
                     .background(.ultraThinMaterial)
                 }
             }
-            .navigationTitle("Program Preview")
+            .navigationTitle(editingPlanID == nil ? "Program Preview" : "Edit schedule")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -152,6 +156,16 @@ struct WorkoutProgramTemplateDetailView: View {
                     trainingDays = settings.scheduledWeekdays.count
                     scheduledWeekdays = settings.scheduledWeekdays
                     method = settings.method
+                }
+                if let editingPlanID,
+                   let settings = appState.workoutPlanProgressionSettings.first(where: { $0.planID == editingPlanID }) {
+                    startDate = settings.startedAt
+                    trainingDays = settings.scheduledWeekdays.count
+                    scheduledWeekdays = settings.scheduledWeekdays
+                    method = settings.method
+                    trainingMaxInputs = settings.trainingMaxKilograms.mapValues {
+                        MeasurementFormatting.convert($0, from: .kilograms, to: appState.currentProfile.preferredUnit).formatted(.number.grouping(.never).precision(.fractionLength(1)))
+                    }
                 }
                 seedTrainingMaxesIfNeeded()
             }

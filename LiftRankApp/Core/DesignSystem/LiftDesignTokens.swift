@@ -7,6 +7,18 @@ extension Color {
         dark: UIColor(red: 0xFF / 255, green: 0x6B / 255, blue: 0x22 / 255, alpha: 1)
     )
     static let liftOnAccent = Color(red: 0x08 / 255, green: 0x0A / 255, blue: 0x0D / 255)
+    static let leaderboardFilterSelectedFill = semantic(
+        light: UIColor(red: 0x52 / 255, green: 0x6A / 255, blue: 0x00 / 255, alpha: 1),
+        dark: UIColor(red: 0xC7 / 255, green: 0xFF / 255, blue: 0x00 / 255, alpha: 1)
+    )
+    static let leaderboardFilterSelectedText = semantic(
+        light: .white,
+        dark: UIColor(red: 0x08 / 255, green: 0x0A / 255, blue: 0x0D / 255, alpha: 1)
+    )
+    static let leaderboardFilterOptionFill = semantic(
+        light: UIColor(red: 0xD2 / 255, green: 0xDD / 255, blue: 0xB4 / 255, alpha: 1),
+        dark: UIColor(red: 0xC7 / 255, green: 0xFF / 255, blue: 0x00 / 255, alpha: 0.10)
+    )
 
     private static func semantic(light: UIColor, dark: UIColor) -> Color {
         Color(uiColor: UIColor { traits in traits.userInterfaceStyle == .dark ? dark : light })

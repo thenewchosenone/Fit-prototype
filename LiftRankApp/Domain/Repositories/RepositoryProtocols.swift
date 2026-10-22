@@ -127,6 +127,7 @@ protocol ProgramRepository: AnyObject {
 
     @discardableResult
     func addWorkoutPrescription(_ prescription: WorkoutExercisePrescription) -> WorkoutExercisePrescription
+    func updateWorkoutPrescription(_ prescription: WorkoutExercisePrescription)
     func deleteWorkoutPrescription(_ prescription: WorkoutExercisePrescription)
 
     @discardableResult

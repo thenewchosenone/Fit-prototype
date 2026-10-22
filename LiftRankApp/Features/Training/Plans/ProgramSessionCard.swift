@@ -5,6 +5,7 @@ struct ProgramSessionCard: View {
     @State private var selectedWorkout: CompletedWorkout?
     @State private var focusedSetID: UUID?
     @State private var showsExercises = false
+    @State private var replacingPrescription: WorkoutExercisePrescription?
     let session: WorkoutSession
     let prescriptions: [WorkoutExercisePrescription]
     let completedPrescriptionCount: Int
@@ -15,12 +16,22 @@ struct ProgramSessionCard: View {
 
     var body: some View {
         LiftCard {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("\(session.day) · \(session.name)")
                             .font(.headline)
                             .fixedSize(horizontal: false, vertical: true)
+                        Menu {
+                            ForEach(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], id: \.self) { day in
+                                Button(day) { appState.changeWorkoutDay(session, to: day) }
+                            }
+                        } label: {
+                            Label("Change day", systemImage: "calendar")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .disabled(appState.activeWorkout != nil)
+                        .accessibilityHint("Changes this workout in the selected week. Saved workout history is preserved.")
                         Text(statusText)
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -28,6 +39,10 @@ struct ProgramSessionCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     Spacer()
                     Menu {
+                        Button(action: onAddExercise) {
+                            Label("Add Exercise", systemImage: "plus")
+                        }
+                        .disabled(appState.activeWorkout != nil)
                         Button(role: .destructive, action: onDelete) {
                             Text("Delete Workout Day")
                         }
@@ -35,29 +50,19 @@ struct ProgramSessionCard: View {
                     } label: {
                         Image(systemName: "ellipsis.circle.fill")
                             .font(.title2)
-                            .foregroundStyle(Color.liftMuted)
+                            .foregroundStyle(Color.liftAccentText)
                             .frame(width: 44, height: 44)
                     }
                 }
 
-                HStack(spacing: 10) {
-                    Button(action: onAddExercise) {
-                        Label("Add Exercise", systemImage: "plus")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(Color.liftAccentText)
-                    .disabled(appState.activeWorkout != nil)
-
-                    Button(action: onStart) {
-                        Label(hasSavedWorkout ? "Repeat workout" : "Start workout", systemImage: "play.fill")
-                            .frame(maxWidth: .infinity)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
-                    .buttonStyle(LiftCompactProminentButtonStyle())
-                    .accessibilityHint(hasSavedWorkout ? "Starts a new workout attempt. Saved workout history remains available." : "Starts this scheduled workout.")
+                Button(action: onStart) {
+                    Label(hasSavedWorkout ? "Repeat workout" : "Start workout", systemImage: "play.fill")
+                        .frame(maxWidth: .infinity)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
+                .buttonStyle(LiftCompactProminentButtonStyle())
+                .accessibilityHint(hasSavedWorkout ? "Starts a new workout attempt. Saved workout history remains available." : "Starts this scheduled workout.")
                 if hasSavedWorkout {
                     Text("Repeating starts a new workout; saved history remains.")
                         .font(.caption2)
@@ -88,7 +93,7 @@ struct ProgramSessionCard: View {
                                 .foregroundStyle(Color.liftAccentText)
                             Image(systemName: showsExercises ? "chevron.up" : "chevron.down")
                                 .font(LiftTypography.compactEmphasis)
-                                .foregroundStyle(Color.liftMuted)
+                                .foregroundStyle(Color.liftAccentText)
                         }
                         .contentShape(Rectangle())
                     }
@@ -119,6 +124,19 @@ struct ProgramSessionCard: View {
                                     }
                                 }
                                 Spacer()
+                                Menu {
+                                    Button {
+                                        replacingPrescription = prescription
+                                    } label: {
+                                        Label("Replace throughout plan", systemImage: "arrow.triangle.swap")
+                                    }
+                                    .disabled(appState.activeWorkout != nil)
+                                } label: {
+                                    Image(systemName: "ellipsis.circle")
+                                        .foregroundStyle(Color.liftAccentText)
+                                        .frame(width: 44, height: 44)
+                                }
+                                .accessibilityLabel("Options for \(prescription.exerciseName)")
                             }
                             .padding(.vertical, 7)
                             .frame(minHeight: 66)
@@ -137,6 +155,11 @@ struct ProgramSessionCard: View {
         .sheet(item: $selectedWorkout) { workout in
             CompletedWorkoutDetailView(workout: workout, focusedSetID: $focusedSetID)
                 .environmentObject(appState)
+        }
+        .sheet(item: $replacingPrescription) { prescription in
+            ProgramAddExercisePickerView(session: session, replacingPrescription: prescription)
+                .environmentObject(appState)
+                .presentationDetents([.large])
         }
     }
 

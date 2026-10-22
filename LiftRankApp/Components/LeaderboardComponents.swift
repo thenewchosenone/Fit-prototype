@@ -267,7 +267,7 @@ struct LeaderboardFilterControl: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(Color.liftMuted)
+                    .foregroundStyle(Color.liftAccentText)
             }
             .padding(.horizontal, 10)
             .frame(minHeight: 44)
@@ -519,8 +519,6 @@ struct LeaderboardOptionSheet: View {
     let onSelect: (String) -> Void
     @State private var searchText = ""
     @State private var showsAllOptions = true
-    @FocusState private var isSearchFocused: Bool
-
     private var scopedOptions: [LeaderboardOption] {
         guard !showsAllOptions, preferredScopeTitle != nil, !preferredOptionIDs.isEmpty else { return options }
         return options.filter { preferredOptionIDs.contains($0.id) }
@@ -550,11 +548,6 @@ struct LeaderboardOptionSheet: View {
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: searchPrompt
                 )
-                .searchFocused($isSearchFocused)
-                .task {
-                    await Task.yield()
-                    isSearchFocused = true
-                }
         } else {
             sheetContent
                 .searchable(

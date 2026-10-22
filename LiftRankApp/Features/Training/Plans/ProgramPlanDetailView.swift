@@ -7,6 +7,7 @@ struct ProgramPlanDetailView: View {
     @Binding var detailTab: String
     @Binding var selectedSessionForAdd: WorkoutSession?
     @Binding var selectedSessionToRun: WorkoutSession?
+    let onEditSchedule: () -> Void
     @State private var weekToDelete: WorkoutWeek?
     @State private var sessionToDelete: WorkoutSession?
     @State private var showingDeleteConfirmation = false
@@ -38,31 +39,21 @@ struct ProgramPlanDetailView: View {
              ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
              : AnyLayout(HStackLayout(alignment: .center, spacing: 12))) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Program details")
+                    Text("Plan schedule")
                         .font(LiftTypography.cardTitle)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text("\(weeks.count) scheduled weeks")
-                        .font(.caption)
-                        .foregroundStyle(Color.liftMuted)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                if appState.workoutPlanProgressionSettings.contains(where: { $0.planID == appState.selectedWorkoutPlanID }) {
+                    Button(action: onEditSchedule) {
+                        Label("Edit", systemImage: "calendar.badge.clock")
+                            .font(.caption.weight(.semibold))
+                            .frame(minHeight: LiftDesign.minimumTouchTarget)
+                    }
+                    .accessibilityLabel("Edit schedule")
+                    .disabled(appState.activeWorkout != nil)
+                }
                 Menu {
-                    Button {
-                        detailTab = "Weeks"
-                    } label: {
-                        Label("Workouts", systemImage: "calendar")
-                    }
-                    Button {
-                        detailTab = "Overview"
-                    } label: {
-                        Label("Plan Overview", systemImage: "chart.bar")
-                    }
-                    Button {
-                        detailTab = "Notes"
-                    } label: {
-                        Label("Plan Notes", systemImage: "note.text")
-                    }
-                    Divider()
                     Button {
                         let week = appState.addWeekToSelectedPlan()
                         selectedWeekID = week.id
@@ -77,7 +68,7 @@ struct ProgramPlanDetailView: View {
                             selectedWeekID = clone.id
                             detailTab = "Weeks"
                         } label: {
-                            Label("Clone Week", systemImage: "doc.on.doc")
+                            Label("Duplicate Week", systemImage: "doc.on.doc")
                         }
                         .disabled(appState.activeWorkout != nil)
                         Button(role: .destructive) {
@@ -88,16 +79,6 @@ struct ProgramPlanDetailView: View {
                         }
                         .disabled(appState.activeWorkout != nil)
                     }
-                    Divider()
-                    Button {
-                        _ = appState.setSelectedPlanQueueEnabled(!appState.selectedPlanQueueEnabled)
-                    } label: {
-                        Label(
-                            appState.selectedPlanQueueEnabled ? "Disable session queue" : "Use session queue",
-                            systemImage: appState.selectedPlanQueueEnabled ? "list.number" : "play.list"
-                        )
-                    }
-                    .disabled(appState.activeWorkout != nil)
                 } label: {
                     Label("Week options", systemImage: "ellipsis")
                         .font(.caption.weight(.semibold))
@@ -138,6 +119,24 @@ struct ProgramPlanDetailView: View {
                     emptyWeeksState
                 } else {
                     weekNavigator(weeks: weeks, selectedWeek: selectedWeek, selectedWeekPosition: selectedWeekPosition)
+                    if let selectedWeek {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(appState.sessions(for: selectedWeek)) { session in
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(String(session.day.prefix(3)).uppercased())
+                                            .font(.caption2.weight(.bold))
+                                            .foregroundStyle(Color.liftAccentText)
+                                        Text(session.name).font(.caption.weight(.semibold))
+                                    }
+                                    .padding(10)
+                                    .background(Color.liftCard)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
+                            }
+                        }
+                        .accessibilityLabel("This week's schedule")
+                    }
                     weekSessions(selectedWeek: selectedWeek)
                 }
             } else if detailTab == "Overview" {

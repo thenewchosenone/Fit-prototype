@@ -390,7 +390,7 @@ struct WorkoutSessionRunView: View {
                     .buttonStyle(.plain)
                     Image(systemName: "line.3.horizontal")
                         .font(.caption2.weight(.bold))
-                        .foregroundStyle(Color.liftMuted)
+                        .foregroundStyle(Color.liftAccentText)
                 }
                 .foregroundStyle(Color.liftAccentText)
             }

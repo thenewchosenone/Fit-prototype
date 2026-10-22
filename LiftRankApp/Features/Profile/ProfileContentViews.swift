@@ -127,7 +127,7 @@ private struct ProfileVideoThumbnail: View {
             } else {
                 Image(systemName: "video.fill")
                     .font(.title2)
-                    .foregroundStyle(Color.liftMuted)
+                    .foregroundStyle(Color.liftAccentText)
             }
             Color.liftScrim
             Image(systemName: "play.fill")
@@ -630,7 +630,7 @@ struct EditProfileView: View {
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(LiftTypography.compactEmphasis)
-                            .foregroundStyle(Color.liftMuted)
+                            .foregroundStyle(Color.liftAccentText)
                     }
                     .frame(minHeight: 44)
                 }
@@ -1099,7 +1099,7 @@ struct GymDirectoryView: View {
 
                     HStack(spacing: 10) {
                         Image(systemName: "magnifyingglass")
-                            .foregroundStyle(Color.liftMuted)
+                            .foregroundStyle(Color.liftAccentText)
                         TextField("Search gyms, cities, or states", text: $query)
                             .textInputAutocapitalization(.words)
                             .autocorrectionDisabled()
@@ -1207,7 +1207,7 @@ struct GymDirectoryView: View {
                         }
                         Image(systemName: "chevron.right")
                             .font(LiftTypography.compactEmphasis)
-                            .foregroundStyle(Color.liftMuted)
+                            .foregroundStyle(Color.liftAccentText)
                     }
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)

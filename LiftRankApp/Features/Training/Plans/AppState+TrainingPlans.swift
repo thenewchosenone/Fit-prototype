@@ -211,6 +211,36 @@ extension AppState {
         Haptics.warning()
     }
 
+    @discardableResult
+    func replacePlannedExercise(
+        _ prescription: WorkoutExercisePrescription,
+        in session: WorkoutSession,
+        with exercise: TrainingExerciseCatalogItem
+    ) -> Int {
+        guard activeWorkout == nil,
+              let planWeek = weeks(for: selectedWorkoutPlanID).first(where: { $0.id == session.weekID }) else { return 0 }
+        let completedSessionIDs = Set(completedWorkouts.compactMap(\.sourceSessionID))
+        let eligibleSessionIDs = Set(weeks(for: planWeek.planID).flatMap(sessions(for:)).filter { candidate in
+            guard candidate.outcome == nil,
+                  !completedSessionIDs.contains(candidate.id),
+                  activeWorkout?.sourceSessionID != candidate.id,
+                  !isFullyCompletedPlanSession(candidate) else { return false }
+            return prescriptions(for: candidate).allSatisfy { setLogs(for: $0).isEmpty }
+        }.map(\.id))
+        guard !eligibleSessionIDs.isEmpty else { return 0 }
+        let count = programStore.replaceExercise(
+            in: planWeek.planID,
+            matching: prescription.exerciseID,
+            with: exercise,
+            eligibleSessionIDs: eligibleSessionIDs
+        )
+        if count > 0 {
+            Task { await synchronizeWorkoutPlans() }
+            Haptics.success()
+        }
+        return count
+    }
+
     func updateSetLog(_ log: WorkoutSetLog) {
         activeWorkoutStore.updateSet(log)
     }
@@ -543,6 +573,15 @@ extension AppState {
         repository.persistWorkoutSnapshotWithoutBlockingUI()
         Task { await synchronizeWorkoutPlans() }
         return true
+    }
+
+    func changeWorkoutDay(_ session: WorkoutSession, to day: String) {
+        guard activeWorkout == nil,
+              Calendar.current.weekdaySymbols.contains(day),
+              let index = repository.workoutSessions.firstIndex(where: { $0.id == session.id }) else { return }
+        repository.workoutSessions[index].day = day
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
+        Task { await synchronizeWorkoutPlans() }
     }
 
     func renameSelectedWorkoutPlan(to name: String) {

@@ -459,6 +459,32 @@ final class ProgramStore {
         repository.deleteWorkoutPrescription(prescription)
     }
 
+    func replaceExercise(
+        in planID: UUID,
+        matching exerciseID: String,
+        with exercise: TrainingExerciseCatalogItem,
+        eligibleSessionIDs: Set<UUID>
+    ) -> Int {
+        let sessionIDs = Set(weeks(planID: planID).flatMap(sessions(week:)).map(\.id))
+            .intersection(eligibleSessionIDs)
+        let replacements = repository.workoutPrescriptions.filter {
+            sessionIDs.contains($0.sessionID) && $0.exerciseID == exerciseID
+        }.map { prescription in
+            var updated = prescription
+            updated.exerciseID = exercise.id
+            updated.exerciseName = exercise.name
+            updated.bodyPart = exercise.bodyPart
+            updated.equipment = exercise.equipment
+            updated.muscleProfile = exercise.resolvedMuscleProfile
+            updated.substitutionExerciseIDs = nil
+            updated.trainingMaxPercentage = nil
+            updated.targetLoadKilograms = nil
+            return updated
+        }
+        replacements.forEach(repository.updateWorkoutPrescription)
+        return replacements.count
+    }
+
     @discardableResult
     func startProgram(
         template: WorkoutProgramTemplate,

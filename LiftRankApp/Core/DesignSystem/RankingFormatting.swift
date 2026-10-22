@@ -9,7 +9,7 @@ enum RankingFormatting {
         case 60..<80:
             return ("Advanced", .liftGreen)
         case 35..<60:
-            return ("Intermediate", .liftBlue)
+            return ("Intermediate", .liftAccentText)
         case 15..<35:
             return ("Novice", .liftPurple)
         default:

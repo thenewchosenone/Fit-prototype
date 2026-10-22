@@ -9,8 +9,8 @@ struct ExerciseCatalogIcon: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(red: 0.075, green: 0.082, blue: 0.105),
-                            Color(red: 0.115, green: 0.122, blue: 0.15)
+                            Color.liftSurfaceSecondary,
+                            Color.liftSurfaceElevated
                         ],
                         startPoint: .top,
                         endPoint: .bottom

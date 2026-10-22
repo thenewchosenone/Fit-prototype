@@ -863,7 +863,7 @@ private struct ForumPostCard: View {
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(LiftTypography.compactEmphasis)
-                        .foregroundStyle(Color.liftMuted)
+                        .foregroundStyle(Color.liftAccentText)
                 }
                 .padding(.top, 2)
             }
@@ -978,7 +978,7 @@ private struct ForumThreadView: View {
                                         Button("Report discussion", role: .destructive) { showingReportReasons = true }
                                     } label: {
                                         Image(systemName: "ellipsis")
-                                            .foregroundStyle(Color.liftMuted)
+                                            .foregroundStyle(Color.liftAccentText)
                                                 .accessibilityLabel("Discussion actions")
                                                 .accessibilityIdentifier("forum.discussion.actions")
                                     }
@@ -1667,7 +1667,7 @@ private struct MeHubContentView: View {
                             appState.requestedTrackerSegment = "Progress"
                             appState.selectedTab = 2
                         } label: {
-                            meRow("Training progress", "Workouts, strength, and muscle workload", "chart.line.uptrend.xyaxis", Color.liftBlue)
+                            meRow("Training progress", "Workouts, strength, and muscle workload", "chart.line.uptrend.xyaxis", Color.liftAccentText)
                         }
                         Divider().overlay(Color.liftSeparator).padding(.leading, 66)
                         NavigationLink(value: MeRoute.gyms) {
@@ -1677,7 +1677,7 @@ private struct MeHubContentView: View {
                                     ? "Browse locations and choose your primary gym"
                                     : "Browse locations and manage your primary gym",
                                 "building.2.fill",
-                                Color.liftBlue,
+                                Color.liftAccentText,
                                 badge: appState.currentProfile.primaryGymName.isEmpty
                                     ? nil
                                     : appState.currentProfile.primaryGymName
@@ -1810,7 +1810,7 @@ private struct MeHubContentView: View {
             Image(systemName: symbol)
                 .font(LiftTypography.rowEmphasis)
                 .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                .foregroundStyle(iconColor)
+                .foregroundStyle(isDestructive ? Color.liftRed : Color.liftAccentText)
                 .frame(width: 34, height: 34)
                 .background(iconColor.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -2491,8 +2491,8 @@ struct AuthenticationView: View {
                     Image("BrandLogo")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 64, height: 64)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .frame(width: 88, height: 88)
+                        .clipShape(Circle())
                         .accessibilityLabel("Lift Rivals logo")
                     Text("Lift Rivals").font(.largeTitle.bold())
                     Text("Sign in to save your profile, sync workouts, and connect with other lifters.")
@@ -2542,7 +2542,7 @@ struct AuthenticationView: View {
                                     showingPassword.toggle()
                                 } label: {
                                     Image(systemName: showingPassword ? "eye.slash" : "eye")
-                                        .foregroundStyle(Color.liftMuted)
+                                        .foregroundStyle(Color.liftAccentText)
                                 }
                                 .accessibilityLabel(showingPassword ? "Hide password" : "Show password")
                             }
@@ -2922,7 +2922,7 @@ struct PasswordUpdateView: View {
             HStack(spacing: 10) {
                 Image(systemName: "lock.fill")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.liftMuted)
+                    .foregroundStyle(Color.liftAccentText)
                     .frame(width: 20)
                 SecureField(placeholder, text: text)
                     .textContentType(.newPassword)

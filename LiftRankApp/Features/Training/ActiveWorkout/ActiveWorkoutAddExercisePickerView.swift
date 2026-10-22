@@ -161,14 +161,14 @@ struct ActiveWorkoutAddExercisePickerView: View {
     private var searchField: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(Color.liftMuted)
+                .foregroundStyle(Color.liftAccentText)
             TextField("Search exercises", text: $searchText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
             if !searchText.isEmpty {
                 Button { searchText = "" } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(Color.liftMuted)
+                        .foregroundStyle(Color.liftAccentText)
                 }
                 .buttonStyle(.plain)
             }

@@ -55,7 +55,7 @@ struct SettingsView: View {
                                     HStack {
                                         Text(section.title).foregroundStyle(Color.liftText)
                                         Spacer()
-                                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.liftMuted)
+                                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.liftAccentText)
                                     }
                                 }
                             }
@@ -484,7 +484,7 @@ struct LegalAcceptanceView: View {
                     Button(action: onBack) {
                         Image(systemName: "chevron.left")
                             .font(LiftTypography.cardTitle)
-                            .foregroundStyle(Color.liftText)
+                            .foregroundStyle(Color.liftAccentText)
                             .frame(width: 42, height: 42)
                             .background(Color.liftCard)
                             .clipShape(Circle())

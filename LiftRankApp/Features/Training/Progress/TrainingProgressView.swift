@@ -717,7 +717,7 @@ extension TrainingTrackerView {
                             Spacer()
                             Image(systemName: "chevron.right")
                                 .font(.caption2.weight(.bold))
-                                .foregroundStyle(Color.liftMuted)
+                                .foregroundStyle(Color.liftAccentText)
                         }
                         .foregroundStyle(Color.liftText)
                         .padding(.vertical, 7)
@@ -1761,7 +1761,7 @@ private struct StrengthExerciseRecords: View {
                             if !dynamicTypeSize.isAccessibilitySize {
                                 Image(systemName: "chevron.right")
                                     .font(.caption2.weight(.bold))
-                                    .foregroundStyle(Color.liftMuted)
+                                    .foregroundStyle(Color.liftAccentText)
                             }
                         }
                         .padding(9)

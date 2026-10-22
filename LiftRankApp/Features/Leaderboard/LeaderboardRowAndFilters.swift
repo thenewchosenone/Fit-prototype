@@ -308,14 +308,14 @@ struct LeaderboardFiltersView: View {
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Color.liftAccentText)
                                 .padding(12)
-                                .background(Color.liftBlue.opacity(0.10))
+                                .background(Color.leaderboardFilterOptionFill)
                                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                             }
 
                             VStack(spacing: 0) {
                                 HStack(spacing: 10) {
                                     Image(systemName: "magnifyingglass")
-                                        .foregroundStyle(Color.liftMuted)
+                                        .foregroundStyle(Color.liftAccentText)
                                     TextField("Search city or state", text: $locationQuery)
                                         .focused($locationSearchFocused)
                                         .submitLabel(.done)
@@ -333,7 +333,7 @@ struct LeaderboardFiltersView: View {
                                             cancelLocationSearch()
                                         } label: {
                                             Image(systemName: "xmark.circle.fill")
-                                                .foregroundStyle(Color.liftMuted)
+                                                .foregroundStyle(Color.liftAccentText)
                                         }
                                         .buttonStyle(.plain)
                                         .accessibilityLabel("Clear location search")
@@ -470,12 +470,8 @@ struct LeaderboardFiltersView: View {
                 Label("Quick filters", systemImage: "line.3.horizontal.decrease.circle.fill")
                     .font(.headline)
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 8) {
-                    ForEach(["all", "city", "class"], id: \.self) { filter in
+                    ForEach(["city", "gym", "class"], id: \.self) { filter in
                         switch filter {
-                        case "all":
-                            quickFilterButton("Global", symbol: "globe") {
-                                clearLocationFilter()
-                            }
                         case "city":
                             quickFilterButton("My city", symbol: "mappin.and.ellipse") {
                                 applyLocation(
@@ -486,6 +482,12 @@ struct LeaderboardFiltersView: View {
                                 )
                             }
                             .disabled(appState.currentProfile.city.isEmpty)
+                        case "gym":
+                            quickFilterButton("My gym", symbol: "building.2") {
+                                clearLocationFilter()
+                                appState.leaderboardFilters.gymID = appState.currentProfile.primaryGymID
+                            }
+                            .disabled(appState.currentProfile.primaryGymID == nil)
                         default:
                             quickFilterButton("My weight class", symbol: "person.crop.rectangle.stack") {
                                 appState.leaderboardFilters.sexCategory = appState.currentProfile.sexCategory
@@ -666,8 +668,8 @@ struct LeaderboardFiltersView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
                 .frame(minHeight: 44)
-                .background(isActive ? Color.liftBlue : Color.liftBlue.opacity(0.10))
-                .foregroundStyle(isActive ? Color.liftOnAccent : Color.liftAccentText)
+                .background(isActive ? Color.leaderboardFilterSelectedFill : Color.leaderboardFilterOptionFill)
+                .foregroundStyle(isActive ? Color.leaderboardFilterSelectedText : Color.liftAccentText)
                 .clipShape(Capsule())
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -685,7 +687,7 @@ struct LeaderboardFiltersView: View {
                 .font(LiftTypography.compactEmphasis)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .fixedSize(horizontal: false, vertical: true)
-                .background(Color.liftBlue.opacity(0.14))
+                .background(Color.leaderboardFilterOptionFill)
                 .foregroundStyle(Color.liftAccentText)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }

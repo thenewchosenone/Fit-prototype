@@ -50,6 +50,13 @@ extension TrainingTrackerView {
                     .environmentObject(appState)
                     .presentationDetents([.large])
             }
+            .sheet(isPresented: $showingScheduleEditor) {
+                if let settings = selectedProgramSettings,
+                   let template = WorkoutProgramCatalog.template(id: settings.sourceTemplateID) {
+                    WorkoutProgramTemplateDetailView(template: template, editingPlanID: settings.planID)
+                        .environmentObject(appState)
+                }
+            }
             .sheet(isPresented: $showingProgressionEditor) {
                 if let settings = selectedProgramSettings,
                    let template = WorkoutProgramCatalog.template(id: settings.sourceTemplateID) {
@@ -283,6 +290,16 @@ extension TrainingTrackerView {
     private var trackerHeaderActions: some View {
         if segment == .plans {
             Menu {
+                Button("Workouts") { planDetailTab = "Weeks" }
+                Button("Plan Overview") { planDetailTab = "Overview" }
+                Button("Plan Notes") { planDetailTab = "Notes" }
+                Button("Edit schedule") { showingScheduleEditor = true }
+                    .disabled(selectedProgramSettings == nil || appState.activeWorkout != nil)
+                Button(appState.selectedPlanQueueEnabled ? "Use calendar schedule" : "Train workouts in order") {
+                    _ = appState.setSelectedPlanQueueEnabled(!appState.selectedPlanQueueEnabled)
+                }
+                .disabled(appState.selectedWorkoutPlan == nil || appState.activeWorkout != nil)
+                Divider()
                 Button { showingCreatePlan = true } label: { Label("Create Plan", systemImage: "plus.circle") }
                     .disabled(appState.activeWorkout != nil)
                 Button {
@@ -304,7 +321,7 @@ extension TrainingTrackerView {
             } label: {
                 trackerOptionsButtonLabel
             }
-            .accessibilityLabel("Plan options")
+            .accessibilityLabel("Plan settings")
             .simultaneousGesture(TapGesture().onEnded { isLibrarySearchFocused = false })
         } else if segment == .today {
             NativeIconButton(symbolName: "plus.circle", accessibilityLabel: "Submit a lift") {
@@ -367,42 +384,15 @@ extension TrainingTrackerView {
 
             todayWorkoutStatusSection
 
-            Button {
-                isProgramLibraryExpanded = true
-                withAnimation(.snappy) { segment = .plans }
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "books.vertical.fill")
-                        .font(.headline)
-                        .foregroundStyle(Color.liftAccentText)
-                        .frame(width: 44, height: 44)
-                        .background(Color.liftBlue.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Browse Workout Programs")
-                            .font(LiftTypography.rowEmphasis)
-                            .foregroundStyle(Color.liftText)
-                        Text("Bodybuilding, powerlifting, cables, free weights, and more")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
-                            .lineLimit(2)
-                    }
-
-                    Spacer(minLength: 4)
-
-                    Image(systemName: "chevron.right")
-                        .font(LiftTypography.compactEmphasis)
-                        .foregroundStyle(Color.liftAccentText)
+            if appState.selectedWorkoutPlan == nil {
+                Button {
+                    isProgramLibraryExpanded = true
+                    withAnimation(.snappy) { segment = .plans }
+                } label: {
+                    Label("Browse workout programs", systemImage: "books.vertical")
                 }
-                .padding(12)
-                .frame(minHeight: 72)
-                .liftSurface(radius: 12)
-                .contentShape(Rectangle())
+                .buttonStyle(LiftSecondaryButtonStyle())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Browse \(appState.workoutProgramTemplates.count) workout programs")
-            .accessibilityHint("Opens the workout program catalog")
 
             Button {
                 startFreestyleWorkout()
@@ -410,14 +400,6 @@ extension TrainingTrackerView {
                 Label("Start freestyle workout", systemImage: "plus")
             }
             .buttonStyle(LiftSecondaryButtonStyle())
-
-            if let insight = visiblePlateauInsights.first {
-                PlateauAlertCard(insight: insight) {
-                    selectedPlateauInsight = insight
-                } dismiss: {
-                    dismissPlateauInsight(insight)
-                }
-            }
 
         }
     }
@@ -471,7 +453,13 @@ extension TrainingTrackerView {
                 }
             }
         } else if let todayWorkout = todayScheduledWorkout,
-                  !isWorkoutSessionComplete(todayWorkout.session) {
+                  todayWorkout.session.outcome == .skipped {
+            TrackerMessageCard(title: "Workout skipped", message: "This session is marked skipped. You can review or change its status in Plans.")
+        } else if let todayWorkout = todayScheduledWorkout,
+                  todayWorkout.session.outcome == .rest {
+            TrackerMessageCard(title: "Rest day", message: "This session is marked as a rest day.")
+        } else if let todayWorkout = todayScheduledWorkout,
+                  !appState.isCompletedPlanSession(todayWorkout.session) {
             TodayWorkoutLaunchCard(
                 planName: selectedPlanName,
                 week: todayWorkout.week,
@@ -493,8 +481,8 @@ extension TrainingTrackerView {
             .environmentObject(appState)
         } else if let todayWorkout = todayScheduledWorkout {
             TrackerMessageCard(
-                title: "Today’s session is recorded",
-                message: "\(todayWorkout.session.name) is saved, skipped, or marked as a rest day. Check saved workouts in Progress and session status in Plans."
+                title: "Completed workout: \(todayWorkout.session.name)",
+                message: "Today’s planned workout is recorded. Review the session in Plans or see workout details in Progress."
             )
         } else if currentProgramWeekIsComplete {
             TrackerMessageCard(
@@ -547,7 +535,8 @@ extension TrainingTrackerView {
                     selectedWeekID: $selectedWeekID,
                     detailTab: $planDetailTab,
                     selectedSessionForAdd: $selectedSessionForAdd,
-                    selectedSessionToRun: $selectedSessionToRun
+                    selectedSessionToRun: $selectedSessionToRun,
+                    onEditSchedule: { showingScheduleEditor = true }
                 )
                 .environmentObject(appState)
             }
@@ -691,7 +680,7 @@ extension TrainingTrackerView {
                         .foregroundStyle(Color.liftAccentText)
                     Image(systemName: "chevron.down")
                         .font(LiftTypography.compactEmphasis)
-                        .foregroundStyle(Color.liftMuted)
+                        .foregroundStyle(Color.liftAccentText)
                         .rotationEffect(.degrees(isProgramLibraryExpanded ? 180 : 0))
                 }
                 .padding(.horizontal, 14)
@@ -749,7 +738,7 @@ extension TrainingTrackerView {
                                         .clipShape(Capsule())
                                     Image(systemName: "chevron.right")
                                         .font(.caption2.weight(.bold))
-                                        .foregroundStyle(Color.liftMuted)
+                                        .foregroundStyle(Color.liftAccentText)
                                 }
                             }
                             .padding(12)

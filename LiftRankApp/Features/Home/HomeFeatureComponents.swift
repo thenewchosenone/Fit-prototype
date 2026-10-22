@@ -195,7 +195,7 @@ extension HomeView {
                     Spacer(minLength: 4)
                     Image(systemName: "chevron.right")
                         .font(LiftTypography.compactEmphasis)
-                        .foregroundStyle(Color.liftMuted)
+                        .foregroundStyle(Color.liftAccentText)
                 }
                 .padding(12)
                 .contentShape(Rectangle())
@@ -263,7 +263,7 @@ extension HomeView {
                 Haptics.light()
                 showingStreak = true
             } label: {
-                statusPill(symbol: "flame.fill", value: "\(streak)", tint: .orange)
+                statusPill(symbol: "flame.fill", value: "\(streak)", tint: .liftAccentText)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Open \(streak) week streak details")
@@ -400,9 +400,9 @@ extension HomeView {
 
     private var todayScheduledSessionCompleted: Bool {
         guard let scheduled = appState.scheduledWorkout() else { return false }
-        let planned = appState.prescriptions(for: scheduled.session)
-        guard !planned.isEmpty else { return false }
-        return appState.completedPrescriptionCount(for: scheduled.session) >= planned.count
+        return appState.completedWorkouts.contains {
+            $0.sourceSessionID == scheduled.session.id && !$0.completedWorkingSets.isEmpty
+        } || appState.isFullyCompletedPlanSession(scheduled.session)
     }
 
     private var selectedProgramIsCompleteForHome: Bool {
@@ -592,7 +592,7 @@ extension HomeView {
                             .foregroundStyle(Color.liftMuted)
                         Image(systemName: "chevron.right")
                             .font(LiftTypography.compactEmphasis)
-                            .foregroundStyle(Color.liftMuted)
+                            .foregroundStyle(Color.liftAccentText)
                     }
                     Text(workout.name)
                         .font(LiftTypography.sectionTitle)
@@ -699,7 +699,7 @@ extension HomeView {
 
                                 Image(systemName: "chevron.right")
                                     .font(LiftTypography.compactEmphasis)
-                                    .foregroundStyle(Color.liftMuted)
+                                    .foregroundStyle(Color.liftAccentText)
                             }
                             .padding(.vertical, 11)
                             .contentShape(Rectangle())
@@ -829,7 +829,7 @@ struct WeeklyTrainingDayGoalCard: View {
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(LiftTypography.compactEmphasis)
-                            .foregroundStyle(Color.liftMuted)
+                            .foregroundStyle(Color.liftAccentText)
                     }
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)

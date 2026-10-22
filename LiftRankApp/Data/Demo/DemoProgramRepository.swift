@@ -568,7 +568,23 @@ extension DemoRepository {
 
     func updateWorkoutPrescription(_ prescription: WorkoutExercisePrescription) {
         guard let index = workoutPrescriptions.firstIndex(where: { $0.id == prescription.id }) else { return }
+        let previousExerciseName = workoutPrescriptions[index].exerciseName
         workoutPrescriptions[index] = prescription
+        if let session = session(for: prescription),
+           let week = workoutWeeks.first(where: { $0.id == session.weekID }) {
+            for entryIndex in workoutEntries.indices where
+                workoutEntries[entryIndex].planID == week.planID &&
+                workoutEntries[entryIndex].week == week.weekNumber &&
+                workoutEntries[entryIndex].workout == session.name &&
+                workoutEntries[entryIndex].exercise == previousExerciseName &&
+                workoutEntries[entryIndex].sets.isEmpty {
+                workoutEntries[entryIndex].exercise = prescription.exerciseName
+                workoutEntries[entryIndex].muscleGroup = prescription.bodyPart
+                workoutEntries[entryIndex].targetSets = prescription.sets
+                workoutEntries[entryIndex].targetReps = prescription.reps
+                workoutEntries[entryIndex].notes = prescription.notes
+            }
+        }
         scheduleWorkoutSnapshotPersistence()
     }
 

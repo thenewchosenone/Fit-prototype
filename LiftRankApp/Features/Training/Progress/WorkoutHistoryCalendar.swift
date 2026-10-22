@@ -397,7 +397,7 @@ struct WorkoutHistoryCalendar: View {
                                             Spacer()
                                             Image(systemName: "chevron.right")
                                                 .font(LiftTypography.compactEmphasis)
-                                                .foregroundStyle(Color.liftMuted)
+                                                .foregroundStyle(Color.liftAccentText)
                                         }
                                     }
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -418,7 +418,7 @@ struct WorkoutHistoryCalendar: View {
                                             .foregroundStyle(Color.liftAccentText)
                                         Image(systemName: "chevron.right")
                                             .font(LiftTypography.compactEmphasis)
-                                            .foregroundStyle(Color.liftMuted)
+                                            .foregroundStyle(Color.liftAccentText)
                                     }
                                 }
                             }

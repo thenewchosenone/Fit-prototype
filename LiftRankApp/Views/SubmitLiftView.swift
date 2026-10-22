@@ -36,7 +36,7 @@ private enum SubmitLiftSelector: String, Identifiable {
         switch self {
         case .exercise: return "Choose Exercise"
         case .gym: return "Choose Gym"
-        case .equipment: return "Choose Equipment"
+        case .equipment: return "Choose Lifting Gear"
         case .visibility: return "Choose Visibility"
         }
     }
@@ -322,7 +322,7 @@ struct SubmitLiftView: View {
                 }
                 .accessibilityIdentifier("lift.gym")
                 Divider().overlay(Color.liftSeparator)
-                LiftActionRow(title: "Equipment", subtitle: equipment.rawValue, symbolName: "dumbbell") {
+                LiftActionRow(title: "Lifting gear", subtitle: equipment == .raw ? "Raw · No supportive suit or shirt" : "Equipped · Supportive suit or shirt", symbolName: "tshirt") {
                     activeSelector = .equipment
                 }
             }
@@ -504,7 +504,16 @@ struct SubmitLiftView: View {
                 )
             }
         case .equipment:
-            return EquipmentType.allCases.map { LeaderboardOption(id: $0.rawValue, title: $0.rawValue, symbol: "dumbbell") }
+            return EquipmentType.allCases.map { option in
+                LeaderboardOption(
+                    id: option.rawValue,
+                    title: option.rawValue,
+                    subtitle: option == .raw
+                        ? "No supportive lifting suit or shirt used."
+                        : "A supportive lifting suit or shirt was used.",
+                    symbol: "tshirt"
+                )
+            }
         case .visibility:
             return LiftVisibility.allCases.map { option in
                 LeaderboardOption(
@@ -892,7 +901,7 @@ struct LiftSubmissionResultView: View {
                     value: MeasurementFormatting.formatBodyweight(lift.estimatedOneRepMax, preferredUnit: appState.currentProfile.preferredUnit),
                     subtitle: lift.isActualOneRepMax ? "Actual one-rep max" : "Estimated one-rep max",
                     symbolName: "chart.line.uptrend.xyaxis",
-                    tint: .liftGreen
+                    tint: .liftAccentText
                 )
                 .accessibilityIdentifier("lift.submissionMax")
 
@@ -901,7 +910,7 @@ struct LiftSubmissionResultView: View {
                     value: lift.resolvedEvidenceStatus.evidenceMetricValue,
                     subtitle: lift.resolvedEvidenceStatus.evidenceMetricSubtitle,
                     symbolName: lift.resolvedEvidenceStatus.evidenceMetricSymbol,
-                    tint: lift.resolvedEvidenceStatus.evidenceMetricTint
+                    tint: .liftAccentText
                 )
                 .accessibilityIdentifier("lift.submissionEvidence")
 

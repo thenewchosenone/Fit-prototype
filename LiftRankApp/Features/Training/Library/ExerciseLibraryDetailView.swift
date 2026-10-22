@@ -257,7 +257,7 @@ struct ExerciseLibraryDetailView: View {
                                 }
                                 Image(systemName: "chevron.right")
                                     .font(LiftTypography.compactEmphasis)
-                                    .foregroundStyle(Color.liftMuted)
+                                    .foregroundStyle(Color.liftAccentText)
                             }
                             .padding(14)
                             .contentShape(Rectangle())

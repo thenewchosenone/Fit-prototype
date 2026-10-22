@@ -73,7 +73,7 @@ extension LeaderboardsView {
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(LiftTypography.compactEmphasis)
-                            .foregroundStyle(Color.liftMuted)
+                            .foregroundStyle(Color.liftAccentText)
                     }
                     .padding(.horizontal, 14)
                     .frame(minHeight: 58)
@@ -172,10 +172,10 @@ extension LeaderboardsView {
                 if activeFilterCount > 0 {
                     Text("\(activeFilterCount)")
                         .font(.caption2.weight(.bold))
-                        .foregroundStyle(Color.liftOnAccent)
+                        .foregroundStyle(Color.leaderboardFilterSelectedText)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
-                        .background(Color.liftLime, in: Capsule())
+                        .background(Color.leaderboardFilterSelectedFill, in: Capsule())
                         .offset(x: -2, y: 2)
                 }
             }
@@ -218,10 +218,10 @@ extension LeaderboardsView {
         } label: {
             Text(title)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(isSelected ? Color.liftOnAccent : Color.liftMuted)
+                .foregroundStyle(isSelected ? Color.leaderboardFilterSelectedText : Color.liftMuted)
                 .frame(maxWidth: .infinity, minHeight: 38)
                 .padding(.horizontal, 6)
-                .background(isSelected ? Color.liftLime : Color.clear, in: Capsule())
+                .background(isSelected ? Color.leaderboardFilterSelectedFill : Color.clear, in: Capsule())
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -279,7 +279,7 @@ extension LeaderboardsView {
     var searchField: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(Color.liftMuted)
+                .foregroundStyle(Color.liftAccentText)
             TextField("Search lifters, gyms, exercises", text: $searchText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -290,7 +290,7 @@ extension LeaderboardsView {
                     Haptics.light()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(Color.liftMuted)
+                        .foregroundStyle(Color.liftAccentText)
                         .frame(minWidth: 44, minHeight: 44)
                 }
                 .accessibilityLabel("Clear leaderboard search")
