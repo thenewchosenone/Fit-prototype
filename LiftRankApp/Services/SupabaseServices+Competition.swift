@@ -23,6 +23,20 @@ private struct LiftReportParameters: Encodable {
     }
 }
 
+private struct LiftSubmissionQueryParameters: Encodable {
+    let targetUserID: UUID?
+    let targetIDs: [UUID]?
+    let pageLimit: Int
+    let pageOffset: Int
+
+    enum CodingKeys: String, CodingKey {
+        case targetUserID = "target_user_id"
+        case targetIDs = "target_ids"
+        case pageLimit = "page_limit"
+        case pageOffset = "page_offset"
+    }
+}
+
 @MainActor
 final class SupabaseLiftService: LiftService {
     private let client: SupabaseClient
@@ -32,11 +46,9 @@ final class SupabaseLiftService: LiftService {
         do {
             let pageSize = 500
             let recentRows: [CompetitiveLiftDTO] = try await client
-                .from("lift_submissions")
-                .select()
-                .order("performed_at", ascending: false)
-                .order("id")
-                .limit(pageSize)
+                .rpc("get_visible_lift_submissions", params: LiftSubmissionQueryParameters(
+                    targetUserID: nil, targetIDs: nil, pageLimit: pageSize, pageOffset: 0
+                ))
                 .execute()
                 .value
             let userID = try await client.auth.session.user.id
@@ -56,12 +68,9 @@ final class SupabaseLiftService: LiftService {
             var offset = 0
             while true {
                 let page: [CompetitiveLiftDTO] = try await client
-                    .from("lift_submissions")
-                    .select()
-                    .eq("user_id", value: userID)
-                    .order("performed_at", ascending: false)
-                    .order("id")
-                    .range(from: offset, to: offset + pageSize - 1)
+                    .rpc("get_visible_lift_submissions", params: LiftSubmissionQueryParameters(
+                        targetUserID: userID, targetIDs: nil, pageLimit: pageSize, pageOffset: offset
+                    ))
                     .execute()
                     .value
                 submissions.append(contentsOf: page.compactMap(\.submission))
@@ -76,9 +85,9 @@ final class SupabaseLiftService: LiftService {
         guard !ids.isEmpty else { return [] }
         do {
             let rows: [CompetitiveLiftDTO] = try await client
-                .from("lift_submissions")
-                .select()
-                .in("id", values: ids.map(\.uuidString))
+                .rpc("get_visible_lift_submissions", params: LiftSubmissionQueryParameters(
+                    targetUserID: nil, targetIDs: ids, pageLimit: min(ids.count, 500), pageOffset: 0
+                ))
                 .execute()
                 .value
             return try await restrictingVideoPlayback(rows.compactMap(\.submission))
@@ -103,17 +112,23 @@ final class SupabaseLiftService: LiftService {
 
     func submit(_ submission: LiftSubmission) async throws -> LiftSubmission {
         do {
-            let row: CompetitiveLiftDTO = try await client
+            try await client
                 .from("lift_submissions")
                 .insert(CompetitiveLiftInsertDTO(submission: submission))
-                .select()
-                .single()
                 .execute()
-                .value
-            guard let saved = row.submission else {
+            guard let saved = try await submissions(ids: [submission.id]).first,
+                  saved.userID == submission.userID else {
                 throw LiftRankServiceError.server("The lift could not be read after submission.")
             }
             return saved
+        } catch let error as PostgrestError where error.code == "23505" {
+            do {
+                guard let saved = try await submissions(ids: [submission.id]).first,
+                      saved.userID == submission.userID else { throw error }
+                return saved
+            } catch {
+                throw SupabaseServiceErrorMapper.map(error)
+            }
         }
         catch let error as LiftRankServiceError { throw error }
         catch { throw SupabaseServiceErrorMapper.map(error) }

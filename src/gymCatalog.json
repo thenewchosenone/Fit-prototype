@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-08-09T18:57:00.164Z",
+  "generatedAt": "2026-10-20T03:02:01.735Z",
   "sources": [
     {
       "brand": "Crunch Fitness",
       "url": "https://www.crunch.com/load-clubs",
-      "count": 535
+      "count": 548
     },
     {
       "brand": "24 Hour Fitness",
@@ -14,7 +14,7 @@
     {
       "brand": "LA Fitness",
       "url": "https://www.lafitness.com/Pages/GetClubLocations.aspx/GetClubLocation",
-      "count": 507
+      "count": 504
     },
     {
       "brand": "Esporta Fitness",
@@ -24,12 +24,12 @@
     {
       "brand": "EOS Fitness",
       "url": "https://api-be7615e9.joinnow.eosfitness.com/v2/clubs/filters",
-      "count": 179
+      "count": 182
     },
     {
       "brand": "VASA Fitness",
       "url": "https://vasafitness.com/wp-json/wp/v2/vasa_locations",
-      "count": 72
+      "count": 76
     },
     {
       "brand": "YouFit",
@@ -39,17 +39,17 @@
     {
       "brand": "Anytime Fitness",
       "url": "https://react.anytimefitness.com/api/locations/?country=usa",
-      "count": 2266
+      "count": 2273
     },
     {
       "brand": "Gold's Gym",
       "url": "https://www.goldsgym.com/locations/",
-      "count": 176
+      "count": 174
     },
     {
       "brand": "Life Time",
       "url": "https://www.lifetime.life/bin/lt/club.ef",
-      "count": 202
+      "count": 203
     },
     {
       "brand": "Workout Anytime",
@@ -59,40 +59,40 @@
     {
       "brand": "Onelife Fitness",
       "url": "https://api.hubapi.com/hubdb/api/v2/tables/673686/rows",
-      "count": 65
+      "count": 69
     },
     {
       "brand": "The Edge Fitness Clubs",
       "url": "https://info.theedgefitnessclubs.com/_hcms/api/locator?coordinates=37.0902,-95.7129&range=25000",
-      "count": 43
+      "count": 44
     },
     {
       "brand": "Orangetheory",
       "url": "https://api.orangetheory.com/all-studios?pageSize=400",
-      "count": 1177
+      "count": 1173
     },
     {
       "brand": "UFC GYM",
       "url": "https://www.ufcgym.com/locations/list",
-      "count": 57
+      "count": 55
     }
   ],
   "counts": {
-    "Crunch Fitness": 535,
+    "Crunch Fitness": 548,
     "24 Hour Fitness": 237,
-    "LA Fitness": 507,
+    "LA Fitness": 504,
     "Esporta Fitness": 51,
-    "EOS Fitness": 179,
-    "VASA Fitness": 72,
+    "EOS Fitness": 182,
+    "VASA Fitness": 76,
     "YouFit": 49,
-    "Anytime Fitness": 2266,
-    "Gold's Gym": 176,
-    "Life Time": 202,
+    "Anytime Fitness": 2273,
+    "Gold's Gym": 174,
+    "Life Time": 203,
     "Workout Anytime": 190,
-    "Onelife Fitness": 65,
-    "The Edge Fitness Clubs": 43,
-    "Orangetheory": 1177,
-    "UFC GYM": 57
+    "Onelife Fitness": 69,
+    "The Edge Fitness Clubs": 44,
+    "Orangetheory": 1173,
+    "UFC GYM": 55
   },
   "gyms": [
     {
@@ -202,6 +202,18 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-d849d249-3280-42a7-b082-fb0b2cda6373"
+    },
+    {
+      "brand": "Onelife Fitness",
+      "name": "Onelife Fitness - Lee Branch",
+      "address": "801 Doug Baker Blvd. Suite 105",
+      "city": "Birmingham",
+      "state": "Alabama",
+      "postalCode": "35242",
+      "countryCode": "US",
+      "officialUrl": "https://www.onelifefitness.com/gyms/lee-branch",
+      "status": "Open",
+      "id": "gym-onelife-fitness-187924333591"
     },
     {
       "brand": "Orangetheory",
@@ -422,6 +434,18 @@
     {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Huntsville",
+      "address": "4810 Bradford Dr NW, Ste B",
+      "city": "Huntsville",
+      "state": "Alabama",
+      "postalCode": "35805",
+      "countryCode": "US",
+      "officialUrl": "https://www.anytimefitness.com/locations",
+      "status": "Open",
+      "id": "gym-anytime-fitness-5749b735-2faa-4c78-8e1b-3b0d4c770db7"
+    },
+    {
+      "brand": "Anytime Fitness",
+      "name": "Anytime Fitness - Huntsville",
       "address": "2075 Cecil Ashburn Drive SE",
       "city": "Huntsville",
       "state": "Alabama",
@@ -430,6 +454,18 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-a0793330-c368-4d73-9ed2-11dcf3bbdadc"
+    },
+    {
+      "brand": "Onelife Fitness",
+      "name": "Onelife Fitness - Huntsville - Jones Valley",
+      "address": "1319 Four Mile Post Rd SE",
+      "city": "Huntsville",
+      "state": "Alabama",
+      "postalCode": "35802",
+      "countryCode": "US",
+      "officialUrl": "https://www.onelifefitness.com/gyms/huntsville-jones-valley",
+      "status": "Open",
+      "id": "gym-onelife-fitness-220759361109"
     },
     {
       "brand": "Orangetheory",
@@ -492,6 +528,18 @@
       "id": "gym-anytime-fitness-6ab9ea79-0c3a-49f0-8ed5-7080e9fa8705"
     },
     {
+      "brand": "Onelife Fitness",
+      "name": "Onelife Fitness - Madison",
+      "address": "145 Plaza Blvd",
+      "city": "Madison",
+      "state": "Alabama",
+      "postalCode": "35758",
+      "countryCode": "US",
+      "officialUrl": "https://www.onelifefitness.com/gyms/madison",
+      "status": "Open",
+      "id": "gym-onelife-fitness-220759377965"
+    },
+    {
       "brand": "Orangetheory",
       "name": "Orangetheory - Madison, AL",
       "address": "8141 Hwy 72 W Suite K",
@@ -502,6 +550,18 @@
       "officialUrl": "https://www.orangetheory.com/en-us/locations/madison-alabama-0962",
       "status": "Open",
       "id": "gym-orangetheory-1eaedcf3-cde9-4406-8374-dc17f71fc11a"
+    },
+    {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Grelot",
+      "address": "6300 Grelot Road",
+      "city": "Mobile",
+      "state": "Alabama",
+      "postalCode": "36609",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/grelot",
+      "status": "Open",
+      "id": "gym-grelot"
     },
     {
       "brand": "Crunch Fitness",
@@ -751,7 +811,7 @@
       "state": "Alabama",
       "postalCode": "35243",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/al/vestavia-hills",
+      "officialUrl": "https://www.lifetime.life/locations/al/vestavia-hills.html",
       "status": "Open",
       "id": "gym-life-time-201"
     },
@@ -1123,7 +1183,7 @@
       "state": "Arizona",
       "postalCode": "85296",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/az/gilbert",
+      "officialUrl": "https://www.lifetime.life/locations/az/gilbert.html",
       "status": "Open",
       "id": "gym-life-time-137"
     },
@@ -1135,7 +1195,7 @@
       "state": "Arizona",
       "postalCode": "85298",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/az/ocotillo",
+      "officialUrl": "https://www.lifetime.life/locations/az/ocotillo.html",
       "status": "Open",
       "id": "gym-life-time-324"
     },
@@ -1291,7 +1351,7 @@
       "state": "Arizona",
       "postalCode": "85395",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/az/palm-valley",
+      "officialUrl": "https://www.lifetime.life/locations/az/palm-valley.html",
       "status": "Open",
       "id": "gym-life-time-156"
     },
@@ -1394,7 +1454,7 @@
     {
       "brand": "Workout Anytime",
       "name": "Workout Anytime - Marana",
-      "address": "3820 West Ina Rd",
+      "address": "3820 West Ina Rd.",
       "city": "Marana",
       "state": "Arizona",
       "postalCode": "85741",
@@ -1510,6 +1570,18 @@
       "officialUrl": "https://www.eosfitness.com/gym/mesa-n-lindsay-rd-e-university-dr",
       "status": "Open",
       "id": "gym-eos-fitness-d954a3bd-40c6-4916-9838-40ea744afc51"
+    },
+    {
+      "brand": "EOS Fitness",
+      "name": "EOS Fitness - Mesa: Power Rd/Elliot Rd",
+      "address": "3651 S Power Rd",
+      "city": "Mesa",
+      "state": "Arizona",
+      "postalCode": "85212",
+      "countryCode": "US",
+      "officialUrl": "https://www.eosfitness.com/gym/mesa-power-rd-elliot-rd",
+      "status": "Open",
+      "id": "gym-eos-fitness-eba6bb05-692b-49f2-b4c3-1ab930414e60"
     },
     {
       "brand": "EOS Fitness",
@@ -1675,7 +1747,7 @@
       "state": "Arizona",
       "postalCode": "85383",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/az/happy-valley-peoria",
+      "officialUrl": "https://www.lifetime.life/locations/az/happy-valley-peoria.html",
       "status": "Open",
       "id": "gym-life-time-296"
     },
@@ -1891,7 +1963,7 @@
       "state": "Arizona",
       "postalCode": "85016",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/az/biltmore",
+      "officialUrl": "https://www.lifetime.life/locations/az/biltmore.html",
       "status": "Open",
       "id": "gym-life-time-279"
     },
@@ -1903,7 +1975,7 @@
       "state": "Arizona",
       "postalCode": "85054",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/az/north-scottsdale",
+      "officialUrl": "https://www.lifetime.life/locations/az/north-scottsdale.html",
       "status": "Open",
       "id": "gym-life-time-155"
     },
@@ -1915,7 +1987,7 @@
       "state": "Arizona",
       "postalCode": "85032",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/az/paradise-valley",
+      "officialUrl": "https://www.lifetime.life/locations/az/paradise-valley.html",
       "status": "Open",
       "id": "gym-life-time-340"
     },
@@ -2196,6 +2268,18 @@
       "id": "gym-anytime-fitness-f364c8ed-75f1-41a7-a6f9-11ccc1244853"
     },
     {
+      "brand": "EOS Fitness",
+      "name": "EOS Fitness - San Tan Valley: N Gary Rd & W Hunt Highway",
+      "address": "1404 W Hunt Hwy",
+      "city": "San Tan Valley",
+      "state": "Arizona",
+      "postalCode": "85143",
+      "countryCode": "US",
+      "officialUrl": "https://www.eosfitness.com/gym/san-tan-valley-arizona-n-gary-rd-w-hunt-highway",
+      "status": "Open",
+      "id": "gym-eos-fitness-6ea5ac12-d56d-4d09-9d21-d0611064f0ce"
+    },
+    {
       "brand": "LA Fitness",
       "name": "SAN TAN VALLEY",
       "address": "40885 N. IRONWOOD DRIVE",
@@ -2275,7 +2359,7 @@
       "state": "Arizona",
       "postalCode": "85251",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/az/scottsdale-fashion-square",
+      "officialUrl": "https://www.lifetime.life/locations/az/scottsdale-fashion-square.html",
       "status": "Open",
       "id": "gym-life-time-335"
     },
@@ -2443,7 +2527,7 @@
       "state": "Arizona",
       "postalCode": "85284",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/az/tempe",
+      "officialUrl": "https://www.lifetime.life/locations/az/tempe.html",
       "status": "Open",
       "id": "gym-life-time-132"
     },
@@ -2842,18 +2926,6 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-f81bca3a-ed41-42e6-8208-1cc2c1e9c089"
-    },
-    {
-      "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Harrison",
-      "address": "115 Industrial Park Rd",
-      "city": "Harrison",
-      "state": "Arkansas",
-      "postalCode": "72601",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-f6f59d40-e5ef-408b-abfc-6057b1f4e388"
     },
     {
       "brand": "Anytime Fitness",
@@ -3530,12 +3602,12 @@
     {
       "brand": "Life Time",
       "name": "Life Time - Brea",
-      "address": "1600 Brea Mall Road",
+      "address": "1600 Brea Mall Road, Unit 1121A",
       "city": "Brea",
       "state": "California",
       "postalCode": "92821",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ca/brea",
+      "officialUrl": "https://www.lifetime.life/locations/ca/brea.html",
       "status": "Open",
       "id": "gym-life-time-291"
     },
@@ -4099,7 +4171,7 @@
       "state": "California",
       "postalCode": "91913",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ca/otay-ranch",
+      "officialUrl": "https://www.lifetime.life/locations/ca/otay-ranch.html",
       "status": "Open",
       "id": "gym-life-time-337"
     },
@@ -4908,6 +4980,18 @@
       "id": "gym-fairfield"
     },
     {
+      "brand": "Orangetheory",
+      "name": "Orangetheory - Fairfield-Green Valley, CA",
+      "address": "5121 Business Center Dr #104",
+      "city": "Fairfield",
+      "state": "California",
+      "postalCode": "94534",
+      "countryCode": "US",
+      "officialUrl": "https://www.orangetheory.com/en-us/locations/fairfield-california-1624",
+      "status": "Open",
+      "id": "gym-orangetheory-7b63f88d-d3f9-4d46-8340-0f37bbc923ad"
+    },
+    {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Fallbrook",
       "address": "855 S Main St",
@@ -4963,7 +5047,7 @@
       "state": "California",
       "postalCode": "95630",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ca/folsom",
+      "officialUrl": "https://www.lifetime.life/locations/ca/folsom.html",
       "status": "Open",
       "id": "gym-life-time-245"
     },
@@ -5364,18 +5448,6 @@
       "id": "gym-la-fitness-156"
     },
     {
-      "brand": "EOS Fitness",
-      "name": "EOS Fitness - Goleta: Vega Dr/Calle Real",
-      "address": "6144 Calle Real",
-      "city": "Goleta",
-      "state": "California",
-      "postalCode": "93117",
-      "countryCode": "US",
-      "officialUrl": "https://www.eosfitness.com/gym/goleta-vega-dr-calle-real",
-      "status": "Open",
-      "id": "gym-eos-fitness-dcf08b01-15bb-42fd-8e4d-839eb8d43cdf"
-    },
-    {
       "brand": "Orangetheory",
       "name": "Orangetheory - Santa Barbara -Goleta, CA",
       "address": "5700 Calle Real",
@@ -5506,18 +5578,6 @@
       "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=920&Hawthorne-California+GYM",
       "status": "Open",
       "id": "gym-la-fitness-920"
-    },
-    {
-      "brand": "24 Hour Fitness",
-      "name": "24 Hour Fitness - Hayward Amador",
-      "address": "24727 Amador Street",
-      "city": "Hayward",
-      "state": "California",
-      "postalCode": "94544",
-      "countryCode": "US",
-      "officialUrl": "https://www.24hourfitness.com/Website/Club/00536",
-      "status": "Open",
-      "id": "gym-24-hour-fitness-00536"
     },
     {
       "brand": "24 Hour Fitness",
@@ -5863,7 +5923,7 @@
       "state": "California",
       "postalCode": "92612",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ca/lakeshore-irvine",
+      "officialUrl": "https://www.lifetime.life/locations/ca/lakeshore-irvine.html",
       "status": "Open",
       "id": "gym-life-time-321"
     },
@@ -6043,7 +6103,7 @@
       "state": "California",
       "postalCode": "92037",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ca/la-jolla",
+      "officialUrl": "https://www.lifetime.life/locations/ca/la-jolla.html",
       "status": "Open",
       "id": "gym-life-time-293"
     },
@@ -6187,7 +6247,7 @@
       "state": "California",
       "postalCode": "92677",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ca/laguna-niguel",
+      "officialUrl": "https://www.lifetime.life/locations/ca/laguna-niguel.html",
       "status": "Open",
       "id": "gym-life-time-237"
     },
@@ -6493,7 +6553,7 @@
     },
     {
       "brand": "24 Hour Fitness",
-      "name": "24 Hour Fitness - La Cienega",
+      "name": "24 Hour Fitness - Ladera Heights",
       "address": "5045 W. Slauson Ave.",
       "city": "Los Angeles",
       "state": "California",
@@ -6514,18 +6574,6 @@
       "officialUrl": "https://www.24hourfitness.com/Website/Club/00118",
       "status": "Open",
       "id": "gym-24-hour-fitness-00118"
-    },
-    {
-      "brand": "Crunch Fitness",
-      "name": "Crunch Fitness - West Hollywood",
-      "address": "8000 Sunset Blvd",
-      "city": "Los Angeles",
-      "state": "California",
-      "postalCode": "90046",
-      "countryCode": "US",
-      "officialUrl": "https://www.crunch.com/locations/west-hollywood",
-      "status": "Open",
-      "id": "gym-west-hollywood"
     },
     {
       "brand": "EOS Fitness",
@@ -7054,18 +7102,6 @@
       "officialUrl": "https://www.24hourfitness.com/Website/Club/00925",
       "status": "Open",
       "id": "gym-24-hour-fitness-00925"
-    },
-    {
-      "brand": "Crunch Fitness",
-      "name": "Crunch Fitness - Moreno Valley",
-      "address": "22500 Town Circle",
-      "city": "Moreno Valley",
-      "state": "California",
-      "postalCode": "92553",
-      "countryCode": "US",
-      "officialUrl": "https://www.crunch.com/locations/moreno-valley",
-      "status": "Open",
-      "id": "gym-moreno-valley"
     },
     {
       "brand": "EOS Fitness",
@@ -7632,6 +7668,18 @@
       "id": "gym-24-hour-fitness-00063"
     },
     {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Orange",
+      "address": "3901 W Metropolitan Drive",
+      "city": "Orange",
+      "state": "California",
+      "postalCode": "92868",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/orange",
+      "status": "Open",
+      "id": "gym-orange"
+    },
+    {
       "brand": "Orangetheory",
       "name": "Orangetheory - Orange, CA",
       "address": "1500 E Village Way #2340",
@@ -7714,18 +7762,6 @@
       "officialUrl": "https://www.eosfitness.com/gym/oxnard-e-vineyard-ave-w-esplanade-dr",
       "status": "Open",
       "id": "gym-eos-fitness-598879e0-7d55-42d7-8340-6f460ae60699"
-    },
-    {
-      "brand": "UFC GYM",
-      "name": "UFC GYM - Oxnard",
-      "address": "451 W Esplanade Dr",
-      "city": "Oxnard",
-      "state": "California",
-      "postalCode": "93036",
-      "countryCode": "US",
-      "officialUrl": "https://www.ufcgym.com/locations/oxnard",
-      "status": "Open",
-      "id": "gym-ufc-gym-10037"
     },
     {
       "brand": "LA Fitness",
@@ -8568,18 +8604,6 @@
       "id": "gym-rocklin"
     },
     {
-      "brand": "UFC GYM",
-      "name": "UFC GYM - Rocklin",
-      "address": "6684 Lonetree Blvd",
-      "city": "Rocklin",
-      "state": "California",
-      "postalCode": "95765",
-      "countryCode": "US",
-      "officialUrl": "https://www.ufcgym.com/locations/rocklin",
-      "status": "Open",
-      "id": "gym-ufc-gym-10059"
-    },
-    {
       "brand": "24 Hour Fitness",
       "name": "24 Hour Fitness - Rohnert Park",
       "address": "6345 Commerce Blvd",
@@ -8683,7 +8707,7 @@
       "state": "California",
       "postalCode": "95661",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ca/roseville",
+      "officialUrl": "https://www.lifetime.life/locations/ca/roseville.html",
       "status": "Open",
       "id": "gym-life-time-241"
     },
@@ -8815,7 +8839,7 @@
       "state": "California",
       "postalCode": "95864",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ca/arden",
+      "officialUrl": "https://www.lifetime.life/locations/ca/arden.html",
       "status": "Open",
       "id": "gym-life-time-354"
     },
@@ -9007,7 +9031,7 @@
       "state": "California",
       "postalCode": "92672",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ca/rancho-san-clemente",
+      "officialUrl": "https://www.lifetime.life/locations/ca/rancho-san-clemente.html",
       "status": "Open",
       "id": "gym-life-time-246"
     },
@@ -9070,6 +9094,30 @@
       "officialUrl": "https://www.24hourfitness.com/Website/Club/00872",
       "status": "Open",
       "id": "gym-24-hour-fitness-00872"
+    },
+    {
+      "brand": "24 Hour Fitness",
+      "name": "24 Hour Fitness - Miramar",
+      "address": "9550 Miramar Road",
+      "city": "San Diego",
+      "state": "California",
+      "postalCode": "92126",
+      "countryCode": "US",
+      "officialUrl": "https://www.24hourfitness.com/Website/Club/00094",
+      "status": "Open",
+      "id": "gym-24-hour-fitness-00094"
+    },
+    {
+      "brand": "24 Hour Fitness",
+      "name": "24 Hour Fitness - Mission Valley Center",
+      "address": "1640 Camino del Rio N, Ste 315",
+      "city": "San Diego",
+      "state": "California",
+      "postalCode": "92108",
+      "countryCode": "US",
+      "officialUrl": "https://www.24hourfitness.com/Website/Club/00067",
+      "status": "Open",
+      "id": "gym-24-hour-fitness-00067"
     },
     {
       "brand": "24 Hour Fitness",
@@ -9190,6 +9238,18 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-2aa1260a-b7fc-4247-b276-d9cad7b03601"
+    },
+    {
+      "brand": "Anytime Fitness",
+      "name": "Anytime Fitness - San Diego, CA (College Area)",
+      "address": "6175 El Cajon Blvd",
+      "city": "San Diego",
+      "state": "California",
+      "postalCode": "92115",
+      "countryCode": "US",
+      "officialUrl": "https://www.anytimefitness.com/locations",
+      "status": "Open",
+      "id": "gym-anytime-fitness-621ea898-6e27-4d1c-8bb9-f29583ca859a"
     },
     {
       "brand": "Crunch Fitness",
@@ -11107,7 +11167,7 @@
       "state": "California",
       "postalCode": "94596",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ca/walnut-creek",
+      "officialUrl": "https://www.lifetime.life/locations/ca/walnut-creek.html",
       "status": "Open",
       "id": "gym-life-time-283"
     },
@@ -11122,18 +11182,6 @@
       "officialUrl": "https://www.orangetheory.com/en-us/locations/walnut-creek-california-0356",
       "status": "Open",
       "id": "gym-orangetheory-e75306bd-5143-4b74-b28e-da4090f43c4c"
-    },
-    {
-      "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Wasco",
-      "address": "2445 Hwy 46, Ste A",
-      "city": "Wasco",
-      "state": "California",
-      "postalCode": "93280",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-b6b693dc-a1a6-48f7-ad80-734e5481e3c1"
     },
     {
       "brand": "Gold's Gym",
@@ -11388,6 +11436,18 @@
       "id": "gym-anytime-fitness-fe8b7ef0-58d5-4a30-a63f-36684009009f"
     },
     {
+      "brand": "Gold's Gym",
+      "name": "Gold's Gym - Arvada",
+      "address": "7360 West 52nd Ave",
+      "city": "Arvada",
+      "state": "Colorado",
+      "postalCode": "80002",
+      "countryCode": "US",
+      "officialUrl": "https://www.goldsgym.com/locations/arvada/",
+      "status": "Open",
+      "id": "gym-gold-s-gym-2171"
+    },
+    {
       "brand": "Orangetheory",
       "name": "Orangetheory - Arvada, CO",
       "address": "8031 Wadsworth Blvd Suite A-2",
@@ -11587,7 +11647,7 @@
       "state": "Colorado",
       "postalCode": "80301",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/co/boulder",
+      "officialUrl": "https://www.lifetime.life/locations/co/boulder.html",
       "status": "Open",
       "id": "gym-life-time-357"
     },
@@ -11635,7 +11695,7 @@
       "state": "Colorado",
       "postalCode": "80021",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/co/flatirons",
+      "officialUrl": "https://www.lifetime.life/locations/co/flatirons.html",
       "status": "Open",
       "id": "gym-life-time-277"
     },
@@ -11695,7 +11755,7 @@
       "state": "Colorado",
       "postalCode": "80122",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/co/centennial",
+      "officialUrl": "https://www.lifetime.life/locations/co/centennial.html",
       "status": "Open",
       "id": "gym-life-time-194"
     },
@@ -11707,7 +11767,7 @@
       "state": "Colorado",
       "postalCode": "80122",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/co/centennial-tennis",
+      "officialUrl": "https://www.lifetime.life/locations/co/centennial-tennis.html",
       "status": "Open",
       "id": "gym-life-time-231"
     },
@@ -11791,7 +11851,7 @@
       "state": "Colorado",
       "postalCode": "80920",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/co/colorado-springs",
+      "officialUrl": "https://www.lifetime.life/locations/co/colorado-springs.html",
       "status": "Open",
       "id": "gym-life-time-197"
     },
@@ -12007,7 +12067,7 @@
       "state": "Colorado",
       "postalCode": "80246",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/co/cherry-creek",
+      "officialUrl": "https://www.lifetime.life/locations/co/cherry-creek.html",
       "status": "Open",
       "id": "gym-life-time-319"
     },
@@ -12590,7 +12650,7 @@
     {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Montrose",
-      "address": "1544 Oxbow Dr, Ste 270",
+      "address": "1544 Oxbow Dr., Ste 270",
       "city": "Montrose",
       "state": "Colorado",
       "postalCode": "81401",
@@ -12643,7 +12703,7 @@
       "state": "Colorado",
       "postalCode": "80138",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/co/parker-aurora",
+      "officialUrl": "https://www.lifetime.life/locations/co/parker-aurora.html",
       "status": "Open",
       "id": "gym-life-time-168"
     },
@@ -12787,7 +12847,7 @@
       "state": "Colorado",
       "postalCode": "80023",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/co/westminster",
+      "officialUrl": "https://www.lifetime.life/locations/co/westminster.html",
       "status": "Open",
       "id": "gym-life-time-192"
     },
@@ -12835,7 +12895,7 @@
       "state": "Colorado",
       "postalCode": "80401",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/co/denver-west",
+      "officialUrl": "https://www.lifetime.life/locations/co/denver-west.html",
       "status": "Open",
       "id": "gym-life-time-332"
     },
@@ -13447,7 +13507,7 @@
       "state": "Connecticut",
       "postalCode": "06901",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ct/stamford",
+      "officialUrl": "https://www.lifetime.life/locations/ct/stamford.html",
       "status": "Open",
       "id": "gym-life-time-338"
     },
@@ -14215,7 +14275,7 @@
       "state": "Florida",
       "postalCode": "33431",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/fl/boca-raton",
+      "officialUrl": "https://www.lifetime.life/locations/fl/boca-raton.html",
       "status": "Open",
       "id": "gym-life-time-178"
     },
@@ -14227,7 +14287,7 @@
       "state": "Florida",
       "postalCode": "33434",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/fl/west-boca",
+      "officialUrl": "https://www.lifetime.life/locations/fl/west-boca.html",
       "status": "Open",
       "id": "gym-life-time-367"
     },
@@ -14863,7 +14923,7 @@
       "state": "Florida",
       "postalCode": "33133",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/fl/coral-gables",
+      "officialUrl": "https://www.lifetime.life/locations/fl/coral-gables.html",
       "status": "Open",
       "id": "gym-life-time-273"
     },
@@ -15062,7 +15122,7 @@
     {
       "brand": "YouFit",
       "name": "YouFit Gyms - Davie",
-      "address": "8942 W State Road 84",
+      "address": "8948 W State Road 84",
       "city": "Davie",
       "state": "Florida",
       "postalCode": "33324",
@@ -15206,7 +15266,7 @@
     {
       "brand": "Workout Anytime",
       "name": "Workout Anytime - Destin",
-      "address": "981 Highway 98 E, Ste 8",
+      "address": "981 US Hwy 98 Suite 8",
       "city": "Destin",
       "state": "Florida",
       "postalCode": "32541",
@@ -15578,7 +15638,7 @@
     {
       "brand": "Workout Anytime",
       "name": "Workout Anytime - Fort Walton Beach",
-      "address": "99 Eglin Pkwy NE, Ste 28A",
+      "address": "99 Eglin Parkway NE Suite 28A",
       "city": "Ft. Walton Beach",
       "state": "Florida",
       "postalCode": "32548",
@@ -15830,7 +15890,7 @@
     {
       "brand": "Workout Anytime",
       "name": "Workout Anytime - Homestead",
-      "address": "27455 S Dixie Hwy, Suite 5",
+      "address": "27455 S Dixie Hwy",
       "city": "Homestead",
       "state": "Florida",
       "postalCode": "33032",
@@ -16090,6 +16150,18 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-719f77f3-1090-417c-9336-790890969e5b"
+    },
+    {
+      "brand": "Anytime Fitness",
+      "name": "Anytime Fitness - Keystone Heights",
+      "address": "7380 State Rd 100, Suite 20",
+      "city": "Keystone Heights",
+      "state": "Florida",
+      "postalCode": "32656",
+      "countryCode": "US",
+      "officialUrl": "https://www.anytimefitness.com/locations",
+      "status": "Open",
+      "id": "gym-anytime-fitness-b4b55bd4-995f-4bb3-9856-a2019ac927d6"
     },
     {
       "brand": "Anytime Fitness",
@@ -16512,6 +16584,18 @@
       "id": "gym-anytime-fitness-dd5e8994-ebdd-45a9-8146-91380fbe9c40"
     },
     {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Maitland",
+      "address": "701 Maitland Boulevard, suite 400",
+      "city": "Maitland",
+      "state": "Florida",
+      "postalCode": "32751",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/maitland",
+      "status": "Open",
+      "id": "gym-maitland"
+    },
+    {
       "brand": "YouFit",
       "name": "YouFit Gyms - Margate",
       "address": "3133 N State Road 7",
@@ -16548,6 +16632,18 @@
       "id": "gym-anytime-fitness-7ed40fbe-8ed5-4197-8d89-48e0cc9e29ee"
     },
     {
+      "brand": "Anytime Fitness",
+      "name": "Anytime Fitness - Melbourne, FL (1270 North Wickham Road)",
+      "address": "1270 N Wickham Rd",
+      "city": "Melbourne",
+      "state": "Florida",
+      "postalCode": "32935",
+      "countryCode": "US",
+      "officialUrl": "https://www.anytimefitness.com/locations",
+      "status": "Open",
+      "id": "gym-anytime-fitness-60786819-cfce-4c4c-8ebe-a1af82f0ef21"
+    },
+    {
       "brand": "Crunch Fitness",
       "name": "Crunch Fitness - West Melbourne",
       "address": "1257 W. New Haven Avenue",
@@ -16574,7 +16670,7 @@
     {
       "brand": "EOS Fitness",
       "name": "EOS Fitness - Melbourne: N Wickham Rd/Business Ctr Blvd",
-      "address": "5165 N Wickam Rd",
+      "address": "5165 N Wickham Rd",
       "city": "Melbourne",
       "state": "Florida",
       "postalCode": "32940",
@@ -16639,7 +16735,7 @@
       "state": "Florida",
       "postalCode": "33176",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/fl/miami",
+      "officialUrl": "https://www.lifetime.life/locations/fl/miami.html",
       "status": "Open",
       "id": "gym-life-time-290"
     },
@@ -16714,18 +16810,6 @@
       "officialUrl": "https://www.orangetheory.com/en-us/locations/miami-florida-0097",
       "status": "Open",
       "id": "gym-orangetheory-d79d0e9b-f6f5-4efb-a2da-7917c1bb348e"
-    },
-    {
-      "brand": "UFC GYM",
-      "name": "UFC GYM - Kendall",
-      "address": "8851 Southwest 107th Ave #320",
-      "city": "Miami",
-      "state": "Florida",
-      "postalCode": "33176",
-      "countryCode": "US",
-      "officialUrl": "https://www.ufcgym.com/locations/miami-kendall",
-      "status": "Open",
-      "id": "gym-ufc-gym-10033"
     },
     {
       "brand": "UFC GYM",
@@ -17270,7 +17354,7 @@
     {
       "brand": "Workout Anytime",
       "name": "Workout Anytime - Niceville",
-      "address": "1033 John Sims Pkwy E",
+      "address": "1033 John Sims Parkway East",
       "city": "Niceville",
       "state": "Florida",
       "postalCode": "32578",
@@ -17470,6 +17554,18 @@
       "officialUrl": "https://www.crunch.com/locations/ocoee",
       "status": "Open",
       "id": "gym-ocoee"
+    },
+    {
+      "brand": "Anytime Fitness",
+      "name": "Anytime Fitness - Odessa, FL",
+      "address": "17765 Gunn Highway",
+      "city": "Odessa",
+      "state": "Florida",
+      "postalCode": "33556",
+      "countryCode": "US",
+      "officialUrl": "https://www.anytimefitness.com/locations",
+      "status": "Open",
+      "id": "gym-anytime-fitness-c72b4de0-a953-4367-816f-a48df6da97a8"
     },
     {
       "brand": "Orangetheory",
@@ -17870,7 +17966,7 @@
     {
       "brand": "Workout Anytime",
       "name": "Workout Anytime - Palm Bay",
-      "address": "5270 Babcock St NE",
+      "address": "5270 Babcock St NE Suite 105 110 115 120",
       "city": "Palm Bay",
       "state": "Florida",
       "postalCode": "32905",
@@ -17911,7 +18007,7 @@
       "state": "Florida",
       "postalCode": "33410",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/fl/palm-beach-gardens",
+      "officialUrl": "https://www.lifetime.life/locations/fl/palm-beach-gardens.html",
       "status": "Open",
       "id": "gym-life-time-289"
     },
@@ -18780,6 +18876,18 @@
       "id": "gym-eos-fitness-92f7d42c-c99b-46ae-900a-71324913761b"
     },
     {
+      "brand": "Life Time",
+      "name": "Life Time - Lakewood Ranch",
+      "address": "5000 Lakewood Ranch Blvd N",
+      "city": "Sarasota",
+      "state": "Florida",
+      "postalCode": "34240",
+      "countryCode": "US",
+      "officialUrl": "https://www.lifetime.life/locations/fl/lakewood-ranch.html",
+      "status": "Open",
+      "id": "gym-life-time-345"
+    },
+    {
       "brand": "Orangetheory",
       "name": "Orangetheory - Sarasota Downtown, FL",
       "address": "1605 Main St",
@@ -19375,7 +19483,7 @@
       "state": "Florida",
       "postalCode": "33602",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/fl/harbour-island",
+      "officialUrl": "https://www.lifetime.life/locations/fl/harbour-island.html",
       "status": "Open",
       "id": "gym-life-time-350"
     },
@@ -19486,6 +19594,18 @@
       "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1161&Tampa-Florida+GYM",
       "status": "Open",
       "id": "gym-la-fitness-1161"
+    },
+    {
+      "brand": "LA Fitness",
+      "name": "TAMPA - E. FOWLER AVE.",
+      "address": "2170 E FOWLER AVE",
+      "city": "TAMPA",
+      "state": "Florida",
+      "postalCode": "33612",
+      "countryCode": "US",
+      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1492&Tampa-Florida+GYM",
+      "status": "Open",
+      "id": "gym-la-fitness-1492"
     },
     {
       "brand": "LA Fitness",
@@ -19738,18 +19858,6 @@
       "officialUrl": "https://youfit.com/locations/florida/wellington",
       "status": "Open",
       "id": "gym-youfit-1812671"
-    },
-    {
-      "brand": "LA Fitness",
-      "name": "WELLINGTON",
-      "address": "10180 FOREST HILL BLVD.",
-      "city": "WELLINGTON",
-      "state": "Florida",
-      "postalCode": "10180",
-      "countryCode": "US",
-      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=196&Wellington-Florida+GYM",
-      "status": "Open",
-      "id": "gym-la-fitness-196"
     },
     {
       "brand": "Crunch Fitness",
@@ -20011,7 +20119,7 @@
       "state": "Florida",
       "postalCode": "32789",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/fl/winter-park",
+      "officialUrl": "https://www.lifetime.life/locations/fl/winter-park.html",
       "status": "Open",
       "id": "gym-life-time-343"
     },
@@ -20215,7 +20323,7 @@
       "state": "Georgia",
       "postalCode": "30005",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ga/alpharetta",
+      "officialUrl": "https://www.lifetime.life/locations/ga/alpharetta.html",
       "status": "Open",
       "id": "gym-life-time-158"
     },
@@ -20359,7 +20467,7 @@
       "state": "Georgia",
       "postalCode": "30326",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ga/buckhead",
+      "officialUrl": "https://www.lifetime.life/locations/ga/buckhead.html",
       "status": "Open",
       "id": "gym-life-time-302"
     },
@@ -20371,7 +20479,7 @@
       "state": "Georgia",
       "postalCode": "30324",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ga/north-druid-hills",
+      "officialUrl": "https://www.lifetime.life/locations/ga/north-druid-hills.html",
       "status": "Open",
       "id": "gym-life-time-349"
     },
@@ -20383,7 +20491,7 @@
       "state": "Georgia",
       "postalCode": "30328",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ga/perimeter",
+      "officialUrl": "https://www.lifetime.life/locations/ga/perimeter.html",
       "status": "Open",
       "id": "gym-life-time-361"
     },
@@ -21751,7 +21859,7 @@
       "state": "Georgia",
       "postalCode": "30097",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ga/johns-creek",
+      "officialUrl": "https://www.lifetime.life/locations/ga/johns-creek.html",
       "status": "Open",
       "id": "gym-life-time-184"
     },
@@ -21883,7 +21991,7 @@
       "state": "Georgia",
       "postalCode": "30043",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ga/sugarloaf",
+      "officialUrl": "https://www.lifetime.life/locations/ga/sugarloaf.html",
       "status": "Open",
       "id": "gym-life-time-169"
     },
@@ -21946,6 +22054,18 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-dff91f45-b264-4aa5-9ab2-8a0c435afd73"
+    },
+    {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Stone Mountain",
+      "address": "4051 Stone Mountain Highway, Unit D105",
+      "city": "Lilburn",
+      "state": "Georgia",
+      "postalCode": "30047",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/stone-mountain",
+      "status": "Open",
+      "id": "gym-stone-mountain"
     },
     {
       "brand": "Workout Anytime",
@@ -22284,6 +22404,18 @@
       "id": "gym-anytime-fitness-66888a91-d363-4f8e-a793-2dd758aaea64"
     },
     {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Newnan",
+      "address": "1098 Bullsboro Dr. Ste 15",
+      "city": "Newnan",
+      "state": "Georgia",
+      "postalCode": "30265",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/newnan",
+      "status": "Open",
+      "id": "gym-newnan"
+    },
+    {
       "brand": "Onelife Fitness",
       "name": "Onelife Fitness - Newnan Sports Club",
       "address": "460 Newnan Crossing Bypass",
@@ -22387,7 +22519,7 @@
       "state": "Georgia",
       "postalCode": "30092",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ga/peachtree-corners",
+      "officialUrl": "https://www.lifetime.life/locations/ga/peachtree-corners.html",
       "status": "Open",
       "id": "gym-life-time-232"
     },
@@ -22502,7 +22634,7 @@
     {
       "brand": "Workout Anytime",
       "name": "Workout Anytime - Rome",
-      "address": "132 Hicks Dr SE",
+      "address": "132 Hicks Drive",
       "city": "Rome",
       "state": "Georgia",
       "postalCode": "30161",
@@ -22579,7 +22711,7 @@
       "state": "Georgia",
       "postalCode": "30342",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ga/sandy-springs",
+      "officialUrl": "https://www.lifetime.life/locations/ga/sandy-springs.html",
       "status": "Open",
       "id": "gym-life-time-208"
     },
@@ -22939,7 +23071,7 @@
       "state": "Georgia",
       "postalCode": "30188",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ga/woodstock",
+      "officialUrl": "https://www.lifetime.life/locations/ga/woodstock.html",
       "status": "Open",
       "id": "gym-life-time-182"
     },
@@ -23196,18 +23328,6 @@
       "id": "gym-ufc-gym-10029"
     },
     {
-      "brand": "24 Hour Fitness",
-      "name": "24 Hour Fitness - Pearl City",
-      "address": "1000 Kamehameha Hwy",
-      "city": "Pearl City",
-      "state": "Hawaii",
-      "postalCode": "96782",
-      "countryCode": "US",
-      "officialUrl": "https://www.24hourfitness.com/Website/Club/00496",
-      "status": "Open",
-      "id": "gym-24-hour-fitness-00496"
-    },
-    {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Pukalani",
       "address": "24 Kiopaa St",
@@ -23328,9 +23448,21 @@
       "id": "gym-orangetheory-be6290c3-e70b-4e65-b793-a581704b0911"
     },
     {
+      "brand": "VASA Fitness",
+      "name": "VASA Fitness - Boise (Fairview)",
+      "address": "7201 Fairview Avenue",
+      "city": "Boise",
+      "state": "Idaho",
+      "postalCode": "83704",
+      "countryCode": "US",
+      "officialUrl": "https://vasafitness.com/locations/id/boise-fairview/",
+      "status": "Open",
+      "id": "gym-vasa-fitness-458899"
+    },
+    {
       "brand": "Workout Anytime",
       "name": "Workout Anytime - North Boise",
-      "address": "7048 W State St",
+      "address": "7048 W State Street",
       "city": "Boise",
       "state": "Idaho",
       "postalCode": "83714",
@@ -23407,7 +23539,7 @@
       "state": "Idaho",
       "postalCode": "83616",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/id/eagle",
+      "officialUrl": "https://www.lifetime.life/locations/id/eagle.html",
       "status": "Open",
       "id": "gym-life-time-365"
     },
@@ -23671,7 +23803,7 @@
       "state": "Illinois",
       "postalCode": "60102",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/il/algonquin",
+      "officialUrl": "https://www.lifetime.life/locations/il/algonquin.html",
       "status": "Open",
       "id": "gym-life-time-14"
     },
@@ -23748,18 +23880,6 @@
       "id": "gym-anytime-fitness-e7185ec4-74b9-4f29-8f6c-9739cead70ed"
     },
     {
-      "brand": "Crunch Fitness",
-      "name": "Crunch Fitness - Aurora",
-      "address": "2300 S Eola Rd",
-      "city": "Aurora",
-      "state": "Illinois",
-      "postalCode": "60503",
-      "countryCode": "US",
-      "officialUrl": "https://www.crunch.com/locations/aurora",
-      "status": "Open",
-      "id": "gym-aurora"
-    },
-    {
       "brand": "Orangetheory",
       "name": "Orangetheory - Bartlett",
       "address": "813 S IL Rte 59",
@@ -23803,7 +23923,7 @@
       "state": "Illinois",
       "postalCode": "60108",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/il/bloomingdale",
+      "officialUrl": "https://www.lifetime.life/locations/il/bloomingdale.html",
       "status": "Open",
       "id": "gym-life-time-51"
     },
@@ -23875,7 +23995,7 @@
       "state": "Illinois",
       "postalCode": "60527",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/il/burr-ridge",
+      "officialUrl": "https://www.lifetime.life/locations/il/burr-ridge.html",
       "status": "Open",
       "id": "gym-life-time-53"
     },
@@ -23887,7 +24007,7 @@
       "state": "Illinois",
       "postalCode": "60527",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/il/burr-ridge-sport-and-racquet",
+      "officialUrl": "https://www.lifetime.life/locations/il/burr-ridge-sport-and-racquet.html",
       "status": "Open",
       "id": "gym-life-time-375"
     },
@@ -23954,6 +24074,18 @@
     {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Chicago",
+      "address": "5417 N Broadway St",
+      "city": "Chicago",
+      "state": "Illinois",
+      "postalCode": "60640",
+      "countryCode": "US",
+      "officialUrl": "https://www.anytimefitness.com/locations",
+      "status": "Open",
+      "id": "gym-anytime-fitness-eb80c1dd-5449-4d7b-b26a-770053e56a5f"
+    },
+    {
+      "brand": "Anytime Fitness",
+      "name": "Anytime Fitness - Chicago",
       "address": "1346 W Devon Ave",
       "city": "Chicago",
       "state": "Illinois",
@@ -23986,18 +24118,6 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-c055c59f-6733-4de2-9daf-982e9437348d"
-    },
-    {
-      "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Chicago",
-      "address": "5417 N Broadway St",
-      "city": "Chicago",
-      "state": "Illinois",
-      "postalCode": "60640",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-eb80c1dd-5449-4d7b-b26a-770053e56a5f"
     },
     {
       "brand": "Anytime Fitness",
@@ -24043,7 +24163,7 @@
       "state": "Illinois",
       "postalCode": "60654",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/il/river-north-one-chicago",
+      "officialUrl": "https://www.lifetime.life/locations/il/river-north-one-chicago.html",
       "status": "Open",
       "id": "gym-life-time-299"
     },
@@ -24106,18 +24226,6 @@
       "officialUrl": "https://www.orangetheory.com/en-us/locations/chicago-illinois-0424",
       "status": "Open",
       "id": "gym-orangetheory-f03b2a66-a095-477a-b8cd-17ee363af41a"
-    },
-    {
-      "brand": "Orangetheory",
-      "name": "Orangetheory - Chicago - Wicker Park, IL",
-      "address": "1634 W North Ave",
-      "city": "Chicago",
-      "state": "Illinois",
-      "postalCode": "60622",
-      "countryCode": "US",
-      "officialUrl": "https://www.orangetheory.com/en-us/locations/chicago-illinois-0321",
-      "status": "Open",
-      "id": "gym-orangetheory-ae28b6ab-29ee-4651-b1d3-20e2e6b27eb0"
     },
     {
       "brand": "Orangetheory",
@@ -24253,7 +24361,7 @@
     },
     {
       "brand": "Esporta Fitness",
-      "name": "Esporta Fitness - CHICAGO - BRICKTOWN",
+      "name": "Esporta Fitness - BRICKTOWN",
       "address": "6420 W. FULLERTON AVENUE",
       "city": "CHICAGO",
       "state": "Illinois",
@@ -24265,7 +24373,19 @@
     },
     {
       "brand": "Esporta Fitness",
-      "name": "Esporta Fitness - CHICAGO - LAKEVIEW",
+      "name": "Esporta Fitness - CLARK STREET",
+      "address": "2828 NORTH CLARK STREET",
+      "city": "CHICAGO",
+      "state": "Illinois",
+      "postalCode": "60657",
+      "countryCode": "US",
+      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=722&Chicago-Illinois+GYM",
+      "status": "Open",
+      "id": "gym-esporta-fitness-722"
+    },
+    {
+      "brand": "Esporta Fitness",
+      "name": "Esporta Fitness - LAKEVIEW",
       "address": "3240 N. ASHLAND AVENUE",
       "city": "CHICAGO",
       "state": "Illinois",
@@ -24277,7 +24397,7 @@
     },
     {
       "brand": "Esporta Fitness",
-      "name": "Esporta Fitness - CHICAGO - NORWOOD PARK",
+      "name": "Esporta Fitness - NORWOOD PARK",
       "address": "5444 N CUMBERLAND AVE",
       "city": "CHICAGO",
       "state": "Illinois",
@@ -24289,7 +24409,7 @@
     },
     {
       "brand": "Esporta Fitness",
-      "name": "Esporta Fitness - CHICAGO - ROGERS PARK",
+      "name": "Esporta Fitness - ROGERS PARK",
       "address": "7529 NORTH CLARK STREET",
       "city": "CHICAGO",
       "state": "Illinois",
@@ -24298,126 +24418,6 @@
       "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=739&Chicago-Illinois+GYM",
       "status": "Open",
       "id": "gym-esporta-fitness-739"
-    },
-    {
-      "brand": "Esporta Fitness",
-      "name": "Esporta Fitness - CHICAGO- LAKEVIEW EAST CLARK ST",
-      "address": "2828 NORTH CLARK STREET",
-      "city": "CHICAGO",
-      "state": "Illinois",
-      "postalCode": "60657",
-      "countryCode": "US",
-      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=722&Chicago-Illinois+GYM",
-      "status": "Open",
-      "id": "gym-esporta-fitness-722"
-    },
-    {
-      "brand": "LA Fitness",
-      "name": "CHICAGO - ADDISON AT KENNEDY",
-      "address": "3443 WEST ADDISON ST",
-      "city": "CHICAGO",
-      "state": "Illinois",
-      "postalCode": "60618",
-      "countryCode": "US",
-      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1313&Chicago-Illinois+GYM",
-      "status": "Open",
-      "id": "gym-la-fitness-1313"
-    },
-    {
-      "brand": "LA Fitness",
-      "name": "CHICAGO - FOSTER AT EDENS",
-      "address": "4705 W FOSTER AVE",
-      "city": "CHICAGO",
-      "state": "Illinois",
-      "postalCode": "60630",
-      "countryCode": "US",
-      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1301&Chicago-Illinois+GYM",
-      "status": "Open",
-      "id": "gym-la-fitness-1301"
-    },
-    {
-      "brand": "LA Fitness",
-      "name": "CHICAGO - KEDZIE AVE",
-      "address": "5559 S KEDZIE AVE",
-      "city": "CHICAGO",
-      "state": "Illinois",
-      "postalCode": "60629",
-      "countryCode": "US",
-      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1062&Chicago-Illinois+GYM",
-      "status": "Open",
-      "id": "gym-la-fitness-1062"
-    },
-    {
-      "brand": "LA Fitness",
-      "name": "CHICAGO - LAWRENCE AVE.",
-      "address": "1804 WEST LAWRENCE AVE",
-      "city": "CHICAGO",
-      "state": "Illinois",
-      "postalCode": "60640",
-      "countryCode": "US",
-      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=917&Chicago-Illinois+GYM",
-      "status": "Open",
-      "id": "gym-la-fitness-917"
-    },
-    {
-      "brand": "LA Fitness",
-      "name": "CHICAGO - S. LAKE PARK (Signature)",
-      "address": "5224 S LAKE PARK AVE",
-      "city": "CHICAGO",
-      "state": "Illinois",
-      "postalCode": "60615",
-      "countryCode": "US",
-      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=693&Chicago-Illinois+GYM",
-      "status": "Open",
-      "id": "gym-la-fitness-693"
-    },
-    {
-      "brand": "LA Fitness",
-      "name": "CHICAGO - S. MARTIN LUTHER KING",
-      "address": "3435 SOUTH DR MARTIN LUTHER KING JR DRIVE",
-      "city": "CHICAGO",
-      "state": "Illinois",
-      "postalCode": "60616",
-      "countryCode": "US",
-      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1091&Chicago-Illinois+GYM",
-      "status": "Open",
-      "id": "gym-la-fitness-1091"
-    },
-    {
-      "brand": "LA Fitness",
-      "name": "CHICAGO - SOUTH LOOP CANAL ST",
-      "address": "1101 SOUTH CANAL STREET",
-      "city": "CHICAGO",
-      "state": "Illinois",
-      "postalCode": "60607",
-      "countryCode": "US",
-      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=405&Chicago-Illinois+GYM",
-      "status": "Open",
-      "id": "gym-la-fitness-405"
-    },
-    {
-      "brand": "LA Fitness",
-      "name": "CHICAGO - W. PERSHING RD",
-      "address": "2620 W PERSHING ROAD",
-      "city": "CHICAGO",
-      "state": "Illinois",
-      "postalCode": "60632",
-      "countryCode": "US",
-      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1134&Chicago-Illinois+GYM",
-      "status": "Open",
-      "id": "gym-la-fitness-1134"
-    },
-    {
-      "brand": "LA Fitness",
-      "name": "CHICAGO IL - N. BROADWAY",
-      "address": "6107 NORTH BROADWAY STREET",
-      "city": "CHICAGO",
-      "state": "Illinois",
-      "postalCode": "60660",
-      "countryCode": "US",
-      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1050&Chicago-Illinois+GYM",
-      "status": "Open",
-      "id": "gym-la-fitness-1050"
     },
     {
       "brand": "LA Fitness",
@@ -24430,6 +24430,114 @@
       "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=422&Chicago-Illinois+GYM",
       "status": "Open",
       "id": "gym-la-fitness-422"
+    },
+    {
+      "brand": "LA Fitness",
+      "name": "FOSTER",
+      "address": "4705 W FOSTER AVE",
+      "city": "CHICAGO",
+      "state": "Illinois",
+      "postalCode": "60630",
+      "countryCode": "US",
+      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1301&Chicago-Illinois+GYM",
+      "status": "Open",
+      "id": "gym-la-fitness-1301"
+    },
+    {
+      "brand": "LA Fitness",
+      "name": "KEDZIE AVENUE",
+      "address": "5559 S KEDZIE AVE",
+      "city": "CHICAGO",
+      "state": "Illinois",
+      "postalCode": "60629",
+      "countryCode": "US",
+      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1062&Chicago-Illinois+GYM",
+      "status": "Open",
+      "id": "gym-la-fitness-1062"
+    },
+    {
+      "brand": "LA Fitness",
+      "name": "KENNEDY",
+      "address": "3443 WEST ADDISON ST",
+      "city": "CHICAGO",
+      "state": "Illinois",
+      "postalCode": "60618",
+      "countryCode": "US",
+      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1313&Chicago-Illinois+GYM",
+      "status": "Open",
+      "id": "gym-la-fitness-1313"
+    },
+    {
+      "brand": "LA Fitness",
+      "name": "LAWRENCE AVENUE",
+      "address": "1804 WEST LAWRENCE AVE",
+      "city": "CHICAGO",
+      "state": "Illinois",
+      "postalCode": "60640",
+      "countryCode": "US",
+      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=917&Chicago-Illinois+GYM",
+      "status": "Open",
+      "id": "gym-la-fitness-917"
+    },
+    {
+      "brand": "LA Fitness",
+      "name": "MARTIN LUTHER KING",
+      "address": "3435 SOUTH DR MARTIN LUTHER KING JR DRIVE",
+      "city": "CHICAGO",
+      "state": "Illinois",
+      "postalCode": "60616",
+      "countryCode": "US",
+      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1091&Chicago-Illinois+GYM",
+      "status": "Open",
+      "id": "gym-la-fitness-1091"
+    },
+    {
+      "brand": "LA Fitness",
+      "name": "NORTH BROADWAY",
+      "address": "6107 NORTH BROADWAY STREET",
+      "city": "CHICAGO",
+      "state": "Illinois",
+      "postalCode": "60660",
+      "countryCode": "US",
+      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1050&Chicago-Illinois+GYM",
+      "status": "Open",
+      "id": "gym-la-fitness-1050"
+    },
+    {
+      "brand": "LA Fitness",
+      "name": "PERSHING ROAD",
+      "address": "2620 W PERSHING ROAD",
+      "city": "CHICAGO",
+      "state": "Illinois",
+      "postalCode": "60632",
+      "countryCode": "US",
+      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1134&Chicago-Illinois+GYM",
+      "status": "Open",
+      "id": "gym-la-fitness-1134"
+    },
+    {
+      "brand": "LA Fitness",
+      "name": "SOUTH LAKE PARK (Signature)",
+      "address": "5224 S LAKE PARK AVE",
+      "city": "CHICAGO",
+      "state": "Illinois",
+      "postalCode": "60615",
+      "countryCode": "US",
+      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=693&Chicago-Illinois+GYM",
+      "status": "Open",
+      "id": "gym-la-fitness-693"
+    },
+    {
+      "brand": "LA Fitness",
+      "name": "SOUTH LOOP",
+      "address": "1101 SOUTH CANAL STREET",
+      "city": "CHICAGO",
+      "state": "Illinois",
+      "postalCode": "60607",
+      "countryCode": "US",
+      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=405&Chicago-Illinois+GYM",
+      "status": "Open",
+      "id": "gym-la-fitness-405"
     },
     {
       "brand": "Esporta Fitness",
@@ -24624,18 +24732,6 @@
       "id": "gym-orangetheory-c82de33a-504c-4f3b-9ad2-db96eb234108"
     },
     {
-      "brand": "LA Fitness",
-      "name": "ELMHURST",
-      "address": "620 NORTH YORK ST",
-      "city": "ELMHURST",
-      "state": "Illinois",
-      "postalCode": "60126",
-      "countryCode": "US",
-      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1172&Elmhurst-Illinois+GYM",
-      "status": "Open",
-      "id": "gym-la-fitness-1172"
-    },
-    {
       "brand": "Life Time",
       "name": "Life Time - Evanston",
       "address": "1618 Sherman Ave",
@@ -24643,7 +24739,7 @@
       "state": "Illinois",
       "postalCode": "60201",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/il/evanston",
+      "officialUrl": "https://www.lifetime.life/locations/il/evanston.html",
       "status": "Open",
       "id": "gym-life-time-364"
     },
@@ -24967,7 +25063,7 @@
       "state": "Illinois",
       "postalCode": "60047",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/il/lake-zurich",
+      "officialUrl": "https://www.lifetime.life/locations/il/lake-zurich.html",
       "status": "Open",
       "id": "gym-life-time-278"
     },
@@ -25200,6 +25296,18 @@
       "id": "gym-mount-prospect"
     },
     {
+      "brand": "VASA Fitness",
+      "name": "VASA Fitness - Mount Prospect",
+      "address": "1490 South Elmhurst Road",
+      "city": "Mount Prospect",
+      "state": "Illinois",
+      "postalCode": "60056",
+      "countryCode": "US",
+      "officialUrl": "https://vasafitness.com/locations/il/mount-prospect/",
+      "status": "Open",
+      "id": "gym-vasa-fitness-458241"
+    },
+    {
       "brand": "LA Fitness",
       "name": "MT PROSPECT PLAZA",
       "address": "1145 MT PROSPECT PLAZA",
@@ -25258,6 +25366,18 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-85211b90-911b-4240-ab62-17b4df081e1e"
+    },
+    {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Naperville",
+      "address": "704 Illinois Rte 59",
+      "city": "Naperville",
+      "state": "Illinois",
+      "postalCode": "60540",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/naperville",
+      "status": "Open",
+      "id": "gym-naperville"
     },
     {
       "brand": "Orangetheory",
@@ -25423,7 +25543,7 @@
       "state": "Illinois",
       "postalCode": "60062",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/il/north-shore-sport-and-racquet",
+      "officialUrl": "https://www.lifetime.life/locations/il/north-shore-sport-and-racquet.html",
       "status": "Open",
       "id": "gym-life-time-374"
     },
@@ -25435,7 +25555,7 @@
       "state": "Illinois",
       "postalCode": "60062",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/il/northbrook",
+      "officialUrl": "https://www.lifetime.life/locations/il/northbrook.html",
       "status": "Open",
       "id": "gym-life-time-255"
     },
@@ -25471,7 +25591,7 @@
       "state": "Illinois",
       "postalCode": "60523",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/il/oakbrook",
+      "officialUrl": "https://www.lifetime.life/locations/il/oakbrook.html",
       "status": "Open",
       "id": "gym-life-time-276"
     },
@@ -25555,7 +25675,7 @@
       "state": "Illinois",
       "postalCode": "60467",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/il/orland-park",
+      "officialUrl": "https://www.lifetime.life/locations/il/orland-park.html",
       "status": "Open",
       "id": "gym-life-time-15"
     },
@@ -25570,6 +25690,18 @@
       "officialUrl": "https://www.orangetheory.com/en-us/locations/orland-park-illinois-0033",
       "status": "Open",
       "id": "gym-orangetheory-f4fcf335-3f90-4cee-b2b2-358f906001c0"
+    },
+    {
+      "brand": "UFC GYM",
+      "name": "UFC GYM - Orland Park",
+      "address": "14273 Wolf Rd.",
+      "city": "Orland Park",
+      "state": "Illinois",
+      "postalCode": "60467",
+      "countryCode": "US",
+      "officialUrl": "https://www.ufcgym.com/locations/orland-park",
+      "status": "Open",
+      "id": "gym-ufc-gym-10203"
     },
     {
       "brand": "Orangetheory",
@@ -25838,7 +25970,7 @@
     {
       "brand": "VASA Fitness",
       "name": "VASA Fitness - Rockford",
-      "address": "2601 N Mulford Rd Unit A, unit a",
+      "address": "2601 N Mulford Rd, Unit A",
       "city": "Rockford",
       "state": "Illinois",
       "postalCode": "61114",
@@ -25879,7 +26011,7 @@
       "state": "Illinois",
       "postalCode": "60446",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/il/romeoville",
+      "officialUrl": "https://www.lifetime.life/locations/il/romeoville.html",
       "status": "Open",
       "id": "gym-life-time-150"
     },
@@ -25999,7 +26131,7 @@
       "state": "Illinois",
       "postalCode": "60173",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/il/schaumburg",
+      "officialUrl": "https://www.lifetime.life/locations/il/schaumburg.html",
       "status": "Open",
       "id": "gym-life-time-50"
     },
@@ -26071,7 +26203,7 @@
       "state": "Illinois",
       "postalCode": "60077",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/il/old-orchard",
+      "officialUrl": "https://www.lifetime.life/locations/il/old-orchard.html",
       "status": "Open",
       "id": "gym-life-time-128"
     },
@@ -26126,7 +26258,7 @@
     {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - South Holland",
-      "address": "911 E 162nd St",
+      "address": "911 E 162nd St.",
       "city": "South Holland",
       "state": "Illinois",
       "postalCode": "60473",
@@ -26275,7 +26407,7 @@
       "state": "Illinois",
       "postalCode": "60061",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/il/vernon-hills",
+      "officialUrl": "https://www.lifetime.life/locations/il/vernon-hills.html",
       "status": "Open",
       "id": "gym-life-time-183"
     },
@@ -26311,7 +26443,7 @@
       "state": "Illinois",
       "postalCode": "60555",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/il/warrenville",
+      "officialUrl": "https://www.lifetime.life/locations/il/warrenville.html",
       "status": "Open",
       "id": "gym-life-time-52"
     },
@@ -26398,6 +26530,18 @@
       "officialUrl": "https://vasafitness.com/locations/il/wheaton/",
       "status": "Open",
       "id": "gym-vasa-fitness-437890"
+    },
+    {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Willowbrook",
+      "address": "820 Plainfield Rd",
+      "city": "Willowbrook",
+      "state": "Illinois",
+      "postalCode": "60527",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/willowbrook",
+      "status": "Open",
+      "id": "gym-willowbrook"
     },
     {
       "brand": "Orangetheory",
@@ -26959,7 +27103,7 @@
       "state": "Indiana",
       "postalCode": "46038",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/in/fishers",
+      "officialUrl": "https://www.lifetime.life/locations/in/fishers.html",
       "status": "Open",
       "id": "gym-life-time-225"
     },
@@ -27343,7 +27487,7 @@
       "state": "Indiana",
       "postalCode": "46250",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/in/castle-creek",
+      "officialUrl": "https://www.lifetime.life/locations/in/castle-creek.html",
       "status": "Open",
       "id": "gym-life-time-30"
     },
@@ -27502,18 +27646,6 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-eec613c3-de91-4f9d-ac42-f0f1d0d279d6"
-    },
-    {
-      "brand": "Workout Anytime",
-      "name": "Workout Anytime - Logansport",
-      "address": "3304 E Market St",
-      "city": "Logansport",
-      "state": "Indiana",
-      "postalCode": "46947",
-      "countryCode": "US",
-      "officialUrl": "https://workoutanytime.com/logansport",
-      "status": "Open",
-      "id": "gym-workout-anytime-8173"
     },
     {
       "brand": "Anytime Fitness",
@@ -28236,6 +28368,18 @@
       "id": "gym-orangetheory-a39df043-3350-4412-a257-52ba88f545ab"
     },
     {
+      "brand": "VASA Fitness",
+      "name": "VASA Fitness - Cedar Rapids",
+      "address": "279 Collins Road NE",
+      "city": "Cedar Rapids",
+      "state": "Iowa",
+      "postalCode": "52402",
+      "countryCode": "US",
+      "officialUrl": "https://vasafitness.com/locations/ia/cedar-rapids/",
+      "status": "Open",
+      "id": "gym-vasa-fitness-458904"
+    },
+    {
       "brand": "Orangetheory",
       "name": "Orangetheory - Clive, IA",
       "address": "2171 NW 111th St",
@@ -28747,7 +28891,7 @@
       "state": "Iowa",
       "postalCode": "50323",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ia/des-moines",
+      "officialUrl": "https://www.lifetime.life/locations/ia/des-moines.html",
       "status": "Open",
       "id": "gym-life-time-238"
     },
@@ -28951,7 +29095,7 @@
       "state": "Kansas",
       "postalCode": "66219",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ks/lenexa",
+      "officialUrl": "https://www.lifetime.life/locations/ks/lenexa.html",
       "status": "Open",
       "id": "gym-life-time-198"
     },
@@ -29047,7 +29191,7 @@
       "state": "Kansas",
       "postalCode": "66223",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ks/overland-park",
+      "officialUrl": "https://www.lifetime.life/locations/ks/overland-park.html",
       "status": "Open",
       "id": "gym-life-time-157"
     },
@@ -31207,7 +31351,7 @@
       "state": "Maryland",
       "postalCode": "21401",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/md/annapolis",
+      "officialUrl": "https://www.lifetime.life/locations/md/annapolis.html",
       "status": "Open",
       "id": "gym-life-time-331"
     },
@@ -31447,7 +31591,7 @@
       "state": "Maryland",
       "postalCode": "21046",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/md/columbia",
+      "officialUrl": "https://www.lifetime.life/locations/md/columbia.html",
       "status": "Open",
       "id": "gym-life-time-148"
     },
@@ -31615,7 +31759,7 @@
       "state": "Maryland",
       "postalCode": "20878",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/md/gaithersburg",
+      "officialUrl": "https://www.lifetime.life/locations/md/gaithersburg.html",
       "status": "Open",
       "id": "gym-life-time-252"
     },
@@ -32011,7 +32155,7 @@
       "state": "Maryland",
       "postalCode": "20854",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/md/potomac",
+      "officialUrl": "https://www.lifetime.life/locations/md/potomac.html",
       "status": "Open",
       "id": "gym-life-time-191"
     },
@@ -32383,7 +32527,7 @@
       "state": "Massachusetts",
       "postalCode": "02199",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ma/prudential-center",
+      "officialUrl": "https://www.lifetime.life/locations/ma/prudential-center.html",
       "status": "Open",
       "id": "gym-life-time-358"
     },
@@ -32467,7 +32611,7 @@
       "state": "Massachusetts",
       "postalCode": "01803",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ma/burlington",
+      "officialUrl": "https://www.lifetime.life/locations/ma/burlington.html",
       "status": "Open",
       "id": "gym-life-time-254"
     },
@@ -32503,7 +32647,7 @@
       "state": "Massachusetts",
       "postalCode": "02467",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ma/chestnut-hill",
+      "officialUrl": "https://www.lifetime.life/locations/ma/chestnut-hill.html",
       "status": "Open",
       "id": "gym-life-time-260"
     },
@@ -32671,9 +32815,21 @@
       "state": "Massachusetts",
       "postalCode": "01701",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ma/metrowest-boston",
+      "officialUrl": "https://www.lifetime.life/locations/ma/metrowest-boston.html",
       "status": "Open",
       "id": "gym-life-time-248"
+    },
+    {
+      "brand": "Orangetheory",
+      "name": "Orangetheory - Franklin, MA",
+      "address": "Horace Mann Plaza, 277 East Central St.",
+      "city": "Franklin",
+      "state": "Massachusetts",
+      "postalCode": "02038",
+      "countryCode": "US",
+      "officialUrl": "https://www.orangetheory.com/en-us/locations/franklin-massachusetts-1665",
+      "status": "Open",
+      "id": "gym-orangetheory-26c3b95d-b16a-482e-ae9d-e37bc1b1a4fd"
     },
     {
       "brand": "Anytime Fitness",
@@ -32887,7 +33043,7 @@
       "state": "Massachusetts",
       "postalCode": "02155",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ma/medford",
+      "officialUrl": "https://www.lifetime.life/locations/ma/medford.html",
       "status": "Open",
       "id": "gym-life-time-330"
     },
@@ -33019,7 +33175,7 @@
       "state": "Massachusetts",
       "postalCode": "01960",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ma/northshore",
+      "officialUrl": "https://www.lifetime.life/locations/ma/northshore.html",
       "status": "Open",
       "id": "gym-life-time-281"
     },
@@ -33355,7 +33511,7 @@
       "state": "Massachusetts",
       "postalCode": "02090",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ma/westwood",
+      "officialUrl": "https://www.lifetime.life/locations/ma/westwood.html",
       "status": "Open",
       "id": "gym-life-time-244"
     },
@@ -33394,18 +33550,6 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-7752fb7e-49f9-4ba5-bcaa-40f318666830"
-    },
-    {
-      "brand": "Crunch Fitness",
-      "name": "Crunch Fitness - Gold Star Blvd - Worcester",
-      "address": "40 Millbrook Street",
-      "city": "Worcester",
-      "state": "Massachusetts",
-      "postalCode": "01606",
-      "countryCode": "US",
-      "officialUrl": "https://www.crunch.com/locations/worcester",
-      "status": "Open",
-      "id": "gym-gold-star-blvd-worcester"
     },
     {
       "brand": "Crunch Fitness",
@@ -33559,7 +33703,7 @@
       "state": "Michigan",
       "postalCode": "48302",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mi/bloomfield-township",
+      "officialUrl": "https://www.lifetime.life/locations/mi/bloomfield-township.html",
       "status": "Open",
       "id": "gym-life-time-217"
     },
@@ -33643,7 +33787,7 @@
       "state": "Michigan",
       "postalCode": "48187",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mi/canton-township",
+      "officialUrl": "https://www.lifetime.life/locations/mi/canton-township.html",
       "status": "Open",
       "id": "gym-life-time-131"
     },
@@ -33775,7 +33919,7 @@
       "state": "Michigan",
       "postalCode": "48390",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mi/commerce-township",
+      "officialUrl": "https://www.lifetime.life/locations/mi/commerce-township.html",
       "status": "Open",
       "id": "gym-life-time-144"
     },
@@ -33814,6 +33958,18 @@
       "officialUrl": "https://www.orangetheory.com/en-us/locations/dearborn-michigan-1046",
       "status": "Open",
       "id": "gym-orangetheory-ce74bac6-cea8-44d9-9814-bd80e148f231"
+    },
+    {
+      "brand": "VASA Fitness",
+      "name": "VASA Fitness - Dearborn",
+      "address": "23000 Michigan Ave",
+      "city": "Dearborn",
+      "state": "Michigan",
+      "postalCode": "48124",
+      "countryCode": "US",
+      "officialUrl": "https://vasafitness.com/locations/mi/dearborn/",
+      "status": "Open",
+      "id": "gym-vasa-fitness-458233"
     },
     {
       "brand": "Anytime Fitness",
@@ -34531,7 +34687,7 @@
       "state": "Michigan",
       "postalCode": "48375",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mi/novi",
+      "officialUrl": "https://www.lifetime.life/locations/mi/novi.html",
       "status": "Open",
       "id": "gym-life-time-21"
     },
@@ -34680,6 +34836,18 @@
       "id": "gym-orangetheory-dbe7b0e7-f44c-4f62-9656-7079f50081f3"
     },
     {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Rochester Hills",
+      "address": "2105 South Rochester Rd.",
+      "city": "Rochester Hills",
+      "state": "Michigan",
+      "postalCode": "48307",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/rochester-hills",
+      "status": "Open",
+      "id": "gym-rochester-hills"
+    },
+    {
       "brand": "Life Time",
       "name": "Life Time - Rochester Hills",
       "address": "200 W Avon Rd",
@@ -34687,7 +34855,7 @@
       "state": "Michigan",
       "postalCode": "48307",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mi/rochester-hills",
+      "officialUrl": "https://www.lifetime.life/locations/mi/rochester-hills.html",
       "status": "Open",
       "id": "gym-life-time-126"
     },
@@ -34807,7 +34975,7 @@
       "state": "Michigan",
       "postalCode": "48315",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mi/shelby-township",
+      "officialUrl": "https://www.lifetime.life/locations/mi/shelby-township.html",
       "status": "Open",
       "id": "gym-life-time-22"
     },
@@ -35011,7 +35179,7 @@
       "state": "Michigan",
       "postalCode": "48098",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mi/troy",
+      "officialUrl": "https://www.lifetime.life/locations/mi/troy.html",
       "status": "Open",
       "id": "gym-life-time-20"
     },
@@ -35335,7 +35503,7 @@
       "state": "Minnesota",
       "postalCode": "55124",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/apple-valley",
+      "officialUrl": "https://www.lifetime.life/locations/mn/apple-valley.html",
       "status": "Open",
       "id": "gym-life-time-10"
     },
@@ -35365,7 +35533,7 @@
     },
     {
       "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Arden Hills",
+      "name": "Anytime Fitness - Arden Hills, MN",
       "address": "3673 Lexington Ave",
       "city": "Arden Hills",
       "state": "Minnesota",
@@ -35479,7 +35647,7 @@
       "state": "Minnesota",
       "postalCode": "55437",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/bloomington-north",
+      "officialUrl": "https://www.lifetime.life/locations/mn/bloomington-north.html",
       "status": "Open",
       "id": "gym-life-time-7"
     },
@@ -35491,7 +35659,7 @@
       "state": "Minnesota",
       "postalCode": "55431",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/bloomington-south",
+      "officialUrl": "https://www.lifetime.life/locations/mn/bloomington-south.html",
       "status": "Open",
       "id": "gym-life-time-176"
     },
@@ -35568,6 +35736,18 @@
       "id": "gym-anytime-fitness-15cea099-8992-49e8-917e-a060201091af"
     },
     {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Burnsville",
+      "address": "14150 Nicollet Ave",
+      "city": "Burnsville",
+      "state": "Minnesota",
+      "postalCode": "55337",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/burnsville",
+      "status": "Open",
+      "id": "gym-burnsville"
+    },
+    {
       "brand": "Orangetheory",
       "name": "Orangetheory - Burnsville, MN",
       "address": "1008 County Rd 42 W",
@@ -35623,7 +35803,7 @@
       "state": "Minnesota",
       "postalCode": "55316",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/champlin",
+      "officialUrl": "https://www.lifetime.life/locations/mn/champlin.html",
       "status": "Open",
       "id": "gym-life-time-12"
     },
@@ -35635,7 +35815,7 @@
       "state": "Minnesota",
       "postalCode": "55317",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/chanhassen",
+      "officialUrl": "https://www.lifetime.life/locations/mn/chanhassen.html",
       "status": "Open",
       "id": "gym-life-time-151"
     },
@@ -35647,7 +35827,7 @@
       "state": "Minnesota",
       "postalCode": "55317",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/chanhassen-pickleball",
+      "officialUrl": "https://www.lifetime.life/locations/mn/chanhassen-pickleball.html",
       "status": "Open",
       "id": "gym-life-time-362"
     },
@@ -35731,7 +35911,7 @@
       "state": "Minnesota",
       "postalCode": "55433",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/coon-rapids",
+      "officialUrl": "https://www.lifetime.life/locations/mn/coon-rapids.html",
       "status": "Open",
       "id": "gym-life-time-6"
     },
@@ -35856,6 +36036,18 @@
       "id": "gym-anytime-fitness-66624825-46f9-4d04-9782-c8684542863b"
     },
     {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Eagan",
+      "address": "1646 Diffley Road",
+      "city": "Eagan",
+      "state": "Minnesota",
+      "postalCode": "55122",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/eagan",
+      "status": "Open",
+      "id": "gym-eagan"
+    },
+    {
       "brand": "Life Time",
       "name": "Life Time - Eagan",
       "address": "1565 Thomas Center Dr",
@@ -35863,7 +36055,7 @@
       "state": "Minnesota",
       "postalCode": "55122",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/eagan",
+      "officialUrl": "https://www.lifetime.life/locations/mn/eagan.html",
       "status": "Open",
       "id": "gym-life-time-2"
     },
@@ -35923,7 +36115,7 @@
       "state": "Minnesota",
       "postalCode": "55346",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/crosstown-eden-prairie",
+      "officialUrl": "https://www.lifetime.life/locations/mn/crosstown-eden-prairie.html",
       "status": "Open",
       "id": "gym-life-time-173"
     },
@@ -35935,7 +36127,7 @@
       "state": "Minnesota",
       "postalCode": "55344",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/eden-prairie-athletic",
+      "officialUrl": "https://www.lifetime.life/locations/mn/eden-prairie-athletic.html",
       "status": "Open",
       "id": "gym-life-time-175"
     },
@@ -35947,7 +36139,7 @@
       "state": "Minnesota",
       "postalCode": "55435",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/southdale",
+      "officialUrl": "https://www.lifetime.life/locations/mn/southdale.html",
       "status": "Open",
       "id": "gym-life-time-275"
     },
@@ -36067,7 +36259,7 @@
       "state": "Minnesota",
       "postalCode": "55432",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/fridley",
+      "officialUrl": "https://www.lifetime.life/locations/mn/fridley.html",
       "status": "Open",
       "id": "gym-life-time-170"
     },
@@ -36253,6 +36445,18 @@
     },
     {
       "brand": "Anytime Fitness",
+      "name": "Anytime Fitness - Lake Elmo",
+      "address": "11550 Stillwater Blvd",
+      "city": "Lake Elmo",
+      "state": "Minnesota",
+      "postalCode": "55042",
+      "countryCode": "US",
+      "officialUrl": "https://www.anytimefitness.com/locations",
+      "status": "Open",
+      "id": "gym-anytime-fitness-51e8eb6f-a84d-4cbc-81e3-2fec6dfd2014"
+    },
+    {
+      "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Lakeville",
       "address": "17811 Kenwood Trl",
       "city": "Lakeville",
@@ -36271,7 +36475,7 @@
       "state": "Minnesota",
       "postalCode": "55044",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/lakeville",
+      "officialUrl": "https://www.lifetime.life/locations/mn/lakeville.html",
       "status": "Open",
       "id": "gym-life-time-164"
     },
@@ -36379,7 +36583,7 @@
       "state": "Minnesota",
       "postalCode": "55369",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/maple-grove",
+      "officialUrl": "https://www.lifetime.life/locations/mn/maple-grove.html",
       "status": "Open",
       "id": "gym-life-time-167"
     },
@@ -36559,7 +36763,7 @@
       "state": "Minnesota",
       "postalCode": "55403",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/minneapolis-target-center",
+      "officialUrl": "https://www.lifetime.life/locations/mn/minneapolis-target-center.html",
       "status": "Open",
       "id": "gym-life-time-172"
     },
@@ -36595,7 +36799,7 @@
       "state": "Minnesota",
       "postalCode": "55391",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/minnetonka",
+      "officialUrl": "https://www.lifetime.life/locations/mn/minnetonka.html",
       "status": "Open",
       "id": "gym-life-time-166"
     },
@@ -36607,7 +36811,7 @@
       "state": "Minnesota",
       "postalCode": "55305",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/oakdale-village-tennis",
+      "officialUrl": "https://www.lifetime.life/locations/mn/oakdale-village-tennis.html",
       "status": "Open",
       "id": "gym-life-time-171"
     },
@@ -36691,7 +36895,7 @@
       "state": "Minnesota",
       "postalCode": "55428",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/new-hope",
+      "officialUrl": "https://www.lifetime.life/locations/mn/new-hope.html",
       "status": "Open",
       "id": "gym-life-time-141"
     },
@@ -36835,7 +37039,7 @@
       "state": "Minnesota",
       "postalCode": "55446",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/plymouth",
+      "officialUrl": "https://www.lifetime.life/locations/mn/plymouth.html",
       "status": "Open",
       "id": "gym-life-time-8"
     },
@@ -36991,7 +37195,7 @@
       "state": "Minnesota",
       "postalCode": "55068",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/rosemount",
+      "officialUrl": "https://www.lifetime.life/locations/mn/rosemount.html",
       "status": "Open",
       "id": "gym-life-time-341"
     },
@@ -37027,7 +37231,7 @@
       "state": "Minnesota",
       "postalCode": "55116",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/st-paul-highland-park",
+      "officialUrl": "https://www.lifetime.life/locations/mn/st-paul-highland-park.html",
       "status": "Open",
       "id": "gym-life-time-5"
     },
@@ -37087,7 +37291,7 @@
       "state": "Minnesota",
       "postalCode": "55378",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/savage",
+      "officialUrl": "https://www.lifetime.life/locations/mn/savage.html",
       "status": "Open",
       "id": "gym-life-time-133"
     },
@@ -37135,7 +37339,7 @@
       "state": "Minnesota",
       "postalCode": "55416",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/st-louis-park",
+      "officialUrl": "https://www.lifetime.life/locations/mn/st-louis-park.html",
       "status": "Open",
       "id": "gym-life-time-174"
     },
@@ -37253,7 +37457,7 @@
       "address": "1059 Grand Ave.",
       "city": "St. Paul",
       "state": "Minnesota",
-      "postalCode": "55106",
+      "postalCode": "55105",
       "countryCode": "US",
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
@@ -37442,18 +37646,6 @@
     {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - White Bear Lake",
-      "address": "4600 Centerville Rd",
-      "city": "White Bear Lake",
-      "state": "Minnesota",
-      "postalCode": "55127",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-ae09ecd6-afdd-4d00-9427-816c469bbbc2"
-    },
-    {
-      "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - White Bear Lake",
       "address": "2689 County Rd E",
       "city": "White Bear Lake",
       "state": "Minnesota",
@@ -37464,6 +37656,18 @@
       "id": "gym-anytime-fitness-140510aa-71dd-4673-9c95-79bfb34900f8"
     },
     {
+      "brand": "Anytime Fitness",
+      "name": "Anytime Fitness - White Bear Lake",
+      "address": "4600 Centerville Rd",
+      "city": "White Bear Lake",
+      "state": "Minnesota",
+      "postalCode": "55127",
+      "countryCode": "US",
+      "officialUrl": "https://www.anytimefitness.com/locations",
+      "status": "Open",
+      "id": "gym-anytime-fitness-ae09ecd6-afdd-4d00-9427-816c469bbbc2"
+    },
+    {
       "brand": "Life Time",
       "name": "Life Time - White Bear Lake",
       "address": "4800 White Bear Pkwy",
@@ -37471,7 +37675,7 @@
       "state": "Minnesota",
       "postalCode": "55110",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/white-bear-lake",
+      "officialUrl": "https://www.lifetime.life/locations/mn/white-bear-lake.html",
       "status": "Open",
       "id": "gym-life-time-189"
     },
@@ -37501,6 +37705,18 @@
     },
     {
       "brand": "Anytime Fitness",
+      "name": "Anytime Fitness - Woodbury",
+      "address": "8380 City Center Dr",
+      "city": "Woodbury",
+      "state": "Minnesota",
+      "postalCode": "55125",
+      "countryCode": "US",
+      "officialUrl": "https://www.anytimefitness.com/locations",
+      "status": "Open",
+      "id": "gym-anytime-fitness-be04b47d-8aa5-4731-bfbe-f17e4b68ee26"
+    },
+    {
+      "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Woodbury (Woodbury Dr)",
       "address": "1125 Woodbury Dr",
       "city": "Woodbury",
@@ -37519,7 +37735,7 @@
       "state": "Minnesota",
       "postalCode": "55125",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mn/woodbury",
+      "officialUrl": "https://www.lifetime.life/locations/mn/woodbury.html",
       "status": "Open",
       "id": "gym-life-time-3"
     },
@@ -38011,7 +38227,7 @@
       "state": "Missouri",
       "postalCode": "63141",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mo/creve-coeur",
+      "officialUrl": "https://www.lifetime.life/locations/mo/creve-coeur.html",
       "status": "Open",
       "id": "gym-life-time-366"
     },
@@ -38047,7 +38263,7 @@
       "state": "Missouri",
       "postalCode": "63017",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mo/west-county-chesterfield",
+      "officialUrl": "https://www.lifetime.life/locations/mo/west-county-chesterfield.html",
       "status": "Open",
       "id": "gym-life-time-181"
     },
@@ -38119,7 +38335,7 @@
       "state": "Missouri",
       "postalCode": "63131",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/mo/frontenac",
+      "officialUrl": "https://www.lifetime.life/locations/mo/frontenac.html",
       "status": "Open",
       "id": "gym-life-time-280"
     },
@@ -38606,7 +38822,7 @@
     {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - St. Clair",
-      "address": "335 N. Commercial Ave.",
+      "address": "335 N Commercial Ave",
       "city": "St. Clair",
       "state": "Missouri",
       "postalCode": "63077",
@@ -39235,7 +39451,7 @@
       "state": "Nebraska",
       "postalCode": "68130",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ne/omaha",
+      "officialUrl": "https://www.lifetime.life/locations/ne/omaha.html",
       "status": "Open",
       "id": "gym-life-time-161"
     },
@@ -39559,7 +39775,7 @@
       "state": "Nevada",
       "postalCode": "89052",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/nv/henderson-green-valley",
+      "officialUrl": "https://www.lifetime.life/locations/nv/henderson-green-valley.html",
       "status": "Open",
       "id": "gym-life-time-239"
     },
@@ -39799,7 +40015,7 @@
       "state": "Nevada",
       "postalCode": "89135",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/nv/summerlin",
+      "officialUrl": "https://www.lifetime.life/locations/nv/summerlin.html",
       "status": "Open",
       "id": "gym-life-time-193"
     },
@@ -40315,7 +40531,7 @@
       "state": "New Jersey",
       "postalCode": "07922",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/nj/berkeley-heights",
+      "officialUrl": "https://www.lifetime.life/locations/nj/berkeley-heights.html",
       "status": "Open",
       "id": "gym-life-time-188"
     },
@@ -40363,7 +40579,7 @@
       "state": "New Jersey",
       "postalCode": "08807",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/nj/bridgewater",
+      "officialUrl": "https://www.lifetime.life/locations/nj/bridgewater.html",
       "status": "Open",
       "id": "gym-life-time-261"
     },
@@ -40687,7 +40903,7 @@
       "state": "New Jersey",
       "postalCode": "07932",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/nj/florham-park",
+      "officialUrl": "https://www.lifetime.life/locations/nj/florham-park.html",
       "status": "Open",
       "id": "gym-life-time-165"
     },
@@ -40795,7 +41011,7 @@
       "state": "New Jersey",
       "postalCode": "07601",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/nj/riverside",
+      "officialUrl": "https://www.lifetime.life/locations/nj/riverside.html",
       "status": "Open",
       "id": "gym-life-time-328"
     },
@@ -40994,7 +41210,7 @@
     {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Medford",
-      "address": "200 Tuckerton Rd",
+      "address": "200 Tuckerton Rd, Suite 26",
       "city": "Medford",
       "state": "New Jersey",
       "postalCode": "08055",
@@ -41023,7 +41239,7 @@
       "state": "New Jersey",
       "postalCode": "07701",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/nj/middletown",
+      "officialUrl": "https://www.lifetime.life/locations/nj/middletown.html",
       "status": "Open",
       "id": "gym-life-time-288"
     },
@@ -41083,7 +41299,7 @@
       "state": "New Jersey",
       "postalCode": "07645",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/nj/bergen-county",
+      "officialUrl": "https://www.lifetime.life/locations/nj/bergen-county.html",
       "status": "Open",
       "id": "gym-life-time-235"
     },
@@ -41167,7 +41383,7 @@
       "state": "New Jersey",
       "postalCode": "08054",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/nj/mount-laurel",
+      "officialUrl": "https://www.lifetime.life/locations/nj/mount-laurel.html",
       "status": "Open",
       "id": "gym-life-time-234"
     },
@@ -41242,18 +41458,6 @@
       "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=239&North+Brunswick-New+Jersey+GYM",
       "status": "Open",
       "id": "gym-la-fitness-239"
-    },
-    {
-      "brand": "Orangetheory",
-      "name": "Orangetheory - N. Brunswick, NJ",
-      "address": "764 Shoppes Blvd",
-      "city": "North Brunswick Township",
-      "state": "New Jersey",
-      "postalCode": "08902",
-      "countryCode": "US",
-      "officialUrl": "https://www.orangetheory.com/en-us/locations/north-brunswick-township-new-jersey-0668",
-      "status": "Open",
-      "id": "gym-orangetheory-25242112-57d6-47d5-98ee-babee8a6fc55"
     },
     {
       "brand": "UFC GYM",
@@ -41395,7 +41599,7 @@
       "state": "New Jersey",
       "postalCode": "08540",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/nj/princeton",
+      "officialUrl": "https://www.lifetime.life/locations/nj/princeton.html",
       "status": "Open",
       "id": "gym-life-time-258"
     },
@@ -41890,6 +42094,18 @@
       "officialUrl": "https://www.orangetheory.com/en-us/locations/west-windsor-township-new-jersey-0061",
       "status": "Open",
       "id": "gym-orangetheory-d0787239-37f9-4186-9f5f-a5a5dcfde797"
+    },
+    {
+      "brand": "Anytime Fitness",
+      "name": "Anytime Fitness - Whitehouse Station",
+      "address": "547 Route 22",
+      "city": "Whitehouse Station",
+      "state": "New Jersey",
+      "postalCode": "08889",
+      "countryCode": "US",
+      "officialUrl": "https://www.anytimefitness.com/locations",
+      "status": "Open",
+      "id": "gym-anytime-fitness-bd9f4656-fdd6-4909-a455-ed52478ac9d4"
     },
     {
       "brand": "Crunch Fitness",
@@ -42571,7 +42787,7 @@
       "state": "New York",
       "postalCode": "11217",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ny/atlantic-avenue",
+      "officialUrl": "https://www.lifetime.life/locations/ny/atlantic-avenue.html",
       "status": "Open",
       "id": "gym-life-time-347"
     },
@@ -42583,7 +42799,7 @@
       "state": "New York",
       "postalCode": "11201",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ny/dumbo",
+      "officialUrl": "https://www.lifetime.life/locations/ny/dumbo.html",
       "status": "Open",
       "id": "gym-life-time-307"
     },
@@ -42691,7 +42907,7 @@
       "state": "New York",
       "postalCode": "10514",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ny/chappaqua",
+      "officialUrl": "https://www.lifetime.life/locations/ny/chappaqua.html",
       "status": "Open",
       "id": "gym-life-time-259"
     },
@@ -42931,7 +43147,7 @@
       "state": "New York",
       "postalCode": "11530",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ny/garden-city",
+      "officialUrl": "https://www.lifetime.life/locations/ny/garden-city.html",
       "status": "Open",
       "id": "gym-life-time-240"
     },
@@ -43416,18 +43632,6 @@
       "id": "gym-orangetheory-cd2cad24-1d07-4da5-9d88-2fb5fcc3695a"
     },
     {
-      "brand": "Orangetheory",
-      "name": "Orangetheory - Mt. Kisco, NY",
-      "address": "222 E Main St",
-      "city": "Mt. Kisco",
-      "state": "New York",
-      "postalCode": "10549",
-      "countryCode": "US",
-      "officialUrl": "https://www.orangetheory.com/en-us/locations/mt-kisco-new-york-0692",
-      "status": "Open",
-      "id": "gym-orangetheory-6a68214b-62a9-449c-be8f-a6473408ba7b"
-    },
-    {
       "brand": "24 Hour Fitness",
       "name": "24 Hour Fitness - Nanuet",
       "address": "5205 Fashion Drive",
@@ -43621,6 +43825,18 @@
     },
     {
       "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Inwood",
+      "address": "415 W. 207th St",
+      "city": "New York",
+      "state": "New York",
+      "postalCode": "10034",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/inwood",
+      "status": "Open",
+      "id": "gym-inwood"
+    },
+    {
+      "brand": "Crunch Fitness",
       "name": "Crunch Fitness - Midtown East",
       "address": "511 Lexington Ave",
       "city": "New York",
@@ -43699,7 +43915,7 @@
       "state": "New York",
       "postalCode": "10010",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ny/23rd-street",
+      "officialUrl": "https://www.lifetime.life/locations/ny/23rd-street.html",
       "status": "Open",
       "id": "gym-life-time-312"
     },
@@ -43711,19 +43927,19 @@
       "state": "New York",
       "postalCode": "10004",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ny/battery-park",
+      "officialUrl": "https://www.lifetime.life/locations/ny/battery-park.html",
       "status": "Open",
       "id": "gym-life-time-701"
     },
     {
       "brand": "Life Time",
       "name": "Life Time - Fifth Avenue",
-      "address": "420 5th Ave",
+      "address": "420 5th Ave, Suite B",
       "city": "New York",
       "state": "New York",
       "postalCode": "10018",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ny/fifth-avenue",
+      "officialUrl": "https://www.lifetime.life/locations/ny/fifth-avenue.html",
       "status": "Open",
       "id": "gym-life-time-370"
     },
@@ -43735,7 +43951,7 @@
       "state": "New York",
       "postalCode": "10019",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ny/midtown",
+      "officialUrl": "https://www.lifetime.life/locations/ny/midtown.html",
       "status": "Open",
       "id": "gym-life-time-313"
     },
@@ -43747,7 +43963,7 @@
       "state": "New York",
       "postalCode": "10003",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ny/noho",
+      "officialUrl": "https://www.lifetime.life/locations/ny/noho.html",
       "status": "Open",
       "id": "gym-life-time-314"
     },
@@ -43759,7 +43975,7 @@
       "state": "New York",
       "postalCode": "10005",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ny/one-wall-street",
+      "officialUrl": "https://www.lifetime.life/locations/ny/one-wall-street.html",
       "status": "Open",
       "id": "gym-life-time-282"
     },
@@ -43771,7 +43987,7 @@
       "state": "New York",
       "postalCode": "10119",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ny/penn-1",
+      "officialUrl": "https://www.lifetime.life/locations/ny/penn-1.html",
       "status": "Open",
       "id": "gym-life-time-351"
     },
@@ -43783,7 +43999,7 @@
       "state": "New York",
       "postalCode": "10036",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ny/sky-manhattan",
+      "officialUrl": "https://www.lifetime.life/locations/ny/sky-manhattan.html",
       "status": "Open",
       "id": "gym-life-time-250"
     },
@@ -44455,7 +44671,7 @@
       "state": "New York",
       "postalCode": "11791",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ny/syosset",
+      "officialUrl": "https://www.lifetime.life/locations/ny/syosset.html",
       "status": "Open",
       "id": "gym-life-time-200"
     },
@@ -44470,18 +44686,6 @@
       "officialUrl": "https://www.orangetheory.com/en-us/locations/syosset-new-york-0322",
       "status": "Open",
       "id": "gym-orangetheory-1c7c5751-3827-4ab2-9815-b18c965d566b"
-    },
-    {
-      "brand": "Crunch Fitness",
-      "name": "Crunch Fitness - Dewitt",
-      "address": "3179 Erie Blvd East",
-      "city": "Syracuse",
-      "state": "New York",
-      "postalCode": "13214",
-      "countryCode": "US",
-      "officialUrl": "https://www.crunch.com/locations/dewitt",
-      "status": "Open",
-      "id": "gym-dewitt"
     },
     {
       "brand": "Crunch Fitness",
@@ -44671,7 +44875,7 @@
       "state": "New York",
       "postalCode": "10604",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ny/westchester",
+      "officialUrl": "https://www.lifetime.life/locations/ny/westchester.html",
       "status": "Open",
       "id": "gym-life-time-236"
     },
@@ -44791,7 +44995,7 @@
       "state": "North Carolina",
       "postalCode": "27523",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/nc/apex",
+      "officialUrl": "https://www.lifetime.life/locations/nc/apex.html",
       "status": "Open",
       "id": "gym-life-time-227"
     },
@@ -44947,7 +45151,7 @@
       "state": "North Carolina",
       "postalCode": "27519",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/nc/alston-town-center",
+      "officialUrl": "https://www.lifetime.life/locations/nc/alston-town-center.html",
       "status": "Open",
       "id": "gym-life-time-352"
     },
@@ -44959,7 +45163,7 @@
       "state": "North Carolina",
       "postalCode": "27518",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/nc/cary",
+      "officialUrl": "https://www.lifetime.life/locations/nc/cary.html",
       "status": "Open",
       "id": "gym-life-time-160"
     },
@@ -45163,7 +45367,7 @@
       "state": "North Carolina",
       "postalCode": "28277",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/nc/charlotte",
+      "officialUrl": "https://www.lifetime.life/locations/nc/charlotte.html",
       "status": "Open",
       "id": "gym-life-time-253"
     },
@@ -45370,6 +45574,18 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-f6e68263-aa9f-49ae-ae72-db4edb5ffddd"
+    },
+    {
+      "brand": "Onelife Fitness",
+      "name": "Onelife Fitness - Durham - Chapel Hill",
+      "address": "3420 SW Durham Dr",
+      "city": "Durham",
+      "state": "North Carolina",
+      "postalCode": "27707",
+      "countryCode": "US",
+      "officialUrl": "https://www.onelifefitness.com/gyms/durham-chapel-hill",
+      "status": "Open",
+      "id": "gym-onelife-fitness-191988739143"
     },
     {
       "brand": "Orangetheory",
@@ -45598,18 +45814,6 @@
       "officialUrl": "https://www.orangetheory.com/en-us/locations/holly-springs-north-carolina-0358",
       "status": "Open",
       "id": "gym-orangetheory-36b825d3-dd35-4f1f-ac91-e2a7fd9a0c62"
-    },
-    {
-      "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Hope Mills",
-      "address": "4230 Legion Rd",
-      "city": "Hope Mills",
-      "state": "North Carolina",
-      "postalCode": "28348",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-2834cb7f-1cff-4570-af10-cd0cafa89e30"
     },
     {
       "brand": "Anytime Fitness",
@@ -45979,7 +46183,7 @@
       "state": "North Carolina",
       "postalCode": "27615",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/nc/raleigh",
+      "officialUrl": "https://www.lifetime.life/locations/nc/raleigh.html",
       "status": "Open",
       "id": "gym-life-time-243"
     },
@@ -46490,7 +46694,7 @@
     {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Minot (20th Ave SW)",
-      "address": "305 20th Ave. SW.",
+      "address": "305 20th Ave SW",
       "city": "Minot",
       "state": "North Dakota",
       "postalCode": "58701",
@@ -46615,7 +46819,7 @@
       "state": "Ohio",
       "postalCode": "44122",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/oh/beachwood",
+      "officialUrl": "https://www.lifetime.life/locations/oh/beachwood.html",
       "status": "Open",
       "id": "gym-life-time-195"
     },
@@ -46963,7 +47167,7 @@
       "state": "Ohio",
       "postalCode": "45249",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/oh/eastside-sport-and-racquet",
+      "officialUrl": "https://www.lifetime.life/locations/oh/eastside-sport-and-racquet.html",
       "status": "Open",
       "id": "gym-life-time-376"
     },
@@ -47089,6 +47293,18 @@
     },
     {
       "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - New Albany",
+      "address": "4870 Morse Rd.",
+      "city": "Columbus",
+      "state": "Ohio",
+      "postalCode": "43230",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/new-albany",
+      "status": "Open",
+      "id": "gym-new-albany"
+    },
+    {
+      "brand": "Crunch Fitness",
       "name": "Crunch Fitness - Reynoldsburg",
       "address": "5929 E Main St",
       "city": "Columbus",
@@ -47107,7 +47323,7 @@
       "state": "Ohio",
       "postalCode": "43219",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/oh/easton",
+      "officialUrl": "https://www.lifetime.life/locations/oh/easton.html",
       "status": "Open",
       "id": "gym-life-time-40"
     },
@@ -47119,7 +47335,7 @@
       "state": "Ohio",
       "postalCode": "43220",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/oh/upper-arlington",
+      "officialUrl": "https://www.lifetime.life/locations/oh/upper-arlington.html",
       "status": "Open",
       "id": "gym-life-time-223"
     },
@@ -47263,7 +47479,7 @@
       "state": "Ohio",
       "postalCode": "43016",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/oh/dublin",
+      "officialUrl": "https://www.lifetime.life/locations/oh/dublin.html",
       "status": "Open",
       "id": "gym-life-time-159"
     },
@@ -47321,7 +47537,7 @@
       "address": "1987 Tiffin Ave",
       "city": "Findlay",
       "state": "Ohio",
-      "postalCode": "45839",
+      "postalCode": "45840",
       "countryCode": "US",
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
@@ -47671,7 +47887,7 @@
       "state": "Ohio",
       "postalCode": "45040",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/oh/deerfield-township",
+      "officialUrl": "https://www.lifetime.life/locations/oh/deerfield-township.html",
       "status": "Open",
       "id": "gym-life-time-162"
     },
@@ -47935,7 +48151,7 @@
       "state": "Ohio",
       "postalCode": "43147",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/oh/pickerington",
+      "officialUrl": "https://www.lifetime.life/locations/oh/pickerington.html",
       "status": "Open",
       "id": "gym-life-time-224"
     },
@@ -48122,7 +48338,7 @@
     {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Urbana",
-      "address": "1637 Scioto St",
+      "address": "1637 Scioto St, Suite 4,",
       "city": "Urbana",
       "state": "Ohio",
       "postalCode": "43078",
@@ -48660,18 +48876,6 @@
       "id": "gym-oklahoma-city-quail-springs"
     },
     {
-      "brand": "Gold's Gym",
-      "name": "Gold's Gym - Quail Springs",
-      "address": "2301 West Memorial Road",
-      "city": "Oklahoma City",
-      "state": "Oklahoma",
-      "postalCode": "73134",
-      "countryCode": "US",
-      "officialUrl": "https://www.goldsgym.com/locations/quail-springs/",
-      "status": "Open",
-      "id": "gym-gold-s-gym-1449"
-    },
-    {
       "brand": "Life Time",
       "name": "Life Time - Oklahoma City",
       "address": "2563 West Memorial Road",
@@ -48679,7 +48883,7 @@
       "state": "Oklahoma",
       "postalCode": "73134",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ok/oklahoma-city",
+      "officialUrl": "https://www.lifetime.life/locations/ok/oklahoma-city.html",
       "status": "Open",
       "id": "gym-life-time-263"
     },
@@ -48859,7 +49063,7 @@
       "state": "Oklahoma",
       "postalCode": "74133",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ok/south-tulsa",
+      "officialUrl": "https://www.lifetime.life/locations/ok/south-tulsa.html",
       "status": "Open",
       "id": "gym-life-time-199"
     },
@@ -48922,18 +49126,6 @@
       "officialUrl": "https://www.crunch.com/locations/yukon",
       "status": "Open",
       "id": "gym-yukon"
-    },
-    {
-      "brand": "Gold's Gym",
-      "name": "Gold's Gym - Yukon",
-      "address": "12701 NW 10th Street",
-      "city": "Yukon",
-      "state": "Oklahoma",
-      "postalCode": "73099",
-      "countryCode": "US",
-      "officialUrl": "https://www.goldsgym.com/locations/yukon/",
-      "status": "Open",
-      "id": "gym-gold-s-gym-1585"
     },
     {
       "brand": "Orangetheory",
@@ -49027,7 +49219,7 @@
       "state": "Oregon",
       "postalCode": "97225",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/or/beaverton",
+      "officialUrl": "https://www.lifetime.life/locations/or/beaverton.html",
       "status": "Open",
       "id": "gym-life-time-297"
     },
@@ -49333,18 +49525,6 @@
     },
     {
       "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Lebanon",
-      "address": "671 Main St",
-      "city": "Lebanon",
-      "state": "Oregon",
-      "postalCode": "97355",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-75d4120c-0c24-4a0b-8851-6a465867f8ed"
-    },
-    {
-      "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Medford",
       "address": "150 N Bartlett St",
       "city": "Medford",
@@ -49357,7 +49537,7 @@
     },
     {
       "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Medford",
+      "name": "Anytime Fitness - Medford (East)",
       "address": "3564 Lone Pine Rd",
       "city": "Medford",
       "state": "Oregon",
@@ -49486,18 +49666,6 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-7240c798-aed4-4f98-b86e-93cbe60f9f63"
-    },
-    {
-      "brand": "Crunch Fitness",
-      "name": "Crunch Fitness - Division",
-      "address": "12112 SE Division St",
-      "city": "Portland",
-      "state": "Oregon",
-      "postalCode": "97236",
-      "countryCode": "US",
-      "officialUrl": "https://www.crunch.com/locations/division",
-      "status": "Open",
-      "id": "gym-division"
     },
     {
       "brand": "Gold's Gym",
@@ -49632,6 +49800,18 @@
       "id": "gym-anytime-fitness-e9204fe4-32ad-45cb-b59b-6dbbbf2b92bf"
     },
     {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Salem",
+      "address": "2025 Lancaster Drive NE",
+      "city": "Salem",
+      "state": "Oregon",
+      "postalCode": "97305",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/salem",
+      "status": "Open",
+      "id": "gym-salem"
+    },
+    {
       "brand": "Orangetheory",
       "name": "Orangetheory - Salem, OR",
       "address": "4405 Commercial St SE Suite V",
@@ -49726,6 +49906,18 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-1e218440-e596-498c-be95-bc9e6ee252d0"
+    },
+    {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Troutdale",
+      "address": "2501 SW Cherry Park Rd",
+      "city": "Troutdale",
+      "state": "Oregon",
+      "postalCode": "97060",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/troutdale",
+      "status": "Open",
+      "id": "gym-troutdale"
     },
     {
       "brand": "Orangetheory",
@@ -49843,7 +50035,7 @@
       "state": "Pennsylvania",
       "postalCode": "19003",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/pa/ardmore",
+      "officialUrl": "https://www.lifetime.life/locations/pa/ardmore.html",
       "status": "Open",
       "id": "gym-life-time-262"
     },
@@ -50287,7 +50479,7 @@
       "state": "Pennsylvania",
       "postalCode": "19034",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/pa/fort-washington",
+      "officialUrl": "https://www.lifetime.life/locations/pa/fort-washington.html",
       "status": "Open",
       "id": "gym-life-time-500"
     },
@@ -51499,7 +51691,7 @@
       "state": "Pennsylvania",
       "postalCode": "19087",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/pa/king-of-prussia",
+      "officialUrl": "https://www.lifetime.life/locations/pa/king-of-prussia.html",
       "status": "Open",
       "id": "gym-life-time-251"
     },
@@ -51840,6 +52032,18 @@
       "id": "gym-anytime-fitness-e64e2168-2d41-4041-84b0-7c10070f412d"
     },
     {
+      "brand": "The Edge Fitness Clubs",
+      "name": "The Edge Fitness Clubs - Johnston, RI",
+      "address": "11 Commerce Way",
+      "city": "Johnston",
+      "state": "Rhode Island",
+      "postalCode": "02919",
+      "countryCode": "US",
+      "officialUrl": "https://www.theedgefitnessclubs.com/locations/rhode-island-johnston",
+      "status": "Open",
+      "id": "gym-the-edge-fitness-clubs-32353"
+    },
+    {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Middletown",
       "address": "288 E Main Rd",
@@ -52080,6 +52284,18 @@
       "id": "gym-anytime-fitness-483cfa3f-a65b-477d-94b8-e44d175d2d6e"
     },
     {
+      "brand": "Anytime Fitness",
+      "name": "Anytime Fitness - Charleston (James Island)",
+      "address": "1739 Maybank Hwy",
+      "city": "Charleston",
+      "state": "South Carolina",
+      "postalCode": "29412",
+      "countryCode": "US",
+      "officialUrl": "https://www.anytimefitness.com/locations",
+      "status": "Open",
+      "id": "gym-anytime-fitness-80f95e9d-127e-435e-aed1-f70a12277cd8"
+    },
+    {
       "brand": "Crunch Fitness",
       "name": "Crunch Fitness - West Ashley",
       "address": "1119 Wappoo Road",
@@ -52126,6 +52342,18 @@
       "officialUrl": "https://www.orangetheory.com/en-us/locations/clemson-south-carolina-1290",
       "status": "Open",
       "id": "gym-orangetheory-c7fb7ffd-c62f-4ced-842c-1fe83b75ecbd"
+    },
+    {
+      "brand": "Anytime Fitness",
+      "name": "Anytime Fitness - Clinton",
+      "address": "100 Laurens St.",
+      "city": "Clinton",
+      "state": "South Carolina",
+      "postalCode": "29325",
+      "countryCode": "US",
+      "officialUrl": "https://www.anytimefitness.com/locations",
+      "status": "Open",
+      "id": "gym-anytime-fitness-14b180d0-84c1-4975-bd73-31b0d950d2aa"
     },
     {
       "brand": "Anytime Fitness",
@@ -53484,6 +53712,18 @@
       "id": "gym-anytime-fitness-4015c7d8-3887-4f0b-9365-0df799a59024"
     },
     {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Cleveland",
+      "address": "850 25th Street NW",
+      "city": "Cleveland",
+      "state": "Tennessee",
+      "postalCode": "37311",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/clevelandtn",
+      "status": "Open",
+      "id": "gym-cleveland"
+    },
+    {
       "brand": "Workout Anytime",
       "name": "Workout Anytime - Cleveland",
       "address": "221 Ocoee Xing NW",
@@ -53527,7 +53767,7 @@
       "state": "Tennessee",
       "postalCode": "38139",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tn/collierville",
+      "officialUrl": "https://www.lifetime.life/locations/tn/collierville.html",
       "status": "Open",
       "id": "gym-life-time-187"
     },
@@ -53558,7 +53798,7 @@
     {
       "brand": "Workout Anytime",
       "name": "Workout Anytime - Cookeville",
-      "address": "120 S Willow Ave, Ste D",
+      "address": "120 S Willow Ave",
       "city": "Cookeville",
       "state": "Tennessee",
       "postalCode": "38501",
@@ -53628,6 +53868,18 @@
       "id": "gym-workout-anytime-8267"
     },
     {
+      "brand": "Workout Anytime",
+      "name": "Workout Anytime - Erwin, TN",
+      "address": "917 N. Main Avenue",
+      "city": "Erwin",
+      "state": "Tennessee",
+      "postalCode": "37650",
+      "countryCode": "US",
+      "officialUrl": "https://workoutanytime.com/erwin",
+      "status": "Open",
+      "id": "gym-workout-anytime-279733"
+    },
+    {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Fairview",
       "address": "7048 City Ctr Way",
@@ -53671,7 +53923,7 @@
       "state": "Tennessee",
       "postalCode": "37067",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tn/franklin",
+      "officialUrl": "https://www.lifetime.life/locations/tn/franklin.html",
       "status": "Open",
       "id": "gym-life-time-257"
     },
@@ -54025,6 +54277,18 @@
     },
     {
       "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Bearden",
+      "address": "4581 Kingston Pike",
+      "city": "Knoxville",
+      "state": "Tennessee",
+      "postalCode": "37919",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/bearden",
+      "status": "Open",
+      "id": "gym-bearden"
+    },
+    {
+      "brand": "Crunch Fitness",
       "name": "Crunch Fitness - Fountain City",
       "address": "5003 N. Broadway St",
       "city": "Knoxville",
@@ -54322,18 +54586,6 @@
       "officialUrl": "https://www.orangetheory.com/en-us/locations/memphis-tennessee-0438",
       "status": "Open",
       "id": "gym-orangetheory-6ea1ee9d-68f1-43e6-b317-d10bf409fb62"
-    },
-    {
-      "brand": "LA Fitness",
-      "name": "MEMPHIS - POLO GROUNDS BLVD",
-      "address": "7630 POLO GROUNDS BLVD",
-      "city": "MEMPHIS",
-      "state": "Tennessee",
-      "postalCode": "38125",
-      "countryCode": "US",
-      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1108&Memphis-Tennessee+GYM",
-      "status": "Open",
-      "id": "gym-la-fitness-1108"
     },
     {
       "brand": "LA Fitness",
@@ -54722,7 +54974,7 @@
     {
       "brand": "Workout Anytime",
       "name": "Workout Anytime - Spring Hill",
-      "address": "4886 Port Royal Rd, Ste 200",
+      "address": "4886 Port Royal Road Suite 200",
       "city": "Spring Hill",
       "state": "Tennessee",
       "postalCode": "37174",
@@ -54823,7 +55075,7 @@
       "state": "Texas",
       "postalCode": "75013",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/allen",
+      "officialUrl": "https://www.lifetime.life/locations/tx/allen.html",
       "status": "Open",
       "id": "gym-life-time-153"
     },
@@ -55034,7 +55286,7 @@
     {
       "brand": "Workout Anytime",
       "name": "Workout Anytime - North Arlington",
-      "address": "1701 W Randol Mill Rd, Ste 542B",
+      "address": "542 Fielder North Plaza",
       "city": "Arlington",
       "state": "Texas",
       "postalCode": "76012",
@@ -55042,18 +55294,6 @@
       "officialUrl": "https://workoutanytime.com/north-arlington",
       "status": "Open",
       "id": "gym-workout-anytime-8338"
-    },
-    {
-      "brand": "LA Fitness",
-      "name": "ARLINGTON - US 287",
-      "address": "5331 W SUBLETT RD",
-      "city": "ARLINGTON",
-      "state": "Texas",
-      "postalCode": "76017",
-      "countryCode": "US",
-      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1318&Arlington-Texas+GYM",
-      "status": "Open",
-      "id": "gym-la-fitness-1318"
     },
     {
       "brand": "LA Fitness",
@@ -55387,7 +55627,7 @@
       "state": "Texas",
       "postalCode": "78759",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/austin-arboretum",
+      "officialUrl": "https://www.lifetime.life/locations/tx/austin-arboretum.html",
       "status": "Open",
       "id": "gym-life-time-287"
     },
@@ -55399,7 +55639,7 @@
       "state": "Texas",
       "postalCode": "78703",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/austin-downtown",
+      "officialUrl": "https://www.lifetime.life/locations/tx/austin-downtown.html",
       "status": "Open",
       "id": "gym-life-time-286"
     },
@@ -55411,7 +55651,7 @@
       "state": "Texas",
       "postalCode": "78717",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/austin-north",
+      "officialUrl": "https://www.lifetime.life/locations/tx/austin-north.html",
       "status": "Open",
       "id": "gym-life-time-149"
     },
@@ -55423,7 +55663,7 @@
       "state": "Texas",
       "postalCode": "78749",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/austin-south",
+      "officialUrl": "https://www.lifetime.life/locations/tx/austin-south.html",
       "status": "Open",
       "id": "gym-life-time-163"
     },
@@ -55435,7 +55675,7 @@
       "state": "Texas",
       "postalCode": "78704",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/south-lamar",
+      "officialUrl": "https://www.lifetime.life/locations/tx/south-lamar.html",
       "status": "Open",
       "id": "gym-life-time-368"
     },
@@ -56287,7 +56527,7 @@
       "state": "Texas",
       "postalCode": "76034",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/colleyville",
+      "officialUrl": "https://www.lifetime.life/locations/tx/colleyville.html",
       "status": "Open",
       "id": "gym-life-time-142"
     },
@@ -56412,6 +56652,18 @@
       "id": "gym-corpus-christi-south"
     },
     {
+      "brand": "Gold's Gym",
+      "name": "Gold's Gym - Corpus Christi",
+      "address": "4225 South Staples St",
+      "city": "Corpus Christi",
+      "state": "Texas",
+      "postalCode": "78411",
+      "countryCode": "US",
+      "officialUrl": "https://www.goldsgym.com/locations/corpus-christi/",
+      "status": "Open",
+      "id": "gym-gold-s-gym-1802"
+    },
+    {
       "brand": "Orangetheory",
       "name": "Orangetheory - Corpus Christi, TX",
       "address": "4938 S Staples St Suite C-18",
@@ -56527,7 +56779,7 @@
       "state": "Texas",
       "postalCode": "77433",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/cypress",
+      "officialUrl": "https://www.lifetime.life/locations/tx/cypress.html",
       "status": "Open",
       "id": "gym-life-time-268"
     },
@@ -56683,7 +56935,7 @@
       "state": "Texas",
       "postalCode": "75287",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/dallas-addison",
+      "officialUrl": "https://www.lifetime.life/locations/tx/dallas-addison.html",
       "status": "Open",
       "id": "gym-life-time-147"
     },
@@ -56695,7 +56947,7 @@
       "state": "Texas",
       "postalCode": "75206",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/dallas-highland-park",
+      "officialUrl": "https://www.lifetime.life/locations/tx/dallas-highland-park.html",
       "status": "Open",
       "id": "gym-life-time-190"
     },
@@ -56750,7 +57002,7 @@
     {
       "brand": "Workout Anytime",
       "name": "Workout Anytime - Casa View TX",
-      "address": "2425 Gus Thomasson Rd",
+      "address": "2425 Gus Thomasson Road",
       "city": "Dallas",
       "state": "Texas",
       "postalCode": "75228",
@@ -57307,7 +57559,7 @@
       "state": "Texas",
       "postalCode": "75022",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/flower-mound",
+      "officialUrl": "https://www.lifetime.life/locations/tx/flower-mound.html",
       "status": "Open",
       "id": "gym-life-time-143"
     },
@@ -57451,7 +57703,7 @@
       "state": "Texas",
       "postalCode": "76177",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/fort-worth-alliance",
+      "officialUrl": "https://www.lifetime.life/locations/tx/fort-worth-alliance.html",
       "status": "Open",
       "id": "gym-life-time-266"
     },
@@ -57494,7 +57746,7 @@
     {
       "brand": "Workout Anytime",
       "name": "Workout Anytime - Lake Worth",
-      "address": "4625 Boat Club Rd, Ste 241",
+      "address": "4625 Boat Club Road, Ste 241",
       "city": "Fort Worth",
       "state": "Texas",
       "postalCode": "76135",
@@ -57547,7 +57799,7 @@
       "state": "Texas",
       "postalCode": "77546",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/baybrook",
+      "officialUrl": "https://www.lifetime.life/locations/tx/baybrook.html",
       "status": "Open",
       "id": "gym-life-time-270"
     },
@@ -57607,7 +57859,7 @@
       "state": "Texas",
       "postalCode": "75034",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/frisco",
+      "officialUrl": "https://www.lifetime.life/locations/tx/frisco.html",
       "status": "Open",
       "id": "gym-life-time-285"
     },
@@ -57662,7 +57914,7 @@
     {
       "brand": "Orangetheory",
       "name": "Orangetheory - Ft. Worth Camp Bowie, TX",
-      "address": "6201 Sunset Dr #670",
+      "address": "6201 Sunset Dr, Suite 680",
       "city": "Ft. Worth",
       "state": "Texas",
       "postalCode": "76116",
@@ -57720,6 +57972,18 @@
       "id": "gym-anytime-fitness-487af411-b8bd-4220-9987-4ac544524a23"
     },
     {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Garland",
+      "address": "825 West Centerville Road",
+      "city": "Garland",
+      "state": "Texas",
+      "postalCode": "75041",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/garland",
+      "status": "Open",
+      "id": "gym-garland"
+    },
+    {
       "brand": "Life Time",
       "name": "Life Time - Garland",
       "address": "5602 Naaman Forest Blvd",
@@ -57727,7 +57991,7 @@
       "state": "Texas",
       "postalCode": "75044",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/garland",
+      "officialUrl": "https://www.lifetime.life/locations/tx/garland.html",
       "status": "Open",
       "id": "gym-life-time-139"
     },
@@ -57889,18 +58153,6 @@
     },
     {
       "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Grapevine",
-      "address": "2350 Hall Johnson Rd, Ste 155",
-      "city": "Grapevine",
-      "state": "Texas",
-      "postalCode": "76051",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-df4f62b7-3ab0-40db-b44c-5ef7687670cd"
-    },
-    {
-      "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Greenville",
       "address": "4800 Joe Ramsey Blvd E",
       "city": "Greenville",
@@ -57972,18 +58224,6 @@
       "id": "gym-harker-heights"
     },
     {
-      "brand": "Orangetheory",
-      "name": "Orangetheory - Harker Heights, TX",
-      "address": "3045 Stillhouse Lake Rd #108",
-      "city": "Harker Heights",
-      "state": "Texas",
-      "postalCode": "76548",
-      "countryCode": "US",
-      "officialUrl": "https://www.orangetheory.com/en-us/locations/harker-heights-texas-1193",
-      "status": "Open",
-      "id": "gym-orangetheory-b5e34349-3524-46d6-ac62-42d59e84c11c"
-    },
-    {
       "brand": "Gold's Gym",
       "name": "Gold's Gym - Harlingen",
       "address": "2000 S. Expressway 83, Unit C12B",
@@ -58037,7 +58277,7 @@
       "address": "103 St. Paul St, Ste 200",
       "city": "Henderson",
       "state": "Texas",
-      "postalCode": "75652",
+      "postalCode": "75654",
       "countryCode": "US",
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
@@ -58375,7 +58615,7 @@
       "state": "Texas",
       "postalCode": "77070",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/champions",
+      "officialUrl": "https://www.lifetime.life/locations/tx/champions.html",
       "status": "Open",
       "id": "gym-life-time-138"
     },
@@ -58387,19 +58627,19 @@
       "state": "Texas",
       "postalCode": "77024",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/city-centre-houston",
+      "officialUrl": "https://www.lifetime.life/locations/tx/city-centre-houston.html",
       "status": "Open",
       "id": "gym-life-time-180"
     },
     {
       "brand": "Life Time",
       "name": "Life Time - Galleria Tennis (Houston)",
-      "address": "5100 West Alabama",
+      "address": "5100 West Alabama, Orange Garage Level 3",
       "city": "Houston",
       "state": "Texas",
       "postalCode": "77056",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/galleria-tennis-houston",
+      "officialUrl": "https://www.lifetime.life/locations/tx/galleria-tennis-houston.html",
       "status": "Open",
       "id": "gym-life-time-272"
     },
@@ -58411,7 +58651,7 @@
       "state": "Texas",
       "postalCode": "77002",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/greenstreet",
+      "officialUrl": "https://www.lifetime.life/locations/tx/greenstreet.html",
       "status": "Open",
       "id": "gym-life-time-300"
     },
@@ -58423,7 +58663,7 @@
       "state": "Texas",
       "postalCode": "77046",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/greenway",
+      "officialUrl": "https://www.lifetime.life/locations/tx/greenway.html",
       "status": "Open",
       "id": "gym-life-time-271"
     },
@@ -58555,7 +58795,7 @@
       "state": "Texas",
       "postalCode": "77008",
       "countryCode": "US",
-      "officialUrl": "https://www.ufcgym.com/locations/houston",
+      "officialUrl": "https://www.ufcgym.com/locations/houston-the-heights",
       "status": "Open",
       "id": "gym-ufc-gym-10053"
     },
@@ -58735,7 +58975,7 @@
       "state": "Texas",
       "postalCode": "77346",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/kingwood",
+      "officialUrl": "https://www.lifetime.life/locations/tx/kingwood.html",
       "status": "Open",
       "id": "gym-life-time-206"
     },
@@ -58747,7 +58987,7 @@
       "state": "Texas",
       "postalCode": "77346",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/lake-houston",
+      "officialUrl": "https://www.lifetime.life/locations/tx/lake-houston.html",
       "status": "Open",
       "id": "gym-life-time-196"
     },
@@ -58843,7 +59083,7 @@
       "state": "Texas",
       "postalCode": "75063",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/las-colinas",
+      "officialUrl": "https://www.lifetime.life/locations/tx/las-colinas.html",
       "status": "Open",
       "id": "gym-life-time-325"
     },
@@ -58987,7 +59227,7 @@
       "state": "Texas",
       "postalCode": "77494",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/cinco-ranch",
+      "officialUrl": "https://www.lifetime.life/locations/tx/cinco-ranch.html",
       "status": "Open",
       "id": "gym-life-time-146"
     },
@@ -59635,7 +59875,7 @@
       "state": "Texas",
       "postalCode": "76063",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/mansfield",
+      "officialUrl": "https://www.lifetime.life/locations/tx/mansfield.html",
       "status": "Open",
       "id": "gym-life-time-185"
     },
@@ -59767,7 +60007,7 @@
       "state": "Texas",
       "postalCode": "75070",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/mckinney-craig-ranch",
+      "officialUrl": "https://www.lifetime.life/locations/tx/mckinney-craig-ranch.html",
       "status": "Open",
       "id": "gym-life-time-334"
     },
@@ -59923,7 +60163,7 @@
       "state": "Texas",
       "postalCode": "77459",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/missouri-city",
+      "officialUrl": "https://www.lifetime.life/locations/tx/missouri-city.html",
       "status": "Open",
       "id": "gym-life-time-320"
     },
@@ -60000,6 +60240,18 @@
       "id": "gym-orangetheory-51768c59-d1e4-4850-ba34-df2254227593"
     },
     {
+      "brand": "EOS Fitness",
+      "name": "EOS Fitness - Murphy: N Murphy Rd / E FM 544",
+      "address": "229 E FM 544",
+      "city": "Murphy",
+      "state": "Texas",
+      "postalCode": "75094",
+      "countryCode": "US",
+      "officialUrl": "https://www.eosfitness.com/gym/murphy-n-murphy-rd-e-fm-544",
+      "status": "Open",
+      "id": "gym-eos-fitness-57f16f67-7a4a-4217-a0d1-c4e431998ce7"
+    },
+    {
       "brand": "Orangetheory",
       "name": "Orangetheory - Murphy, TX",
       "address": "601 E FM 544 Suite 300",
@@ -60029,7 +60281,7 @@
       "address": "7120 Rufe Snow Dr",
       "city": "N Richland Hills",
       "state": "Texas",
-      "postalCode": "76182",
+      "postalCode": "76148",
       "countryCode": "US",
       "officialUrl": "https://www.eosfitness.com/gym/north-richland-hills-rufe-snow-dr-hightower-dr",
       "status": "Open",
@@ -60391,7 +60643,7 @@
       "state": "Texas",
       "postalCode": "75024",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/plano",
+      "officialUrl": "https://www.lifetime.life/locations/tx/plano.html",
       "status": "Open",
       "id": "gym-life-time-136"
     },
@@ -60403,7 +60655,7 @@
       "state": "Texas",
       "postalCode": "75024",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/plano-tennis",
+      "officialUrl": "https://www.lifetime.life/locations/tx/plano-tennis.html",
       "status": "Open",
       "id": "gym-life-time-230"
     },
@@ -61237,6 +61489,18 @@
     },
     {
       "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - San Antonio Thousand Oaks",
+      "address": "4319 Thousand Oaks Drive",
+      "city": "San Antonio",
+      "state": "Texas",
+      "postalCode": "78217",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/sa-thousand-oaks",
+      "status": "Open",
+      "id": "gym-san-antonio-thousand-oaks"
+    },
+    {
+      "brand": "Crunch Fitness",
       "name": "Crunch Fitness - San Antonio Westlakes",
       "address": "1339 SW Loop 410, Suite 105",
       "city": "San Antonio",
@@ -61270,6 +61534,18 @@
       "officialUrl": "https://www.eosfitness.com/gym/san-antonio-tx-i-35-walzem-rd",
       "status": "Open",
       "id": "gym-eos-fitness-26d8f236-99f0-4dc8-9ae5-afbc34c6f8b2"
+    },
+    {
+      "brand": "EOS Fitness",
+      "name": "EOS Fitness - San Antonio: Loop 1604 / Bandera Rd",
+      "address": "11761 Bandera Rd",
+      "city": "San Antonio",
+      "state": "Texas",
+      "postalCode": "78250",
+      "countryCode": "US",
+      "officialUrl": "https://www.eosfitness.com/gym/san-antonio-loop-1604-bandera-rd",
+      "status": "Open",
+      "id": "gym-eos-fitness-93429388-4ccc-4aa2-a066-6dfe9238a7f7"
     },
     {
       "brand": "Gold's Gym",
@@ -61369,18 +61645,6 @@
     },
     {
       "brand": "Gold's Gym",
-      "name": "Gold's Gym - San Antonio Goliad",
-      "address": "2828 Goliad Rd",
-      "city": "San Antonio",
-      "state": "Texas",
-      "postalCode": "78223",
-      "countryCode": "US",
-      "officialUrl": "https://www.goldsgym.com/locations/sanantoniogoliad/",
-      "status": "Open",
-      "id": "gym-gold-s-gym-783"
-    },
-    {
-      "brand": "Gold's Gym",
       "name": "Gold's Gym - San Antonio Legacy Trails",
       "address": "8935 State Highway 151",
       "city": "San Antonio",
@@ -61459,7 +61723,7 @@
       "state": "Texas",
       "postalCode": "78259",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/san-antonio-281",
+      "officialUrl": "https://www.lifetime.life/locations/tx/san-antonio-281.html",
       "status": "Open",
       "id": "gym-life-time-152"
     },
@@ -61471,7 +61735,7 @@
       "state": "Texas",
       "postalCode": "78257",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/san-antonio-at-the-rim",
+      "officialUrl": "https://www.lifetime.life/locations/tx/san-antonio-at-the-rim.html",
       "status": "Open",
       "id": "gym-life-time-179"
     },
@@ -61747,7 +62011,7 @@
       "state": "Texas",
       "postalCode": "77380",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/shenandoah",
+      "officialUrl": "https://www.lifetime.life/locations/tx/shenandoah.html",
       "status": "Open",
       "id": "gym-life-time-298"
     },
@@ -61963,7 +62227,7 @@
       "state": "Texas",
       "postalCode": "77478",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/sugar-land",
+      "officialUrl": "https://www.lifetime.life/locations/tx/sugar-land.html",
       "status": "Open",
       "id": "gym-life-time-140"
     },
@@ -62136,6 +62400,18 @@
       "id": "gym-anytime-fitness-60ddea4b-e6dd-46a2-a31a-5ba513f6237e"
     },
     {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - The Woodlands",
+      "address": "6700 Woodlands Parkway, Unit 600",
+      "city": "The Woodlands",
+      "state": "Texas",
+      "postalCode": "77382",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/houwoodlands",
+      "status": "Open",
+      "id": "gym-the-woodlands"
+    },
+    {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Trinity",
       "address": "866 S Robb St",
@@ -62280,18 +62556,6 @@
       "id": "gym-waco"
     },
     {
-      "brand": "Gold's Gym",
-      "name": "Gold's Gym - Waco",
-      "address": "250 N. New Road",
-      "city": "Waco",
-      "state": "Texas",
-      "postalCode": "76710",
-      "countryCode": "US",
-      "officialUrl": "https://www.goldsgym.com/locations/waco/",
-      "status": "Open",
-      "id": "gym-gold-s-gym-502"
-    },
-    {
       "brand": "Orangetheory",
       "name": "Orangetheory - Waco, TX",
       "address": "1428 Wooded Acres Dr #116",
@@ -62395,7 +62659,7 @@
       "state": "Texas",
       "postalCode": "76262",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/tx/westlake",
+      "officialUrl": "https://www.lifetime.life/locations/tx/westlake.html",
       "status": "Open",
       "id": "gym-life-time-333"
     },
@@ -63122,7 +63386,7 @@
     {
       "brand": "Orangetheory",
       "name": "Orangetheory - Sugar House, UT",
-      "address": "1202 Wilmington Ave #100",
+      "address": "1202 East Wilmington Ave #100",
       "city": "Salt Lake City",
       "state": "Utah",
       "postalCode": "84106",
@@ -63223,7 +63487,7 @@
       "state": "Utah",
       "postalCode": "84095",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/ut/south-jordan",
+      "officialUrl": "https://www.lifetime.life/locations/ut/south-jordan.html",
       "status": "Open",
       "id": "gym-life-time-154"
     },
@@ -63370,18 +63634,6 @@
       "officialUrl": "https://www.eosfitness.com/gym/taylorsville-s-redwood-rd-gym",
       "status": "Open",
       "id": "gym-eos-fitness-b99123a2-81ef-4243-b8c0-123f55a04b4d"
-    },
-    {
-      "brand": "VASA Fitness",
-      "name": "VASA Fitness - Taylorsville",
-      "address": "5345 S 4015 W",
-      "city": "Taylorsville",
-      "state": "Utah",
-      "postalCode": "84129",
-      "countryCode": "US",
-      "officialUrl": "https://vasafitness.com/locations/ut/taylorsville/",
-      "status": "Open",
-      "id": "gym-vasa-fitness-358"
     },
     {
       "brand": "Anytime Fitness",
@@ -63763,7 +64015,7 @@
       "state": "Virginia",
       "postalCode": "22201",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/va/clarendon",
+      "officialUrl": "https://www.lifetime.life/locations/va/clarendon.html",
       "status": "Open",
       "id": "gym-life-time-329"
     },
@@ -64051,7 +64303,7 @@
       "state": "Virginia",
       "postalCode": "20120",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/va/centreville",
+      "officialUrl": "https://www.lifetime.life/locations/va/centreville.html",
       "status": "Open",
       "id": "gym-life-time-35"
     },
@@ -64315,7 +64567,7 @@
       "state": "Virginia",
       "postalCode": "22031",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/va/fairfax",
+      "officialUrl": "https://www.lifetime.life/locations/va/fairfax.html",
       "status": "Open",
       "id": "gym-life-time-36"
     },
@@ -64354,18 +64606,6 @@
       "officialUrl": "https://www.ufcgym.com/locations/fairfax",
       "status": "Open",
       "id": "gym-ufc-gym-10057"
-    },
-    {
-      "brand": "Orangetheory",
-      "name": "Orangetheory - Fairfax City, VA",
-      "address": "10621 Braddock Rd Suite J",
-      "city": "Fairfax City",
-      "state": "Virginia",
-      "postalCode": "22032",
-      "countryCode": "US",
-      "officialUrl": "https://www.orangetheory.com/en-us/locations/fairfax-city-virginia-0796",
-      "status": "Open",
-      "id": "gym-orangetheory-a817c220-25c6-43f4-976b-5cd709ae834e"
     },
     {
       "brand": "Gold's Gym",
@@ -64579,7 +64819,7 @@
       "state": "Virginia",
       "postalCode": "20155",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/va/gainesville",
+      "officialUrl": "https://www.lifetime.life/locations/va/gainesville.html",
       "status": "Open",
       "id": "gym-life-time-256"
     },
@@ -64750,18 +64990,6 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-b1734215-23a1-48c9-a57e-8974400a2466"
-    },
-    {
-      "brand": "Orangetheory",
-      "name": "Orangetheory - Lake Ridge, VA",
-      "address": "4172 Merchant Plz",
-      "city": "Lake Ridge",
-      "state": "Virginia",
-      "postalCode": "22192",
-      "countryCode": "US",
-      "officialUrl": "https://www.orangetheory.com/en-us/locations/lake-ridge-virginia-0798",
-      "status": "Open",
-      "id": "gym-orangetheory-01e71b5c-1570-430c-82fc-9d5e76a912c9"
     },
     {
       "brand": "Crunch Fitness",
@@ -65251,7 +65479,7 @@
       "state": "Virginia",
       "postalCode": "20190",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/va/reston",
+      "officialUrl": "https://www.lifetime.life/locations/va/reston.html",
       "status": "Open",
       "id": "gym-life-time-233"
     },
@@ -65282,7 +65510,7 @@
     {
       "brand": "UFC GYM",
       "name": "UFC GYM - Reston",
-      "address": "11710 Plaza America Dr",
+      "address": "11710 Plaza America Dr, Suite 40",
       "city": "Reston",
       "state": "Virginia",
       "postalCode": "20190",
@@ -65623,7 +65851,7 @@
       "state": "Virginia",
       "postalCode": "20166",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/va/ashburn-sterling",
+      "officialUrl": "https://www.lifetime.life/locations/va/ashburn-sterling.html",
       "status": "Open",
       "id": "gym-life-time-186"
     },
@@ -66115,7 +66343,7 @@
       "state": "Washington",
       "postalCode": "98004",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/wa/bellevue",
+      "officialUrl": "https://www.lifetime.life/locations/wa/bellevue.html",
       "status": "Open",
       "id": "gym-life-time-274"
     },
@@ -67741,15 +67969,15 @@
     },
     {
       "brand": "Crunch Fitness",
-      "name": "Crunch Fitness - Vancouver Plaza",
-      "address": "7701 NE Vancouver Plaza",
+      "name": "Crunch Fitness - Vancouver Plaza, WA",
+      "address": "7800 NE Fourth Plain Blvd",
       "city": "Vancouver",
       "state": "Washington",
       "postalCode": "98662",
       "countryCode": "US",
-      "officialUrl": "https://www.crunch.com/locations/vancouver-plaza",
+      "officialUrl": "https://www.crunch.com/locations/vancouver-plaza-wa",
       "status": "Open",
-      "id": "gym-vancouver-plaza"
+      "id": "gym-vancouver-plaza-wa"
     },
     {
       "brand": "Gold's Gym",
@@ -67777,7 +68005,7 @@
     },
     {
       "brand": "Orangetheory",
-      "name": "Orangetheory - EAST VANCOUVER/CAMAS, WA",
+      "name": "Orangetheory - EAST VANCOUVER/ CAMAS, WA",
       "address": "530 SE 192nd Ave #104",
       "city": "Vancouver",
       "state": "Washington",
@@ -67981,6 +68209,18 @@
     },
     {
       "brand": "Anytime Fitness",
+      "name": "Anytime Fitness - Cross Lanes",
+      "address": "5466 Big Tyler Rd.",
+      "city": "Cross Lanes",
+      "state": "West Virginia",
+      "postalCode": "25313",
+      "countryCode": "US",
+      "officialUrl": "https://www.anytimefitness.com/locations",
+      "status": "Open",
+      "id": "gym-anytime-fitness-2b1c2199-a5ab-4440-b70f-5612fdcb113b"
+    },
+    {
+      "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Elkins",
       "address": "46 Plantation Way",
       "city": "Elkins",
@@ -68086,6 +68326,18 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-bf5c90c1-4f78-4c94-9b40-67926c2f9e87"
+    },
+    {
+      "brand": "Anytime Fitness",
+      "name": "Anytime Fitness - Parkersburg",
+      "address": "1050 Division St, Suite B",
+      "city": "Parkersburg",
+      "state": "West Virginia",
+      "postalCode": "26101",
+      "countryCode": "US",
+      "officialUrl": "https://www.anytimefitness.com/locations",
+      "status": "Open",
+      "id": "gym-anytime-fitness-9369450a-9ffb-4eee-a6de-9f0b5e4962bd"
     },
     {
       "brand": "Anytime Fitness",
@@ -68263,7 +68515,7 @@
       "state": "Wisconsin",
       "postalCode": "53045",
       "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/wi/brookfield",
+      "officialUrl": "https://www.lifetime.life/locations/wi/brookfield.html",
       "status": "Open",
       "id": "gym-life-time-284"
     },
@@ -68498,7 +68750,7 @@
     {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Fort Atkinson",
-      "address": "308 Washington St",
+      "address": "308 Washington Street",
       "city": "Fort Atkinson",
       "state": "Wisconsin",
       "postalCode": "53538",
@@ -68554,6 +68806,18 @@
       "officialUrl": "https://www.crunch.com/locations/green-bay",
       "status": "Open",
       "id": "gym-green-bay"
+    },
+    {
+      "brand": "VASA Fitness",
+      "name": "VASA Fitness - Green Bay (East Town)",
+      "address": "2430 E. Mason Street, Suite A",
+      "city": "Green Bay",
+      "state": "Wisconsin",
+      "postalCode": "54302",
+      "countryCode": "US",
+      "officialUrl": "https://vasafitness.com/locations/wi/green-bay-east-town/",
+      "status": "Open",
+      "id": "gym-vasa-fitness-456837"
     },
     {
       "brand": "Crunch Fitness",
@@ -69554,7 +69818,7 @@
     {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Waukesha (Meadowbrook)",
-      "address": "901 Meadowbrook Rd., Ste. 1",
+      "address": "901 Meadowbrook Rd, Ste. 1",
       "city": "Waukesha",
       "state": "Wisconsin",
       "postalCode": "53188",

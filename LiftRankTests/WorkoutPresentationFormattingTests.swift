@@ -28,6 +28,42 @@ final class WorkoutPresentationFormattingTests: XCTestCase {
         XCTAssertEqual(MeasurementFormatting.formatWeight(77.5), "77.5")
     }
 
+    func testFractionalWeightFormattingUsesRequestedLocale() {
+        XCTAssertEqual(RankingCalculator.format(72.5, locale: Locale(identifier: "fr_FR")), "72,5")
+        XCTAssertEqual(RankingCalculator.format(72.5, locale: Locale(identifier: "en_US")), "72.5")
+        XCTAssertEqual(RankingCalculator.format(72, locale: Locale(identifier: "fr_FR")), "72")
+    }
+
+    func testLocalizedDecimalParsingAndFormatting() {
+        let french = Locale(identifier: "fr_FR")
+        let german = Locale(identifier: "de_DE")
+        let english = Locale(identifier: "en_US")
+        XCTAssertEqual(MeasurementFormatting.parseLocalizedDecimal("72,5", locale: french), 72.5)
+        XCTAssertEqual(MeasurementFormatting.parseLocalizedDecimal("1 234,5", locale: french), 1234.5)
+        XCTAssertEqual(MeasurementFormatting.parseLocalizedDecimal("1.234,5", locale: german), 1234.5)
+        XCTAssertEqual(MeasurementFormatting.parseLocalizedDecimal("1,234.5", locale: english), 1234.5)
+        XCTAssertNil(MeasurementFormatting.parseLocalizedDecimal("1.5", locale: french))
+        XCTAssertNil(MeasurementFormatting.parseLocalizedDecimal("1,234.5", locale: french))
+        XCTAssertNil(MeasurementFormatting.parseLocalizedDecimal("not a weight", locale: french))
+        XCTAssertEqual(MeasurementFormatting.localizedDecimalText(72.5, locale: french, maximumFractionDigits: 1), "72,5")
+        let prefilledTrainingMax = MeasurementFormatting.localizedDecimalText(
+            72.5,
+            locale: french,
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1
+        )
+        XCTAssertEqual(MeasurementFormatting.parseLocalizedDecimal(prefilledTrainingMax, locale: french), 72.5)
+        XCTAssertEqual(RankingFormatting.ratioText(1.25, locale: french), "1,25x")
+    }
+
+    func testGroupedIntegerParsingIsStableAcrossLocaleSeparators() {
+        XCTAssertEqual(MeasurementFormatting.parseGroupedInteger("1,000,000"), 1_000_000)
+        XCTAssertEqual(MeasurementFormatting.parseGroupedInteger("1.000.000"), 1_000_000)
+        XCTAssertEqual(MeasurementFormatting.parseGroupedInteger("1\u{202F}000\u{202F}000"), 1_000_000)
+        XCTAssertEqual(MeasurementFormatting.parseGroupedInteger("1\u{00A0}000\u{00A0}000"), 1_000_000)
+        XCTAssertNil(MeasurementFormatting.parseGroupedInteger("1,000x"))
+    }
+
     func testRecordedLiftSetTextPreservesKilograms() {
         XCTAssertEqual(
             MeasurementFormatting.recordedLiftSetText(weight: 150, unit: .kilograms, repetitions: 5),

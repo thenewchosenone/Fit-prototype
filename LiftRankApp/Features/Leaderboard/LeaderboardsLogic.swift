@@ -257,7 +257,7 @@ extension LeaderboardsView {
         if let country = appState.leaderboardFilters.country, !country.isEmpty { return "My country" }
         if let bodyweightClass,
            appState.leaderboardFilters.weightClassID == bodyweightClass.id { return "My class" }
-        return isGlobalScope ? "Global" : "Custom"
+        return isGlobalScope ? "All lifters" : "Custom"
     }
 
     var exerciseLabel: String {
@@ -266,14 +266,13 @@ extension LeaderboardsView {
     }
 
     var repetitionLabel: String {
-        appState.leaderboardFilters.repetitionCount.map { "\($0)" } ?? "All"
+        appState.leaderboardFilters.repetitionCount.map { "\($0)" } ?? "1RM"
     }
 
     func options(for selector: LeaderboardSelector) -> [LeaderboardOption] {
         switch selector {
         case .scope:
             let broadScopes: [LeaderboardOption] = [
-                .init(id: "global", title: "Global", subtitle: "All ranked lifters", symbol: "globe"),
                 .init(id: "city", title: "My city", subtitle: "\(appState.currentProfile.city), \(appState.currentProfile.state)", symbol: "mappin.and.ellipse"),
                 .init(id: "state", title: "My state", subtitle: appState.currentProfile.state, symbol: "map"),
                 .init(id: "country", title: "My country", subtitle: appState.currentProfile.countryCode ?? "", symbol: "globe.americas.fill"),
@@ -302,8 +301,7 @@ extension LeaderboardsView {
             }
         case .repetitions:
             return [
-                .init(id: "all", title: "All rep counts", symbol: "number"),
-                .init(id: "1", title: "1 rep", symbol: "1.circle"),
+                .init(id: "all", title: "One-rep max", symbol: "number"),
                 .init(id: "3", title: "3 reps", symbol: "3.circle"),
                 .init(id: "5", title: "5 reps", symbol: "5.circle"),
                 .init(id: "8", title: "8 reps", symbol: "8.circle"),

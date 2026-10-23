@@ -43,6 +43,8 @@ extension LeaderboardsView {
                                     Label("How this ranking works", systemImage: "info.circle")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(Color.liftAccentText)
+                                        .frame(minHeight: LiftDesign.minimumTouchTarget)
+                                        .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                                 .padding(.horizontal, 16)

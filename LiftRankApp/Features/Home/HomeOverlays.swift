@@ -198,8 +198,7 @@ struct RecentPRDetailView: View {
                 .font(.headline.weight(.bold))
             detailRow("Bodyweight", MeasurementFormatting.formatBodyweight(lift.bodyweightAtLift, preferredUnit: appState.currentProfile.preferredUnit))
             detailRow("Relative strength", RankingFormatting.ratioText(lift.bodyweightMultiple))
-            detailRow("Evidence", lift.resolvedEvidenceStatus.rawValue)
-            detailRow("Review status", lift.resolvedModerationStatus.rawValue)
+            detailRow("Evidence", lift.resolvedEvidenceStatus.evidenceMetricValue)
         }
         .padding(14)
         .liftSurface()
@@ -300,8 +299,41 @@ struct HomeNotificationCenterView: View {
                 ScrollView {
                     LazyVStack(spacing: 12) {
                         if appState.notifications.isEmpty {
-                            emptyState
+                            if appState.isRefreshingNotifications ||
+                                (appState.isAuthenticated && !appState.isDemoMode && !appState.hasLoadedNotifications) {
+                                ProgressView().frame(maxWidth: .infinity).padding(40)
+                            } else if let error = appState.notificationRefreshError {
+                                VStack(spacing: 12) {
+                                    LiftEmptyState(
+                                        title: "Notifications unavailable",
+                                        message: "We couldn’t load your notifications. \(error)"
+                                    )
+                                    Button("Retry") {
+                                        Task { await appState.refreshNotifications() }
+                                    }
+                                    .buttonStyle(LiftCompactProminentButtonStyle())
+                                    .disabled(appState.isRefreshingNotifications)
+                                }
+                                .frame(maxWidth: .infinity)
+                            } else {
+                                emptyState
+                            }
                         } else {
+                            if let error = appState.notificationRefreshError {
+                                HStack(alignment: .center, spacing: 12) {
+                                    Text("Couldn’t refresh. Showing previously loaded notifications. \(error)")
+                                        .font(.subheadline)
+                                        .foregroundStyle(Color.liftMuted)
+                                    Spacer(minLength: 0)
+                                    Button("Retry") {
+                                        Task { await appState.refreshNotifications() }
+                                    }
+                                    .font(.subheadline.weight(.bold))
+                                    .disabled(appState.isRefreshingNotifications)
+                                }
+                                .padding(12)
+                                .background(Color.liftSurfaceElevated, in: RoundedRectangle(cornerRadius: 12))
+                            }
                             ForEach(appState.sortedNotifications) { notification in
                                 Button {
                                     dismiss()
@@ -320,6 +352,7 @@ struct HomeNotificationCenterView: View {
                     .padding(18)
                 }
                 .scrollIndicators(.hidden)
+                .refreshable { await appState.refreshNotifications() }
             }
             .navigationTitle("Notifications")
             .navigationBarTitleDisplayMode(.inline)
@@ -336,6 +369,7 @@ struct HomeNotificationCenterView: View {
                 }
             }
         }
+        .task { await appState.refreshNotifications() }
     }
 
     private func notificationRow(_ notification: NotificationItem) -> some View {
@@ -441,7 +475,7 @@ struct StreakDetailView: View {
                     } label: {
                         Image(systemName: "xmark")
                             .font(.subheadline.weight(.bold))
-                            .frame(width: 40, height: 40)
+                            .frame(width: LiftDesign.minimumTouchTarget, height: LiftDesign.minimumTouchTarget)
                             .background(Color.liftCard)
                             .clipShape(Circle())
                     }

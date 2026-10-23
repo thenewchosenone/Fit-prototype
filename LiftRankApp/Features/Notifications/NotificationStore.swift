@@ -3,6 +3,9 @@ import Foundation
 
 @MainActor
 final class NotificationStore: ObservableObject {
+    @Published private(set) var isRefreshing = false
+    @Published private(set) var hasLoaded = false
+    @Published private(set) var refreshError: String?
     private let repository: any NotificationRepository
     private let deviceID: String
     private var notificationService: (any NotificationService)?
@@ -34,10 +37,32 @@ final class NotificationStore: ObservableObject {
     func refreshProductionData() async {
         let userID = repository.currentProfile.id
         resetAccountScopedCacheIfNeeded()
-        guard let notificationService else { return }
-        guard let notifications = try? await notificationService.notifications() else { return }
-        guard repository.currentProfile.id == userID else { return }
-        replaceNotifications(notifications)
+        let notificationsRevision = repository.notificationsRevision
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+        guard let notificationService else {
+            hasLoaded = true
+            refreshError = "Notification service is unavailable."
+            return
+        }
+        do {
+            let notifications = try await notificationService.notifications()
+            guard repository.currentProfile.id == userID else {
+                resetAccountScopedCacheAfterStaleRefresh(startingAt: notificationsRevision)
+                return
+            }
+            replaceNotifications(notifications)
+            hasLoaded = true
+            refreshError = nil
+        } catch {
+            guard repository.currentProfile.id == userID else {
+                resetAccountScopedCacheAfterStaleRefresh(startingAt: notificationsRevision)
+                return
+            }
+            hasLoaded = true
+            refreshError = error.localizedDescription
+        }
     }
 
     func registerPushToken(_ token: String, userID: UUID, environment: String) async {
@@ -88,6 +113,8 @@ final class NotificationStore: ObservableObject {
         repository.notifications = []
         cachedUserID = repository.currentProfile.id
         clearNotificationCaches()
+        hasLoaded = false
+        refreshError = nil
     }
 
     func markRead(_ notificationID: UUID) {
@@ -160,6 +187,18 @@ final class NotificationStore: ObservableObject {
         cachedUserID = repository.currentProfile.id
         clearNotificationCaches()
         repository.notifications = []
+        hasLoaded = false
+        refreshError = nil
+    }
+
+    private func resetAccountScopedCacheAfterStaleRefresh(startingAt revision: Int) {
+        if repository.notificationsRevision == revision {
+            repository.notifications = []
+        }
+        cachedUserID = repository.currentProfile.id
+        clearNotificationCaches()
+        hasLoaded = false
+        refreshError = nil
     }
 
     private func clearNotificationCaches() {

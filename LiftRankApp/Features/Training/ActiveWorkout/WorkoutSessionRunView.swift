@@ -29,7 +29,6 @@ struct WorkoutSessionRunView: View {
     @State private var showingEmptyWorkoutConfirmation = false
     @State private var isReorderingExercises = false
     @State private var dismissAfterSummary = false
-    @State private var showSummaryAfterSheetDismiss = false
     @State private var summaryForReview: WorkoutSummary?
     @State private var catalogByID: [String: TrainingExerciseCatalogItem] = [:]
 
@@ -151,14 +150,10 @@ struct WorkoutSessionRunView: View {
                 )
             }
             .sheet(item: $presentedSheet, onDismiss: {
-                if showSummaryAfterSheetDismiss {
-                    showSummaryAfterSheetDismiss = false
-                    summaryForReview = appState.activeWorkoutSummary()
-                    presentedSheet = .summary
-                    return
-                }
                 guard dismissAfterSummary else {
-                    summaryForReview = nil
+                    if presentedSheet == nil {
+                        summaryForReview = nil
+                    }
                     return
                 }
                 dismissAfterSummary = false
@@ -168,19 +163,7 @@ struct WorkoutSessionRunView: View {
                 switch sheet {
                 case .summary:
                     if let summary = summaryForReview {
-                        WorkoutSummaryView(
-                            summary: summary,
-                            prCandidates: appState.activeWorkoutPRCandidates(),
-                            automaticSubmissionEnabled: appState.workoutPreferences.automaticallySubmitVideoBackedPRs
-                        ) { effort, notes, videos, selectedSetIDs in
-                            guard let completed = appState.finishActiveWorkout(effort: effort, notes: notes) else { return false }
-                            dismissAfterSummary = true
-                            Task {
-                                await appState.submitVideoBackedPRs(for: completed, videoURLsBySetID: videos, selectedSetIDs: selectedSetIDs)
-                            }
-                            return true
-                        }
-                        .environmentObject(appState)
+                        reviewSummaryView(summary)
                     }
                 case .addExercise:
                     ActiveWorkoutAddExercisePickerView()
@@ -191,20 +174,23 @@ struct WorkoutSessionRunView: View {
                         .environmentObject(appState)
                         .presentationDetents([.large])
                 case let .incompleteFinish(completedSets, plannedSets):
-                    IncompleteWorkoutFinishPrompt(
-                        completedSets: completedSets,
-                        plannedSets: plannedSets,
-                        onReview: {
-                            showSummaryAfterSheetDismiss = true
-                            presentedSheet = nil
-                        },
-                        onKeepTraining: {
-                            presentedSheet = nil
-                        }
-                    )
-                    .presentationDetents([.medium])
-                    .presentationDragIndicator(.visible)
-                    .presentationBackground(Color.liftBackground)
+                    if let summary = summaryForReview {
+                        reviewSummaryView(summary)
+                    } else {
+                        IncompleteWorkoutFinishPrompt(
+                            completedSets: completedSets,
+                            plannedSets: plannedSets,
+                            onReview: {
+                                summaryForReview = appState.activeWorkoutSummary()
+                            },
+                            onKeepTraining: {
+                                presentedSheet = nil
+                            }
+                        )
+                        .presentationDetents([.medium])
+                        .presentationDragIndicator(.visible)
+                        .presentationBackground(Color.liftBackground)
+                    }
                 }
             }
             .confirmationDialog("Discard this workout?", isPresented: $showingCancelConfirmation, titleVisibility: .visible) {
@@ -374,28 +360,23 @@ struct WorkoutSessionRunView: View {
     ) -> some View {
         HStack(spacing: 12) {
             if isReorderingExercises {
-                VStack(spacing: 6) {
-                    Button {
+                Menu {
+                    Button("Move earlier") {
                         _ = appState.moveActiveWorkoutExercise(exercise, direction: -1)
-                    } label: {
-                        Image(systemName: "chevron.up")
-                            .font(.caption.weight(.black))
-                            .frame(width: 28, height: 20)
                     }
-                    .buttonStyle(.plain)
-                    Button {
+                    Button("Move later") {
                         _ = appState.moveActiveWorkoutExercise(exercise, direction: 1)
-                    } label: {
-                        Image(systemName: "chevron.down")
-                            .font(.caption.weight(.black))
-                            .frame(width: 28, height: 20)
                     }
-                    .buttonStyle(.plain)
+                } label: {
                     Image(systemName: "line.3.horizontal")
-                        .font(.caption2.weight(.black))
-                        .foregroundStyle(Color.liftMuted)
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(Color.liftAccentText)
+                        .frame(width: 44, height: 44)
+                        .background(Color.liftCardRaised)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
-                .foregroundStyle(Color.liftAccentText)
+                .accessibilityLabel("Reorder \(exercise.exerciseName)")
+                .accessibilityHint("Choose to move this exercise earlier or later in the workout.")
             }
             ExerciseCatalogIcon(exercise: catalogExercise)
                 .frame(width: 48, height: 48)
@@ -508,6 +489,23 @@ struct WorkoutSessionRunView: View {
             muscleProfile: exercise.muscleProfile,
             rankingExerciseID: exercise.rankingExerciseID
         )
+    }
+
+    private func reviewSummaryView(_ summary: WorkoutSummary) -> some View {
+        WorkoutSummaryView(
+            summary: summary,
+            prCandidates: appState.activeWorkoutPRCandidates(),
+            automaticSubmissionEnabled: appState.workoutPreferences.automaticallySubmitVideoBackedPRs
+        ) { effort, notes, videos, selectedSetIDs in
+            guard let completed = appState.finishActiveWorkout(effort: effort, notes: notes) else { return false }
+            dismissAfterSummary = true
+            Task {
+                await appState.submitVideoBackedPRs(for: completed, videoURLsBySetID: videos, selectedSetIDs: selectedSetIDs)
+            }
+            return true
+        }
+        .environmentObject(appState)
+        .presentationDetents([.large])
     }
 }
 

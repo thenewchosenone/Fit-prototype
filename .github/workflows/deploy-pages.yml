@@ -26,6 +26,8 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - run: bash scripts/release-gates.test.sh
+      - run: bash scripts/check_migration_versions.sh
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - run: pnpm build

@@ -6,6 +6,8 @@ struct CompletedWorkoutDetailView: View {
     let workout: CompletedWorkout
     @Binding var focusedSetID: UUID?
     @State private var showingDeleteConfirmation = false
+    @State private var showingSaveRoutinePrompt = false
+    @State private var routineName = ""
     @State private var editingWorkout: CompletedWorkout?
 
     init(workout: CompletedWorkout, focusedSetID: Binding<UUID?> = .constant(nil)) {
@@ -19,6 +21,10 @@ struct CompletedWorkoutDetailView: View {
         let exercises = presentation.exercises
         let completedSetsByExercise = presentation.completedSetsByExercise
         let trackingKinds = presentation.trackingKinds
+        let visibleNotes = displayedWorkout.notes
+            .replacingOccurrences(of: "[demo:program-history-v2]", with: "")
+            .replacingOccurrences(of: "[demo:program-history-v1]", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         return NavigationStack {
             AppBackground {
                 ScrollViewReader { scrollProxy in
@@ -98,11 +104,11 @@ struct CompletedWorkoutDetailView: View {
                                 }
                             }
 
-                            if !displayedWorkout.notes.isEmpty {
+                            if !visibleNotes.isEmpty {
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text("Notes")
                                         .font(.headline.weight(.bold))
-                                    Text(displayedWorkout.notes)
+                                    Text(visibleNotes)
                                         .font(.subheadline)
                                         .foregroundStyle(Color.liftMuted)
                                 }
@@ -152,7 +158,8 @@ struct CompletedWorkoutDetailView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        _ = appState.saveWorkoutAsRoutine(displayedWorkout)
+                        routineName = "\(displayedWorkout.name) Routine"
+                        showingSaveRoutinePrompt = true
                     } label: {
                         Image(systemName: "bookmark")
                     }
@@ -172,6 +179,15 @@ struct CompletedWorkoutDetailView: View {
                     }
                     .accessibilityLabel("Delete workout history")
                 }
+            }
+            .alert("Save as routine?", isPresented: $showingSaveRoutinePrompt) {
+                TextField("Routine name", text: $routineName)
+                Button("Save Routine") {
+                    _ = appState.saveWorkoutAsRoutine(displayedWorkout, name: routineName)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Choose a name for this workout routine.")
             }
             .confirmationDialog("Delete this workout from history?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
                 Button("Delete History", role: .destructive) {
@@ -206,7 +222,10 @@ struct CompletedWorkoutDetailView: View {
 private struct CompletedWorkoutEditView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft: CompletedWorkout
+    private let originalDraft: CompletedWorkout
     @State private var notes: String
+    private let originalNotes: String
+    @State private var confirmingDiscard = false
     let onSave: (CompletedWorkout) -> Void
 
     init(workout: CompletedWorkout, onSave: @escaping (CompletedWorkout) -> Void) {
@@ -220,7 +239,9 @@ private struct CompletedWorkoutEditView: View {
             return normalized
         }
         _draft = State(initialValue: normalizedWorkout)
+        originalDraft = normalizedWorkout
         _notes = State(initialValue: workout.notes)
+        originalNotes = workout.notes
         self.onSave = onSave
     }
 
@@ -250,7 +271,13 @@ private struct CompletedWorkoutEditView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        if hasUnsavedChanges {
+                            confirmingDiscard = true
+                        } else {
+                            dismiss()
+                        }
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
@@ -266,7 +293,18 @@ private struct CompletedWorkoutEditView: View {
                     .disabled(!canSave)
                 }
             }
+            .confirmationDialog("Discard workout edits?", isPresented: $confirmingDiscard) {
+                Button("Discard Changes", role: .destructive) { dismiss() }
+                Button("Keep Editing") {}
+            } message: {
+                Text("Your unsaved workout changes will be lost.")
+            }
         }
+        .interactiveDismissDisabled(hasUnsavedChanges)
+    }
+
+    private var hasUnsavedChanges: Bool {
+        draft != originalDraft || notes != originalNotes
     }
 
     private var sortedExercises: [WorkoutExerciseSnapshot] {
@@ -299,6 +337,7 @@ private struct CompletedWorkoutEditView: View {
                 .padding(10)
                 .background(Color.liftCardRaised)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .accessibilityIdentifier("workoutEdit.notes")
         }
         .padding(14)
         .liftSurface()
@@ -449,11 +488,11 @@ private struct CompletedWorkoutEditView: View {
             get: {
                 guard draft.sets.indices.contains(index),
                       let value = draft.sets[index][keyPath: keyPath] else { return "" }
-                return value.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(value))" : "\(value)"
+                return MeasurementFormatting.localizedDecimalText(value)
             },
             set: { text in
                 guard draft.sets.indices.contains(index) else { return }
-                draft.sets[index][keyPath: keyPath] = Double(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                draft.sets[index][keyPath: keyPath] = MeasurementFormatting.parseLocalizedDecimal(text)
             }
         )
     }

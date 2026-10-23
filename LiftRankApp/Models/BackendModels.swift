@@ -162,7 +162,7 @@ enum LiftRankServiceError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .configurationMissing: "Account services are not configured on this build."
-        case .invalidCredentials: "Incorrect password. Check your password and try again."
+        case .invalidCredentials: "Incorrect email or password. Check your details and try again."
         case .sessionExpired: "Your session expired. Please sign in again."
         case .usernameUnavailable: "That username is already taken."
         case .invalidInput(let message): message

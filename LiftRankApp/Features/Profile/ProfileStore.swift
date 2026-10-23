@@ -202,9 +202,9 @@ final class ProfileStore: ObservableObject {
         try await profileService.removeProfileAvatar(avatarPath: avatarPath)
     }
 
-    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry]) async throws -> [BodyweightEntry] {
+    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry], knownSyncedIDs: Set<UUID>) async throws -> [BodyweightEntry] {
         guard let profileService else { throw LiftRankServiceError.configurationMissing }
-        return try await profileService.synchronizeBodyweightEntries(localEntries)
+        return try await profileService.synchronizeBodyweightEntries(localEntries, knownSyncedIDs: knownSyncedIDs)
     }
 
     func saveBodyweightEntry(_ entry: BodyweightEntry) async throws {

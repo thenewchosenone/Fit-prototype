@@ -7,8 +7,10 @@ protocol WorkoutPRLiftSubmitting: AnyObject {
         exercise: Exercise,
         workout: CompletedWorkout,
         profile: UserProfile,
-        videoURL: URL?
+        videoURL: URL?,
+        submissionID: UUID
     ) async -> LiftSubmission?
+    func retryWorkoutPRVideo(submissionID: UUID, videoURL: URL) async -> Bool
 }
 
 @MainActor
@@ -95,6 +97,10 @@ final class WorkoutPRSubmissionStore {
     func retryFailedSubmissions() async {
         let retryable = pendingSubmissions.filter { $0.state == .failed || $0.state == .pending }
         for pending in retryable {
+            if let submissionID = pending.submissionID, let videoURL = pending.localVideoURL {
+                await retryVideo(pending, submissionID: submissionID, videoURL: videoURL)
+                continue
+            }
             guard let workout = repository.completedWorkouts.first(where: {
                 $0.id == pending.candidate.completedWorkoutID
             }) else { continue }
@@ -104,6 +110,10 @@ final class WorkoutPRSubmissionStore {
 
     func persistVideo(_ data: Data, fileExtension: String = "mov") async throws -> URL {
         try await videoStore.save(data, fileExtension: fileExtension)
+    }
+
+    func persistVideo(from sourceURL: URL, fileExtension: String = "mov") async throws -> URL {
+        try await videoStore.save(from: sourceURL, fileExtension: fileExtension)
     }
 
     func clearAccountScopedMedia() {
@@ -157,23 +167,61 @@ final class WorkoutPRSubmissionStore {
             exercise: rankingExercise,
             workout: workout,
             profile: repository.currentProfile,
-            videoURL: videoURL
+            videoURL: videoURL,
+            submissionID: pending.id
         )
         guard repository.currentProfile.id == userID else {
             resetAccountScopedQueueIfNeeded()
             return
         }
         if let submission {
-            pending.state = .submitted
             pending.submissionID = submission.id
-            pending.lastError = nil
             repository.linkSubmission(submission.id, to: workout.id)
-            if let videoURL {
-                videoStore.remove(videoURL)
+            if videoURL != nil && submission.resolvedEvidenceStatus != .videoBacked {
+                pending.state = .failed
+                pending.lastError = "The lift was saved, but its video could not be uploaded. The recording is available to retry."
+            } else {
+                pending.state = .submitted
+                pending.lastError = nil
+                if let videoURL {
+                    videoStore.remove(videoURL)
+                }
             }
         } else {
             pending.state = .failed
             pending.lastError = "Upload could not be completed. It will remain available to retry."
+        }
+        pending.updatedAt = now()
+        repository.upsertPendingPRSubmission(pending)
+        repository.persistWorkoutSnapshot()
+    }
+
+    private func retryVideo(
+        _ pending: PendingWorkoutPRSubmission,
+        submissionID: UUID,
+        videoURL: URL
+    ) async {
+        var pending = pending
+        let userID = repository.currentProfile.id
+        pending.state = .uploading
+        pending.attemptCount += 1
+        pending.lastError = nil
+        pending.updatedAt = now()
+        repository.upsertPendingPRSubmission(pending)
+        repository.persistWorkoutSnapshot()
+
+        let uploaded = await liftSubmitter.retryWorkoutPRVideo(submissionID: submissionID, videoURL: videoURL)
+        guard repository.currentProfile.id == userID else {
+            resetAccountScopedQueueIfNeeded()
+            return
+        }
+        if uploaded {
+            pending.state = .submitted
+            pending.lastError = nil
+            videoStore.remove(videoURL)
+        } else {
+            pending.state = .failed
+            pending.lastError = "The lift was saved, but its video could not be uploaded. The recording is available to retry."
         }
         pending.updatedAt = now()
         repository.upsertPendingPRSubmission(pending)

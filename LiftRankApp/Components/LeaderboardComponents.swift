@@ -111,19 +111,31 @@ enum LeaderboardSelector: String, Identifiable {
 }
 
 struct LeaderboardMetricStrip: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let rank: String
     let lifters: Int
     let ranking: String
 
     var body: some View {
-        HStack(spacing: 0) {
-            metric("Your rank", rank, tint: .liftBlue)
-            divider
-            metric("Lifters", "\(lifters)")
-            divider
-            metric("Ranking", ranking)
-            divider
-            metric("Updates", "Live", tint: .liftGreen)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 12) {
+                    metric("Your rank", rank)
+                    metric("Lifters", "\(lifters)")
+                    metric("Ranking", ranking)
+                    metric("Updates", "Live")
+                }
+            } else {
+                HStack(spacing: 0) {
+                    metric("Your rank", rank)
+                    divider
+                    metric("Lifters", "\(lifters)")
+                    divider
+                    metric("Ranking", ranking)
+                    divider
+                    metric("Updates", "Live")
+                }
+            }
         }
         .padding(.vertical, 12)
         .liftSurface(radius: 12, raised: true)
@@ -131,14 +143,14 @@ struct LeaderboardMetricStrip: View {
         .accessibilityLabel("Your rank \(rank), \(lifters) lifters, \(ranking), updates live")
     }
 
-    private func metric(_ title: String, _ value: String, tint: Color = .white) -> some View {
+    private func metric(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption2)
-                .foregroundStyle(Color.liftMuted)
+                .foregroundStyle(Color.liftText)
             Text(value)
                 .font(.caption.weight(.bold))
-                .foregroundStyle(tint)
+                .foregroundStyle(Color.liftText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.58)
         }
@@ -158,31 +170,39 @@ struct LeaderboardTabBar: View {
     var types: [RankingType] = RankingType.allCases
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 26) {
-                ForEach(types) { type in
-                    Button {
-                        Haptics.light()
-                        selection = type
-                    } label: {
-                        VStack(spacing: 9) {
-                            Text(type.rawValue)
-                                .font(.subheadline.weight(selection == type ? .bold : .medium))
-                                .foregroundStyle(selection == type ? Color.liftText : Color.liftMuted)
-                                .lineLimit(1)
-                            Rectangle()
-                                .fill(selection == type ? Color.liftBlue : .clear)
-                                .frame(height: 2)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 14) {
+                    ForEach(types) { type in
+                        Button {
+                            Haptics.light()
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                proxy.scrollTo(type.id, anchor: .trailing)
+                            }
+                            selection = type
+                        } label: {
+                            VStack(spacing: 9) {
+                                Text(type.rawValue)
+                                    .font(.subheadline.weight(selection == type ? .bold : .medium))
+                                    .foregroundStyle(selection == type ? Color.liftText : Color.liftMuted)
+                                    .lineLimit(1)
+                                Rectangle()
+                                    .fill(selection == type ? Color.liftBlue : .clear)
+                                    .frame(height: 2)
+                            }
+                            .frame(minHeight: LiftDesign.minimumTouchTarget)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(selection == type ? .isSelected : [])
+                        .id(type.id)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(selection == type ? .isSelected : [])
                 }
+                .padding(.horizontal, 16)
             }
-            .padding(.horizontal, 16)
-        }
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(Color.liftOverlay).frame(height: 1)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(Color.liftOverlay).frame(height: 1)
+            }
         }
     }
 }
@@ -243,6 +263,7 @@ struct LeaderboardTableHeader: View {
 }
 
 struct CompactLeaderboardRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let entry: LeaderboardEntry
     var rankingType: RankingType = .absolute
     var isCurrentUser = false
@@ -261,46 +282,53 @@ struct CompactLeaderboardRow: View {
             preferredUnit: preferredUnit
         )
         let movement = LeaderboardMovementPresentation(entry.rankMovement)
-        return HStack(spacing: 8) {
-            Text("\(entry.rank)")
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(rankColor)
-                .frame(width: 26, alignment: .leading)
-            ProfileAvatar(profile: entry.profile, size: 40)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 5) {
-                    Text(entry.profile.displayName)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
-                    if entry.lift.verificationStatus != .selfReported {
-                        Image(systemName: "checkmark.seal.fill")
+        return Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                accessibilityLayout(valueText: valueText, movement: movement)
+            } else {
+                HStack(spacing: 8) {
+                    Text("\(entry.rank)")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(rankColor)
+                        .frame(width: 26, alignment: .leading)
+                    ProfileAvatar(profile: entry.profile, size: 40)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 5) {
+                            Text(entry.profile.displayName)
+                                .font(.subheadline.weight(.semibold))
+                                .lineLimit(1)
+                            if entry.lift.verificationStatus != .selfReported {
+                                Image(systemName: "checkmark.seal.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(Color.liftAccentText)
+                            }
+                            if isCurrentUser {
+                                Text("YOU")
+                                    .font(.system(size: 8, weight: .black))
+                                    .foregroundStyle(Color.liftAccentText)
+                            }
+                        }
+                        if showsGym {
+                            Text(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)
+                                .font(.caption2)
+                                .foregroundStyle(Color.liftMuted)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Text(detailText)
                             .font(.caption2)
-                            .foregroundStyle(Color.liftAccentText)
+                            .foregroundStyle(Color.liftMuted.opacity(0.84))
+                            .lineLimit(1)
                     }
-                    if isCurrentUser {
-                        Text("YOU")
-                            .font(.system(size: 8, weight: .black))
-                            .foregroundStyle(Color.liftAccentText)
-                    }
-                }
-                if showsGym {
-                    Text(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)
-                        .font(.caption2)
-                        .foregroundStyle(Color.liftMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(valueText)
+                        .font(.subheadline.weight(.semibold))
+                        .frame(width: 76, alignment: .trailing)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    movementLabel(movement).frame(width: 48, alignment: .trailing)
                 }
-                Text(detailText)
-                    .font(.caption2)
-                    .foregroundStyle(Color.liftMuted.opacity(0.84))
-                    .lineLimit(1)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            Text(valueText)
-                .font(.subheadline.weight(.semibold))
-                .frame(width: 76, alignment: .trailing)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            movementLabel(movement).frame(width: 48, alignment: .trailing)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -308,8 +336,56 @@ struct CompactLeaderboardRow: View {
         .background(isCurrentUser ? Color.liftBlue.opacity(0.09) : Color.clear)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Rank \(entry.rank), \(entry.profile.displayName), at \(entry.profile.username), \(valueText), \(movementAccessibility(movement))")
+        .accessibilityLabel("Rank \(entry.rank), \(entry.profile.displayName), at \(entry.profile.username), \(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName), \(valueText), \(movementAccessibility(movement))")
         .accessibilityHint("Opens lifter profile")
+    }
+
+    private func accessibilityLayout(
+        valueText: String,
+        movement: LeaderboardMovementPresentation
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                Text("\(entry.rank)")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(rankColor)
+                ProfileAvatar(profile: entry.profile, size: 40)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(entry.profile.displayName)
+                            .font(.headline.weight(.semibold))
+                            .fixedSize(horizontal: false, vertical: true)
+                        if entry.lift.verificationStatus != .selfReported {
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftAccentText)
+                        }
+                        if isCurrentUser {
+                            Text("YOU")
+                                .font(.caption.weight(.black))
+                                .foregroundStyle(Color.liftAccentText)
+                        }
+                    }
+                    if showsGym {
+                        Text(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.liftMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Text(detailText)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.liftMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack {
+                Text(valueText)
+                    .font(.headline.weight(.semibold))
+                Spacer()
+                movementLabel(movement)
+            }
+        }
     }
 
     private func movementLabel(_ movement: LeaderboardMovementPresentation) -> some View {

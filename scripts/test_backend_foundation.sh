@@ -7,6 +7,9 @@ PORT=${LIFTRANK_TEST_POSTGRES_PORT:-55432}
 SOCKET="$WORK/socket"
 PGROOT=${LIFTRANK_POSTGRES_ROOT:-/Library/PostgreSQL/15}
 PGBIN="$PGROOT/bin"
+MIGRATIONS_DIR=${LIFTRANK_MIGRATIONS_DIR:-"$ROOT/supabase/migrations"}
+TESTS_DIR=${LIFTRANK_TESTS_DIR:-"$ROOT/supabase/tests"}
+"$ROOT/scripts/check_migration_versions.sh" "$MIGRATIONS_DIR"
 
 for command in initdb pg_ctl createdb dropdb psql pg_config; do
   [[ -x "$PGBIN/$command" ]] || { echo "Missing $PGBIN/$command. Set LIFTRANK_POSTGRES_ROOT." >&2; exit 1; }
@@ -58,6 +61,9 @@ grant usage on schema auth to anon, authenticated, service_role;
 grant execute on function auth.uid() to anon, authenticated, service_role;
 create schema extensions;
 grant usage on schema extensions to anon, authenticated, service_role;
+alter default privileges in schema public grant all on tables to anon, authenticated;
+alter default privileges in schema public grant all on sequences to anon, authenticated;
+alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
 create schema storage;
 create table storage.buckets (
   id text primary key, name text not null unique, public boolean not null default false,
@@ -87,14 +93,14 @@ run_reset() {
   psql_local() { "$PGBIN/psql" -h "$SOCKET" -p "$PORT" -v ON_ERROR_STOP=1 -d "$db" "$@"; }
   bootstrap | psql_local >/dev/null
   psql_local -f "$WORK/pgtap-load.sql" >/dev/null
-  for migration in "$ROOT"/supabase/migrations/*.sql; do
+  for migration in "$MIGRATIONS_DIR"/*.sql; do
     # This guarded production-only ownership transfer intentionally requires
     # Rob's live profile and six seeded rows, neither of which belongs in a
     # clean schema reset used by the pgTAP suite.
     [[ "$(basename "$migration")" == "202608080002_reassign_seeded_lifts_to_rob.sql" ]] && continue
     psql_local -f "$migration" >/dev/null
   done
-  for test_file in "$ROOT"/supabase/tests/*.test.sql; do
+  for test_file in "$TESTS_DIR"/*.test.sql; do
     [[ "$(basename "$test_file")" == "202607140002_gym_membership_concurrency.test.sql" ]] && continue
     local staged="$WORK/$(basename "$test_file")"
     sed '/create extension if not exists pgtap/d' "$test_file" > "$staged"
@@ -104,7 +110,7 @@ run_reset() {
   local concurrency="$WORK/concurrency.sql"
   sed -e '/create extension if not exists pgtap/d' \
       -e "s#'dbname=' || current_database()#'host=$SOCKET port=$PORT dbname=' || current_database()#g" \
-      "$ROOT/supabase/tests/202607140002_gym_membership_concurrency.test.sql" > "$concurrency"
+      "$TESTS_DIR/202607140002_gym_membership_concurrency.test.sql" > "$concurrency"
   psql_local -f "$concurrency" | tee "$concurrency.$db.log"
   if grep -Eq '^[[:space:]]*not ok' "$concurrency.$db.log"; then exit 1; fi
 }

@@ -19,6 +19,7 @@ final class CompetitionStore: ObservableObject {
     @Published private(set) var currentUserTotalEntry: LeaderboardEntry?
     @Published private(set) var leaderboardError: String?
     @Published private(set) var isLeaderboardLoading = false
+    @Published private(set) var isProductionDataLoading = false
 
     private let repository: any CompetitionRepository
     private var liftService: (any LiftService)?
@@ -125,22 +126,25 @@ final class CompetitionStore: ObservableObject {
         self.analyticsService = analyticsService
     }
 
-    func refreshProductionData(force: Bool = false) async {
-        guard let liftService else { return }
+    @discardableResult
+    func refreshProductionData(force: Bool = false) async -> Bool {
+        guard let liftService else { return false }
         resetProductionDataIfNeeded()
         let userID = repository.currentProfile.id
         if !force,
            hasLoadedProductionData,
            let lastProductionRefreshAt,
            now().timeIntervalSince(lastProductionRefreshAt) < 30 {
-            return
+            return true
         }
-        guard loadingProductionUserID != userID else { return }
+        guard loadingProductionUserID != userID else { return false }
         loadingProductionUserID = userID
+        isProductionDataLoading = true
         defer {
             if loadingProductionUserID == userID {
                 loadingProductionUserID = nil
             }
+            isProductionDataLoading = false
         }
         // Production must never retain seeded/demo rankings when loading fails.
         if !hasLoadedProductionData {
@@ -148,15 +152,16 @@ final class CompetitionStore: ObservableObject {
             remoteLeaderboardEntries = nil
         }
         guard let submissions = try? await liftService.submissions() else {
-            return
+            return false
         }
-        guard repository.currentProfile.id == userID else { return }
+        guard repository.currentProfile.id == userID else { return false }
         if repository.lifts != submissions {
             repository.lifts = submissions
         }
         hasLoadedProductionData = true
         lastProductionRefreshAt = now()
         await refreshLeaderboard()
+        return true
     }
 
     func refreshLeaderboard() async {
@@ -460,9 +465,9 @@ final class CompetitionStore: ObservableObject {
             }
             var previousScore: Double?
             var currentRank = 0
-            entries = filtered.enumerated().map { index, entry in
+            entries = filtered.map { entry in
                 if previousScore == nil || entry.score != previousScore {
-                    currentRank = index + 1
+                    currentRank += 1
                 }
                 previousScore = entry.score
                 return LeaderboardEntry(
@@ -541,7 +546,8 @@ final class CompetitionStore: ObservableObject {
                 rankingType: filters.rankingType,
                 verifiedOnly: verifiedOnly,
                 currentUserID: repository.currentProfile.id,
-                exerciseID: filters.exerciseID
+                exerciseID: filters.exerciseID,
+                repetitionCount: filters.repetitionCount
             )
         }
 
@@ -595,7 +601,8 @@ final class CompetitionStore: ObservableObject {
         visibility: LiftVisibility,
         videoURL: URL?,
         caption: String,
-        requestVerification: Bool
+        requestVerification: Bool,
+        submissionID: UUID? = nil
     ) -> LiftSubmission? {
         if let gymID, !repository.joinedGymIDs.contains(gymID) { return nil }
 
@@ -606,7 +613,7 @@ final class CompetitionStore: ObservableObject {
         let movement = CompetitiveMovement.resolve(exerciseID: exercise.id)
         let timestamp = now()
         return LiftSubmission(
-            id: makeID(),
+            id: submissionID ?? makeID(),
             userID: repository.currentProfile.id,
             exerciseID: movement?.canonicalExerciseID ?? exercise.id,
             exerciseName: exercise.name,
@@ -657,7 +664,8 @@ final class CompetitionStore: ObservableObject {
         visibility: LiftVisibility,
         videoURL: URL?,
         caption: String,
-        requestVerification: Bool
+        requestVerification: Bool,
+        submissionID: UUID? = nil
     ) async -> LiftSubmission? {
         let userID = repository.currentProfile.id
         guard let liftService,
@@ -674,7 +682,8 @@ final class CompetitionStore: ObservableObject {
                 visibility: visibility,
                 videoURL: videoURL,
                 caption: caption,
-                requestVerification: requestVerification
+                requestVerification: requestVerification,
+                submissionID: submissionID
               ) else {
             setLastSubmissionResult(nil)
             return nil
@@ -744,6 +753,53 @@ final class CompetitionStore: ObservableObject {
         upsert(submission, refreshAchievements: false)
         scheduleAchievementRefresh()
         return submission
+    }
+
+    func retryWorkoutPRVideo(submissionID: UUID, videoURL: URL) async -> Bool {
+        let userID = repository.currentProfile.id
+        guard let mediaUploadService,
+              var submission = repository.lifts.first(where: { $0.id == submissionID && $0.userID == userID }) else {
+            return false
+        }
+
+        let uploadID = UUID()
+        activeUploadID = uploadID
+        setUploadProgress(0)
+        do {
+            let asset = try await mediaUploadService.uploadLiftVideo(
+                localURL: videoURL,
+                liftID: submissionID,
+                progress: { [weak self] value in
+                    Task { @MainActor in
+                        guard self?.activeUploadID == uploadID else { return }
+                        self?.setUploadProgress(value)
+                    }
+                }
+            )
+            guard repository.currentProfile.id == userID else {
+                if activeUploadID == uploadID { activeUploadID = nil }
+                return false
+            }
+            submission.videoAssetID = asset.id
+            submission.evidenceStatus = .videoBacked
+            submission.verificationStatus = .videoVerified
+            submission.remoteVideoURL = try? await mediaUploadService.signedPlaybackURL(assetID: asset.id)
+            upsert(submission, refreshAchievements: false)
+            scheduleAchievementRefresh()
+            let movementName = submission.competitiveMovement?.rawValue ?? "noncanonical"
+            await track(.videoBackedPRSubmitted, userID: userID, properties: ["movement": movementName])
+            if activeUploadID == uploadID {
+                activeUploadID = nil
+                setUploadProgress(1)
+            }
+            return true
+        } catch {
+            if activeUploadID == uploadID {
+                activeUploadID = nil
+                setUploadProgress(0)
+            }
+            return false
+        }
     }
 
     func playbackURL(for lift: LiftSubmission) async -> URL? {
@@ -870,6 +926,7 @@ final class CompetitionStore: ObservableObject {
         loadedLeaderboardFilters = nil
         loadedLeaderboardVerifiedOnly = nil
         isLeaderboardLoading = false
+        isProductionDataLoading = false
         activeUploadID = nil
         achievementRefreshTask?.cancel()
         achievementRefreshTask = nil
@@ -918,6 +975,7 @@ final class CompetitionStore: ObservableObject {
         let lift = entry.lift
         let profile = entry.profile
         guard !verifiedOnly || lift.resolvedEvidenceStatus == .videoBacked else { return false }
+        if let experienceLevel = filters.experienceLevel, profile.experienceLevel != experienceLevel { return false }
         if let exerciseID = filters.exerciseID,
            !RankingCalculator.matchesExerciseID(lift, exerciseID: exerciseID) { return false }
         if let repetitionCount = filters.repetitionCount, lift.repetitions != repetitionCount { return false }
@@ -926,7 +984,6 @@ final class CompetitionStore: ObservableObject {
             if lift.resolvedEvidenceStatus != evidenceStatus { return false }
         }
         if let gymID = filters.gymID, lift.gymID != gymID { return false }
-        if let cityID = filters.cityID, profile.cityID != cityID { return false }
         if let city = filters.city, !city.isEmpty,
            profile.city.caseInsensitiveCompare(city) != .orderedSame { return false }
         if let state = filters.state, !state.isEmpty,
@@ -935,7 +992,6 @@ final class CompetitionStore: ObservableObject {
            profile.countryCode?.caseInsensitiveCompare(country) != .orderedSame { return false }
         if let sexCategory = filters.sexCategory, profile.sexCategory != sexCategory { return false }
         if let ageGroup = filters.ageGroup, !ageGroup.isEmpty, profile.ageGroup != ageGroup { return false }
-        if let experienceLevel = filters.experienceLevel, profile.experienceLevel != experienceLevel { return false }
         if let weightClassID = filters.weightClassID {
             guard RankingCalculator.weightClass(
                 for: lift.bodyweightAtLift,
@@ -1017,7 +1073,8 @@ extension CompetitionStore: WorkoutPRLiftSubmitting {
         exercise: Exercise,
         workout: CompletedWorkout,
         profile: UserProfile,
-        videoURL: URL?
+        videoURL: URL?,
+        submissionID: UUID
     ) async -> LiftSubmission? {
         let bodyweight = workout.bodyweight ?? profile.bodyweightPounds
         let bodyweightPounds = workout.unit == .kilograms
@@ -1036,7 +1093,8 @@ extension CompetitionStore: WorkoutPRLiftSubmitting {
             visibility: .publicLift,
             videoURL: videoURL,
             caption: "PR from \(workout.name): \(candidate.exerciseName) \(MeasurementFormatting.recordedLiftSetText(weight: candidate.weight, unit: candidate.unit, repetitions: candidate.repetitions))",
-            requestVerification: videoURL != nil
+            requestVerification: videoURL != nil,
+            submissionID: submissionID
         )
     }
 }

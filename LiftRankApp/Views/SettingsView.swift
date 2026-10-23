@@ -51,13 +51,6 @@ struct SettingsView: View {
                             Task { await appState.signOutAccount() }
                         }
                         .disabled(appState.accountOperationInProgress)
-                        if appState.isAuthenticated && !appState.isDemoMode {
-                            Button("Delete Account", role: .destructive) {
-                                appState.accountMessage = nil
-                                confirmingDeletion = true
-                            }
-                            .disabled(appState.accountOperationInProgress)
-                        }
                     }
                     .id(SettingsSection.account)
                     Section("Privacy") {
@@ -69,11 +62,6 @@ struct SettingsView: View {
                         audiencePicker("Division", selection: $privacy.divisionAudience)
                         audiencePicker("Friend list", selection: $privacy.friendListAudience)
                         Toggle("Show lift videos", isOn: $privacy.showLiftVideos)
-                        DisclosureGroup("How visibility works") {
-                            Text("Profile visibility limits who can open your profile. Field settings apply within that audience. Achievements and unlocked badges stay private. Ratio and weight-class rankings may indirectly reveal bodyweight.")
-                                .font(.caption)
-                                .foregroundStyle(Color.liftMuted)
-                        }
                         Button {
                             showingPublicPreview = true
                         } label: {
@@ -131,7 +119,8 @@ struct SettingsView: View {
                         Button("Privacy notice") { settingsInfo = .privacy }
                         Button("Terms of use") { settingsInfo = .terms }
                         Button("Fitness disclaimer") { settingsInfo = .fitnessDisclaimer }
-                        Link("Support", destination: URL(string: "https://liftrivals.com/support/")!)
+                        Button("Open-source licenses") { settingsInfo = .openSource }
+                        Link("Support", destination: URL(string: "https://www.liftrivals.com/support/")!)
                         LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Prototype")
                         LabeledContent("Build", value: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Local")
                     }
@@ -151,6 +140,19 @@ struct SettingsView: View {
                             }
                         }
                         .id(SettingsSection.developer)
+                    }
+                    if appState.isAuthenticated && !appState.isDemoMode {
+                        Section {
+                            Button("Delete Account", role: .destructive) {
+                                appState.accountMessage = nil
+                                confirmingDeletion = true
+                            }
+                            .disabled(appState.accountOperationInProgress)
+                        } header: {
+                            Text("Delete account")
+                        } footer: {
+                            Text("Permanently remove your account and its data.")
+                        }
                     }
                     if appState.accountOperationInProgress || appState.accountMessage != nil {
                         Section {
@@ -232,8 +234,8 @@ struct SettingsView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text(appState.hasAppleAuthorization
-                    ? "For security, the server requires a recently authenticated session. Your account data, workout backup, and local training data will be removed. After deletion, also remove Lift Rivals from Settings > your name > Sign in with Apple to revoke Apple authorization. This cannot be undone."
-                    : "For security, the server requires a recently authenticated session. Your account data, workout backup, and local training data will be removed. This cannot be undone.")
+                    ? "For security, your last sign-in must be within 10 minutes. If it is older, sign out and sign back in before retrying. Your account data, workout backup, and local training data will be removed. After deletion, also remove Lift Rivals from Settings > your name > Sign in with Apple to revoke Apple authorization. This cannot be undone."
+                    : "For security, your last sign-in must be within 10 minutes. If it is older, sign out and sign back in before retrying. Your account data, workout backup, and local training data will be removed. This cannot be undone.")
             }
             .confirmationDialog("Reset demo data?", isPresented: $confirmingDemoReset, titleVisibility: .visible) {
                 Button("Reset Demo Data", role: .destructive) { appState.resetDemoData() }
@@ -242,8 +244,15 @@ struct SettingsView: View {
                 Text("This clears the demo profile, workouts, bodyweight history, plans, awards, and other local demo progress. It does not affect production accounts.")
             }
         }
-        .interactiveDismissDisabled(isSavingSettings)
+        .interactiveDismissDisabled(isSavingSettings || hasUnsavedSettings)
         .preferredColorScheme(LiftAppearance(rawValue: appearance)?.colorScheme)
+    }
+
+    private var hasUnsavedSettings: Bool {
+        guard hasLoadedDraft else { return false }
+        let update = profileSettingsUpdate()
+        return update.profile != appState.currentProfile
+            || update.privacy != appState.authenticatedPrivacy
     }
 
     private func profileSettingsUpdate() -> (profile: UserProfile, privacy: ProfilePrivacySettings) {
@@ -308,6 +317,7 @@ enum SettingsInfoPage: String, Identifiable {
     case privacy
     case terms
     case fitnessDisclaimer
+    case openSource
 
     var id: String { rawValue }
 
@@ -317,6 +327,7 @@ enum SettingsInfoPage: String, Identifiable {
         case .privacy: return "Privacy notice"
         case .terms: return "Terms of use"
         case .fitnessDisclaimer: return "Fitness disclaimer"
+        case .openSource: return "Open-source licenses"
         }
     }
 
@@ -331,6 +342,7 @@ enum SettingsInfoPage: String, Identifiable {
         case .privacy: return documentSections(.privacy)
         case .terms: return documentSections(.terms)
         case .fitnessDisclaimer: return documentSections(.fitnessDisclaimer)
+        case .openSource: return []
         }
     }
 
@@ -430,22 +442,30 @@ struct SettingsInfoView: View {
         NavigationStack {
             AppBackground {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        ForEach(page.sections, id: \.0) { title, body in
-                            LiftCard {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text(title)
-                                        .font(.headline)
-                                    Text(body)
-                                        .font(.subheadline)
-                                        .foregroundStyle(Color.liftMuted)
-                                        .fixedSize(horizontal: false, vertical: true)
+                    if page == .openSource {
+                        Text((try? String(contentsOf: Bundle.main.url(forResource: "ThirdPartyNotices", withExtension: "txt")!, encoding: .utf8)) ?? "Open-source notices are unavailable.")
+                            .font(.system(.footnote, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding()
+                    } else {
+                        VStack(alignment: .leading, spacing: 16) {
+                            ForEach(page.sections, id: \.0) { title, body in
+                                LiftCard {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text(title)
+                                            .font(.headline)
+                                        Text(body)
+                                            .font(.subheadline)
+                                            .foregroundStyle(Color.liftMuted)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
+                        .padding()
                     }
-                    .padding()
                 }
             }
             .navigationTitle(page.title)

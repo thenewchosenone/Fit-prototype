@@ -27,7 +27,7 @@ struct WorkoutProgramTemplateDetailView: View {
 
     private var parsedTrainingMaxKilograms: [String: Double] {
         trainingMaxInputs.reduce(into: [:]) { result, pair in
-            guard let value = Double(pair.value), value > 0 else { return }
+            guard let value = MeasurementFormatting.parseLocalizedDecimal(pair.value), value > 0 else { return }
             result[pair.key] = appState.currentProfile.preferredUnit == .pounds
                 ? RankingCalculator.poundsToKilograms(value)
                 : value
@@ -121,7 +121,6 @@ struct WorkoutProgramTemplateDetailView: View {
             }
             .navigationTitle("Program Preview")
             .navigationBarTitleDisplayMode(.inline)
-            .accessibilityIdentifier("training.programPreview.screen")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
@@ -349,7 +348,7 @@ struct WorkoutProgramTemplateDetailView: View {
                                 Text(exercise.name)
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(Color.liftText)
-                                    .lineLimit(1)
+                                    .lineLimit(2)
                                 Text(exercise.resolvedMuscleProfile.primaryDescription)
                                     .font(.caption2)
                                     .foregroundStyle(Color.liftMuted)
@@ -442,7 +441,11 @@ struct WorkoutProgramTemplateDetailView: View {
             let displayed = appState.currentProfile.preferredUnit == .pounds
                 ? RankingCalculator.kilogramsToPounds(kilograms)
                 : kilograms
-            trainingMaxInputs[exerciseID] = String(format: "%.1f", displayed)
+            trainingMaxInputs[exerciseID] = MeasurementFormatting.localizedDecimalText(
+                displayed,
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1
+            )
         }
     }
 
@@ -483,13 +486,13 @@ struct WorkoutProgramProgressionEditorView: View {
         _method = State(initialValue: settings.method)
         _inputs = State(initialValue: settings.trainingMaxKilograms.mapValues { kilograms in
             let value = settings.preferredUnit == .pounds ? RankingCalculator.kilogramsToPounds(kilograms) : kilograms
-            return String(format: "%.1f", value)
+            return MeasurementFormatting.localizedDecimalText(value, maximumFractionDigits: 1)
         })
     }
 
     private var parsed: [String: Double] {
         inputs.reduce(into: [:]) { result, pair in
-            if let value = Double(pair.value), value > 0 {
+            if let value = MeasurementFormatting.parseLocalizedDecimal(pair.value), value > 0 {
                 result[pair.key] = settings.preferredUnit == .pounds ? RankingCalculator.poundsToKilograms(value) : value
             }
         }

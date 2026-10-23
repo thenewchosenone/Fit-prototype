@@ -1,4 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { ownedLiftEvidenceCleanupPaths } from "../_shared/account-storage-paths.js";
+import { clearCompletedLiftRemovalPayload } from "../_shared/clear-completed-lift-removal-payload.js";
+import { removeStoragePathsInBatches } from "../_shared/storage-cleanup.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,6 +53,9 @@ Deno.serve(async (request) => {
     .eq("owner_id", user.id)
     .maybeSingle();
   if (existingRequest?.status === "completed") {
+    if (await clearCompletedLiftRemovalPayload(admin, existingRequest.id)) {
+      return json({ error: "Removal record cleanup failed; retry the request" }, 500);
+    }
     return json({ status: "completed", protected_record: existingRequest.protected_record });
   }
 
@@ -82,7 +88,11 @@ Deno.serve(async (request) => {
   let storageObjects: StorageObject[] = candidatePaths
     .filter((path) => mediaPaths.has(path))
     .map((name) => ({ bucket_id: "lift-videos", name }));
-  const legacyEvidencePaths = candidatePaths.filter((path) => !mediaPaths.has(path));
+  const legacyEvidencePaths = ownedLiftEvidenceCleanupPaths(
+    user.id,
+    submissionID,
+    candidatePaths.filter((path) => !mediaPaths.has(path)),
+  );
   if (legacyEvidencePaths.length) {
     const { data: buckets, error: bucketError } = await admin.storage.listBuckets();
     if (bucketError) return json({ error: "Evidence storage lookup failed" }, 500);
@@ -117,7 +127,7 @@ Deno.serve(async (request) => {
 
   for (const bucket of new Set(storageObjects.map((object) => object.bucket_id))) {
     const paths = storageObjects.filter((object) => object.bucket_id === bucket).map((object) => object.name);
-    const { error } = await admin.storage.from(bucket).remove(paths);
+    const error = await removeStoragePathsInBatches(admin.storage, bucket, paths);
     if (error) {
       await admin.from("lift_removal_requests").update({ status: "failed", last_error: `storage_cleanup_failed:${bucket}` }).eq("id", requestID);
       return json({ error: "Evidence cleanup did not finish; the removal can be retried safely" }, 500);
@@ -128,6 +138,10 @@ Deno.serve(async (request) => {
   if (finalizeError) {
     await admin.from("lift_removal_requests").update({ status: "failed", last_error: "database_finalize_failed" }).eq("id", requestID);
     return json({ error: "Database cleanup did not finish; the removal can be retried safely" }, 500);
+  }
+
+  if (await clearCompletedLiftRemovalPayload(admin, requestID)) {
+    return json({ error: "Removal completed but record cleanup failed; retry the request" }, 500);
   }
 
   return json({ status: "completed", protected_record: protectedRecord });

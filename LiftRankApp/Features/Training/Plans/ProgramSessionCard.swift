@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProgramSessionCard: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedWorkout: CompletedWorkout?
     @State private var focusedSetID: UUID?
     @State private var showsExercises = false
@@ -40,24 +41,7 @@ struct ProgramSessionCard: View {
                     }
                 }
 
-                HStack(spacing: 10) {
-                    Button(action: onAddExercise) {
-                        Label("Add Exercise", systemImage: "plus")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(Color.liftAccentText)
-                    .disabled(appState.activeWorkout != nil)
-
-                    Button(action: onStart) {
-                        Label(hasSavedWorkout ? "Repeat workout" : "Start workout", systemImage: "play.fill")
-                            .frame(maxWidth: .infinity)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                    }
-                    .buttonStyle(LiftCompactProminentButtonStyle())
-                    .accessibilityHint(hasSavedWorkout ? "Starts a new workout attempt. Saved workout history remains available." : "Starts this scheduled workout.")
-                }
+                sessionActions
                 if hasSavedWorkout {
                     Text("Repeating starts a new workout; saved history remains.")
                         .font(.caption2)
@@ -67,6 +51,8 @@ struct ProgramSessionCard: View {
                         .max(by: { $0.completedAt < $1.completedAt }) {
                         Button("Review saved workout") { selectedWorkout = workout }
                             .font(.subheadline.weight(.semibold))
+                            .frame(minHeight: LiftDesign.minimumTouchTarget)
+                            .contentShape(Rectangle())
                     }
                 }
 
@@ -90,6 +76,7 @@ struct ProgramSessionCard: View {
                                 .font(.caption.weight(.bold))
                                 .foregroundStyle(Color.liftMuted)
                         }
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -106,11 +93,9 @@ struct ProgramSessionCard: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(prescription.exerciseName)
                                         .font(.subheadline.weight(.semibold))
-                                        .lineLimit(1)
                                     Text("\(prescription.sets) × \(prescription.reps) • \(prescription.bodyPart)")
                                         .font(.caption)
                                         .foregroundStyle(Color.liftMuted)
-                                        .lineLimit(1)
                                     if let kilograms = prescription.targetLoadKilograms {
                                         Text("Target: \(MeasurementFormatting.convert(kilograms, from: .kilograms, to: appState.currentProfile.preferredUnit).formatted(.number.precision(.fractionLength(0...1)))) \(appState.currentProfile.preferredUnit.shortLabel)")
                                             .font(.caption2).foregroundStyle(Color.liftAccentText)
@@ -138,6 +123,42 @@ struct ProgramSessionCard: View {
             CompletedWorkoutDetailView(workout: workout, focusedSetID: $focusedSetID)
                 .environmentObject(appState)
         }
+    }
+
+    @ViewBuilder
+    private var sessionActions: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(spacing: 10) {
+                addExerciseButton
+                startWorkoutButton
+            }
+        } else {
+            HStack(spacing: 10) {
+                addExerciseButton
+                startWorkoutButton
+            }
+        }
+    }
+
+    private var addExerciseButton: some View {
+        Button(action: onAddExercise) {
+            Label("Add Exercise", systemImage: "plus")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .tint(Color.liftAccentText)
+        .disabled(appState.activeWorkout != nil)
+    }
+
+    private var startWorkoutButton: some View {
+        Button(action: onStart) {
+            Label(hasSavedWorkout ? "Repeat workout" : "Start workout", systemImage: "play.fill")
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.8)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(LiftCompactProminentButtonStyle())
+        .accessibilityHint(hasSavedWorkout ? "Starts a new workout attempt. Saved workout history remains available." : "Starts this scheduled workout.")
     }
 
     private var statusText: String {

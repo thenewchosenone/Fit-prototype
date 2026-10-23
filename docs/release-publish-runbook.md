@@ -80,11 +80,13 @@ All gate output writes to `release-evidence/<RUN_ID>/`:
 - `RUN_IOS_GATES` (default `1`)
 - `RUN_BACKEND_GATES` (default `1`)
 - `RELEASE_GATES_STRICT` (`1` to enforce hard-fail semantics)
-- `IOS_OLDEST_SIMULATOR_DESTINATION` (default iPhone 8)
+- `IOS_OLDEST_SIMULATOR_DESTINATION` (default iPhone 15, iOS 17.0; set to an installed simulator matching the minimum supported iOS version)
 - `IOS_LATEST_SIMULATOR_DESTINATION` (default iPhone 17 Pro Max)
 - `LIFTRANK_RELEASE_REPORT_DIR` (optional output root)
 - `LIFTRANK_RELEASE_RUN_ID` (optional identifier)
 - `LIFTRANK_RELEASE_COMMAND_TIMEOUT` (command timeout control)
+
+The `ios.release_unsigned_simulator_build` gate disables code signing and only checks that a Release-configuration simulator build succeeds. It is not an archive, distribution-signing, entitlement, or provisioning-profile validation. Complete and record a separately signed archive/export validation before App Store release.
 
 ## 5) Remaining/remaining blockers (to be filled before publish)
 
@@ -102,3 +104,72 @@ All gate output writes to `release-evidence/<RUN_ID>/`:
 - Legal/privacy/accessibility final review and App Store metadata
 - Physical-device short/large screens smoke passes
 - TestFlight and Organizer validation
+
+## 6) Incident response and recovery (draft — not launch-ready)
+
+This section is a response checklist, not evidence that monitoring, backups, or rollback have been configured or rehearsed. Do not use it to perform a production restore until the project identity, recovery point, approval, and restore procedure have been verified by the release owner.
+
+### Recovery scope and provider limitations
+
+Treat recovery as a multi-service operation, not a database-only restore. Supabase database backups include Storage metadata but **not the uploaded object bytes**; a restored database can therefore contain `lift-videos` or `profile-avatars` references whose objects are unavailable. Maintain and test an independent, access-controlled copy/recovery procedure for required Storage objects and bucket configuration. A restore to a new Supabase project also requires manual recovery of Storage objects/settings, Edge Functions, Auth settings/API keys, Realtime settings, and database extensions/settings ([Database Backups](https://supabase.com/docs/guides/platform/backups), [Restore to a new project](https://supabase.com/docs/guides/platform/clone-project)).
+
+Before a physical clone is used for recovery or analysis, isolate its outbound network/integrations: Supabase documents that restored `pg_cron`, webhook triggers, or wrappers can start running as soon as the restore completes. Prefer a logical restore where those definitions must be inspected before execution. Confirm the current project’s actual backup/PITR availability, retention, restore permissions, and billing in the Dashboard; do not infer them from plan assumptions. PITR is a paid add-on and requires at least a Small compute add-on according to the current [PITR documentation](https://supabase.com/docs/guides/platform/backups#point-in-time-recovery).
+
+### Declare and contain
+
+1. Record the incident start time (UTC), affected app build/revision, environment/project, symptoms, and the first known-good observation. Do not include passwords, tokens, private user content, or raw personal data in the incident log.
+2. Assign an incident lead and a technical owner; record the approved contact/escalation route before release.
+3. Pause further release promotion using the currently verified App Store Connect/TestFlight process. Do not assume an already-installed iOS app can be downgraded.
+4. If a server feature flag or provider control is proposed as containment, first confirm it exists, its blast radius, and the exact reversal path. Otherwise prefer a tested forward fix; do not improvise production SQL, migration rollback, or data deletion.
+5. Preserve relevant redacted app, Edge Function, Auth, and database logs with timestamps and request/event identifiers. Restrict access and follow the retention policy.
+
+### Restore or roll forward
+
+1. Confirm the target project using its recorded provider project reference and environment label; a project name alone is insufficient. Require a second-person confirmation before any production recovery action.
+2. For suspected data loss/corruption, record the affected tables/users/time range and agree on the recovery point and expected data loss with the incident lead. Confirm the actual backup/PITR availability, retention, and provider restore semantics in the dashboard before acting.
+3. Restore only into an isolated recovery project first. Validate schema/migration history, account isolation, representative user records, storage-object references, and core signup/workout/lift journeys. Compare the result to the incident’s agreed recovery point.
+4. Do not point clients at the recovery project or overwrite production until the release owner approves the cutover plan, rollback path, and user-impact communication. Never run a destructive restore or migration reversal from this checklist alone.
+5. For an application-only incident, verify the candidate fix against staging, the release gate, and the affected core journey; then promote through the normal signed-build/review path.
+
+### Close and learn
+
+- Record containment, recovery/cutover decisions, evidence locations, user impact, data gaps, and follow-up owners without copying unnecessary personal data.
+- Confirm the affected alert is resolved, the recovery target is stable, and customer-support guidance is current before closing the incident.
+- Schedule a post-incident review and update this runbook with the exact tested provider actions and evidence.
+
+### Required before this becomes operational
+
+- [ ] Named incident lead/on-call contact and escalation route.
+- [ ] Verified production and staging provider project references; two-person production-action approval.
+- [ ] Crash/error alert source, threshold, recipient route, and a successful test alert.
+- [ ] Backup/PITR configuration, retention, restore permissions, and provider-specific restore instructions.
+- [ ] Agreed recovery-point and recovery-time objectives (RPO/RTO), including storage/media recovery semantics.
+- [ ] Isolated restore rehearsal with date, source backup point, validation results, elapsed time, and evidence link.
+- [ ] App Store Connect/TestFlight containment and promotion-reversal rehearsal, including limitations for already-installed builds.
+- [ ] Named owner and current evidence bundle for the above checks.
+
+Until these items have current evidence, monitoring, incident response, backup restoration, and rollback remain release blockers; this draft does not satisfy the release checklist’s “ready” criterion.
+
+### Recovery rehearsal evidence record (blank template)
+
+Copy this record for each isolated rehearsal. Store evidence in the restricted release evidence location; record references rather than credentials, tokens, user data, or backup contents here. A completed record documents a rehearsal only—it does not authorize a production restore.
+
+- Rehearsal date/time (UTC):
+- Incident/rehearsal owner and second reviewer:
+- Environment label and provider project reference (non-secret):
+- Service/data scope, including database and media/storage dependencies:
+- Provider-confirmed backup/PITR source and recovery timestamp:
+- Provider-confirmed retention and restore permissions:
+- Approved RPO / expected data-loss window:
+- Approved RTO:
+- Isolated recovery target and isolation check:
+- Restore start/end time (UTC) and elapsed time:
+- Schema/migration-history validation result:
+- Account-isolation and representative-record validation result:
+- Storage-object/reference validation result:
+- Signup, workout, and lift journey validation result:
+- Application promotion/reversal or database cutover steps exercised:
+- Deviations, data gaps, and follow-up owners:
+- Evidence bundle reference and access classification:
+- Reviewer sign-off and date:
+- Isolated recovery data cleanup/retention decision:

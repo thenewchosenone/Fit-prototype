@@ -2,10 +2,11 @@ import SwiftUI
 
 struct LiftPrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
+    @ScaledMetric(relativeTo: .headline) private var fontSize: CGFloat = 19
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 19, weight: .black, design: .rounded))
+            .font(.system(size: fontSize, weight: .black, design: .rounded))
             .frame(maxWidth: .infinity)
             .frame(minHeight: 58)
             .padding(.horizontal, 16)
@@ -23,10 +24,11 @@ struct LiftPrimaryButtonStyle: ButtonStyle {
 
 struct SecondaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
+    @ScaledMetric(relativeTo: .body) private var fontSize: CGFloat = 16
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .semibold, design: .rounded))
+            .font(.system(size: fontSize, weight: .semibold, design: .rounded))
             .frame(maxWidth: .infinity)
             .frame(minHeight: LiftDesign.minimumTouchTarget)
             .padding(.horizontal, 14)
@@ -43,10 +45,11 @@ struct SecondaryButtonStyle: ButtonStyle {
 
 struct LiftCompactProminentButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
+    @ScaledMetric(relativeTo: .body) private var fontSize: CGFloat = 16
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .semibold, design: .rounded))
+            .font(.system(size: fontSize, weight: .semibold, design: .rounded))
             .padding(.horizontal, 18)
             .padding(.vertical, 9)
             .foregroundStyle(isEnabled ? Color.liftOnAccent : Color.liftTextDisabled)
@@ -120,6 +123,8 @@ struct NativeIconButton: View {
 }
 
 struct LiftActionRow: View {
+    @ScaledMetric(relativeTo: .headline) private var titleFontSize: CGFloat = 16
+    @ScaledMetric(relativeTo: .subheadline) private var subtitleFontSize: CGFloat = 13
     let title: String
     var subtitle: String?
     var symbolName: String
@@ -149,11 +154,11 @@ struct LiftActionRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .font(.system(size: titleFontSize, weight: .semibold, design: .rounded))
                         .foregroundStyle(Color.liftTextPrimary)
                     if let subtitle {
                         Text(subtitle)
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.system(size: subtitleFontSize, weight: .medium))
                             .foregroundStyle(Color.liftTextSecondary)
                             .lineLimit(2)
                     }

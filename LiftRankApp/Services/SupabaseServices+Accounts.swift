@@ -192,7 +192,7 @@ struct ProfileCardDTO: Codable {
     }
 }
 
-private struct BodyweightRecordDTO: Codable {
+struct BodyweightRecordDTO: Codable {
     let id: UUID
     let userID: UUID
     let weight: Double
@@ -203,6 +203,24 @@ private struct BodyweightRecordDTO: Codable {
         case id, weight, notes
         case userID = "user_id"
         case recordedAt = "recorded_at"
+    }
+}
+
+struct BodyweightSyncMerge {
+    let recordsToUpload: [BodyweightRecordDTO]
+    let recordsToDisplay: [BodyweightRecordDTO]
+
+    init(localRecords: [BodyweightRecordDTO], remoteRecords: [BodyweightRecordDTO], knownSyncedIDs: Set<UUID>) {
+        let remoteByID = Dictionary(uniqueKeysWithValues: remoteRecords.map { ($0.id, $0) })
+        recordsToUpload = localRecords.filter { remoteByID[$0.id] == nil && !knownSyncedIDs.contains($0.id) }
+        var mergedByID = remoteByID
+        for record in recordsToUpload { mergedByID[record.id] = record }
+        recordsToDisplay = mergedByID.values.sorted {
+            if $0.recordedAt == $1.recordedAt {
+                return $0.id.uuidString < $1.id.uuidString
+            }
+            return $0.recordedAt < $1.recordedAt
+        }
     }
 }
 
@@ -236,7 +254,7 @@ final class SupabaseProfileService: ProfileService {
         return userProfile(remote)
     }
 
-    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry]) async throws -> [BodyweightEntry] {
+    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry], knownSyncedIDs: Set<UUID>) async throws -> [BodyweightEntry] {
         do {
             let userID = try await client.auth.session.user.id
             let localRecords = localEntries.compactMap { entry -> BodyweightRecordDTO? in
@@ -265,27 +283,17 @@ final class SupabaseProfileService: ProfileService {
                 guard page.count == pageSize else { break }
                 offset += pageSize
             }
-            let remoteByID = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
-            let pendingRecords = localRecords.filter { local in
-                guard let remote = remoteByID[local.id] else { return true }
-                return abs(local.weight - remote.weight) > 0.000_1 ||
-                    abs(local.recordedAt.timeIntervalSince(remote.recordedAt)) > 0.001 ||
-                    local.notes != remote.notes
-            }
-            if !pendingRecords.isEmpty {
+            let merge = BodyweightSyncMerge(
+                localRecords: localRecords,
+                remoteRecords: records,
+                knownSyncedIDs: knownSyncedIDs
+            )
+            if !merge.recordsToUpload.isEmpty {
                 try await client.from("bodyweight_records")
-                    .upsert(pendingRecords, onConflict: "id")
+                    .upsert(merge.recordsToUpload, onConflict: "id")
                     .execute()
             }
-            var mergedByID = remoteByID
-            for record in localRecords { mergedByID[record.id] = record }
-            let merged = mergedByID.values.sorted {
-                if $0.recordedAt == $1.recordedAt {
-                    return $0.id.uuidString < $1.id.uuidString
-                }
-                return $0.recordedAt < $1.recordedAt
-            }
-            return merged.enumerated().map { index, record in
+            return merge.recordsToDisplay.enumerated().map { index, record in
                 BodyweightEntry(
                     id: record.id,
                     week: index + 1,
@@ -366,16 +374,31 @@ final class SupabaseProfileService: ProfileService {
     func profileCard(userID: UUID) async throws -> PublicProfileCard {
         do {
             let dto: ProfileCardDTO = try await client.rpc("get_profile_card", params: ["target_user_id": userID]).single().execute().value
-            return PublicProfileCard(
-                id: dto.id, username: dto.username, displayName: dto.displayName, bio: dto.bio,
-                avatarPath: dto.avatarPath, ageBand: dto.ageBand,
-                sexCategory: sex(dto.sexCategory), city: dto.city, region: dto.region,
-                countryCode: dto.countryCode, primaryGymID: dto.primaryGymID,
-                primaryGymName: dto.primaryGymName,
-                bodyweightPounds: dto.bodyweightPounds,
-                bodyweightLastUpdatedAt: dto.bodyweightLastUpdatedAt
-            )
+            return mapProfileCard(dto)
         } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func profileCards(userIDs: [UUID]) async throws -> [PublicProfileCard] {
+        guard !userIDs.isEmpty else { return [] }
+        do {
+            let rows: [ProfileCardDTO] = try await client.rpc(
+                "get_profile_cards",
+                params: ["target_user_ids": userIDs]
+            ).execute().value
+            return rows.map(mapProfileCard)
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    private func mapProfileCard(_ dto: ProfileCardDTO) -> PublicProfileCard {
+        PublicProfileCard(
+            id: dto.id, username: dto.username, displayName: dto.displayName, bio: dto.bio,
+            avatarPath: dto.avatarPath, ageBand: dto.ageBand,
+            sexCategory: sex(dto.sexCategory), city: dto.city, region: dto.region,
+            countryCode: dto.countryCode, primaryGymID: dto.primaryGymID,
+            primaryGymName: dto.primaryGymName,
+            bodyweightPounds: dto.bodyweightPounds,
+            bodyweightLastUpdatedAt: dto.bodyweightLastUpdatedAt
+        )
     }
 
     func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String {

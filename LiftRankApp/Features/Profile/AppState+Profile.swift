@@ -24,7 +24,9 @@ extension AppState {
             throw LiftRankServiceError.invalidInput("Enter your current bodyweight before saving starting lifts.")
         }
 
-        await refreshProductionLifts()
+        guard await competitionStore.refreshProductionData(force: true) else {
+            throw LiftRankServiceError.server("Existing starting lifts could not be confirmed. Check your connection and retry before submitting them again.")
+        }
         for startingLift in startingLifts {
             guard let exercise = MockData.exercises.first(where: { $0.id == startingLift.exerciseID }) else {
                 throw LiftRankServiceError.invalidInput("One of the starting lifts is not supported.")

@@ -181,8 +181,7 @@ extension AppState {
                 Task {
                     await track(
                         .workoutCompleted,
-                        userID: completingUserID,
-                        properties: ["workout_id": completed.id.uuidString]
+                        userID: completingUserID
                     )
                 }
             }
@@ -338,6 +337,10 @@ extension AppState {
 
     func persistWorkoutVideo(_ data: Data, fileExtension: String = "mov") async throws -> URL {
         try await workoutPRSubmissionStore.persistVideo(data, fileExtension: fileExtension)
+    }
+
+    func persistWorkoutVideo(from sourceURL: URL, fileExtension: String = "mov") async throws -> URL {
+        try await workoutPRSubmissionStore.persistVideo(from: sourceURL, fileExtension: fileExtension)
     }
 
 }

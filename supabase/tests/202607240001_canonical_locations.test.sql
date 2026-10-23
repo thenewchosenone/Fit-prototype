@@ -3,7 +3,7 @@ begin;
 create schema if not exists extensions;
 create extension if not exists pgtap with schema extensions;
 
-select plan(13);
+select plan(16);
 
 select has_table('public', 'location_countries', 'canonical countries exist');
 select has_table('public', 'location_regions', 'canonical regions exist');
@@ -11,6 +11,24 @@ select has_table('public', 'location_cities', 'canonical cities exist');
 select has_table('public', 'location_city_aliases', 'canonical city aliases exist');
 select has_column('public', 'profile_private_details', 'city_id', 'private details can store canonical city id');
 select has_function('public', 'search_cities', array['text', 'text', 'text', 'integer'], 'city search rpc exists');
+select is_definer(
+  'public', 'search_cities', array['text', 'text', 'text', 'integer'],
+  'city search remains security definer'
+);
+select is(
+  (
+    select p.proconfig::text
+    from pg_catalog.pg_proc p
+    join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'search_cities' and p.pronargs = 4
+  ),
+  '{search_path=pg_catalog}',
+  'city search retains a fixed search path'
+);
+select function_privs_are(
+  'public', 'search_cities', array['text', 'text', 'text', 'integer'],
+  'anon', array['EXECUTE'], 'anonymous city search has only its intended RPC access'
+);
 
 insert into public.location_countries(code, name, geoname_id)
 values ('US', 'United States', 6252001)
@@ -22,8 +40,8 @@ on conflict do nothing;
 
 insert into public.location_cities(id, country_code, region_id, region_code, name, ascii_name, latitude, longitude, population, geoname_id, timezone)
 values
-  ('30000000-0000-0000-0000-000000000101', 'US', '30000000-0000-0000-0000-000000000001', 'FL', 'Miami', 'Miami', 25.7743, -80.1937, 442241, 4164138, 'America/New_York'),
-  ('30000000-0000-0000-0000-000000000102', 'US', '30000000-0000-0000-0000-000000000001', 'FL', 'Miami Beach', 'Miami Beach', 25.7907, -80.1300, 82890, 4164143, 'America/New_York')
+  ('30000000-0000-0000-0000-000000000101', 'US', (select id from public.location_regions where country_code = 'US' and code = 'FL'), 'FL', 'Miami', 'Miami', 25.7743, -80.1937, 442241, 4164138, 'America/New_York'),
+  ('30000000-0000-0000-0000-000000000102', 'US', (select id from public.location_regions where country_code = 'US' and code = 'FL'), 'FL', 'Miami Beach', 'Miami Beach', 25.7907, -80.1300, 82890, 4164143, 'America/New_York')
 on conflict do nothing;
 
 insert into public.location_city_aliases(city_id, alias)

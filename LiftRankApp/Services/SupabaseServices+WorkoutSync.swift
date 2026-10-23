@@ -25,6 +25,15 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
+    func deletedWorkoutPlanIDs() async throws -> Set<UUID> {
+        do {
+            let rows: [WorkoutPlanDeletionDTO] = try await client.from("workout_plan_deletions")
+                .select("plan_id")
+                .execute().value
+            return Set(rows.map(\.planID))
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
     func savePlan(_ document: WorkoutPlanDocument, expectedRevision: Int) async throws -> WorkoutSyncResult {
         guard !document.isSeededDemoData else { throw LiftRankServiceError.invalidInput("Demo data cannot be synced.") }
         do {
@@ -59,12 +68,7 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
 
     func deletePlan(id: UUID) async throws {
         do {
-            let userID = try await client.auth.session.user.id
-            try await client.from("workout_plan_documents")
-                .delete()
-                .eq("owner_id", value: userID)
-                .eq("id", value: id)
-                .execute()
+            try await client.rpc("delete_own_workout_plan", params: ["target_plan_id": id]).execute()
         }
         catch { throw SupabaseServiceErrorMapper.map(error) }
     }
@@ -86,7 +90,11 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
                 guard page.count == pageSize else { break }
                 offset += pageSize
             }
-            return rows.compactMap(\.snapshot)
+            let snapshots = rows.compactMap(\.snapshot)
+            guard snapshots.count == rows.count else {
+                throw LiftRankServiceError.server("A saved workout could not be read. History sync was not applied.")
+            }
+            return snapshots
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
@@ -94,6 +102,7 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
         guard !snapshot.isSeededDemoData else { return }
         do {
             let userID = try await client.auth.session.user.id
+            guard snapshot.ownerID == userID else { throw LiftRankServiceError.sessionExpired }
             let row = CompletedWorkoutSnapshotDTO(snapshot: snapshot, ownerID: userID)
             try await client.from("completed_workout_snapshots").upsert(row, onConflict: "owner_id,id").execute()
         } catch { throw SupabaseServiceErrorMapper.map(error) }
@@ -158,6 +167,11 @@ private struct WorkoutPlanDocumentDTO: Codable {
         guard let data = Data(base64Encoded: payload) else { return nil }
         return WorkoutPlanDocument(id: id, ownerID: ownerID, revision: revision, name: name, payload: data, updatedAt: updatedAt, conflictOfRevision: conflictOfRevision, isConflictCopy: isConflictCopy)
     }
+}
+
+private struct WorkoutPlanDeletionDTO: Decodable {
+    let planID: UUID
+    enum CodingKeys: String, CodingKey { case planID = "plan_id" }
 }
 
 private struct CompletedWorkoutSnapshotDTO: Codable {

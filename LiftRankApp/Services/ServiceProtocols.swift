@@ -30,7 +30,7 @@ protocol ProfileService {
     func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String
     func downloadProfileAvatar(avatarPath: String) async throws -> ProfileAvatarDownload?
     func removeProfileAvatar(avatarPath: String?) async throws
-    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry]) async throws -> [BodyweightEntry]
+    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry], knownSyncedIDs: Set<UUID>) async throws -> [BodyweightEntry]
     func saveBodyweightEntry(_ entry: BodyweightEntry) async throws
 }
 
@@ -89,7 +89,7 @@ struct ForumPost: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     let communityID: UUID?
     let gymID: UUID?
-    let authorID: UUID
+    let authorID: UUID?
     let kind: String
     let title: String
     let body: String
@@ -102,7 +102,7 @@ struct ForumPost: Identifiable, Codable, Equatable, Sendable {
     let commentCount: Int
     let currentUserVote: Int?
 
-    init(id: UUID, communityID: UUID?, gymID: UUID?, authorID: UUID, kind: String, title: String, body: String, tag: String?, liftID: UUID?, isPinned: Bool, isLocked: Bool, createdAt: Date, voteCount: Int = 0, commentCount: Int = 0, currentUserVote: Int? = nil) {
+    init(id: UUID, communityID: UUID?, gymID: UUID?, authorID: UUID?, kind: String, title: String, body: String, tag: String?, liftID: UUID?, isPinned: Bool, isLocked: Bool, createdAt: Date, voteCount: Int = 0, commentCount: Int = 0, currentUserVote: Int? = nil) {
         self.id = id
         self.communityID = communityID
         self.gymID = gymID
@@ -124,14 +124,14 @@ struct ForumPost: Identifiable, Codable, Equatable, Sendable {
 struct ForumComment: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     let postID: UUID
-    let authorID: UUID
+    let authorID: UUID?
     let parentCommentID: UUID?
     let body: String
     let createdAt: Date
     let voteCount: Int
     let currentUserVote: Int?
 
-    init(id: UUID, postID: UUID, authorID: UUID, parentCommentID: UUID?, body: String, createdAt: Date, voteCount: Int = 0, currentUserVote: Int? = nil) {
+    init(id: UUID, postID: UUID, authorID: UUID?, parentCommentID: UUID?, body: String, createdAt: Date, voteCount: Int = 0, currentUserVote: Int? = nil) {
         self.id = id
         self.postID = postID
         self.authorID = authorID
@@ -224,6 +224,7 @@ protocol NotificationService {
 @MainActor
 protocol WorkoutSyncService {
     func plans() async throws -> [WorkoutPlanDocument]
+    func deletedWorkoutPlanIDs() async throws -> Set<UUID>
     func savePlan(_ document: WorkoutPlanDocument, expectedRevision: Int) async throws -> WorkoutSyncResult
     func deletePlan(id: UUID) async throws
     func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot]
@@ -244,8 +245,8 @@ protocol LegalAcceptanceService {
 
 @MainActor
 protocol AccountDeletionService {
-    /// The server function requires a recently authenticated JWT and performs
-    /// cascading cleanup plus Auth deletion atomically.
+    /// The server function requires a recently authenticated JWT. Storage
+    /// cleanup and Auth deletion are separate operations, not an atomic transaction.
     func deleteAccount() async throws
 }
 
@@ -284,5 +285,6 @@ extension NotificationService {
     func revokeDevice(deviceID: String) async throws {}
 }
 extension WorkoutSyncService {
+    func deletedWorkoutPlanIDs() async throws -> Set<UUID> { [] }
     func deleteCompletedWorkout(id: UUID) async throws { throw LiftRankServiceError.configurationMissing }
 }

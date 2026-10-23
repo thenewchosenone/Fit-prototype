@@ -173,6 +173,11 @@ final class AppState: ObservableObject {
                 self?.scheduleForwardedObjectWillChange()
             }
             .store(in: &cancellables)
+        self.notificationStore.objectWillChange
+            .sink { [weak self] _ in
+                self?.scheduleForwardedObjectWillChange()
+            }
+            .store(in: &cancellables)
     }
 
     func recordLaunchReadyIfNeeded() {
@@ -239,7 +244,7 @@ final class AppState: ObservableObject {
             repository.removePersonalWorkoutDemoHistory()
         }
         if ProcessInfo.processInfo.arguments.contains("-uiTestingAuthentication") {
-            serviceContainer = .demo(repository: repository)
+            installServiceContainer(.demo(repository: repository))
             accountStatus = .signedOut
             return
         }
@@ -438,6 +443,9 @@ final class AppState: ObservableObject {
                         )
                     }
                 }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-uiTestingEmptyCurrentUserLifts") {
+                repository.lifts.removeAll { $0.userID == repository.currentProfile.id }
             }
             return
         }
@@ -668,6 +676,7 @@ final class AppState: ObservableObject {
         guard CommunityContentPolicy.allows(draft.username, draft.displayName, draft.bio) else {
             throw LiftRankServiceError.invalidInput(CommunityContentPolicy.rejectionMessage)
         }
+        let wasAwaitingOnboardingCompletion = accountStatus == .needsOnboarding
         if allowUsernameChange {
             _ = try await profileStore.changeAuthenticatedUsername(
                 draft.username,
@@ -682,7 +691,7 @@ final class AppState: ObservableObject {
         )
         authenticatedPrivacy = profile.privacy
         if profile.onboardingCompleted {
-            await track(.onboardingCompleted)
+            if wasAwaitingOnboardingCompletion { await track(.onboardingCompleted) }
             try await refreshLegalAcceptanceStatus()
         } else {
             accountStatus = .needsOnboarding
@@ -796,7 +805,6 @@ final class AppState: ObservableObject {
         postAuthenticationRefreshTask?.cancel()
         postAuthenticationRefreshTask = Task { [weak self] in
             await Task.yield()
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
             await self?.runPostAuthenticationRefresh(for: userID)
         }
     }
@@ -829,7 +837,10 @@ final class AppState: ObservableObject {
 
     private func synchronizeAuthenticatedBodyweightEntries(for userID: UUID) async {
         do {
-            let entries = try await profileStore.synchronizeBodyweightEntries(repository.bodyweightEntries)
+            let entries = try await profileStore.synchronizeBodyweightEntries(
+                repository.bodyweightEntries,
+                knownSyncedIDs: repository.syncedBodyweightEntryIDs
+            )
             guard accountSession?.userID == userID,
                   repository.currentProfile.id == userID,
                   accountStatus == .authenticated else {
@@ -838,6 +849,7 @@ final class AppState: ObservableObject {
             if repository.bodyweightEntries != entries {
                 repository.bodyweightEntries = entries
             }
+            repository.syncedBodyweightEntryIDs.formUnion(entries.map(\.id))
             let currentWeight = repository.currentProfile.bodyweightPounds
             let reconciledWeight = ProfileDataAuthority.latestLoggedBodyweight(
                 profilePounds: currentWeight,
@@ -918,7 +930,7 @@ final class AppState: ObservableObject {
 
     func refreshProductionLaunchData() async {
         guard isAuthenticated, !isDemoMode else { return }
-        async let competitionRefresh: Void = competitionStore.refreshProductionData()
+        async let competitionRefresh = competitionStore.refreshProductionData()
         async let notificationRefresh: Void = notificationStore.refreshProductionData()
         async let blockRefresh: Void = accountSocialStore.refreshBlocks()
         _ = await (competitionRefresh, notificationRefresh, blockRefresh)
@@ -1019,6 +1031,9 @@ final class AppState: ObservableObject {
     var notifications: [NotificationItem] { notificationStore.notifications }
     var sortedNotifications: [NotificationItem] { notificationStore.sortedNotifications }
     var unreadNotificationCount: Int { notificationStore.unreadCount }
+    var isRefreshingNotifications: Bool { notificationStore.isRefreshing }
+    var hasLoadedNotifications: Bool { notificationStore.hasLoaded }
+    var notificationRefreshError: String? { notificationStore.refreshError }
     var workoutPlans: [WorkoutPlan] { repository.workoutPlans }
     var workoutPhases: [WorkoutPhase] { repository.workoutPhases }
     var workoutWeeks: [WorkoutWeek] { repository.workoutWeeks }
@@ -1162,6 +1177,10 @@ final class AppState: ObservableObject {
 
     func markAllNotificationsRead() {
         notificationStore.markAllRead()
+    }
+
+    func refreshNotifications() async {
+        await notificationStore.refreshProductionData()
     }
 
     func openNotification(_ notification: NotificationItem) {

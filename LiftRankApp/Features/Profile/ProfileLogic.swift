@@ -117,8 +117,9 @@ extension ProfileView {
             viewerID: viewerID ?? appState.currentProfile.id,
             includeLiftsWithoutVideo: true
         )
+        let profileID = profile.id
         let presentation = await Task.detached(priority: .userInitiated) {
-            ProfileLiftPresentation(profileID: profile.id, lifts: lifts)
+            ProfileLiftPresentation(profileID: profileID, lifts: lifts)
         }.value
         guard !Task.isCancelled else { return }
         liftPresentation = presentation
@@ -249,6 +250,109 @@ extension ProfileView {
         return gymVisible || cityVisible
     }
 
+    var publicTraining: some View {
+        let isOwnProfile = profile.id == appState.currentProfile.id
+        let workouts = isOwnProfile
+            ? appState.completedWorkouts.sorted { $0.completedAt > $1.completedAt }
+            : []
+        return VStack(alignment: .leading, spacing: 12) {
+            CompactSectionHeader(title: "Completed workouts")
+            if isOwnProfile {
+                Text("Only you can see this workout history. Completed workouts aren’t shared on public profiles yet.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.liftMuted)
+            }
+            if workouts.isEmpty {
+                LiftEmptyState(
+                    title: isOwnProfile ? "No completed workouts yet" : "Workout history is private",
+                    message: isOwnProfile
+                        ? "Finish and save a workout to see it here."
+                        : "This athlete’s completed workouts aren’t available on their public profile.",
+                    symbolName: isOwnProfile ? "calendar.badge.checkmark" : "lock.fill",
+                    compact: true
+                )
+            } else {
+                LazyVStack(spacing: 12) {
+                    ForEach(workouts) { workout in
+                        Button {
+                            selectedTimelineWorkout = workout
+                        } label: {
+                            LiftCard {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    HStack(alignment: .top, spacing: 12) {
+                                        VStack(alignment: .leading, spacing: 5) {
+                                            Text(workout.name.isEmpty ? workout.dayLabel : workout.name)
+                                                .font(.headline)
+                                                .foregroundStyle(Color.liftText)
+                                            Text(workout.completedAt.formatted(date: .abbreviated, time: .shortened))
+                                                .font(.caption)
+                                                .foregroundStyle(Color.liftMuted)
+                                        }
+                                        Spacer(minLength: 0)
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption.weight(.bold))
+                                            .foregroundStyle(Color.liftMuted)
+                                    }
+                                    Text(workout.sourcePlanID == nil ? "Freestyle workout" : "Plan workout")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(Color.liftAccentText)
+                                    Divider().overlay(Color.liftSeparator)
+                                    HStack(alignment: .top, spacing: 12) {
+                                        strengthMetric("Duration", MeasurementFormatting.shortDurationText(workout.duration))
+                                        strengthMetric("Exercises", workout.exercisesWithCompletedWorkingSets.count.formatted())
+                                        strengthMetric("Sets", workout.completedWorkingSets.count.formatted())
+                                    }
+                                    HStack {
+                                        Text("Volume lifted")
+                                            .foregroundStyle(Color.liftMuted)
+                                        Spacer()
+                                        Text(MeasurementFormatting.formatRecordedWeight(workout.totalVolume, unit: workout.unit))
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(Color.liftText)
+                                    }
+                                    .font(.subheadline)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("profile.completedWorkout.\(workout.id.uuidString)")
+                    }
+                }
+            }
+        }
+        .accessibilityIdentifier("profile.completedWorkouts")
+    }
+
+    func publicOverview(presentation: ProfileLiftPresentation) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            LiftCard {
+                HStack(alignment: .top, spacing: 16) {
+                    strengthMetric("Shared lifts", presentation.lifts.count.formatted())
+                    profileDivider
+                    strengthMetric("Exercises", Set(presentation.lifts.map(\.exerciseID)).count.formatted())
+                }
+            }
+            if let latest = presentation.latestSubmittedLift {
+                VStack(alignment: .leading, spacing: 10) {
+                    CompactSectionHeader(title: "Latest lift")
+                    LiftCard {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(latest.exerciseName)
+                                .font(.headline)
+                            Text(MeasurementFormatting.recordedLiftSetText(weight: latest.weight, unit: latest.unit, repetitions: latest.repetitions))
+                                .font(.title3.weight(.bold))
+                            Text(latest.performedAt.formatted(date: .abbreviated, time: .omitted))
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                            VerificationBadge(evidenceStatus: latest.resolvedEvidenceStatus)
+                        }
+                    }
+                }
+            }
+            summary(presentation: presentation)
+        }
+    }
+
     func summary(presentation: ProfileLiftPresentation) -> some View {
         let totalPounds = presentation.threeLiftTotalPounds
         let profileTotalText = RankingFormatting.threeLiftTotalText(totalPounds: totalPounds, preferredUnit: profile.preferredUnit)
@@ -351,7 +455,7 @@ extension ProfileView {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(isCurrentUser ? "No strength history yet" : "No submitted-lift history yet")
                                 .font(.subheadline.weight(.bold))
-                            Text("Submit verified lifts to build this progress chart.")
+                            Text(isCurrentUser ? "Submit lifts to build this progress chart." : "Shared lift submissions will build this progress chart.")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
                         }
@@ -369,6 +473,9 @@ extension ProfileView {
                 } else {
                     Text(presentation.chartLifts.last?.exerciseName ?? "Submitted lift")
                         .font(.subheadline.weight(.semibold))
+                    Text(isCurrentUser ? "Showing recent submissions for this lift. Other lifts appear in your overview." : "Recent submissions for this exercise.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
                     Text("Estimated 1RM · \(profile.preferredUnit.shortLabel)")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
@@ -424,11 +531,11 @@ extension ProfileView {
     private func profileAchievementTitle(_ title: String) -> String {
         let suffix = " kg Lifted Volume"
         guard title.hasSuffix(suffix),
-              let kilograms = Double(title.dropLast(suffix.count).replacingOccurrences(of: ",", with: "")) else {
+              let kilograms = MeasurementFormatting.parseGroupedInteger(String(title.dropLast(suffix.count))) else {
             return title
         }
         let formatted = MeasurementFormatting.formatDisplayedWeight(
-            kilograms,
+            Double(kilograms),
             unit: profile.preferredUnit
         ) { Int($0.rounded()).formatted() }
         return "\(formatted) Lifted Volume"
@@ -436,7 +543,7 @@ extension ProfileView {
 
     func recentSubmissions(profileLifts: [LiftSubmission]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            CompactSectionHeader(title: "Recent submissions")
+            CompactSectionHeader(title: isCurrentUser ? "Recent submissions" : "Submissions")
             if profileLifts.isEmpty {
                 LiftEmptyState(
                     title: "No submissions yet",
@@ -448,19 +555,19 @@ extension ProfileView {
                 )
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(profileLifts.prefix(5).enumerated()), id: \.offset) { index, lift in
-                        HStack {
-                            VStack(alignment: .leading) {
+                    ForEach(Array((isCurrentUser ? Array(profileLifts.prefix(5)) : profileLifts.sorted { $0.performedAt > $1.performedAt }).enumerated()), id: \.element.id) { index, lift in
+                        HStack(alignment: .top, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 8) {
                                 Text(lift.exerciseName)
                                     .font(.headline)
                                 Text(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true))
                                     .foregroundStyle(Color.liftMuted)
-                                Text(profileLiftSourceLabel(lift))
-                                    .font(.caption2.weight(.semibold))
+                                Text(lift.performedAt.formatted(date: .abbreviated, time: .omitted))
+                                    .font(.caption)
                                     .foregroundStyle(Color.liftMuted)
+                                VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus)
                             }
-                            Spacer()
-                            VerificationBadge(evidenceStatus: lift.resolvedEvidenceStatus)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             if isCurrentUser {
                                 Menu {
                                     if lift.requiresCoordinatedRemoval {
@@ -480,7 +587,7 @@ extension ProfileView {
                                 }
                                 .accessibilityLabel("Submission options")
                                 .accessibilityIdentifier("profile.ownLiftOptions.\(lift.id.uuidString)")
-                            } else {
+                            } else if lift.userID != appState.currentProfile.id {
                                 Menu {
                                     Button("Report lift", role: .destructive) {
                                         appState.selectedReportLift = lift
@@ -494,9 +601,9 @@ extension ProfileView {
                                 .accessibilityIdentifier("profile.liftOptions.\(lift.id.uuidString)")
                             }
                         }
-                        .padding(.horizontal, 14)
+                        .padding(16)
                         .frame(minHeight: 66)
-                        if index < min(4, profileLifts.count - 1) {
+                        if index < (isCurrentUser ? min(5, profileLifts.count) : profileLifts.count) - 1 {
                             Divider().overlay(Color.liftSeparator).padding(.leading, 14)
                         }
                     }
@@ -504,11 +611,6 @@ extension ProfileView {
                 .liftSurface()
             }
         }
-    }
-
-    private func profileLiftSourceLabel(_ lift: LiftSubmission) -> String {
-        if lift.visibility == .privateLift { return "Private submission" }
-        return lift.resolvedEvidenceStatus == .videoBacked ? "Video-backed submission" : "Self-reported submission"
     }
 
     var trainingHistory: some View {

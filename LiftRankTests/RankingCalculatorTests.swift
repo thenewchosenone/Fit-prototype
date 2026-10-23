@@ -21,6 +21,7 @@ private final class TestWorkoutVideoStore: WorkoutVideoStoring {
     let url: URL
     private(set) var savedData: Data?
     private(set) var savedExtension: String?
+    private(set) var savedSourceURL: URL?
     private(set) var removedURLs: [URL] = []
 
     init(url: URL) {
@@ -33,6 +34,12 @@ private final class TestWorkoutVideoStore: WorkoutVideoStoring {
         return url
     }
 
+    func save(from sourceURL: URL, fileExtension: String) async throws -> URL {
+        savedSourceURL = sourceURL
+        savedExtension = fileExtension
+        return url
+    }
+
     func remove(_ url: URL) { removedURLs.append(url) }
     func prune(retaining URLs: Set<URL>, olderThan cutoff: Date) {}
 }
@@ -40,6 +47,7 @@ private final class TestWorkoutVideoStore: WorkoutVideoStoring {
 @MainActor
 private final class GatedWorkoutPRLiftSubmitter: WorkoutPRLiftSubmitting {
     private(set) var attemptCount = 0
+    private(set) var submissionIDs: [UUID] = []
     private var release: CheckedContinuation<LiftSubmission?, Never>?
 
     func submitWorkoutPR(
@@ -47,13 +55,17 @@ private final class GatedWorkoutPRLiftSubmitter: WorkoutPRLiftSubmitting {
         exercise: Exercise,
         workout: CompletedWorkout,
         profile: UserProfile,
-        videoURL: URL?
+        videoURL: URL?,
+        submissionID: UUID
     ) async -> LiftSubmission? {
         attemptCount += 1
+        submissionIDs.append(submissionID)
         return await withCheckedContinuation { continuation in
             release = continuation
         }
     }
+
+    func retryWorkoutPRVideo(submissionID: UUID, videoURL: URL) async -> Bool { false }
 
     func releaseSubmission(_ submission: LiftSubmission? = nil) {
         release?.resume(returning: submission)
@@ -65,6 +77,7 @@ private final class GatedWorkoutPRLiftSubmitter: WorkoutPRLiftSubmitting {
 private final class FlakyWorkoutPRLiftSubmitter: WorkoutPRLiftSubmitting {
     private let delegate: any WorkoutPRLiftSubmitting
     private(set) var attemptCount = 0
+    private(set) var submissionIDs: [UUID] = []
     var remainingFailures: Int
 
     init(delegate: any WorkoutPRLiftSubmitting, remainingFailures: Int) {
@@ -77,9 +90,11 @@ private final class FlakyWorkoutPRLiftSubmitter: WorkoutPRLiftSubmitting {
         exercise: Exercise,
         workout: CompletedWorkout,
         profile: UserProfile,
-        videoURL: URL?
+        videoURL: URL?,
+        submissionID: UUID
     ) async -> LiftSubmission? {
         attemptCount += 1
+        submissionIDs.append(submissionID)
         if remainingFailures > 0 {
             remainingFailures -= 1
             return nil
@@ -89,8 +104,39 @@ private final class FlakyWorkoutPRLiftSubmitter: WorkoutPRLiftSubmitting {
             exercise: exercise,
             workout: workout,
             profile: profile,
-            videoURL: videoURL
+            videoURL: videoURL,
+            submissionID: submissionID
         )
+    }
+
+    func retryWorkoutPRVideo(submissionID: UUID, videoURL: URL) async -> Bool {
+        await delegate.retryWorkoutPRVideo(submissionID: submissionID, videoURL: videoURL)
+    }
+}
+
+@MainActor
+private final class FailOnceWorkoutMediaUploadService: MediaUploadService {
+    private let delegate = MockMediaUploadService()
+    private(set) var uploadAttempts = 0
+
+    func upload(localURL: URL?) async throws -> URL? {
+        try await delegate.upload(localURL: localURL)
+    }
+
+    func uploadLiftVideo(
+        localURL: URL,
+        liftID: UUID,
+        progress: @escaping @Sendable (Double) -> Void
+    ) async throws -> LiftMediaAsset {
+        uploadAttempts += 1
+        guard uploadAttempts > 1 else {
+            throw LiftRankServiceError.server("Temporary upload failure")
+        }
+        return try await delegate.uploadLiftVideo(localURL: localURL, liftID: liftID, progress: progress)
+    }
+
+    func signedPlaybackURL(assetID: UUID) async throws -> URL {
+        try await delegate.signedPlaybackURL(assetID: assetID)
     }
 }
 
@@ -300,10 +346,11 @@ private final class WorkoutSyncServiceStub: WorkoutSyncService {
 private final class RecordingNotificationService: NotificationService {
     private(set) var markedIDs: [UUID] = []
     var shouldFailRefresh = false
+    var response: [NotificationItem] = []
 
     func notifications() async throws -> [NotificationItem] {
         if shouldFailRefresh { throw LiftRankServiceError.server("Notifications unavailable") }
-        return []
+        return response
     }
     func markRead(notificationID: UUID) async throws { markedIDs.append(notificationID) }
     func registerDevice(_ registration: PushDeviceRegistration) async throws {}
@@ -626,11 +673,13 @@ final class RankingCalculatorTests: XCTestCase {
         let service = ToggleLiftService(submissions: productionLifts)
         let store = CompetitionStore(repository: repository, liftService: service)
 
-        await store.refreshProductionData()
+        let initialRefreshSucceeded = await store.refreshProductionData()
+        XCTAssertTrue(initialRefreshSucceeded)
         XCTAssertEqual(repository.lifts, productionLifts)
 
         service.shouldFail = true
-        await store.refreshProductionData(force: true)
+        let forcedRefreshSucceeded = await store.refreshProductionData(force: true)
+        XCTAssertFalse(forcedRefreshSucceeded)
 
         XCTAssertEqual(repository.lifts, productionLifts)
     }
@@ -646,7 +695,8 @@ final class RankingCalculatorTests: XCTestCase {
             now: { currentDate }
         )
 
-        await store.refreshProductionData()
+        let initialRefreshSucceeded = await store.refreshProductionData()
+        XCTAssertTrue(initialRefreshSucceeded)
         await store.refreshProductionData()
         XCTAssertEqual(service.submissionsRequestCount, 1)
 
@@ -889,12 +939,12 @@ final class RankingCalculatorTests: XCTestCase {
                 id: UUID(),
                 prescriptionID: prescriptions[index % prescriptions.count].id,
                 performedAt: .now,
-                setNumber: 1,
+                setNumber: index / prescriptions.count % 3 + 1,
                 weight: 100,
                 reps: 8,
                 rpe: nil,
                 isWarmup: false,
-                isComplete: index < 200
+                isComplete: index % prescriptions.count < 200
             )
         }
         let store = TrainingProgressStore(repository: repository)
@@ -1688,6 +1738,34 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
+    func testRemoteLeaderboardUsesDenseRanksAfterClientFiltering() async {
+        let repository = DemoRepository()
+        let excludedProfile = makeProfile(username: "excluded_top_rank")
+        var tiedProfileA = makeProfile(username: "filtered_tie_a")
+        tiedProfileA.experienceLevel = .advanced
+        var tiedProfileB = makeProfile(username: "filtered_tie_b")
+        tiedProfileB.experienceLevel = .advanced
+        var nextProfile = makeProfile(username: "filtered_next_rank")
+        nextProfile.experienceLevel = .advanced
+        let entries = [
+            LeaderboardEntry(rank: 1, profile: excludedProfile, lift: makeLift(userID: excludedProfile.id, weight: 400), rankMovement: 0, score: 400, powerliftingBreakdown: nil),
+            LeaderboardEntry(rank: 2, profile: tiedProfileA, lift: makeLift(userID: tiedProfileA.id, weight: 315), rankMovement: 0, score: 315, powerliftingBreakdown: nil),
+            LeaderboardEntry(rank: 2, profile: tiedProfileB, lift: makeLift(userID: tiedProfileB.id, weight: 300), rankMovement: 0, score: 315, powerliftingBreakdown: nil),
+            LeaderboardEntry(rank: 3, profile: nextProfile, lift: makeLift(userID: nextProfile.id, weight: 275), rankMovement: 0, score: 275, powerliftingBreakdown: nil)
+        ]
+        let store = CompetitionStore(
+            repository: repository,
+            leaderboardService: StaticLeaderboardService(entries: entries)
+        )
+        store.verifiedOnly = false
+        store.filters.experienceLevel = .advanced
+
+        await store.refreshLeaderboard()
+
+        XCTAssertEqual(store.leaderboardEntries(referenceDate: .now).map(\.rank), [1, 1, 2])
+    }
+
+    @MainActor
     func testProfileRankingUsesCanonicalCurrentUserTotalEntry() async {
         let repository = DemoRepository()
         let profile = makeProfile(id: repository.currentProfile.id, username: "canonical_total")
@@ -2309,6 +2387,33 @@ final class RankingCalculatorTests: XCTestCase {
         var mondayStart = Calendar(identifier: .gregorian)
         mondayStart.firstWeekday = 2
         XCTAssertEqual(WorkoutHistoryCalendarData.weekdaySymbols(calendar: mondayStart), ["M", "T", "W", "T", "F", "S", "S"])
+    }
+
+    func testWorkoutHistoryCalendarPreservesLocalDatesAcrossDST() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/New_York"))
+        calendar.locale = Locale(identifier: "en_US")
+        calendar.firstWeekday = 2
+
+        let march = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 3, day: 1, hour: 12)))
+        let marchDates = WorkoutHistoryCalendarData.days(in: march, workoutCountsByDay: [:], calendar: calendar).compactMap(\.date)
+        XCTAssertEqual(marchDates.count, 31)
+        XCTAssertEqual(marchDates.map { calendar.component(.day, from: $0) }, Array(1...31))
+        let springForwardDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 3, day: 8, hour: 12)))
+        XCTAssertEqual(try XCTUnwrap(calendar.dateInterval(of: .day, for: springForwardDate)).duration, TimeInterval(23 * 60 * 60))
+
+        let november = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 1, hour: 12)))
+        let novemberDates = WorkoutHistoryCalendarData.days(in: november, workoutCountsByDay: [:], calendar: calendar).compactMap(\.date)
+        XCTAssertEqual(novemberDates.count, 30)
+        XCTAssertEqual(novemberDates.map { calendar.component(.day, from: $0) }, Array(1...30))
+        let fallBackDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 1, hour: 12)))
+        XCTAssertEqual(try XCTUnwrap(calendar.dateInterval(of: .day, for: fallBackDate)).duration, TimeInterval(25 * 60 * 60))
+
+        let firstOneThirty = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 11, day: 1, hour: 1, minute: 30)))
+        let secondOneThirty = firstOneThirty.addingTimeInterval(60 * 60)
+        XCTAssertTrue(calendar.isDate(firstOneThirty, inSameDayAs: secondOneThirty))
+        let workouts = [makeCompletedWorkout(completedAt: firstOneThirty), makeCompletedWorkout(completedAt: secondOneThirty)]
+        XCTAssertEqual(WorkoutHistoryCalendarData.workouts(on: firstOneThirty, from: workouts, calendar: calendar).count, 2)
     }
 
     @MainActor
@@ -3817,15 +3922,18 @@ final class RankingCalculatorTests: XCTestCase {
         }
     }
 
-    func testLeaderboardTotalUsesOneRepPRsAndAllowsPartialTotals() {
+    func testLeaderboardTotalUsesOneRepPRsAndRequiresAllThreeLifts() {
         let profile = makeProfile()
         let userID = profile.id
-        let lifts = [
+        var lifts = [
             makeLift(userID: userID, weight: 300, exerciseID: "squat", repetitions: 1),
             makeLift(userID: userID, weight: 225, exerciseID: "bench", repetitions: 1),
             makeLift(userID: userID, weight: 500, exerciseID: "deadlift", repetitions: 1),
             makeLift(userID: userID, weight: 600, exerciseID: "deadlift", repetitions: 5)
         ]
+        lifts[0].bodyweightAtLift = 210
+        lifts[1].bodyweightAtLift = 230
+        lifts[2].bodyweightAtLift = 200
         let entries = RankingCalculator.leaderboardEntries(
             profiles: [profile],
             lifts: lifts,
@@ -3838,6 +3946,15 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(entries[0].score, RankingCalculator.poundsToKilograms(1_025), accuracy: 0.001)
         XCTAssertEqual(entries[0].powerliftingBreakdown?.deadliftKilograms ?? 0, RankingCalculator.poundsToKilograms(500), accuracy: 0.001)
 
+        let relativeEntries = RankingCalculator.leaderboardEntries(
+            profiles: [profile],
+            lifts: lifts,
+            rankingType: .relativeTotal,
+            verifiedOnly: false,
+            currentUserID: nil
+        )
+        XCTAssertEqual(relativeEntries.first?.score ?? 0, 1_025 / 230, accuracy: 0.001)
+
         let partialEntries = RankingCalculator.leaderboardEntries(
             profiles: [profile],
             lifts: [makeLift(userID: userID, weight: 500, exerciseID: "deadlift", repetitions: 1)],
@@ -3845,8 +3962,65 @@ final class RankingCalculatorTests: XCTestCase {
             verifiedOnly: false,
             currentUserID: nil
         )
-        XCTAssertEqual(partialEntries.count, 1)
-        XCTAssertNil(partialEntries[0].powerliftingBreakdown?.benchKilograms)
+        XCTAssertTrue(partialEntries.isEmpty)
+    }
+
+    func testMostImprovedUsesCurrentAllTimeBestAgainstItsPriorBest() {
+        let profile = makeProfile()
+        let times = [1_700_000_000.0, 1_710_000_000.0, 1_720_000_000.0]
+        let lifts = [100.0, 150.0, 180.0].enumerated().map { index, weight in
+            var lift = makeLift(userID: profile.id, weight: weight, exerciseID: "deadlift")
+            lift.competitiveMovement = .conventionalDeadlift
+            lift.performedAt = Date(timeIntervalSince1970: times[index])
+            return lift
+        }
+
+        let entries = RankingCalculator.leaderboardEntries(
+            profiles: [profile],
+            lifts: lifts,
+            rankingType: .mostImproved,
+            verifiedOnly: false,
+            currentUserID: nil
+        )
+
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries[0].lift.id, lifts[2].id)
+        XCTAssertEqual(entries[0].score, 20, accuracy: 0.001)
+
+        var noProgress = makeLift(userID: UUID(), weight: 180, exerciseID: "deadlift")
+        noProgress.competitiveMovement = .conventionalDeadlift
+        let noProgressProfile = makeProfile(id: noProgress.userID)
+        XCTAssertTrue(RankingCalculator.leaderboardEntries(
+            profiles: [noProgressProfile],
+            lifts: [noProgress],
+            rankingType: .mostImproved,
+            verifiedOnly: false,
+            currentUserID: nil
+        ).isEmpty)
+    }
+
+    @MainActor
+    func testDemoLeaderboardSeedsPositiveMostImprovedHistoryIdempotently() {
+        let repository = DemoRepository()
+        repository.seedDemoLeaderboardDataIfNeeded()
+        let firstSeedIDs = Set(repository.lifts.map(\.id))
+        repository.seedDemoLeaderboardDataIfNeeded()
+
+        XCTAssertEqual(Set(repository.lifts.map(\.id)), firstSeedIDs)
+        let demoProfiles = repository.profiles.filter { $0.username.hasPrefix("demo_lifter_") }
+        let demoProfileIDs = Set(demoProfiles.map(\.id))
+        let demoLifts = repository.lifts.filter { demoProfileIDs.contains($0.userID) }
+        let entries = RankingCalculator.leaderboardEntries(
+            profiles: demoProfiles,
+            lifts: demoLifts,
+            rankingType: .mostImproved,
+            verifiedOnly: false,
+            currentUserID: nil
+        )
+
+        XCTAssertEqual(entries.count, demoProfiles.count)
+        XCTAssertTrue(entries.allSatisfy { $0.score > 0 })
+        XCTAssertGreaterThan(Set(entries.map(\.score)).count, 1)
     }
 
     func testExerciseLeaderboardUsesSubmittedWeightRatherThanEstimatedMax() {
@@ -3882,6 +4056,24 @@ final class RankingCalculatorTests: XCTestCase {
         appState.selectLeaderboardExercise(nil)
         XCTAssertEqual(appState.leaderboardFilters.rankingType, .total)
         XCTAssertNil(appState.leaderboardFilters.repetitionCount)
+    }
+
+    func testExactRepetitionLeaderboardIncludesMatchingNonOneRepLifts() {
+        let profile = makeProfile()
+        let fiveRepLift = makeLift(userID: profile.id, weight: 225, exerciseID: "bench", repetitions: 5)
+
+        let defaultEntries = RankingCalculator.leaderboardEntries(
+            profiles: [profile], lifts: [fiveRepLift], rankingType: .absolute,
+            verifiedOnly: false, currentUserID: nil, exerciseID: "bench"
+        )
+        let exactRepEntries = RankingCalculator.leaderboardEntries(
+            profiles: [profile], lifts: [fiveRepLift], rankingType: .absolute,
+            verifiedOnly: false, currentUserID: nil, exerciseID: "bench", repetitionCount: 5
+        )
+
+        XCTAssertTrue(defaultEntries.isEmpty)
+        XCTAssertEqual(exactRepEntries.map(\.lift.repetitions), [5])
+        XCTAssertEqual(exactRepEntries.first?.score, fiveRepLift.normalizedWeightKilograms)
     }
 
     @MainActor
@@ -4370,6 +4562,48 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(routine.name, "Saturday Strength Routine")
         XCTAssertEqual(session.name, "Saturday Strength")
         XCTAssertEqual(session.day, "Saturday")
+    }
+
+    @MainActor
+    func testProgramStoreCreatesPlanFromMultipleCompletedWorkoutsInChronologicalOrder() throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let store = ProgramStore(repository: repository)
+        let monday = Date(timeIntervalSince1970: 1_704_067_200)
+        var firstWorkout = makeCompletedWorkout(completedAt: monday)
+        firstWorkout.name = "Push"
+        firstWorkout.dayLabel = "Monday"
+        firstWorkout.exercises[0].targetSets = 3
+        firstWorkout.exercises[0].targetReps = "6–8"
+        firstWorkout.exercises[0].restSeconds = 90
+        firstWorkout.exercises[0].notes = "Pause each rep"
+        var unperformedExercise = firstWorkout.exercises[0]
+        unperformedExercise.id = UUID()
+        unperformedExercise.exerciseID = "lat_raise"
+        unperformedExercise.exerciseName = "Unperformed Exercise"
+        firstWorkout.exercises.append(unperformedExercise)
+
+        var secondWorkout = makeCompletedWorkout(completedAt: monday.addingTimeInterval(86_400))
+        secondWorkout.name = "Pull"
+        secondWorkout.dayLabel = "Tuesday"
+
+        let plan = try XCTUnwrap(store.createPlan(
+            fromWorkouts: [secondWorkout, firstWorkout],
+            name: "  Freestyle Block  "
+        ))
+        let week = try XCTUnwrap(store.weeks(planID: plan.id).first)
+        let sessions = store.sessions(week: week)
+
+        XCTAssertEqual(plan.name, "Freestyle Block")
+        XCTAssertEqual(sessions.map(\.name), ["Push", "Pull"])
+        XCTAssertEqual(sessions.map(\.day), ["Monday", "Tuesday"])
+        let pushPrescription = try XCTUnwrap(store.prescriptions(session: sessions[0]).first)
+        XCTAssertEqual(pushPrescription.exerciseID, "barbell_bench_press")
+        XCTAssertEqual(pushPrescription.sets, 3)
+        XCTAssertEqual(pushPrescription.reps, "6–8")
+        XCTAssertEqual(pushPrescription.restSeconds, 90)
+        XCTAssertEqual(pushPrescription.notes, "Pause each rep")
+        XCTAssertEqual(store.prescriptions(session: sessions[0]).count, 1)
+        XCTAssertEqual(store.prescriptions(session: sessions[1]).count, 1)
     }
 
     @MainActor
@@ -5285,7 +5519,7 @@ final class RankingCalculatorTests: XCTestCase {
         ))
 
         let summary = try XCTUnwrap(store.summary())
-        XCTAssertEqual(summary.completedExercises, 1)
+        XCTAssertEqual(summary.completedExercises, 0)
         XCTAssertEqual(summary.totalSets, 1)
         XCTAssertEqual(summary.totalVolume, 1_125, accuracy: 0.001)
         XCTAssertEqual(summary.bestSet?.id, logs[0].id)
@@ -5772,11 +6006,51 @@ final class RankingCalculatorTests: XCTestCase {
         await store.refreshProductionData()
 
         XCTAssertEqual(repository.notifications, [notification])
+        XCTAssertTrue(store.hasLoaded)
+        XCTAssertNotNil(store.refreshError)
 
         repository.currentProfile.id = UUID()
+        service.shouldFailRefresh = false
         await store.refreshProductionData()
 
         XCTAssertTrue(repository.notifications.isEmpty)
+        XCTAssertNil(store.refreshError)
+    }
+
+    @MainActor
+    func testNotificationRefreshFailureCanBeRetriedSuccessfully() async {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let service = RecordingNotificationService()
+        let store = NotificationStore(repository: repository, notificationService: service)
+        service.shouldFailRefresh = true
+
+        await store.refreshProductionData()
+
+        XCTAssertTrue(repository.notifications.isEmpty)
+        XCTAssertNotNil(store.refreshError)
+        XCTAssertTrue(store.hasLoaded)
+
+        let notification = NotificationItem(
+            id: UUID(), title: "New", message: "A ranking changed", kind: "Ranking", createdAt: .now, isRead: false
+        )
+        service.shouldFailRefresh = false
+        service.response = [notification]
+        await store.refreshProductionData()
+
+        XCTAssertNil(store.refreshError)
+        XCTAssertEqual(repository.notifications, [notification])
+    }
+
+    @MainActor
+    func testSuccessfulEmptyNotificationRefreshIsNotAnError() async {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let store = NotificationStore(repository: repository, notificationService: RecordingNotificationService())
+
+        await store.refreshProductionData()
+
+        XCTAssertTrue(repository.notifications.isEmpty)
+        XCTAssertTrue(store.hasLoaded)
+        XCTAssertNil(store.refreshError)
     }
 
     @MainActor
@@ -5961,7 +6235,9 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(pending.state, .submitted)
         XCTAssertEqual(pending.attemptCount, 2)
         XCTAssertEqual(flakySubmitter.attemptCount, 2)
+        XCTAssertEqual(flakySubmitter.submissionIDs, [pendingID, pendingID])
         XCTAssertEqual(repository.lifts.count, initialLiftCount + 1)
+        XCTAssertEqual(repository.lifts.first(where: { $0.id == pendingID })?.id, pendingID)
         XCTAssertEqual(videoStore.removedURLs, [videoURL])
         XCTAssertEqual(repository.completedWorkouts.first?.linkedSubmissionIDs, [pending.submissionID].compactMap { $0 })
 
@@ -5972,6 +6248,62 @@ final class RankingCalculatorTests: XCTestCase {
         )
         XCTAssertEqual(store.pendingSubmissions.first?.attemptCount, 2)
         XCTAssertEqual(repository.lifts.count, initialLiftCount + 1)
+    }
+
+    @MainActor
+    func testWorkoutPRVideoRetryReusesLiftAndRetainsRecordingAfterUploadFailure() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let gymID = repository.currentProfile.primaryGymID
+        repository.gyms = [Gym(id: gymID, name: "Downtown Strength", city: "Austin", state: "Texas", memberCount: 0, verifiedLiftCount: 0)]
+        repository.joinedGymIDs = [gymID]
+        let mediaService = FailOnceWorkoutMediaUploadService()
+        let competitionStore = CompetitionStore(
+            repository: repository,
+            liftService: MockLiftService(repository: repository),
+            mediaUploadService: mediaService,
+            analyticsService: MockAnalyticsService()
+        )
+        let videoURL = URL(fileURLWithPath: "/tmp/workout-pr-upload-retry.mov")
+        let videoStore = TestWorkoutVideoStore(url: videoURL)
+        let timestamp = Date(timeIntervalSince1970: 1_800_000_000)
+        let store = WorkoutPRSubmissionStore(
+            repository: repository,
+            liftSubmitter: competitionStore,
+            videoStore: videoStore,
+            exercise: { id in MockData.exercises.first { $0.id == id } },
+            now: { timestamp }
+        )
+        let workout = makeExerciseHistoryWorkout(
+            completedAt: timestamp,
+            unit: .pounds,
+            sets: [(weight: 315, reps: 1, warmup: false, complete: true)]
+        )
+        repository.completedWorkouts = [workout]
+        store.setAutomaticSubmissionEnabled(true)
+        let candidate = try XCTUnwrap(store.candidates(for: workout, existingLifts: []).first)
+        let initialLiftCount = repository.lifts.count
+
+        await store.submitVideoBackedPRs(
+            for: workout,
+            videoURLsBySetID: [candidate.setID: videoURL],
+            existingLifts: []
+        )
+
+        var pending = try XCTUnwrap(store.pendingSubmissions.first)
+        let submissionID = try XCTUnwrap(pending.submissionID)
+        XCTAssertEqual(pending.state, .failed)
+        XCTAssertEqual(repository.lifts.count, initialLiftCount + 1)
+        XCTAssertTrue(videoStore.removedURLs.isEmpty)
+
+        await store.retryFailedSubmissions()
+
+        pending = try XCTUnwrap(store.pendingSubmissions.first)
+        XCTAssertEqual(pending.state, .submitted)
+        XCTAssertEqual(pending.submissionID, submissionID)
+        XCTAssertEqual(mediaService.uploadAttempts, 2)
+        XCTAssertEqual(repository.lifts.count, initialLiftCount + 1)
+        XCTAssertEqual(repository.lifts.first(where: { $0.id == submissionID })?.resolvedEvidenceStatus, .videoBacked)
+        XCTAssertEqual(videoStore.removedURLs, [videoURL])
     }
 
     @MainActor

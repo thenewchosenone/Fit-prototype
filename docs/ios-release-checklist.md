@@ -40,7 +40,7 @@ Use this checklist before uploading the first App Store candidate. Mark an item 
 
 ### Code readiness
 
-- [ ] Full simulator build succeeds with `xcodebuild -project Lift Rivals.xcodeproj -scheme Lift Rivals -destination 'platform=iOS Simulator,name=iPhone 17' build-for-testing`.
+- [ ] Full simulator build succeeds with `xcodebuild -project LiftRank.xcodeproj -scheme LiftRank -destination 'platform=iOS Simulator,name=iPhone 17' build-for-testing`.
 - [ ] Signup, login, restore session, logout, password reset, onboarding, and legal acceptance complete against staging.
 - [ ] Profile photos are account-backed: authenticated profile saves upload image bytes to Supabase Storage before saving the profile draft, `profiles.avatar_path` stores the account path, and login/restore downloads the avatar back into the local cache.
 - [ ] Completed workout deletion is account-backed: deleting locally creates a persisted tombstone and the sync service deletes the matching `completed_workout_snapshots` row for the authenticated owner.

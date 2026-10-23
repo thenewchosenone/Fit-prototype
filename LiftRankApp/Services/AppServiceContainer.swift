@@ -209,7 +209,7 @@ final class UnavailableAccountDataService: ProfileService, GymService, GymMember
     func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String { throw error }
     func downloadProfileAvatar(avatarPath: String) async throws -> ProfileAvatarDownload? { throw error }
     func removeProfileAvatar(avatarPath: String?) async throws { throw error }
-    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry]) async throws -> [BodyweightEntry] { throw error }
+    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry], knownSyncedIDs: Set<UUID>) async throws -> [BodyweightEntry] { throw error }
     func saveBodyweightEntry(_ entry: BodyweightEntry) async throws { throw error }
 
     func gyms() async throws -> [Gym] { throw error }

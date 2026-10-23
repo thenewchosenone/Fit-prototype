@@ -20,6 +20,7 @@ struct TrainingTrackerView: View {
     @State var showingActiveWorkout = false
     @State var showingWorkoutConflict = false
     @State var showingCreatePlan = false
+    @State var showingCreatePlanFromHistory = false
     @State var showingDeletePlan = false
     @State var showingRenamePlan = false
     @State var renamePlanName = ""
@@ -49,10 +50,8 @@ struct TrainingTrackerView: View {
     @State var dismissedTrainingFocusPrompt = false
     @State var selectedExerciseWeightTrendDate: Date?
     @State var selectedExerciseStrengthTrendDate: Date?
-    @State var selectedPlateauInsight: PlateauInsight?
     @State var selectedVolumeWeek: VolumeWeekSelection = .thisWeek
     @State var selectedProgressRange: ProgressTimeRange = .twelveWeeks
-    @AppStorage("liftrank.dismissedPlateauInsights") var dismissedPlateauInsightIDs = ""
     let isEmbeddedInTab: Bool
 
     init(startOnProgress: Bool = false, isEmbeddedInTab: Bool = false) {

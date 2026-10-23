@@ -13,9 +13,10 @@ struct BodyweightEntry: Identifiable, Codable, Hashable {
         calendar: Calendar = .current,
         now: Date = .now
     ) -> BodyweightEntry {
-        if let currentWeekEntry = entries.first(where: {
-            calendar.isDate($0.targetDate, inSameDayAs: now)
-        }) {
+        if let weekInterval = calendar.dateInterval(of: .weekOfYear, for: now),
+           let currentWeekEntry = entries.first(where: {
+               $0.targetDate >= weekInterval.start && $0.targetDate < weekInterval.end
+           }) {
             return currentWeekEntry
         }
 

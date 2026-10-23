@@ -3,6 +3,7 @@ import SwiftUI
 
 struct LeaderboardRow: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let entry: LeaderboardEntry
     var rankingType: RankingType = .absolute
 
@@ -13,6 +14,102 @@ struct LeaderboardRow: View {
     private var catalogExercise: TrainingExerciseCatalogItem? {
         MockData.trainingExerciseLibrary.first {
             $0.id == entry.lift.exerciseID || $0.rankingExerciseID == entry.lift.exerciseID
+        }
+    }
+
+    @ViewBuilder
+    private var exerciseSummary: some View {
+        HStack(spacing: 5) {
+            if let catalogExercise {
+                ExerciseCatalogIcon(exercise: catalogExercise)
+                    .scaleEffect(0.38)
+                    .frame(width: 22, height: 22)
+            } else {
+                ExerciseNameIcon(
+                    name: entry.lift.exerciseName,
+                    fallbackSymbol: "figure.strengthtraining.functional"
+                )
+                .scaleEffect(0.38)
+                .frame(width: 22, height: 22)
+            }
+            Text(entry.lift.exerciseName)
+        }
+    }
+
+    private var bodyweightSummary: some View {
+        Label(
+            entry.profile.hideBodyweight
+                ? "Hidden BW"
+                : "\(MeasurementFormatting.formatBodyweightOrDash(entry.lift.bodyweightAtLift, preferredUnit: appState.currentProfile.preferredUnit)) BW",
+            systemImage: "scalemass.fill"
+        )
+    }
+
+    private var locationSummary: some View {
+        Label(
+            ProfileDisplayFormatting.location(
+                city: entry.profile.city,
+                region: entry.profile.state,
+                hidden: entry.profile.hideCity
+            ),
+            systemImage: "mappin.and.ellipse"
+        )
+    }
+
+    private var recordedLiftSummary: String {
+        MeasurementFormatting.recordedLiftSetText(
+            weight: entry.lift.weight,
+            unit: entry.lift.unit,
+            repetitions: entry.lift.repetitions,
+            includeRepLabel: true
+        )
+    }
+
+    private var recordedAtSummary: String {
+        LiftTimeFormatter.shortDateTime(entry.lift.performedAt)
+    }
+
+    private var isCurrentUser: Bool {
+        LeaderboardIdentityPresentation.isCurrentUser(
+            entryProfileID: entry.profile.id,
+            activeProfileID: appState.currentProfile.id
+        )
+    }
+
+    private var currentUserBadge: some View {
+        Text("You")
+            .font(.caption2.bold())
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(Color.liftBlue.opacity(0.22))
+            .clipShape(Capsule())
+    }
+
+    private var currentUserTierBadge: some View {
+        Text("\(appState.strengthTierSummary.overallTier.label) tier")
+            .font(.caption2.bold())
+            .foregroundStyle(Color.liftGold)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(Color.liftGold.opacity(0.12))
+            .clipShape(Capsule())
+            .accessibilityIdentifier("leaderboard.currentUserRivalTier")
+    }
+
+    @ViewBuilder
+    private var currentUserBadges: some View {
+        if isCurrentUser {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 6) {
+                    currentUserBadge
+                    currentUserTierBadge
+                }
+            } else {
+                HStack(spacing: 8) {
+                    currentUserBadge
+                    currentUserTierBadge
+                }
+            }
         }
     }
 
@@ -28,34 +125,24 @@ struct LeaderboardRow: View {
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     ProfileAvatar(profile: entry.profile, size: 44)
                     VStack(alignment: .leading, spacing: 5) {
-                        HStack(spacing: 8) {
+                        if dynamicTypeSize.isAccessibilitySize {
                             Text(entry.profile.displayName)
                                 .font(.headline)
-                                .lineLimit(1)
-                            if LeaderboardIdentityPresentation.isCurrentUser(
-                                entryProfileID: entry.profile.id,
-                                activeProfileID: appState.currentProfile.id
-                            ) {
-                                Text("You")
-                                    .font(.caption2.bold())
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 4)
-                                    .background(Color.liftBlue.opacity(0.22))
-                                    .clipShape(Capsule())
-                                Text("\(appState.strengthTierSummary.overallTier.label) tier")
-                                    .font(.caption2.bold())
-                                    .foregroundStyle(Color.liftGold)
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 4)
-                                    .background(Color.liftGold.opacity(0.12))
-                                    .clipShape(Capsule())
-                                    .accessibilityIdentifier("leaderboard.currentUserRivalTier")
+                                .fixedSize(horizontal: false, vertical: true)
+                            currentUserBadges
+                        } else {
+                            HStack(spacing: 8) {
+                                Text(entry.profile.displayName)
+                                    .font(.headline)
+                                    .lineLimit(1)
+                                currentUserBadges
                             }
                         }
                         Text("@\(entry.profile.username) • \(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
-                            .lineLimit(1)
+                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 3)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 5) {
@@ -77,52 +164,49 @@ struct LeaderboardRow: View {
                     }
                 }
 
-                HStack(spacing: 8) {
-                    HStack(spacing: 5) {
-                        if let catalogExercise {
-                            ExerciseCatalogIcon(exercise: catalogExercise)
-                                .scaleEffect(0.38)
-                                .frame(width: 22, height: 22)
-                        } else {
-                            ExerciseNameIcon(
-                                name: entry.lift.exerciseName,
-                                fallbackSymbol: "figure.strengthtraining.functional"
-                            )
-                            .scaleEffect(0.38)
-                            .frame(width: 22, height: 22)
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 8) {
+                            exerciseSummary.fixedSize(horizontal: false, vertical: true)
+                            bodyweightSummary
+                            locationSummary
                         }
-                        Text(entry.lift.exerciseName)
+                    } else {
+                        HStack(spacing: 8) {
+                            exerciseSummary
+                            bodyweightSummary
+                            locationSummary
+                        }
+                        .lineLimit(1)
                     }
-                    Label(entry.profile.hideBodyweight ? "Hidden BW" : "\(MeasurementFormatting.formatBodyweightOrDash(entry.lift.bodyweightAtLift, preferredUnit: appState.currentProfile.preferredUnit)) BW", systemImage: "scalemass.fill")
-                    Label(
-                        ProfileDisplayFormatting.location(
-                            city: entry.profile.city,
-                            region: entry.profile.state,
-                            hidden: entry.profile.hideCity
-                        ),
-                        systemImage: "mappin.and.ellipse"
-                    )
                 }
                 .font(.caption)
                 .foregroundStyle(Color.liftMuted)
-                .lineLimit(1)
 
-                HStack(spacing: 8) {
-                    Text(MeasurementFormatting.recordedLiftSetText(
-                        weight: entry.lift.weight,
-                        unit: entry.lift.unit,
-                        repetitions: entry.lift.repetitions,
-                        includeRepLabel: true
-                    ))
-                    if entry.lift.weightPerHand == true {
-                        Text("per hand")
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(recordedLiftSummary)
+                            if entry.lift.weightPerHand == true {
+                                Text("per hand")
+                            }
+                            Text(recordedAtSummary)
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        HStack(spacing: 8) {
+                            Text(recordedLiftSummary)
+                            if entry.lift.weightPerHand == true {
+                                Text("per hand")
+                            }
+                            Text("·")
+                            Text(recordedAtSummary)
+                        }
+                        .lineLimit(1)
                     }
-                    Text("·")
-                    Text(LiftTimeFormatter.shortDateTime(entry.lift.performedAt))
                 }
                 .font(.caption2.weight(.medium))
                 .foregroundStyle(Color.liftMuted)
-                .lineLimit(1)
 
                 VerificationBadge(evidenceStatus: entry.lift.resolvedEvidenceStatus)
             }
@@ -200,8 +284,8 @@ struct LeaderboardFiltersView: View {
                                 }
                                 if appState.leaderboardFilters.exerciseID != nil {
                                     optionRow("Rep count") {
-                                        ForEach([nil, 1, 3, 5, 8, 10], id: \.self) { count in
-                                            optionButton(count.map { "\($0) reps" } ?? "All", isActive: appState.leaderboardFilters.repetitionCount == count) {
+                                        ForEach([nil, 3, 5, 8, 10], id: \.self) { count in
+                                            optionButton(count.map { "\($0) reps" } ?? "1RM", isActive: appState.leaderboardFilters.repetitionCount == count) {
                                                 appState.leaderboardFilters.repetitionCount = count
                                             }
                                         }
@@ -266,9 +350,6 @@ struct LeaderboardFiltersView: View {
 
                         filterGroup("Location", symbol: "mappin.and.ellipse") {
                             optionRow("Quick location") {
-                                optionButton("Global", isActive: appState.leaderboardFilters.gymID == nil && appState.leaderboardFilters.city == nil && appState.leaderboardFilters.state == nil) {
-                                    clearLocationFilter()
-                                }
                                 if !appState.currentProfile.city.isEmpty {
                                     optionButton("My city: \(shortLocation(appState.currentProfile.city, appState.currentProfile.state))", isActive: appState.leaderboardFilters.cityID == appState.currentProfile.cityID && appState.leaderboardFilters.city == appState.currentProfile.city) {
                                         applyLocation(
@@ -663,6 +744,7 @@ struct LeaderboardFiltersView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("leaderboard.filters.option.\(identifierComponent(title))")
+        .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 
     private func quickFilterButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {

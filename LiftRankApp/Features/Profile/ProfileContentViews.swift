@@ -66,6 +66,11 @@ struct ProfileLiftVideosSection: View {
         let videoLifts = videoLifts
         VStack(alignment: .leading, spacing: 10) {
             CompactSectionHeader(title: "PR videos")
+            if !profile.hideLiftVideos || isCurrentUser {
+                Text("Best shared video for each exercise.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.liftMuted)
+            }
             if profile.hideLiftVideos && !isCurrentUser {
                 LiftEmptyState(
                     title: "PR videos hidden",
@@ -83,13 +88,29 @@ struct ProfileLiftVideosSection: View {
                     compact: true
                 )
             } else {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 3), spacing: 4) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], alignment: .leading, spacing: 12) {
                     ForEach(videoLifts) { lift in
                         Button {
                             selectedLift = lift
                         } label: {
-                            ProfileVideoThumbnail(lift: lift)
-                                .aspectRatio(1, contentMode: .fit)
+                            VStack(alignment: .leading, spacing: 8) {
+                                ProfileVideoThumbnail(lift: lift)
+                                    .aspectRatio(4.0 / 3.0, contentMode: .fit)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                Text(lift.exerciseName)
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(Color.liftText)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Text(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions))
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Color.liftAccentText)
+                                Text(lift.performedAt.formatted(date: .abbreviated, time: .omitted))
+                                    .font(.caption)
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                            .padding(10)
+                            .liftSurface(radius: 16)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Play \(lift.exerciseName) lift video")
@@ -273,6 +294,11 @@ struct EditProfileView: View {
     @State private var showingUsernameChangeConfirmation = false
     @State private var hasLoadedDraft = false
     @State private var selectedBodyweightEntry: BodyweightEntry?
+    @State private var confirmingDiscardChanges = false
+
+    private var hasUnsavedDraft: Bool {
+        hasLoadedDraft && (draft != appState.currentProfile || updatesPrimaryGym)
+    }
 
     private var selectedGym: Gym? {
         appState.gyms.first { $0.id == selectedGymID }
@@ -432,7 +458,7 @@ struct EditProfileView: View {
                     emptyTitle: selector == .location ? "No locations available" : "No gyms available",
                     emptyMessage: selector == .location
                         ? "Try a different city or state search."
-                        : "Try another search, switch to All gyms, or request that this gym be added.",
+                        : "Try another search, switch to All gyms, or save a gym suggestion on this device.",
                     preferredOptionIDs: selector == .gym ? selectedLocationGymOptionIDs : [],
                     preferredScopeTitle: selector == .gym && !draft.city.isEmpty ? draft.city : nil,
                     allScopeTitle: "All gyms"
@@ -443,7 +469,7 @@ struct EditProfileView: View {
             }
             .sheet(item: $selectedBodyweightEntry) { entry in
                 BodyweightEntryEditor(entry: entry) { updatedEntry in
-                    appState.updateBodyweight(updatedEntry)
+                    try await appState.updateBodyweight(updatedEntry)
                 }
                 .environmentObject(appState)
             }
@@ -466,7 +492,14 @@ struct EditProfileView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        if hasUnsavedDraft {
+                            confirmingDiscardChanges = true
+                        } else {
+                            dismiss()
+                        }
+                    }
+                    .disabled(appState.accountOperationInProgress)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
@@ -485,7 +518,14 @@ struct EditProfileView: View {
                     .disabled(appState.accountOperationInProgress)
                 }
             }
+            .confirmationDialog("Discard profile changes?", isPresented: $confirmingDiscardChanges) {
+                Button("Discard Changes", role: .destructive) { dismiss() }
+                Button("Keep Editing") {}
+            } message: {
+                Text("Your unsaved profile changes will be lost.")
+            }
         }
+        .interactiveDismissDisabled(appState.accountOperationInProgress || hasUnsavedDraft)
     }
 
     private func saveDraft(allowUsernameChange: Bool) {
@@ -525,7 +565,8 @@ struct EditProfileView: View {
                         .foregroundStyle(Color.liftMuted)
                     Text(value)
                         .foregroundStyle(.primary)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
@@ -598,6 +639,7 @@ struct EditProfileView: View {
 struct ProfilePhotoManagerView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var item: PhotosPickerItem?
     @State private var loading = false
     @State private var photoError: String?
@@ -618,92 +660,101 @@ struct ProfilePhotoManagerView: View {
         appState.currentProfile.avatarPath != nil || previewImage != nil
     }
 
+    private var photoPreviewActions: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
+            : AnyLayout(HStackLayout(spacing: 10))
+
+        return layout {
+            Button("Adjust") {
+                showingCropEditor = true
+            }
+            .buttonStyle(LiftSecondaryButtonStyle())
+
+            Button("Cancel") {
+                previewImage = nil
+                selectedSourceImage = nil
+            }
+            .buttonStyle(LiftSecondaryButtonStyle())
+
+            Button("Use Photo") {
+                guard let previewImage else { return }
+                storedImage = previewImage
+                self.previewImage = nil
+                selectedSourceImage = nil
+                Task { @MainActor in
+                    await Task.yield()
+                    photoError = nil
+                    appState.accountMessage = nil
+                    await appState.saveProfilePhoto(previewImage)
+                }
+            }
+            .buttonStyle(LiftPrimaryButtonStyle())
+        }
+    }
+
     var body: some View {
         NavigationStack {
             AppBackground {
-                VStack(spacing: 20) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.liftCardRaised)
-                            .frame(width: 164, height: 164)
+                ScrollView {
+                    VStack(spacing: 20) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.liftCardRaised)
+                                .frame(width: 164, height: 164)
 
-                        if let displayedImage {
-                            Image(uiImage: displayedImage)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 144, height: 144)
-                                .clipShape(Circle())
-                        } else {
-                            ProfileAvatar(profile: appState.currentProfile, size: 144)
-                        }
-                    }
-                        .padding(.top, 24)
-
-                    PhotosPicker(selection: $item, matching: .images) {
-                        Label(hasExistingOrPendingPhoto ? "Replace Photo" : "Choose Photo", systemImage: "photo")
-                            .font(.headline.weight(.bold))
-                            .foregroundStyle(Color.liftBackground)
-                            .frame(maxWidth: .infinity, minHeight: 50)
-                    }
-                    .buttonStyle(LiftCompactProminentButtonStyle())
-
-                    if previewImage != nil {
-                        LiftCard {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Preview")
-                                    .font(.headline.weight(.bold))
-                                Text("Keep the new photo, adjust it again, or discard it before saving.")
-                                    .font(.subheadline)
-                                    .foregroundStyle(Color.liftMuted)
-                                HStack(spacing: 10) {
-                                    Button("Adjust") {
-                                        showingCropEditor = true
-                                    }
-                                    .buttonStyle(LiftSecondaryButtonStyle())
-
-                                    Button("Cancel") {
-                                        previewImage = nil
-                                        selectedSourceImage = nil
-                                    }
-                                    .buttonStyle(LiftSecondaryButtonStyle())
-
-                                    Button("Use Photo") {
-                                        guard let previewImage else { return }
-                                        storedImage = previewImage
-                                        self.previewImage = nil
-                                        selectedSourceImage = nil
-                                        Task { @MainActor in
-                                            await Task.yield()
-                                            photoError = nil
-                                            appState.accountMessage = nil
-                                            await appState.saveProfilePhoto(previewImage)
-                                        }
-                                    }
-                                    .buttonStyle(LiftPrimaryButtonStyle())
-                                }
+                            if let displayedImage {
+                                Image(uiImage: displayedImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 144, height: 144)
+                                    .clipShape(Circle())
+                            } else {
+                                ProfileAvatar(profile: appState.currentProfile, size: 144)
                             }
                         }
-                    } else if appState.currentProfile.avatarPath != nil {
-                        Button("Remove Photo", role: .destructive) {
-                            showingRemoveConfirmation = true
+                        .padding(.top, 24)
+
+                        PhotosPicker(selection: $item, matching: .images) {
+                            Label(hasExistingOrPendingPhoto ? "Replace Photo" : "Choose Photo", systemImage: "photo")
+                                .font(.headline.weight(.bold))
+                                .foregroundStyle(Color.liftBackground)
+                                .frame(maxWidth: .infinity, minHeight: 50)
                         }
-                        .buttonStyle(.bordered)
-                    }
+                        .buttonStyle(LiftCompactProminentButtonStyle())
 
-                    if let photoError {
-                        Text(photoError)
-                            .font(.caption)
-                            .foregroundStyle(Color.liftRed)
-                    }
+                        if previewImage != nil {
+                            LiftCard {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Preview")
+                                        .font(.headline.weight(.bold))
+                                    Text("Keep the new photo, adjust it again, or discard it before saving.")
+                                        .font(.subheadline)
+                                        .foregroundStyle(Color.liftMuted)
+                                    photoPreviewActions
+                                }
+                            }
+                        } else if appState.currentProfile.avatarPath != nil {
+                            Button("Remove Photo", role: .destructive) {
+                                showingRemoveConfirmation = true
+                            }
+                            .buttonStyle(.bordered)
+                        }
 
-                    if loading {
-                        ProgressView()
-                            .tint(Color.liftAccentText)
-                    }
+                        if let photoError {
+                            Text(photoError)
+                                .font(.caption)
+                                .foregroundStyle(Color.liftRed)
+                        }
 
-                    Spacer()
+                        if loading {
+                            ProgressView()
+                                .tint(Color.liftAccentText)
+                        }
+
+                    }
+                    .padding(24)
                 }
-                .padding(24)
             }
             .navigationTitle("Profile Photo")
             .navigationBarTitleDisplayMode(.inline)
@@ -778,6 +829,7 @@ private struct ProfilePhotoCropEditorView: View {
     let onCancel: () -> Void
     let onCrop: (UIImage) -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var zoomScale: CGFloat = 1
     @State private var baseZoomScale: CGFloat = 1
     @State private var offset: CGSize = .zero
@@ -785,12 +837,16 @@ private struct ProfilePhotoCropEditorView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let cropSide = min(proxy.size.width - 32, proxy.size.height * 0.55)
+            let isAccessibilitySize = dynamicTypeSize.isAccessibilitySize
+            let cropSide = min(proxy.size.width - 32, proxy.size.height * (isAccessibilitySize ? 0.42 : 0.55))
             let apertureSide = cropSide - 20
             let viewport = CGSize(width: apertureSide, height: apertureSide)
+            let actionLayout = isAccessibilitySize
+                ? AnyLayout(VStackLayout(spacing: 10))
+                : AnyLayout(HStackLayout(spacing: 10))
 
             AppBackground {
-                VStack(spacing: 20) {
+                VStack(spacing: isAccessibilitySize ? 12 : 20) {
                     Text("Adjust Photo")
                         .font(.title2.weight(.bold))
                         .padding(.top, 10)
@@ -799,7 +855,9 @@ private struct ProfilePhotoCropEditorView: View {
                         .font(.subheadline)
                         .foregroundStyle(Color.liftMuted)
 
-                    Spacer(minLength: 0)
+                    if !isAccessibilitySize {
+                        Spacer(minLength: 0)
+                    }
 
                     ZStack {
                         Color.liftCard
@@ -834,9 +892,11 @@ private struct ProfilePhotoCropEditorView: View {
                             .allowsHitTesting(false)
                     }
 
-                    Spacer(minLength: 0)
+                    if !isAccessibilitySize {
+                        Spacer(minLength: 0)
+                    }
 
-                    HStack(spacing: 10) {
+                    actionLayout {
                         Button("Cancel") { onCancel() }
                             .buttonStyle(LiftSecondaryButtonStyle())
 
@@ -1024,7 +1084,7 @@ struct GymDirectoryView: View {
                                  : "No matching gyms")
                                 .font(.headline)
                             Text(query.isEmpty
-                                 ? (appState.accountMessage ?? "Refresh the directory or request a gym to be added.")
+                                 ? (appState.accountMessage ?? "Refresh the directory or save a gym suggestion on this device.")
                                  : "Try a gym name, city, or state.")
                                 .font(.subheadline)
                                 .foregroundStyle(Color.liftMuted)
@@ -1034,7 +1094,7 @@ struct GymDirectoryView: View {
                                     .buttonStyle(.bordered)
                                     .tint(Color.liftAccentText)
                             }
-                            Button("Request a gym") { appState.showingRequestGym = true }
+                            Button("Suggest a gym") { appState.showingRequestGym = true }
                                 .buttonStyle(.borderedProminent)
                                 .tint(Color.liftAccentText)
                                 .foregroundStyle(Color.liftBackground)
@@ -1181,14 +1241,20 @@ struct GymDetailView: View {
                     Text("You can belong to up to \(AppState.maximumJoinedGyms) gyms. Your primary gym counts toward this limit.")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        ForEach(["members", "verified"], id: \.self) { metric in
-                            if metric == "members" {
-                                MetricCard(title: "Members", value: "\(gym.memberCount)", subtitle: "Local lifters")
-                            } else {
-                                MetricCard(title: "Verified lifts", value: "\(gym.verifiedLiftCount)", subtitle: "Approved submissions", tint: .liftGreen)
+                    if appState.isDemoMode {
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                            ForEach(["members", "verified"], id: \.self) { metric in
+                                if metric == "members" {
+                                    MetricCard(title: "Members", value: "\(gym.memberCount)", subtitle: "Local lifters")
+                                } else {
+                                    MetricCard(title: "Verified lifts", value: "\(gym.verifiedLiftCount)", subtitle: "Approved submissions", tint: .liftGreen)
+                                }
                             }
                         }
+                    } else {
+                        Text("Gym membership and lift totals are not currently available.")
+                            .font(.footnote)
+                            .foregroundStyle(Color.liftMuted)
                     }
                     SectionHeader(title: "Top lifters")
                     if appState.leaderboardFilters.gymID != gym.id || appState.isLeaderboardRequestPending {
@@ -1257,16 +1323,21 @@ struct RequestGymView: View {
                         TextField("Why should this gym be added?", text: $note, axis: .vertical)
                             .lineLimit(3...5)
                     }
+                    Section {
+                        Text("This request is saved on this device only. It is not sent to Lift Rivals for review.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .scrollContentBackground(.hidden)
             }
-            .navigationTitle("Request Gym")
+                .navigationTitle("Suggest a Gym")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Submit") {
+                    Button("Save on Device") {
                         appState.requestGym(name: name, city: city, state: state, note: note)
                         dismiss()
                     }

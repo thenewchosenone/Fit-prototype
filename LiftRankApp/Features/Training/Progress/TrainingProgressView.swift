@@ -289,8 +289,7 @@ extension TrainingTrackerView {
                     }
                     .frame(height: 42, alignment: .bottom)
                     Text("5-WEEK VOLUME")
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
-                        .tracking(0.6)
+                        .font(.caption2.weight(.bold))
                         .foregroundStyle(Color.liftMuted)
                 }
             }
@@ -340,13 +339,11 @@ extension TrainingTrackerView {
     private func progressOverviewMetric(_ title: String, value: String, symbol: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Label(title, systemImage: symbol)
-                .font(.system(size: 9, weight: .black, design: .rounded))
-                .tracking(0.5)
+                .font(.caption2.weight(.bold))
                 .foregroundStyle(Color.liftMuted)
             Text(value)
                 .font(.headline.weight(.black).monospacedDigit())
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
@@ -394,7 +391,7 @@ extension TrainingTrackerView {
                 } label: {
                     HStack {
                         Text(nextWorkout.map { "Next planned: \($0.session.name)" } ?? "Review your workout plan")
-                            .lineLimit(1)
+                            .lineLimit(2)
                         Spacer(minLength: 8)
                         Image(systemName: "arrow.right")
                     }
@@ -418,6 +415,9 @@ extension TrainingTrackerView {
             if let week = selectedWeek {
                 let completion = weekCompletion ?? 0
                 let presentation = appState.programWeekPresentation(for: week)
+                let weekTitle = week.title.hasPrefix("Week \(week.weekNumber)")
+                    ? week.title
+                    : "Week \(week.weekNumber) · \(week.title)"
                 HStack(alignment: .center) {
                     ZStack {
                         Circle()
@@ -435,7 +435,7 @@ extension TrainingTrackerView {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Program consistency")
                             .font(.subheadline.weight(.bold))
-                        Text("Week \(week.weekNumber) · \(week.title)")
+                        Text(weekTitle)
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                     }
@@ -603,12 +603,11 @@ extension TrainingTrackerView {
                 .foregroundStyle(Color.liftAccentText)
             Text(value)
                 .font(.subheadline.weight(.black).monospacedDigit())
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .fixedSize(horizontal: false, vertical: true)
             Text(title)
-                .font(.system(size: 9, weight: .bold, design: .rounded))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(Color.liftMuted)
-                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
         .padding(.horizontal, 9)
@@ -744,20 +743,23 @@ extension TrainingTrackerView {
                     compact: true
                 )
             } else {
-                HStack(spacing: 8) {
+                let strengthColumns = Array(
+                    repeating: GridItem(.flexible(), alignment: .leading),
+                    count: dynamicTypeSize.isAccessibilitySize ? 1 : 3
+                )
+                LazyVGrid(columns: strengthColumns, alignment: .leading, spacing: 8) {
                     ForEach(keyLifts, id: \.exerciseID) { lift in
                         VStack(alignment: .leading, spacing: 8) {
                             Text(lift.exerciseName.uppercased())
-                                .font(.system(size: 9, weight: .black, design: .rounded))
-                                .tracking(0.4)
+                                .font(.caption2.weight(.bold))
                                 .foregroundStyle(Color.liftMuted)
-                                .lineLimit(1)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
                             Text(lift.estimatedOneRepMaxKilograms.map {
                                 MeasurementFormatting.formatDisplayedWeight($0, unit: appState.currentProfile.preferredUnit)
                             } ?? "—")
                                 .font(.headline.weight(.black).monospacedDigit())
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.75)
+                                .fixedSize(horizontal: false, vertical: true)
                             GeometryReader { geometry in
                                 ZStack(alignment: .leading) {
                                     Capsule().fill(Color.liftOverlay)
@@ -778,18 +780,24 @@ extension TrainingTrackerView {
                     }
                 }
 
-                HStack(spacing: 10) {
+                let totalColumns = Array(
+                    repeating: GridItem(.flexible(), alignment: .leading),
+                    count: dynamicTypeSize.isAccessibilitySize ? 1 : 2
+                )
+                LazyVGrid(columns: totalColumns, alignment: .leading, spacing: 10) {
                     volumeSummary(
                         title: "THREE-LIFT TOTAL",
                         value: threeLiftTotal.map {
                             MeasurementFormatting.formatDisplayedWeight($0, unit: appState.currentProfile.preferredUnit)
                         } ?? "—",
-                        detail: threeLiftTotal == nil ? "Log all three lifts" : appState.currentProfile.preferredUnit.shortLabel,
+                        detail: threeLiftTotal == nil ? "Log all three lifts" : "",
                         symbol: "sum"
                     )
                     volumeSummary(
                         title: "RELATIVE TOTAL",
-                        value: relativeTotal.map { String(format: "%.2f×", $0) } ?? "—",
+                        value: relativeTotal.map {
+                            MeasurementFormatting.localizedDecimalText($0, minimumFractionDigits: 2, maximumFractionDigits: 2) + "×"
+                        } ?? "—",
                         detail: relativeTotal == nil ? "Needs total and bodyweight" : "of bodyweight",
                         symbol: "scalemass"
                     )
@@ -799,21 +807,28 @@ extension TrainingTrackerView {
                     Text("Other tracked lifts")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Color.liftMuted)
-                    HStack(spacing: 8) {
+                    let supplementalColumns = Array(
+                        repeating: GridItem(.flexible(), alignment: .leading),
+                        count: dynamicTypeSize.isAccessibilitySize ? 1 : 3
+                    )
+                    LazyVGrid(columns: supplementalColumns, alignment: .leading, spacing: 8) {
                         ForEach(supplementalLifts, id: \.id) { lift in
                             let record = appState.exerciseRecords(for: lift.id)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(lift.name)
-                                    .font(.system(size: 9, weight: .black, design: .rounded))
+                                    .font(.caption2.weight(.bold))
                                     .foregroundStyle(Color.liftMuted)
-                                    .lineLimit(1)
+                                    .lineLimit(2)
+                                    .fixedSize(horizontal: false, vertical: true)
                                 Text(record.bestEstimatedOneRepMaxKilograms.map {
                                     MeasurementFormatting.formatDisplayedWeight($0, unit: appState.currentProfile.preferredUnit)
                                 } ?? "—")
                                     .font(.subheadline.weight(.black).monospacedDigit())
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
-                            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
                             .padding(.horizontal, 9)
+                            .padding(.vertical, 6)
                             .background(Color.liftCardRaised.opacity(0.62))
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         }
@@ -852,7 +867,11 @@ extension TrainingTrackerView {
         detail: String,
         symbol: String
     ) -> some View {
-        HStack(spacing: 9) {
+        let label = title == "RELATIVE TOTAL" && value != "—"
+            ? "Relative total, \(value.replacingOccurrences(of: "×", with: " times bodyweight"))"
+            : [title.capitalized, value, detail].filter { !$0.isEmpty }.joined(separator: ", ")
+
+        return HStack(spacing: 9) {
             Image(systemName: symbol)
                 .font(.caption.weight(.bold))
                 .foregroundStyle(Color.liftAccentText)
@@ -861,18 +880,18 @@ extension TrainingTrackerView {
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.system(size: 9, weight: .black, design: .rounded))
-                    .tracking(0.5)
+                Text(title == "THREE-LIFT TOTAL" ? "3-LIFT TOTAL" : title)
+                    .font(.caption2.weight(.bold))
                     .foregroundStyle(Color.liftMuted)
                 Text(value)
                     .font(.subheadline.weight(.black).monospacedDigit())
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                Text(detail)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(Color.liftMuted)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !detail.isEmpty {
+                    Text(detail)
+                        .font(.caption2)
+                        .foregroundStyle(Color.liftMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Spacer(minLength: 0)
@@ -885,6 +904,8 @@ extension TrainingTrackerView {
             RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .stroke(Color.liftOverlay.opacity(0.75), lineWidth: 1)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
     }
     private func workoutHistorySection(presentation: WorkoutHistoryCalendarPresentation) -> some View {
         WorkoutHistoryCalendar(
@@ -948,6 +969,8 @@ extension TrainingTrackerView {
                     Label(exercise?.name ?? "Exercise", systemImage: "chevron.down")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Color.liftAccentText)
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
+                        .contentShape(Rectangle())
                 }
                 .accessibilityIdentifier("tracker.progress.exercisePicker")
             }
@@ -1203,14 +1226,12 @@ extension TrainingTrackerView {
                 .font(.caption.weight(.bold))
                 .foregroundStyle(Color.liftAccentText)
             Text(title)
-                .font(.system(size: 8, weight: .black, design: .rounded))
-                .tracking(0.3)
+                .font(.caption2.weight(.bold))
                 .foregroundStyle(Color.liftMuted)
-                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             Text(value)
                 .font(.caption.weight(.black).monospacedDigit())
-                .minimumScaleFactor(0.7)
-                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
         .padding(9)
@@ -1441,32 +1462,40 @@ extension TrainingTrackerView {
     }
 
     private func bodyweightTable(entries: [BodyweightEntry]) -> some View {
+        let usesAccessibilityLayout = dynamicTypeSize.isAccessibilitySize
         return VStack(spacing: 0) {
-            HStack {
-                Text("Week").frame(width: 48, alignment: .leading)
-                Text("Date").frame(maxWidth: .infinity, alignment: .leading)
-                Text("Weight").frame(width: 76, alignment: .trailing)
-                Text("").frame(width: 28)
+            if !usesAccessibilityLayout {
+                HStack {
+                    Text("Week").frame(width: 48, alignment: .leading)
+                    Text("Date").frame(maxWidth: .infinity, alignment: .leading)
+                    Text("Weight").frame(width: 76, alignment: .trailing)
+                    Text("").frame(width: 28)
+                }
+                .font(.caption2.weight(.semibold))
+                .textCase(.uppercase)
+                .foregroundStyle(Color.liftMuted)
+                .padding(.horizontal, 12)
+                .frame(height: 34)
+                .background(Color.liftCardRaised.opacity(0.7))
             }
-            .font(.caption2.weight(.semibold))
-            .textCase(.uppercase)
-            .foregroundStyle(Color.liftMuted)
-            .padding(.horizontal, 12)
-            .frame(height: 34)
-            .background(Color.liftCardRaised.opacity(0.7))
 
             if entries.isEmpty {
-                HStack(spacing: 8) {
-                    Text("--")
-                        .frame(width: 48, alignment: .leading)
-                    Text("Log bodyweight to fill this table")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text("--")
-                        .frame(width: 76, alignment: .trailing)
-                    Image(systemName: "minus")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.clear)
-                        .frame(width: 28)
+                Group {
+                    if usesAccessibilityLayout {
+                        Text("Log bodyweight to fill this table")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        HStack(spacing: 8) {
+                            Text("--").frame(width: 48, alignment: .leading)
+                            Text("Log bodyweight to fill this table")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Text("--").frame(width: 76, alignment: .trailing)
+                            Image(systemName: "minus")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Color.clear)
+                                .frame(width: 28)
+                        }
+                    }
                 }
                 .font(.subheadline)
                 .foregroundStyle(Color.liftMuted)
@@ -1482,35 +1511,58 @@ extension TrainingTrackerView {
                     Button {
                         selectedBodyweightEntry = row
                     } label: {
-                        HStack(spacing: 8) {
-                            Text("\(row.week)")
-                                .frame(width: 48, alignment: .leading)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(row.targetDate, style: .date)
-                                    .lineLimit(1)
-                                if !row.notes.isEmpty {
-                                    Text("Has notes")
-                                        .font(.caption2)
-                                        .foregroundStyle(Color.liftAccentText)
+                        Group {
+                            if usesAccessibilityLayout {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Text("Week \(row.week)")
+                                        Spacer()
+                                        Text(formattedBodyweight)
+                                            .font(.subheadline.weight(.semibold).monospacedDigit())
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption.weight(.bold))
+                                            .foregroundStyle(Color.liftMuted)
+                                    }
+                                    Text(row.targetDate, style: .date)
+                                    if !row.notes.isEmpty {
+                                        Text("Has notes")
+                                            .font(.caption2)
+                                            .foregroundStyle(Color.liftAccentText)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            } else {
+                                HStack(spacing: 8) {
+                                    Text("\(row.week)")
+                                        .frame(width: 48, alignment: .leading)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(row.targetDate, style: .date)
+                                            .lineLimit(1)
+                                        if !row.notes.isEmpty {
+                                            Text("Has notes")
+                                                .font(.caption2)
+                                                .foregroundStyle(Color.liftAccentText)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    Text(formattedBodyweight)
+                                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                                        .frame(width: 76, alignment: .trailing)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(Color.liftMuted)
+                                        .frame(width: 28)
                                 }
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            Text(formattedBodyweight)
-                                .font(.subheadline.weight(.semibold).monospacedDigit())
-                                .frame(width: 76, alignment: .trailing)
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(Color.liftMuted)
-                                .frame(width: 28)
                         }
                         .font(.subheadline)
                         .foregroundStyle(Color.liftText)
                         .padding(.horizontal, 12)
-                        .frame(minHeight: 56)
+                        .frame(minHeight: usesAccessibilityLayout ? 76 : 56)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Week \(row.week), \(formattedBodyweight), edit")
+                    .accessibilityLabel("Week \(row.week), \(LiftTimeFormatter.shortDateNoTime(row.targetDate)), \(formattedBodyweight), edit")
 
                     if index < entries.count - 1 {
                         Divider()
@@ -1526,7 +1578,6 @@ extension TrainingTrackerView {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.liftOverlay, lineWidth: 1)
         }
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
     private var recentBodyweightEntries: [BodyweightEntry] {

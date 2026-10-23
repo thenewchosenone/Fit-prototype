@@ -32,9 +32,11 @@ final class DemoRepository: ObservableObject {
     @Published var pendingWorkoutPRSubmissions: [PendingWorkoutPRSubmission]
     @Published var pendingCompletedWorkoutUploads: [CompletedWorkoutSnapshot]
     @Published var deletedCompletedWorkoutIDs: Set<UUID>
+    @Published var syncedCompletedWorkoutIDs: Set<UUID>
     @Published var workoutPlanSyncRevisions: [UUID: Int]
     @Published var workoutPlanLastSyncedPayloads: [UUID: Data]
     @Published var pendingRemoteWorkoutPlanDeletions: Set<UUID>
+    @Published var syncedBodyweightEntryIDs: Set<UUID>
     @Published var workoutPreferences: WorkoutPreferences
     @Published var workoutPlanProgressionSettings: [WorkoutPlanProgressionSettings]
     @Published var gymRequests: [GymRequest]
@@ -82,9 +84,11 @@ final class DemoRepository: ObservableObject {
         pendingWorkoutPRSubmissions = []
         pendingCompletedWorkoutUploads = []
         deletedCompletedWorkoutIDs = []
+        syncedCompletedWorkoutIDs = []
         workoutPlanSyncRevisions = [:]
         workoutPlanLastSyncedPayloads = [:]
         pendingRemoteWorkoutPlanDeletions = []
+        syncedBodyweightEntryIDs = []
         workoutPreferences = WorkoutPreferences()
         workoutPlanProgressionSettings = []
         gymRequests = []
@@ -121,9 +125,11 @@ final class DemoRepository: ObservableObject {
         pendingWorkoutPRSubmissions = []
         pendingCompletedWorkoutUploads = []
         deletedCompletedWorkoutIDs = []
+        syncedCompletedWorkoutIDs = []
         workoutPlanSyncRevisions = [:]
         workoutPlanLastSyncedPayloads = [:]
         pendingRemoteWorkoutPlanDeletions = []
+        syncedBodyweightEntryIDs = []
         workoutPreferences = WorkoutPreferences()
         workoutPlanProgressionSettings = []
         gymRequests = []
@@ -147,9 +153,11 @@ final class DemoRepository: ObservableObject {
         pendingWorkoutPRSubmissions.removeAll()
         pendingCompletedWorkoutUploads.removeAll()
         deletedCompletedWorkoutIDs.removeAll()
+        syncedCompletedWorkoutIDs.removeAll()
         workoutPlanSyncRevisions.removeAll()
         workoutPlanLastSyncedPayloads.removeAll()
         pendingRemoteWorkoutPlanDeletions.removeAll()
+        syncedBodyweightEntryIDs.removeAll()
         workoutPlans.removeAll()
         workoutPhases.removeAll()
         workoutWeeks.removeAll()
@@ -193,9 +201,11 @@ final class DemoRepository: ObservableObject {
             $pendingWorkoutPRSubmissions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $pendingCompletedWorkoutUploads.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $deletedCompletedWorkoutIDs.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $syncedCompletedWorkoutIDs.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutPlanSyncRevisions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutPlanLastSyncedPayloads.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $pendingRemoteWorkoutPlanDeletions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $syncedBodyweightEntryIDs.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutPreferences.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutPlanProgressionSettings.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $achievementUnlocks.dropFirst().map { _ in () }.eraseToAnyPublisher(),
@@ -268,9 +278,11 @@ final class DemoRepository: ObservableObject {
             rankingHistory: rankingHistory,
             pendingCompletedWorkoutUploads: pendingCompletedWorkoutUploads,
             deletedCompletedWorkoutIDs: deletedCompletedWorkoutIDs,
+            syncedCompletedWorkoutIDs: syncedCompletedWorkoutIDs,
             workoutPlanSyncRevisions: workoutPlanSyncRevisions,
             workoutPlanLastSyncedPayloads: workoutPlanLastSyncedPayloads,
-            pendingRemoteWorkoutPlanDeletions: pendingRemoteWorkoutPlanDeletions
+            pendingRemoteWorkoutPlanDeletions: pendingRemoteWorkoutPlanDeletions,
+            syncedBodyweightEntryIDs: syncedBodyweightEntryIDs
         )
     }
 
@@ -308,9 +320,11 @@ final class DemoRepository: ObservableObject {
             pendingWorkoutPRSubmissions = snapshot.pendingPRSubmissions
             pendingCompletedWorkoutUploads = snapshot.pendingCompletedWorkoutUploads ?? []
             deletedCompletedWorkoutIDs = snapshot.deletedCompletedWorkoutIDs ?? []
+            syncedCompletedWorkoutIDs = snapshot.syncedCompletedWorkoutIDs ?? []
             workoutPlanSyncRevisions = snapshot.workoutPlanSyncRevisions ?? [:]
             workoutPlanLastSyncedPayloads = snapshot.workoutPlanLastSyncedPayloads ?? [:]
             pendingRemoteWorkoutPlanDeletions = snapshot.pendingRemoteWorkoutPlanDeletions ?? []
+            syncedBodyweightEntryIDs = snapshot.syncedBodyweightEntryIDs ?? []
             workoutPreferences = snapshot.preferences
             workoutPlanProgressionSettings = snapshot.planProgressionSettings ?? []
             achievementUnlocks = snapshot.achievementUnlocks ?? []

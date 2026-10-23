@@ -5,24 +5,25 @@ extension TrainingTrackerView {
         scrollProxy: ScrollViewProxy,
         sections: [ExerciseLibrarySection]
     ) -> some View {
-        VStack(spacing: 1) {
-            ForEach(sections.map(\.letter), id: \.self) { letter in
+        Menu {
+            ForEach(sections) { section in
+                let letter = section.letter
                 Button(letter) {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         scrollProxy.scrollTo("library-letter-\(letter)", anchor: .top)
                     }
                 }
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(Color.liftAccentText)
-                .frame(width: 22)
-                .frame(minHeight: 12)
-                .buttonStyle(.plain)
-                .accessibilityLabel("Jump to exercises beginning with \(letter)")
             }
+        } label: {
+            Text("A–Z")
+                .font(.caption2.weight(.black))
+                .foregroundStyle(Color.liftAccentText)
+                .frame(width: 44, height: 44)
+                .background(Color.liftBackground.opacity(0.9))
+                .clipShape(Capsule())
         }
-        .padding(.vertical, 6)
-        .background(Color.liftBackground.opacity(0.9))
-        .clipShape(Capsule())
+        .accessibilityLabel("Exercise index")
+        .accessibilityHint("Opens a list of exercise initials to jump to.")
     }
 
     private func libraryRow(_ result: ExerciseSearchResult) -> some View {
@@ -45,7 +46,6 @@ extension TrainingTrackerView {
                     Text("\(exercise.equipment) • \(exercise.resolvedMuscleProfile.primaryDescription)")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
-                        .lineLimit(1)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
@@ -69,7 +69,11 @@ extension TrainingTrackerView {
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(Color.liftMuted)
-                TextField("Search exercises", text: $librarySearch)
+                TextField(
+                    "Search exercises",
+                    text: $librarySearch,
+                    prompt: Text("Search exercises").foregroundColor(.liftMuted)
+                )
                     .textFieldStyle(.plain)
                 if !librarySearch.isEmpty {
                     Button {
@@ -89,6 +93,7 @@ extension TrainingTrackerView {
                         Image(systemName: "slider.horizontal.3")
                             .foregroundStyle(libraryFilters.isEmpty ? Color.liftMuted : Color.liftAccentText)
                             .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                         if libraryFilters.activeCategoryCount > 0 {
                             Text("\(libraryFilters.activeCategoryCount)")
                                 .font(.system(size: 9, weight: .black))
@@ -110,6 +115,7 @@ extension TrainingTrackerView {
                     Image(systemName: "plus")
                         .foregroundStyle(Color.liftAccentText)
                         .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Create custom exercise")
@@ -156,9 +162,15 @@ extension TrainingTrackerView {
                 }
             }
 
-            Text("\(results.count) exercises")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.liftMuted)
+            HStack {
+                Text("\(results.count) exercises")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.liftMuted)
+                Spacer(minLength: 8)
+                if librarySearch.isEmpty && !sections.isEmpty {
+                    libraryAlphabetIndex(scrollProxy: scrollProxy, sections: sections)
+                }
+            }
 
             if results.isEmpty {
                 LiftEmptyState(
@@ -204,6 +216,5 @@ extension TrainingTrackerView {
                 .padding(.trailing, librarySearch.isEmpty ? 16 : 0)
             }
         }
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 }

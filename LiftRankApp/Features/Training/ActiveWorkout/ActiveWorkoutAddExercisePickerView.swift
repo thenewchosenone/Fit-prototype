@@ -43,6 +43,22 @@ struct ActiveWorkoutAddExercisePickerView: View {
 
                     ScrollView {
                         LazyVStack(spacing: 0) {
+                            if results.isEmpty {
+                                VStack(spacing: 12) {
+                                    LiftEmptyState(
+                                        title: "No exercises found",
+                                        message: "Try another search or clear the active filters.",
+                                        symbolName: "magnifyingglass"
+                                    )
+                                    Button("Clear search and filters") {
+                                        searchText = ""
+                                        selectedBodyPart = "All"
+                                        selectedEquipment = "All"
+                                    }
+                                    .buttonStyle(LiftSecondaryButtonStyle())
+                                }
+                                .padding(.vertical, 32)
+                            }
                             ForEach(results) { result in
                                 let exercise = result.exercise
                                 let isExisting = existingIDs.contains(exercise.id)

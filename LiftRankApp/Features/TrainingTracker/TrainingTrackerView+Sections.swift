@@ -29,9 +29,15 @@ extension TrainingTrackerView {
                 CreateWorkoutPlanView()
                     .environmentObject(appState)
             }
+            .sheet(isPresented: $showingCreatePlanFromHistory) {
+                CreateWorkoutPlanFromHistoryView(workouts: freestyleWorkoutsForPlan)
+                    .environmentObject(appState)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
             .sheet(item: $selectedBodyweightEntry) { entry in
                 BodyweightEntryEditor(entry: entry) { updatedEntry in
-                    appState.updateBodyweight(updatedEntry)
+                    try await appState.updateBodyweight(updatedEntry)
                 }
                 .presentationDetents([.medium])
             }
@@ -48,6 +54,8 @@ extension TrainingTrackerView {
                     selectedLibraryExercise = exercise
                 }
                 .environmentObject(appState)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
             .sheet(item: $selectedProgramTemplate, onDismiss: {
                 if appState.selectedWorkoutPlan != nil { isProgramLibraryExpanded = false }
@@ -85,11 +93,6 @@ extension TrainingTrackerView {
                 .environmentObject(appState)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-            }
-            .sheet(item: $selectedPlateauInsight) { insight in
-                PlateauInsightDetailView(insight: insight)
-                    .environmentObject(appState)
-                    .presentationDetents([.medium, .large])
             }
             .alert("Rename Plan", isPresented: $showingRenamePlan) {
                 TextField("Plan name", text: $renamePlanName)
@@ -142,10 +145,7 @@ extension TrainingTrackerView {
                 selectedSessionToRun = nil
             }
             .confirmationDialog("A workout is already active", isPresented: $showingWorkoutConflict, titleVisibility: .visible) {
-                Button("Resume Active Workout") {
-                    showingActiveWorkout = true
-                }
-                Button("Review & Finish Active Workout") {
+                Button("Open Active Workout") {
                     showingActiveWorkout = true
                 }
                 Button("Discard Active & Start New", role: .destructive) {
@@ -159,7 +159,7 @@ extension TrainingTrackerView {
                     clearPendingStart()
                     showingActiveWorkout = true
                 }
-                Button("Cancel", role: .cancel) { clearPendingStart() }
+                Button("Cancel") { clearPendingStart() }
             } message: {
                 Text("Lift Rivals keeps one active workout at a time so sets and timers cannot be mixed between sessions.")
             }
@@ -206,12 +206,6 @@ extension TrainingTrackerView {
                     guard segment == .progress, selectedProgressCategory == .muscle else { return }
                     scrollProxy.scrollTo("tracker-content-top", anchor: .top)
                 }
-                .overlay(alignment: .trailing) {
-                    if segment == .library && librarySearch.isEmpty {
-                        libraryAlphabetIndex(scrollProxy: scrollProxy, sections: libraryPresentation.sections)
-                            .padding(.trailing, 2)
-                    }
-                }
             }
         }
     }
@@ -221,6 +215,8 @@ extension TrainingTrackerView {
             HStack(spacing: 8) {
                 Text("Tracker")
                     .font(.title3.weight(.black))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
 
                 Menu {
                     if appState.workoutPlans.isEmpty {
@@ -247,6 +243,7 @@ extension TrainingTrackerView {
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(Color.liftText)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.65)
                         Image(systemName: "chevron.down")
                             .font(.caption2.weight(.bold))
                             .foregroundStyle(Color.liftMuted)
@@ -339,29 +336,19 @@ extension TrainingTrackerView {
                 .accessibilityLabel("No workout plan selected. Choose a program to schedule workouts, or start an empty workout to train freestyle.")
             }
 
-            HStack(spacing: 0) {
-                ForEach(TrackerSegment.allCases, id: \.self) { option in
-                    Button {
-                        segment = option
-                        appState.requestedTrackerSegment = option.rawValue
-                    } label: {
-                        VStack(spacing: 8) {
-                            Text(option.rawValue)
-                                .font(.subheadline.weight(segment == option ? .bold : .medium))
-                                .foregroundStyle(segment == option ? Color.liftText : Color.liftMuted)
-                                .lineLimit(1)
-                            Rectangle()
-                                .fill(segment == option ? Color.liftBlue : Color.clear)
-                                .frame(height: 2)
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 0) {
+                        ForEach(TrackerSegment.allCases, id: \.self) { option in
+                            trackerSegmentButton(option)
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .accessibilityIdentifier("tracker.segment.\(option.rawValue.lowercased())")
-                    .accessibilityAddTraits(segment == option ? .isSelected : [])
+                } else {
+                    HStack(spacing: 0) {
+                        ForEach(TrackerSegment.allCases, id: \.self) { option in
+                            trackerSegmentButton(option)
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 12)
@@ -371,8 +358,32 @@ extension TrainingTrackerView {
                     .frame(height: 1)
             }
         }
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .background(Color.liftBackground)
+    }
+
+    private func trackerSegmentButton(_ option: TrackerSegment) -> some View {
+        Button {
+            segment = option
+            appState.requestedTrackerSegment = option.rawValue
+        } label: {
+            VStack(spacing: 8) {
+                Text(option.rawValue)
+                    .font(.subheadline.weight(segment == option ? .bold : .medium))
+                    .foregroundStyle(segment == option ? Color.liftText : Color.liftMuted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
+                Rectangle()
+                    .fill(segment == option ? Color.liftBlue : Color.clear)
+                    .frame(height: 2)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .accessibilityIdentifier("tracker.segment.\(option.rawValue.lowercased())")
+        .accessibilityAddTraits(segment == option ? .isSelected : [])
     }
 
     private var today: some View {
@@ -385,52 +396,46 @@ extension TrainingTrackerView {
                 Spacer()
             }
 
-            if let insight = visiblePlateauInsights.first {
-                PlateauAlertCard(insight: insight) {
-                    selectedPlateauInsight = insight
-                } dismiss: {
-                    dismissPlateauInsight(insight)
-                }
-            }
-
             todayWorkoutStatusSection
 
-            Button {
-                isProgramLibraryExpanded = true
-                withAnimation(.snappy) { segment = .plans }
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "books.vertical.fill")
-                        .font(.headline)
-                        .foregroundStyle(Color.liftAccentText)
-                        .frame(width: 44, height: 44)
-                        .background(Color.liftBlue.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            if appState.selectedWorkoutPlan == nil {
+                Button {
+                    isProgramLibraryExpanded = true
+                    withAnimation(.snappy) { segment = .plans }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "books.vertical.fill")
+                            .font(.headline)
+                            .foregroundStyle(Color.liftAccentText)
+                            .frame(width: 44, height: 44)
+                            .background(Color.liftBlue.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Browse Workout Programs")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(Color.liftText)
-                        Text("Bodybuilding, powerlifting, cables, free weights, and more")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
-                            .lineLimit(2)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Browse Workout Programs")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(Color.liftText)
+                            Text("Bodybuilding, powerlifting, cables, free weights, and more")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                        }
+
+                        Spacer(minLength: 4)
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.liftAccentText)
                     }
-
-                    Spacer(minLength: 4)
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftAccentText)
+                    .padding(12)
+                    .frame(minHeight: 72)
+                    .liftSurface(radius: 12)
+                    .contentShape(Rectangle())
                 }
-                .padding(12)
-                .frame(minHeight: 72)
-                .liftSurface(radius: 12)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .accessibilityLabel("Browse \(appState.workoutProgramTemplates.count) workout programs")
+                .accessibilityHint("Opens the workout program catalog")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Browse \(appState.workoutProgramTemplates.count) workout programs")
-            .accessibilityHint("Opens the workout program catalog")
 
             Button {
                 startFreestyleWorkout()
@@ -449,6 +454,24 @@ extension TrainingTrackerView {
                 showingActiveWorkout = true
             }
             .environmentObject(appState)
+            if let todayWorkout = todayScheduledWorkout {
+                TrackerMessageCard(
+                    title: active.sourceSessionID == todayWorkout.session.id ? "Today’s planned workout" : "Today’s plan",
+                    message: active.sourceSessionID == todayWorkout.session.id
+                        ? "\(todayWorkout.session.name) is already in progress."
+                        : "\(todayWorkout.session.name) is scheduled today. Finish your current workout before starting it."
+                )
+            } else if let nextWorkout = nextScheduledWorkout {
+                TrackerMessageCard(
+                    title: "Next planned workout",
+                    message: "\(nextWorkout.session.name) · \(LiftTimeFormatter.shortDateNoTime(nextWorkout.date)). Finish your current workout first."
+                )
+            } else if appState.selectedWorkoutPlan != nil {
+                TrackerMessageCard(
+                    title: "No plan workout scheduled today",
+                    message: "Your active plan is \(selectedPlanName). Review its schedule in Plans."
+                )
+            }
         } else if appState.selectedWorkoutPlan == nil {
             TrackerMessageCard(
                 title: "Choose a workout plan",
@@ -548,18 +571,6 @@ extension TrainingTrackerView {
         }
     }
 
-    private var visiblePlateauInsights: [PlateauInsight] {
-        let dismissed = Set(dismissedPlateauInsightIDs.split(separator: "|").map(String.init))
-        return appState.plateauInsights.filter { !dismissed.contains($0.id) }
-    }
-
-    private func dismissPlateauInsight(_ insight: PlateauInsight) {
-        var dismissed = Set(dismissedPlateauInsightIDs.split(separator: "|").map(String.init))
-        dismissed.insert(insight.id)
-        dismissedPlateauInsightIDs = dismissed.sorted().joined(separator: "|")
-        Haptics.light()
-    }
-
     private var plans: some View {
         VStack(alignment: .leading, spacing: 12) {
             programLibrary
@@ -614,6 +625,7 @@ extension TrainingTrackerView {
                         Label("New", systemImage: "plus")
                             .font(.caption.weight(.bold))
                             .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.liftAccentText)
@@ -637,11 +649,9 @@ extension TrainingTrackerView {
                                         Text(plan.name)
                                             .font(.subheadline.weight(.semibold))
                                             .foregroundStyle(Color.liftText)
-                                            .lineLimit(1)
                                         Text(plan.isActive ? "Active" : "Saved · tap to resume")
                                             .font(.caption)
                                             .foregroundStyle(Color.liftMuted)
-                                            .lineLimit(1)
                                     }
                                     Spacer()
                                     Image(systemName: plan.id == appState.selectedWorkoutPlanID ? "checkmark.circle.fill" : "circle")
@@ -670,6 +680,22 @@ extension TrainingTrackerView {
                 }
             }
 
+            if freestyleWorkoutsForPlan.count > 1 {
+                Button {
+                    showingCreatePlanFromHistory = true
+                } label: {
+                    Label("Build plan from past workouts", systemImage: "clock.arrow.circlepath")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(Color.liftCard)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(appState.activeWorkout != nil)
+                .accessibilityIdentifier("tracker.plans.buildFromHistory")
+            }
+
             if appState.selectedWorkoutPlan != nil {
                 ProgramPlanDetailView(
                     selectedWeekID: $selectedWeekID,
@@ -680,7 +706,12 @@ extension TrainingTrackerView {
                 .environmentObject(appState)
             }
         }
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+    }
+
+    private var freestyleWorkoutsForPlan: [CompletedWorkout] {
+        appState.completedWorkouts
+            .filter { $0.source == .freestyle && !$0.exercises.isEmpty && !$0.completedWorkingSets.isEmpty }
+            .sorted { $0.completedAt < $1.completedAt }
     }
 
     private var programLibrary: some View {
@@ -699,7 +730,6 @@ extension TrainingTrackerView {
                         Text("\(appState.workoutProgramTemplates.count) ready-made programs")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
-                            .lineLimit(1)
                     }
                     Spacer()
                     Text(isProgramLibraryExpanded ? "Hide" : "Browse")
@@ -742,12 +772,10 @@ extension TrainingTrackerView {
                                     Text("\(template.category.rawValue) · \(template.level.rawValue)")
                                         .font(.caption)
                                         .foregroundStyle(Color.liftMuted)
-                                        .lineLimit(1)
 
                                     Text(appState.workoutPlanProgressionSettings.contains(where: { $0.sourceTemplateID == template.id }) ? "Saved program · resume or start a new cycle" : template.defaultProgression.rawValue)
                                         .font(.caption2.weight(.semibold))
                                         .foregroundStyle(Color.liftAccentText)
-                                        .lineLimit(1)
                                 }
 
                                 Spacer(minLength: 8)

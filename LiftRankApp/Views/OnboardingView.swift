@@ -15,6 +15,10 @@ private struct OnboardingComparison: Equatable {
 
 struct OnboardingView: View {
     @EnvironmentObject private var appState: AppState
+    @ScaledMetric(relativeTo: .largeTitle) private var heroTitleSize: CGFloat = 40
+    @ScaledMetric(relativeTo: .largeTitle) private var sectionTitleSize: CGFloat = 32
+    @ScaledMetric(relativeTo: .largeTitle) private var ratingTitleSize: CGFloat = 34
+    @ScaledMetric(relativeTo: .largeTitle) private var scoreSize: CGFloat = 58
     @State private var step = 0
     @State private var goals: Set<String> = []
     @State private var profile = MockData.emptyProfile
@@ -90,7 +94,7 @@ struct OnboardingView: View {
     }
 
     private var hasCompletePowerliftingTotal: Bool {
-        [bench, squat, deadlift].allSatisfy { Double($0) ?? 0 > 0 }
+        [bench, squat, deadlift].allSatisfy { MeasurementFormatting.parseLocalizedDecimal($0) ?? 0 > 0 }
     }
 
     private var onboardingPreviewKey: String {
@@ -100,7 +104,7 @@ struct OnboardingView: View {
 
     private var onboardingTotalKilograms: Double? {
         guard hasCompletePowerliftingTotal else { return nil }
-        let values = [bench, squat, deadlift].compactMap(Double.init)
+        let values = [bench, squat, deadlift].compactMap { MeasurementFormatting.parseLocalizedDecimal($0) }
         let total = values.reduce(0, +)
         return profile.preferredUnit == .pounds
             ? RankingCalculator.poundsToKilograms(total)
@@ -135,16 +139,10 @@ struct OnboardingView: View {
             }
         }
         .interactiveDismissDisabled()
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .onAppear {
             profile = appState.currentProfile
             profile.username = AppleIdentityStore.usernameSuggestion(from: appState.pendingAppleFullName) ?? ""
             profile.displayName = ""
-            profile.hideExactAge = false
-            profile.hideBodyweight = false
-            profile.hideCity = false
-            profile.hideGym = false
-            profile.hideLiftVideos = false
             bio = profile.bio ?? ""
             yearsTraining = max(0, profile.yearsExperience)
             if profile.bodyweightPounds <= 0 {
@@ -220,6 +218,7 @@ struct OnboardingView: View {
 
                 Text("STEP \(step + 1) OF 5")
                     .font(.caption.weight(.bold))
+                    .dynamicTypeSize(...DynamicTypeSize.large)
                     .tracking(1.2)
                     .foregroundStyle(Color.liftMuted)
                     .lineLimit(1)
@@ -271,15 +270,11 @@ struct OnboardingView: View {
                     Circle()
                         .stroke(Color.liftBlue.opacity(0.30), lineWidth: 1)
                         .frame(width: 126, height: 126)
-                    Image(systemName: "dumbbell.fill")
-                        .font(.system(size: 62, weight: .bold))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [Color.liftText, Color.liftBlue],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                    Image("LiftRivalsLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 88, height: 88)
+                        .clipShape(Circle())
                 }
                 .frame(maxWidth: .infinity)
 
@@ -291,7 +286,7 @@ struct OnboardingView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.65)
                     Text("Turn every lift into a ranking.")
-                        .font(.system(size: 40, weight: .black, design: .rounded))
+                        .font(.system(size: heroTitleSize, weight: .black, design: .rounded))
                         .fixedSize(horizontal: false, vertical: true)
                     Text("Track your best lifts, compare with lifters like you, and see exactly what to improve next.")
                         .font(.title3)
@@ -415,11 +410,7 @@ struct OnboardingView: View {
     private func bodyweightInputText(for pounds: Double, unit: UnitSystem) -> String {
         guard pounds > 0 else { return "" }
         let value = MeasurementFormatting.convert(pounds, from: .pounds, to: unit)
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = 1
-        formatter.minimumFractionDigits = 0
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        return MeasurementFormatting.localizedDecimalText(value, maximumFractionDigits: 1)
     }
 
     private var heightScroller: some View {
@@ -1049,7 +1040,7 @@ struct OnboardingView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.65)
                     Text("You’re ready to compete.")
-                        .font(.system(size: 34, weight: .black, design: .rounded))
+                        .font(.system(size: ratingTitleSize, weight: .black, design: .rounded))
                         .multilineTextAlignment(.center)
                     Text("This is your starting point. Every verified lift can move you up.")
                         .foregroundStyle(Color.liftMuted)
@@ -1072,7 +1063,7 @@ struct OnboardingView: View {
                             .rotationEffect(.degrees(-90))
                         VStack(spacing: 2) {
                             Text("\(Int(appState.overallScore))")
-                                .font(.system(size: 58, weight: .black, design: .rounded))
+                                .font(.system(size: scoreSize, weight: .black, design: .rounded))
                             Text("STRENGTH SCORE")
                                 .font(.caption2.weight(.bold))
                                 .tracking(1)
@@ -1344,26 +1335,43 @@ struct OnboardingView: View {
             ("deadlift", deadlift),
             ("press", press)
         ].compactMap { exerciseID, value in
-            OnboardingStartingLift(exerciseID: exerciseID, weight: Double(value))
+            OnboardingStartingLift(exerciseID: exerciseID, weight: MeasurementFormatting.parseLocalizedDecimal(value))
         }
         Task {
             do {
                 try await appState.saveAuthenticatedProfile(profileDraft(false), allowUsernameChange: true)
                 try await appState.saveTrainingGoals(Array(goals).sorted())
+                var optionalSaveErrors: [String] = []
                 if let primaryGym = appState.gyms.first(where: { $0.id == profile.primaryGymID }) {
-                    try? await appState.connectOnboardingPrimaryGym(primaryGym)
+                    do {
+                        try await appState.connectOnboardingPrimaryGym(primaryGym)
+                    } catch {
+                        let reason = (error as? LocalizedError)?.errorDescription ?? "Try again to save it."
+                        optionalSaveErrors.append("Primary gym: \(reason)")
+                    }
                 }
-                try await appState.saveAuthenticatedProfile(profileDraft(true))
-                // Starting lifts are optional. A failed lift submission must not block account setup.
-                try? await appState.saveOnboardingStartingLifts(
-                    startingLifts,
-                    unit: profile.preferredUnit,
-                    bodyweightPounds: profile.bodyweightPounds,
-                    gymID: profile.primaryGymID
-                )
-                appState.consumePendingAppleFullName()
-                Haptics.success()
-                complete()
+                if !startingLifts.isEmpty {
+                    do {
+                        try await appState.saveOnboardingStartingLifts(
+                            startingLifts,
+                            unit: profile.preferredUnit,
+                            bodyweightPounds: profile.bodyweightPounds,
+                            gymID: profile.primaryGymID
+                        )
+                    } catch {
+                        let reason = (error as? LocalizedError)?.errorDescription ?? "Try again to save them."
+                        optionalSaveErrors.append("Starting lifts: \(reason)")
+                    }
+                }
+                if optionalSaveErrors.isEmpty {
+                    try await appState.saveAuthenticatedProfile(profileDraft(true))
+                    appState.consumePendingAppleFullName()
+                    Haptics.success()
+                    complete()
+                } else {
+                    saveError = "Your profile was saved, but some optional setup did not finish. Tap Enter Lift Rivals to retry. " + optionalSaveErrors.joined(separator: " ")
+                    Haptics.warning()
+                }
             } catch {
                 saveError = (error as? LocalizedError)?.errorDescription ?? "Your profile could not be saved."
                 Haptics.warning()
@@ -1436,7 +1444,7 @@ struct OnboardingView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
             Text(title)
-                .font(.system(size: 32, weight: .black, design: .rounded))
+                .font(.system(size: sectionTitleSize, weight: .black, design: .rounded))
                 .fixedSize(horizontal: false, vertical: true)
             Text(subtitle)
                 .font(.subheadline)

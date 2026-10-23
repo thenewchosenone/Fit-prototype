@@ -238,8 +238,8 @@ enum MockData {
         experienceLevel: .beginner,
         profileImageName: "person.crop.circle.fill",
         hideExactAge: false,
-        hideBodyweight: false,
-        hideCity: false,
+        hideBodyweight: true,
+        hideCity: true,
         hideGym: false,
         hideLiftVideos: false
     )
@@ -277,8 +277,8 @@ enum MockData {
         ("5 Workouts", "Complete 5 workouts.", "calendar.circle"),
         ("10 Workouts", "Complete 10 workouts.", "checkmark.seal.fill"),
         ("25 Workouts", "Complete 25 workouts.", "flame.fill"),
-        ("75 Workouts", "Complete 75 workouts.", "trophy.circle.fill"),
         ("50 Workouts", "Complete 50 workouts.", "trophy.fill"),
+        ("75 Workouts", "Complete 75 workouts.", "trophy.circle.fill"),
         ("100 Workouts", "Complete 100 workouts.", "crown.fill"),
         ("200 Workouts", "Complete 200 workouts.", "star.circle.fill"),
         ("300 Workouts", "Complete 300 workouts.", "star.square.fill"),

@@ -218,6 +218,7 @@ protocol WorkoutSyncRepository: AnyObject {
     var currentProfile: UserProfile { get }
     var pendingCompletedWorkoutUploads: [CompletedWorkoutSnapshot] { get set }
     var deletedCompletedWorkoutIDs: Set<UUID> { get set }
+    var syncedCompletedWorkoutIDs: Set<UUID> { get set }
     var completedWorkouts: [CompletedWorkout] { get set }
     var workoutPlans: [WorkoutPlan] { get set }
     var workoutPhases: [WorkoutPhase] { get set }
@@ -228,6 +229,7 @@ protocol WorkoutSyncRepository: AnyObject {
     var workoutPlanSyncRevisions: [UUID: Int] { get set }
     var workoutPlanLastSyncedPayloads: [UUID: Data] { get set }
     var pendingRemoteWorkoutPlanDeletions: Set<UUID> { get set }
+    func deleteWorkoutPlan(_ plan: WorkoutPlan)
     func rebuildWorkoutHistoryDerivedState()
 
     func clearAccountScopedWorkoutHistory()

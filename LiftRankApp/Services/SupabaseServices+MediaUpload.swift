@@ -4,6 +4,7 @@ import Supabase
 
 enum LiftVideoPolicy {
     static let maximumDuration: TimeInterval = 30
+    static let maximumFileSizeBytes = 524_288_000
 
     static func allows(duration: TimeInterval) -> Bool {
         duration.isFinite && duration >= 0 && duration <= maximumDuration
@@ -13,10 +14,23 @@ enum LiftVideoPolicy {
         let duration = try await AVURLAsset(url: url).load(.duration).seconds
         guard allows(duration: duration) else { throw LiftVideoPolicyError.tooLong }
     }
+
+    static func allows(fileSizeBytes: Int) -> Bool {
+        fileSizeBytes > 0 && fileSizeBytes <= maximumFileSizeBytes
+    }
+
+    static func validatedFileSize(of url: URL) throws -> Int {
+        guard let fileSize = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+              allows(fileSizeBytes: fileSize) else {
+            throw LiftVideoPolicyError.invalidOrTooLarge
+        }
+        return fileSize
+    }
 }
 
 enum LiftVideoPolicyError: Error {
     case tooLong
+    case invalidOrTooLarge
 }
 
 private struct MediaDTO: Codable {
@@ -37,13 +51,13 @@ final class SupabaseMediaUploadService: MediaUploadService {
             defer {
                 if preparedURL != localURL { try? FileManager.default.removeItem(at: preparedURL) }
             }
+            let size = try LiftVideoPolicy.validatedFileSize(of: preparedURL)
             let isMP4 = preparedURL.pathExtension.lowercased() == "mp4"
             let contentType = isMP4 ? "video/mp4" : "video/quicktime"
             let fileExtension = isMP4 ? "mp4" : "mov"
             let path = "\(userID.uuidString.lowercased())/\(liftID.uuidString.lowercased())/\(assetID.uuidString.lowercased()).\(fileExtension)"
             _ = try await client.storage.from("lift-videos").upload(path, fileURL: preparedURL, options: FileOptions(cacheControl: "3600", contentType: contentType, upsert: false))
             progress(0.9)
-            let size = (try? preparedURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
             let dto: MediaDTO = try await client.rpc("complete_lift_media_upload", params: CompleteMediaParameters(assetID: assetID, liftID: liftID, storagePath: path, contentType: contentType, byteCount: size)).single().execute().value
             progress(1)
             return .init(id: dto.id, ownerID: dto.ownerID, storagePath: dto.storagePath, contentType: dto.contentType, byteCount: dto.byteCount, createdAt: dto.createdAt)

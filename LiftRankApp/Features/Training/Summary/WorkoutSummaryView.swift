@@ -175,7 +175,7 @@ struct WorkoutSummaryView: View {
                 if item.suffix == " kg Lifted Volume" {
                     status = "\(formattedAchievementVolume(item.current)) / \(formattedAchievementVolume(target))"
                 } else if item.unit == "hrs" {
-                    status = "\(String(format: "%.1f", item.current)) / \(Int(target)) hrs"
+                    status = "\(MeasurementFormatting.localizedDecimalText(item.current, minimumFractionDigits: 1, maximumFractionDigits: 1)) / \(Int(target)) hrs"
                 } else {
                     status = "\(Int(item.current)) / \(Int(target)) \(item.unit)"
                 }
@@ -973,11 +973,11 @@ struct WorkoutSummaryView: View {
     private func displayAchievementTitle(_ title: String) -> String {
         let suffix = " kg Lifted Volume"
         guard title.hasSuffix(suffix),
-              let kilograms = Double(title.dropLast(suffix.count).replacingOccurrences(of: ",", with: "")) else {
+              let kilograms = MeasurementFormatting.parseGroupedInteger(String(title.dropLast(suffix.count))) else {
             return title
         }
         let formattedVolume = MeasurementFormatting.formatDisplayedWeight(
-            kilograms,
+            Double(kilograms),
             unit: appState.currentProfile.preferredUnit
         ) { value in
             Int(value.rounded()).formatted()
@@ -990,10 +990,14 @@ struct WorkoutSummaryView: View {
         videoError = nil
         Task {
             do {
-                guard let data = try await item.loadTransferable(type: Data.self) else {
+                guard let pickedVideo = try await item.loadTransferable(type: PickedWorkoutVideo.self) else {
                     throw CocoaError(.fileReadUnknown)
                 }
-                let url = try await appState.persistWorkoutVideo(data)
+                defer { try? FileManager.default.removeItem(at: pickedVideo.temporaryURL) }
+                let url = try await appState.persistWorkoutVideo(
+                    from: pickedVideo.temporaryURL,
+                    fileExtension: pickedVideo.temporaryURL.pathExtension
+                )
                 await MainActor.run {
                     videoURLsBySetID[candidate.setID] = url
                     loadingVideoSetIDs.remove(candidate.setID)
@@ -1001,7 +1005,14 @@ struct WorkoutSummaryView: View {
             } catch {
                 await MainActor.run {
                     loadingVideoSetIDs.remove(candidate.setID)
-                    videoError = "That video could not be prepared. Choose it again before saving."
+                    if let policyError = error as? LiftVideoPolicyError {
+                        videoError = switch policyError {
+                        case .tooLong: "Videos must be 30 seconds or shorter."
+                        case .invalidOrTooLarge: "Videos must be 500 MB or smaller. Choose a smaller video."
+                        }
+                    } else {
+                        videoError = "That video could not be prepared. Choose it again before saving."
+                    }
                 }
             }
         }

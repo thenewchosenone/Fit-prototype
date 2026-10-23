@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { seedState } from "../src/data";
 import gymCatalog from "../src/gymCatalog.json";
+import gymCatalogMetadata from "../src/gymCatalogMetadata.json";
 import { loadGymCatalog } from "../src/gymCatalog";
 import { estimatedOneRepMax, personalRecords, recommendedNextWeight } from "../src/lib";
 import { computedLeaderboardEntries, plateLoadTotal, weightClassFor } from "../src/platform";
@@ -364,6 +365,7 @@ describe("platform features", () => {
   });
 
   it("ships a validated open U.S. catalog snapshot with source metadata", () => {
+    expect(gymCatalogMetadata.generatedAt).toBe(gymCatalog.generatedAt);
     expect(Object.keys(gymCatalog.counts).sort()).toEqual([...officialGymBrands].sort());
     expect(gymCatalog.sources.map((source) => source.brand).sort()).toEqual([...officialGymBrands].sort());
     expect(gymCatalog.gyms.every((gym) => gym.status === "Open" && gym.countryCode === "US")).toBe(true);

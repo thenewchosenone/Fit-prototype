@@ -306,32 +306,58 @@ final class ProgramStore {
     func saveWorkoutAsRoutine(_ workout: CompletedWorkout, name: String? = nil) -> WorkoutPlan? {
         let trimmedName = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let routineName = trimmedName.isEmpty ? "\(workout.name) Routine" : trimmedName
-        guard let plan = createPlan(name: routineName),
+        return createPlan(fromWorkouts: [workout], name: routineName)
+    }
+
+    @discardableResult
+    func createPlan(fromWorkouts workouts: [CompletedWorkout], name: String) -> WorkoutPlan? {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let orderedWorkouts = workouts.sorted { $0.completedAt < $1.completedAt }
+        guard !cleanName.isEmpty,
+              !orderedWorkouts.isEmpty,
+              let plan = createPlan(name: cleanName),
               let week = weeks(planID: plan.id).first,
               let originalSession = sessions(week: week).first else { return nil }
+
         repository.deleteWorkoutSession(originalSession)
-        let session = repository.addWorkoutSession(weekID: week.id, day: workout.dayLabel, name: workout.name)
-        for (index, exercise) in workout.exercises.enumerated() {
-            _ = repository.addWorkoutPrescription(
-                WorkoutExercisePrescription(
-                    id: makeID(),
-                    sessionID: session.id,
-                    exerciseID: exercise.exerciseID,
-                    exerciseName: exercise.exerciseName,
-                    bodyPart: exercise.bodyPart,
-                    equipment: exercise.equipment,
-                    sets: max(1, exercise.targetSets),
-                    reps: exercise.targetReps,
-                    restSeconds: exercise.restSeconds,
-                    order: index,
-                    notes: exercise.notes,
-                    substitutionExerciseIDs: exercise.substitutionExerciseIDs,
-                    muscleProfile: exercise.muscleProfile,
-                    targetRIR: exercise.targetRIR,
-                    trainingMaxPercentage: exercise.trainingMaxPercentage,
-                    targetLoadKilograms: exercise.targetLoadKilograms
+        let duplicateNames = Dictionary(grouping: orderedWorkouts.indices) {
+            orderedWorkouts[$0].name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }
+        for (workoutIndex, workout) in orderedWorkouts.enumerated() {
+            let workoutName = workout.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let repeated = (duplicateNames[workoutName.lowercased()]?.count ?? 0) > 1
+            let sessionName = workoutName.isEmpty
+                ? "Workout \(workoutIndex + 1)"
+                : repeated ? "\(workoutName) \(workoutIndex + 1)" : workoutName
+            let weekday = Calendar.current.weekdaySymbols.first {
+                $0.caseInsensitiveCompare(workout.dayLabel) == .orderedSame
+            } ?? Calendar.current.weekdaySymbols[
+                Calendar.current.component(.weekday, from: workout.completedAt) - 1
+            ]
+            let session = repository.addWorkoutSession(weekID: week.id, day: weekday, name: sessionName)
+
+            for (exerciseIndex, exercise) in workout.exercisesWithCompletedWorkingSets.sorted(by: { $0.order < $1.order }).enumerated() {
+                _ = repository.addWorkoutPrescription(
+                    WorkoutExercisePrescription(
+                        id: makeID(),
+                        sessionID: session.id,
+                        exerciseID: exercise.exerciseID,
+                        exerciseName: exercise.exerciseName,
+                        bodyPart: exercise.bodyPart,
+                        equipment: exercise.equipment,
+                        sets: max(1, exercise.targetSets),
+                        reps: exercise.targetReps,
+                        restSeconds: exercise.restSeconds,
+                        order: exerciseIndex,
+                        notes: exercise.notes,
+                        substitutionExerciseIDs: exercise.substitutionExerciseIDs,
+                        muscleProfile: exercise.muscleProfile,
+                        targetRIR: exercise.targetRIR,
+                        trainingMaxPercentage: exercise.trainingMaxPercentage,
+                        targetLoadKilograms: exercise.targetLoadKilograms
+                    )
                 )
-            )
+            }
         }
         return plan
     }

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-METADATA="$ROOT/docs/app-store-launch-metadata.md"
+METADATA="${LIFTRANK_LAUNCH_METADATA_PATH:-$ROOT/docs/app-store-launch-metadata.md}"
 MIGRATION="$ROOT/supabase/migrations/202607240002_profile_avatars.sql"
 CONTRACT="$ROOT/supabase/tests/202607240002_profile_avatars.test.sql"
 
@@ -16,6 +16,22 @@ elif rg -q 'REQUIRED_[A-Z_]+' "$METADATA"; then
   fail "App Store metadata still contains REQUIRED_* placeholders."
 else
   pass "App Store metadata contains no placeholders."
+fi
+
+if [[ -f "$METADATA" ]]; then
+  for required_line in \
+    '## Required URLs' \
+    '- Privacy Policy: `https://www.liftrivals.com/privacy/`' \
+    '- Terms of Use: `https://www.liftrivals.com/terms/`' \
+    '- Support: `https://www.liftrivals.com/support/`' \
+    '## App Privacy answers' \
+    '## Review notes'; do
+    if rg -Fq -- "$required_line" "$METADATA"; then
+      pass "App Store handoff includes: $required_line"
+    else
+      fail "App Store handoff is missing: $required_line"
+    fi
+  done
 fi
 
 if [[ -f "$MIGRATION" && -f "$CONTRACT" ]]; then

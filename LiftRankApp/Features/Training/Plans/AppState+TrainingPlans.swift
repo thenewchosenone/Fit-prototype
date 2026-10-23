@@ -382,6 +382,18 @@ extension AppState {
         Haptics.success()
     }
 
+    @discardableResult
+    func createWorkoutPlan(fromWorkouts workouts: [CompletedWorkout], name: String) -> Bool {
+        guard activeWorkout == nil,
+              let plan = programStore.createPlan(fromWorkouts: workouts, name: name) else {
+            Haptics.warning()
+            return false
+        }
+        _ = selectWorkoutPlan(plan.id)
+        Haptics.success()
+        return true
+    }
+
     func suggestedTrainingMaxKilograms(for template: WorkoutProgramTemplate) -> [String: Double] {
         var result: [String: Double] = [:]
         for exerciseID in template.requiredTrainingMaxExerciseIDs {
@@ -563,8 +575,8 @@ extension AppState {
     }
 
     @discardableResult
-    func saveWorkoutAsRoutine(_ workout: CompletedWorkout) -> Bool {
-        guard let plan = programStore.saveWorkoutAsRoutine(workout) else {
+    func saveWorkoutAsRoutine(_ workout: CompletedWorkout, name: String? = nil) -> Bool {
+        guard let plan = programStore.saveWorkoutAsRoutine(workout, name: name) else {
             Haptics.warning()
             return false
         }

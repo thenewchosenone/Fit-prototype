@@ -7,7 +7,7 @@ extension DemoRepository {
     }
 
     func seedDemoLeaderboardDataIfNeeded() {
-        let marker = "[demo:leaderboard-100-v1]"
+        let marker = "[demo:leaderboard-100-v2]"
         guard !lifts.contains(where: { $0.caption == marker }) else { return }
 
         let gymID = UUID(uuidString: "D0000000-0000-0000-0000-000000000100")!
@@ -51,33 +51,71 @@ extension DemoRepository {
             let bodyweight = profile.bodyweightPounds
             for (movementIndex, movement) in movements.enumerated() {
                 let weight = movement.baseWeight + Double(index * (movementIndex + 1) * 5)
-                lifts.append(LiftSubmission(
-                    id: UUID(uuidString: String(format: "D1000000-0000-0000-0000-%012d", index * 4 + movementIndex + 1))!,
-                    userID: profile.id,
-                    exerciseID: movement.id,
-                    exerciseName: movement.name,
-                    weight: weight,
-                    unit: .pounds,
-                    normalizedWeightKilograms: RankingCalculator.poundsToKilograms(weight),
-                    repetitions: 1,
-                    isActualOneRepMax: true,
-                    estimatedOneRepMax: weight,
-                    bodyweightAtLift: bodyweight,
-                    bodyweightMultiple: weight / bodyweight,
-                    equipmentType: .raw,
-                    variation: "Demo",
-                    gymID: gymID,
-                    performedAt: Calendar.current.date(byAdding: .day, value: -(index + movementIndex), to: .now) ?? .now,
-                    remoteVideoURL: URL(string: "https://example.test/demo-lift-\(index + 1)-\(movementIndex + 1).mp4"),
-                    caption: movementIndex == 0 ? marker : "[demo:leaderboard-100-v1]",
-                    verificationStatus: .videoVerified,
-                    visibility: .publicLift,
-                    createdAt: .now,
-                    updatedAt: .now,
-                    competitiveMovement: movement.movement,
-                    evidenceStatus: .videoBacked,
-                    moderationStatus: .clear
-                ))
+                let currentID = UUID(uuidString: String(format: "D1000000-0000-0000-0000-%012d", index * 4 + movementIndex + 1))!
+                let priorID = UUID(uuidString: String(format: "D1100000-0000-0000-0000-%012d", index * 4 + movementIndex + 1))!
+                let performedAt = Calendar.current.date(byAdding: .day, value: -(index + movementIndex), to: .now) ?? .now
+                let improvementPercent = 5 + Double((index * 3 + movementIndex * 2) % 16)
+                let priorWeight = (weight / (1 + improvementPercent / 100) * 10).rounded() / 10
+                let priorPerformedAt = Calendar.current.date(byAdding: .day, value: -90, to: performedAt) ?? performedAt.addingTimeInterval(-90 * 86_400)
+
+                if !lifts.contains(where: { $0.id == priorID }) {
+                    lifts.append(LiftSubmission(
+                        id: priorID,
+                        userID: profile.id,
+                        exerciseID: movement.id,
+                        exerciseName: movement.name,
+                        weight: priorWeight,
+                        unit: .pounds,
+                        normalizedWeightKilograms: RankingCalculator.poundsToKilograms(priorWeight),
+                        repetitions: 1,
+                        isActualOneRepMax: true,
+                        estimatedOneRepMax: priorWeight,
+                        bodyweightAtLift: bodyweight,
+                        bodyweightMultiple: priorWeight / bodyweight,
+                        equipmentType: .raw,
+                        variation: "Demo",
+                        gymID: gymID,
+                        performedAt: priorPerformedAt,
+                        remoteVideoURL: URL(string: "https://example.test/demo-history-\(index + 1)-\(movementIndex + 1).mp4"),
+                        caption: index == 0 && movementIndex == 0 ? marker : "[demo:leaderboard-history-v2]",
+                        verificationStatus: .videoVerified,
+                        visibility: .publicLift,
+                        createdAt: .now,
+                        updatedAt: .now,
+                        competitiveMovement: movement.movement,
+                        evidenceStatus: .videoBacked,
+                        moderationStatus: .clear
+                    ))
+                }
+                if !lifts.contains(where: { $0.id == currentID }) {
+                    lifts.append(LiftSubmission(
+                        id: currentID,
+                        userID: profile.id,
+                        exerciseID: movement.id,
+                        exerciseName: movement.name,
+                        weight: weight,
+                        unit: .pounds,
+                        normalizedWeightKilograms: RankingCalculator.poundsToKilograms(weight),
+                        repetitions: 1,
+                        isActualOneRepMax: true,
+                        estimatedOneRepMax: weight,
+                        bodyweightAtLift: bodyweight,
+                        bodyweightMultiple: weight / bodyweight,
+                        equipmentType: .raw,
+                        variation: "Demo",
+                        gymID: gymID,
+                        performedAt: performedAt,
+                        remoteVideoURL: URL(string: "https://example.test/demo-lift-\(index + 1)-\(movementIndex + 1).mp4"),
+                        caption: marker,
+                        verificationStatus: .videoVerified,
+                        visibility: .publicLift,
+                        createdAt: .now,
+                        updatedAt: .now,
+                        competitiveMovement: movement.movement,
+                        evidenceStatus: .videoBacked,
+                        moderationStatus: .clear
+                    ))
+                }
             }
         }
 

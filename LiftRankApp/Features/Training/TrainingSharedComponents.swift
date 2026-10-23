@@ -63,10 +63,8 @@ struct TodayWorkoutLaunchCard: View {
                     Text(planName)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.liftMuted)
-                        .lineLimit(1)
                     Text(session.name)
                         .font(.headline.weight(.bold))
-                        .lineLimit(1)
                 }
 
                 Spacer()
@@ -106,7 +104,6 @@ struct TodayWorkoutLaunchCard: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.liftOverlay, lineWidth: 1)
         }
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 }
 

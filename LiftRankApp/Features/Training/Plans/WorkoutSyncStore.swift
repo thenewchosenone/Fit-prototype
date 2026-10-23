@@ -100,6 +100,9 @@ final class WorkoutSyncStore: ObservableObject {
                    repository.pendingCompletedWorkoutUploads[index] == snapshot {
                     repository.pendingCompletedWorkoutUploads.remove(at: index)
                 }
+                if snapshot.ownerID == userID {
+                    repository.syncedCompletedWorkoutIDs.insert(snapshot.id)
+                }
             } catch {
                 syncFailed = true
                 guard repository.currentProfile.id == userID else { return }
@@ -115,13 +118,24 @@ final class WorkoutSyncStore: ObservableObject {
         guard repository.currentProfile.id == userID else { return }
         let deletedWorkoutIDs = repository.deletedCompletedWorkoutIDs
         let pendingUploadIDs = Set(repository.pendingCompletedWorkoutUploads.map(\.id))
+        let remoteWorkoutIDs = Set(remote.filter { $0.ownerID == userID }.map(\.id))
+        repository.syncedCompletedWorkoutIDs.formUnion(remoteWorkoutIDs)
+        let remotelyDeletedWorkoutIDs = repository.syncedCompletedWorkoutIDs
+            .subtracting(remoteWorkoutIDs)
+            .subtracting(pendingUploadIDs)
+            .subtracting(deletedWorkoutIDs)
+        repository.completedWorkouts.removeAll { remotelyDeletedWorkoutIDs.contains($0.id) }
+        repository.syncedCompletedWorkoutIDs.subtract(remotelyDeletedWorkoutIDs)
         var workoutIndexesByID = Dictionary(
             uniqueKeysWithValues: repository.completedWorkouts.enumerated().map { ($0.element.id, $0.offset) }
         )
         for snapshot in remote where snapshot.ownerID == userID
             && !deletedWorkoutIDs.contains(snapshot.id)
             && !pendingUploadIDs.contains(snapshot.id) {
-            guard let workout = try? decoder.decode(CompletedWorkout.self, from: snapshot.payload) else { continue }
+            guard let workout = try? decoder.decode(CompletedWorkout.self, from: snapshot.payload) else {
+                syncFailed = true
+                continue
+            }
             if let index = workoutIndexesByID[snapshot.id] {
                 repository.completedWorkouts[index] = workout
             } else {
@@ -184,7 +198,23 @@ final class WorkoutSyncStore: ObservableObject {
             }
         }
 
-        for planID in repository.pendingRemoteWorkoutPlanDeletions {
+        guard let remotelyDeletedPlanIDs = try? await service.deletedWorkoutPlanIDs() else {
+            syncFailed = true
+            return
+        }
+        guard repository.currentProfile.id == userID else { return }
+        let deletedPlanIDs = remotelyDeletedPlanIDs.union(repository.pendingRemoteWorkoutPlanDeletions)
+        repository.pendingRemoteWorkoutPlanDeletions.formUnion(remotelyDeletedPlanIDs)
+
+        for planID in deletedPlanIDs {
+            guard repository.currentProfile.id == userID else { return }
+            if let plan = repository.workoutPlans.first(where: { $0.id == planID }) {
+                repository.deleteWorkoutPlan(plan)
+                forgetPlan(planID)
+            }
+        }
+
+        for planID in Set(repository.pendingRemoteWorkoutPlanDeletions) {
             guard repository.currentProfile.id == userID else { return }
             do {
                 try await service.deletePlan(id: planID)
@@ -199,7 +229,7 @@ final class WorkoutSyncStore: ObservableObject {
         guard var remoteByID = try? await service.plans().reduce(
             into: [UUID: WorkoutPlanDocument](),
             { result, document in
-                if document.ownerID == userID {
+                if document.ownerID == userID && !deletedPlanIDs.contains(document.id) {
                     result[document.id] = document
                 }
             }
@@ -210,7 +240,9 @@ final class WorkoutSyncStore: ObservableObject {
         guard repository.currentProfile.id == userID else { return }
         let localOnlyPlanIDs = Set([PersonalWorkoutPlanCatalog.planID])
 
-        for plan in repository.workoutPlans where !localOnlyPlanIDs.contains(plan.id) {
+        for plan in repository.workoutPlans where !localOnlyPlanIDs.contains(plan.id)
+            && !deletedPlanIDs.contains(plan.id)
+            && !repository.pendingRemoteWorkoutPlanDeletions.contains(plan.id) {
             guard let payload = payload(planID: plan.id), let data = try? encoder.encode(payload) else { continue }
             let knownRevision = repository.workoutPlanSyncRevisions[plan.id]
             let lastPayload = repository.workoutPlanLastSyncedPayloads[plan.id]
@@ -293,6 +325,7 @@ final class WorkoutSyncStore: ObservableObject {
         repository.completedWorkouts.removeAll()
         repository.pendingCompletedWorkoutUploads.removeAll()
         repository.deletedCompletedWorkoutIDs.removeAll()
+        repository.syncedCompletedWorkoutIDs.removeAll()
         repository.clearAccountScopedWorkoutHistory()
 
         let localOnlyPlanIDs = Set([PersonalWorkoutPlanCatalog.planID])

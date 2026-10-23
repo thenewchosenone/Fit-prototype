@@ -169,7 +169,6 @@ struct WorkoutHistoryCalendar: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.liftOverlay, lineWidth: 1)
         }
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
     private func calendarDay(_ day: WorkoutHistoryCalendarDay) -> some View {
@@ -192,7 +191,7 @@ struct WorkoutHistoryCalendar: View {
                     .frame(width: 5, height: 5)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 40)
+            .frame(minHeight: 44)
             .background(isSelected ? Color.liftBlue : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             .overlay {
@@ -232,7 +231,7 @@ struct WorkoutHistoryCalendar: View {
                                     Text(workout.name)
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(Color.liftText)
-                                        .lineLimit(1)
+                                        .lineLimit(2)
                                     Text("\(workout.completedWorkingSets.count) sets • \(LiftTimeFormatter.shortDateCompactTime(workout.completedAt))")
                                         .font(.caption)
                                         .foregroundStyle(Color.liftMuted)

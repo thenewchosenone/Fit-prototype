@@ -220,12 +220,13 @@ enum RankingCalculator {
         rankingType: RankingType,
         verifiedOnly: Bool,
         currentUserID: UUID?,
-        exerciseID: String? = nil
+        exerciseID: String? = nil,
+        repetitionCount: Int? = nil
     ) -> [LeaderboardEntry] {
         let eligibleLifts = lifts.filter { lift in
             guard lift.visibility == .publicLift,
-                  lift.repetitions == 1,
-                  lift.isActualOneRepMax,
+                  lift.repetitions == (repetitionCount ?? 1),
+                  (repetitionCount != nil && repetitionCount != 1 || lift.isActualOneRepMax),
                   lift.resolvedModerationStatus == .clear else { return false }
             if verifiedOnly {
                 return lift.competitiveMovement == nil
@@ -239,7 +240,9 @@ enum RankingCalculator {
         let candidates: [(lift: LiftSubmission, score: Double, breakdown: PowerliftingBreakdown?)] = grouped.compactMap { userID, userLifts in
             if exerciseID == nil && (rankingType == .total || rankingType == .relativeTotal) {
                 let breakdown = powerliftingBreakdown(for: userID, lifts: userLifts)
-                guard breakdown.totalKilograms > 0,
+                guard breakdown.squatKilograms != nil,
+                      breakdown.benchKilograms != nil,
+                      breakdown.deadliftKilograms != nil,
                       let representative = userLifts
                         .filter({
                             let lift = $0
@@ -251,7 +254,10 @@ enum RankingCalculator {
                         .max(by: { $0.normalizedWeightKilograms < $1.normalizedWeightKilograms }) else { return nil }
                 let score = rankingType == .total
                     ? breakdown.totalKilograms
-                    : relativeTotal(total: breakdown.totalKilograms, bodyweight: poundsToKilograms(representative.bodyweightAtLift))
+                    : relativeTotal(
+                        total: breakdown.totalKilograms,
+                        bodyweight: poundsToKilograms(maxBodyweightAtBestMovement(userLifts))
+                    )
                 return (representative, score, breakdown)
             }
 
@@ -259,7 +265,9 @@ enum RankingCalculator {
                 score(for: $0, rankingType: rankingType, allLifts: userLifts) <
                 score(for: $1, rankingType: rankingType, allLifts: userLifts)
             }) else { return nil }
-            return (representative, score(for: representative, rankingType: rankingType, allLifts: userLifts), nil)
+            let score = score(for: representative, rankingType: rankingType, allLifts: userLifts)
+            guard rankingType != .mostImproved || score > 0 else { return nil }
+            return (representative, score, nil)
         }
 
         let profileByID = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
@@ -313,10 +321,29 @@ enum RankingCalculator {
             let total = totalForUser(lift.userID, lifts: allLifts)
             return relativeTotal(total: total, bodyweight: lift.bodyweightAtLift)
         case .mostImproved:
-            let earlier = allLifts
-                .filter { $0.exerciseID == lift.exerciseID && $0.performedAt < lift.performedAt }
+            let sameMovement = allLifts.filter { candidate in
+                if let movement = lift.competitiveMovement {
+                    return candidate.competitiveMovement == movement
+                }
+                return candidate.competitiveMovement == nil
+                    && candidate.exerciseID.caseInsensitiveCompare(lift.exerciseID) == .orderedSame
+            }
+            let bestLift = sameMovement.sorted { lhs, rhs in
+                if lhs.normalizedWeightKilograms != rhs.normalizedWeightKilograms {
+                    return lhs.normalizedWeightKilograms > rhs.normalizedWeightKilograms
+                }
+                if lhs.performedAt != rhs.performedAt { return lhs.performedAt < rhs.performedAt }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }.first
+            guard bestLift?.id == lift.id else { return 0 }
+            let earlier = sameMovement
+                .filter {
+                    $0.performedAt < lift.performedAt ||
+                        ($0.performedAt == lift.performedAt && $0.id.uuidString < lift.id.uuidString)
+                }
                 .map(\.normalizedWeightKilograms)
                 .max() ?? lift.normalizedWeightKilograms
+            guard earlier < lift.normalizedWeightKilograms else { return 0 }
             return progressPercentage(currentPersonalRecord: lift.normalizedWeightKilograms, previousPersonalRecord: earlier)
         }
     }
@@ -325,7 +352,33 @@ enum RankingCalculator {
         kilogramsToPounds(powerliftingBreakdown(for: userID, lifts: lifts).totalKilograms)
     }
 
+    private static func maxBodyweightAtBestMovement(_ lifts: [LiftSubmission]) -> Double {
+        Dictionary(grouping: lifts) { lift in
+            lift.competitiveMovement?.rawValue
+                ?? CompetitiveMovement.resolve(exerciseID: lift.exerciseID)?.rawValue
+                ?? "exercise:\(lift.exerciseID.lowercased())"
+        }
+        .values
+        .compactMap { movementLifts in
+            movementLifts.sorted { lhs, rhs in
+                if lhs.normalizedWeightKilograms != rhs.normalizedWeightKilograms {
+                    return lhs.normalizedWeightKilograms > rhs.normalizedWeightKilograms
+                }
+                if lhs.performedAt != rhs.performedAt { return lhs.performedAt < rhs.performedAt }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }.first
+        }
+        .map(\.bodyweightAtLift)
+        .max() ?? 0
+    }
+
     static func format(_ value: Double) -> String {
-        abs(value.rounded() - value) < 0.0001 ? "\(Int(value.rounded()))" : String(format: "%.1f", value)
+        format(value, locale: .current)
+    }
+
+    static func format(_ value: Double, locale: Locale) -> String {
+        abs(value.rounded() - value) < 0.0001
+            ? "\(Int(value.rounded()))"
+            : String(format: "%.1f", locale: locale, value)
     }
 }

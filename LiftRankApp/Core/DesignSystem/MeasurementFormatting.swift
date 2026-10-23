@@ -1,6 +1,47 @@
 import Foundation
 
 enum MeasurementFormatting {
+    static func parseGroupedInteger(_ text: String) -> Int? {
+        guard !text.isEmpty else { return nil }
+        var digits = ""
+        for character in text {
+            if let digit = character.wholeNumberValue, (0...9).contains(digit) {
+                digits.append(String(digit))
+            } else if character == "," || character == "." || character == "'" || character == "’" || character == "٬"
+                || character.unicodeScalars.allSatisfy({ CharacterSet.whitespacesAndNewlines.contains($0) }) {
+                continue
+            } else {
+                return nil
+            }
+        }
+        return Int(digits)
+    }
+
+    static func parseLocalizedDecimal(_ text: String, locale: Locale = .current) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.locale = locale
+        formatter.isLenient = false
+        return formatter.number(from: trimmed)?.doubleValue
+    }
+
+    static func localizedDecimalText(
+        _ value: Double,
+        locale: Locale = .current,
+        minimumFractionDigits: Int = 0,
+        maximumFractionDigits: Int = 15
+    ) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.locale = locale
+        formatter.usesGroupingSeparator = false
+        formatter.maximumFractionDigits = maximumFractionDigits
+        formatter.minimumFractionDigits = minimumFractionDigits
+        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+    }
+
     static func longClockText(_ totalSeconds: Int) -> String {
         let seconds = max(0, totalSeconds)
         return String(format: "%02d:%02d:%02d", seconds / 3600, (seconds % 3600) / 60, seconds % 60)

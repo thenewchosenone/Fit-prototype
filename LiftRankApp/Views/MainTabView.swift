@@ -70,9 +70,7 @@ struct MainTabView: View {
                 showsMeTabBar = false
             }
         }
-        .sheet(item: $router.sheet, onDismiss: {
-            router.sheet = nil
-        }) { destination in
+        .sheet(item: $router.sheet) { destination in
             appSheet(destination)
         }
         .fullScreenCover(item: $router.cover) { destination in
@@ -256,7 +254,20 @@ private struct ForumView: View {
                     forumFeedPicker
                     forumGroupPicker
                     if isLoading { ProgressView().frame(maxWidth: .infinity).padding(40) }
-                    else if let message { LiftEmptyState(title: "Forum unavailable", message: message) }
+                    else if let message {
+                        VStack(spacing: 12) {
+                            LiftEmptyState(title: "Forum unavailable", message: message)
+                            Button("Retry") {
+                                Task {
+                                    self.message = nil
+                                    isLoading = true
+                                    await load()
+                                }
+                            }
+                            .buttonStyle(LiftCompactProminentButtonStyle())
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
                     else if feedPosts.isEmpty {
                         LiftEmptyState(
                             title: emptyFeedTitle,
@@ -346,7 +357,8 @@ private struct ForumView: View {
                 Text(selectedGroup?.details ?? "Ask questions, share progress, and learn from other lifters.")
                     .font(.caption)
                     .foregroundStyle(Color.liftTextSecondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer()
@@ -401,8 +413,10 @@ private struct ForumView: View {
                     Button(option.rawValue) { feed = option }
                         .font(.caption.weight(.bold))
                         .foregroundStyle(feed == option ? Color.liftOnAccent : Color.liftMuted)
-                        .frame(maxWidth: .infinity, minHeight: 34)
+                        .frame(maxWidth: .infinity, minHeight: LiftDesign.minimumTouchTarget)
+                        .contentShape(Rectangle())
                         .background(feed == option ? Color.liftLime : Color.clear, in: Capsule())
+                        .accessibilityAddTraits(feed == option ? .isSelected : [])
                 }
             }
             .padding(4)
@@ -497,7 +511,8 @@ private struct ForumView: View {
     private func forumChip(title: String, id: UUID?) -> some View {
         Button(title) { selectedGroupID = id; Task { await loadPosts() } }
             .font(.subheadline.weight(.semibold)).foregroundStyle(selectedGroupID == id ? Color.liftOnAccent : Color.liftText)
-            .padding(.horizontal, 14).frame(minHeight: 36)
+            .padding(.horizontal, 14).frame(minHeight: LiftDesign.minimumTouchTarget)
+            .contentShape(Rectangle())
             .background(selectedGroupID == id ? Color.liftLime : Color.liftSurfaceElevated, in: Capsule())
             .overlay(Capsule().stroke(Color.liftSurfaceBorder.opacity(selectedGroupID == id ? 0 : 1), lineWidth: 1))
     }
@@ -771,6 +786,7 @@ private struct ForumComposerView: View {
     @State private var draftBody = ""
     @State private var error: String?
     @State private var isPublishing = false
+    @State private var confirmingDiscard = false
 
     var body: some View {
         NavigationStack {
@@ -783,13 +799,21 @@ private struct ForumComposerView: View {
                 }
                 Section("Discussion") {
                     TextField("Title", text: $title)
-                    TextField("Share the training context", text: $draftBody, axis: .vertical).lineLimit(5...12)
+                    TextField("Share the training context", text: $draftBody, axis: .vertical)
+                        .lineLimit(5...12)
+                        .accessibilityIdentifier("forum.composer.body")
                 }
                 if let error { Text(error).foregroundStyle(Color.liftRed) }
             }
             .navigationTitle("New discussion")
+            .interactiveDismissDisabled(isPublishing || hasDraft)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        if hasDraft { confirmingDiscard = true } else { dismiss() }
+                    }
+                    .disabled(isPublishing)
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button { Task { await publish() } } label: {
                         if isPublishing { ProgressView() } else { Text("Publish") }
@@ -797,8 +821,19 @@ private struct ForumComposerView: View {
                     .disabled(isPublishing || groupID == nil || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || draftBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
+            .alert("Discard discussion draft?", isPresented: $confirmingDiscard) {
+                Button("Discard Draft", role: .destructive) { dismiss() }
+                Button("Keep Editing", role: .cancel) {}
+            } message: {
+                Text("Your title and discussion text will be lost.")
+            }
             .onAppear { groupID = selectedGroupID ?? groups.first?.id }
         }
+    }
+
+    private var hasDraft: Bool {
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !draftBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func publish() async {
@@ -894,11 +929,12 @@ private struct ForumPostCard: View {
     }
 
     private var authorLabel: String {
-        if post.tag == "demo" { return "lift_rank_member" }
-        if post.authorID == appState.currentProfile.id {
+        if post.tag == "demo" { return "Lift Rivals member" }
+        guard let authorID = post.authorID else { return "Former member" }
+        if authorID == appState.currentProfile.id {
             return appState.currentProfile.username.isEmpty ? "You" : "@\(appState.currentProfile.username)"
         }
-        if let profile = appState.profileStore.profile(id: post.authorID) {
+        if let profile = appState.profileStore.profile(id: authorID) {
             if !profile.username.isEmpty { return "@\(profile.username)" }
             if !profile.displayName.isEmpty { return profile.displayName }
         }
@@ -1145,8 +1181,9 @@ private struct ForumThreadView: View {
         .frame(width: 38, height: 38)
     }
 
-    private func authorDisplayName(for authorID: UUID, isDemo: Bool) -> String {
-        if isDemo { return "lift_rank_member" }
+    private func authorDisplayName(for authorID: UUID?, isDemo: Bool) -> String {
+        if isDemo { return "Lift Rivals member" }
+        guard let authorID else { return "Former member" }
         if authorID == appState.currentProfile.id {
             return appState.currentProfile.username.isEmpty ? "You" : "@\(appState.currentProfile.username)"
         }
@@ -1182,11 +1219,13 @@ private struct ForumThreadView: View {
                                 }
                 Text(comment.body)
                     .font(.body)
-                HStack(spacing: 18) {
+                HStack(spacing: 4) {
                     Button {
                         replyingTo = comment.id
                     } label: {
                         Label("Reply", systemImage: "arrowshape.turn.up.left")
+                            .frame(minHeight: LiftDesign.minimumTouchTarget)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .disabled(isDemoReadOnly)
@@ -1195,13 +1234,18 @@ private struct ForumThreadView: View {
                             commentVoteValues[comment.id] == 1 ? "Voted (\(comment.voteCount))" : "Vote (\(comment.voteCount))",
                             systemImage: commentVoteValues[comment.id] == 1 ? "arrow.up.circle.fill" : "arrow.up"
                         )
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .disabled(isDemoReadOnly)
                     Button { Task { await toggleCommentDownvote(comment) } } label: {
                         Image(systemName: commentVoteValues[comment.id] == -1 ? "arrow.down.circle.fill" : "arrow.down")
+                            .frame(minWidth: LiftDesign.minimumTouchTarget, minHeight: LiftDesign.minimumTouchTarget)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(commentVoteValues[comment.id] == -1 ? "Remove downvote" : "Downvote")
                     .disabled(isDemoReadOnly)
                     if hasReplies {
                         Button {
@@ -1211,23 +1255,28 @@ private struct ForumThreadView: View {
                                 collapsedCommentIDs.insert(comment.id)
                             }
                         } label: {
-                            Label(
-                                collapsedCommentIDs.contains(comment.id) ? "Expand replies" : "Collapse replies",
-                                systemImage: collapsedCommentIDs.contains(comment.id) ? "chevron.right" : "chevron.down"
-                            )
+                            Image(systemName: collapsedCommentIDs.contains(comment.id) ? "chevron.right" : "chevron.down")
+                                .frame(minWidth: LiftDesign.minimumTouchTarget, minHeight: LiftDesign.minimumTouchTarget)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(collapsedCommentIDs.contains(comment.id) ? "Expand replies" : "Collapse replies")
                     }
                     Button {
                         reportTargetCommentID = comment.id
                         showingReportReasons = true
                     } label: {
-                        Label("Report", systemImage: "flag")
+                        Image(systemName: "flag")
+                            .frame(minWidth: LiftDesign.minimumTouchTarget, minHeight: LiftDesign.minimumTouchTarget)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Report")
                     .disabled(isDemoReadOnly)
                 }
                 .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
                 .foregroundStyle(Color.liftMuted)
             }
         }
@@ -1436,6 +1485,7 @@ private struct MeHubContentView: View {
                                 Text(handle)
                                     .font(.caption)
                                     .foregroundStyle(profile.username.isEmpty ? Color.liftAccentText : Color.liftMuted)
+                                    .accessibilityLabel(profile.username.isEmpty ? handle : "Username \(profile.username)")
                                 Text("Tier \(tierSummary.overallTier.label)")
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(Color.liftGold)
@@ -1583,7 +1633,6 @@ private struct MeHubContentView: View {
                     )
                     }
                     }
-                    .accessibilityIdentifier("me.trainingDetails")
                     .tint(Color.liftAccentText)
 
                     CompactSectionHeader(title: "Activity & connections")
@@ -1604,7 +1653,7 @@ private struct MeHubContentView: View {
                                 "Find a gym",
                                 appState.gyms.isEmpty
                                     ? "Browse locations and choose your primary gym"
-                                    : "\(appState.gyms.count) locations · \(appState.joinedGymCount) joined",
+                                    : "\(appState.gyms.count) \(appState.gyms.count == 1 ? "location" : "locations") · \(appState.joinedGymCount) joined",
                                 "building.2.fill",
                                 Color.liftBlue,
                                 badge: appState.currentProfile.primaryGymName.isEmpty
@@ -2326,19 +2375,17 @@ struct AwardsView: View {
 
     private func liftAwardMilestone(for title: String) -> (pounds: Double, exercise: String)? {
         for exercise in ["Bench", "Squat", "Deadlift"] where title.hasSuffix(" \(exercise)") {
-            let valueText = title.replacingOccurrences(of: " \(exercise)", with: "").replacingOccurrences(of: ",", with: "")
-            guard let pounds = Double(valueText) else { return nil }
-            return (pounds, exercise)
+            let valueText = title.replacingOccurrences(of: " \(exercise)", with: "")
+            guard let pounds = MeasurementFormatting.parseGroupedInteger(valueText) else { return nil }
+            return (Double(pounds), exercise)
         }
         return nil
     }
 
     private func totalAwardPounds(for title: String) -> Double? {
         guard title.hasSuffix(" lb Total") else { return nil }
-        let valueText = title
-            .replacingOccurrences(of: " lb Total", with: "")
-            .replacingOccurrences(of: ",", with: "")
-        return Double(valueText)
+        let valueText = title.replacingOccurrences(of: " lb Total", with: "")
+        return MeasurementFormatting.parseGroupedInteger(valueText).map(Double.init)
     }
 
     private func volumeAwardKilograms(for title: String) -> Double? {
@@ -2347,8 +2394,7 @@ struct AwardsView: View {
             : title.hasSuffix(" kg Volume") ? " kg Volume" : nil
         guard let suffix else { return nil }
         let valueText = title.replacingOccurrences(of: suffix, with: "")
-            .replacingOccurrences(of: ",", with: "")
-        return Double(valueText)
+        return MeasurementFormatting.parseGroupedInteger(valueText).map(Double.init)
     }
 
     private func progressAwardItems(
@@ -2431,7 +2477,7 @@ struct AwardsView: View {
             metric = metricProgress(
                 current: stats.totalActiveTrainingTime,
                 target: targetSeconds,
-                status: "\(String(format: "%.1f", min(stats.totalActiveTrainingTime, targetSeconds) / 3600)) / \(Int(targetHours)) hrs"
+                status: "\(MeasurementFormatting.localizedDecimalText(min(stats.totalActiveTrainingTime, targetSeconds) / 3600, minimumFractionDigits: 1, maximumFractionDigits: 1)) / \(Int(targetHours)) hrs"
             )
         } else if title == "Bodyweight Logged" {
             metric = metricProgress(current: Double(bodyweightLogCount), target: 1, status: "\(bodyweightLogCount) / 1 bodyweight log")
@@ -2640,6 +2686,7 @@ struct AuthenticationView: View {
     @State private var resetEmail = ""
     @State private var appleNonce = ""
     @State private var confirmationEmail: String?
+    @State private var isSubmitting = false
 
     private let emailConfirmationMessage = "Check your email to confirm your account, then sign in."
     private let emailResentMessage = "A new confirmation email is on the way."
@@ -2649,9 +2696,11 @@ struct AuthenticationView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     Spacer(minLength: 46)
-                    Image(systemName: "lock.shield.fill")
-                        .font(.system(size: 54, weight: .bold))
-                        .foregroundStyle(Color.liftAccentText)
+                    Image("LiftRivalsLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 88, height: 88)
+                        .clipShape(Circle())
                     Text("Lift Rivals").font(.largeTitle.bold())
                     Text("Your training can stay local. Your profile and gyms use your secured account.")
                         .foregroundStyle(Color.liftMuted)
@@ -2671,6 +2720,10 @@ struct AuthenticationView: View {
                             Text("Create Account").tag("Create Account")
                         }
                         .pickerStyle(.segmented)
+                        .disabled(isSubmitting || appState.accountOperationInProgress)
+                        .onChange(of: mode) { _, _ in
+                            appState.accountMessage = nil
+                        }
 
                         VStack(spacing: 12) {
                             TextField("Email", text: $email)
@@ -2681,6 +2734,12 @@ struct AuthenticationView: View {
                                 .padding(14)
                                 .background(Color.liftCardRaised)
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .onChange(of: email) { _, newValue in
+                                    guard let confirmationEmail,
+                                          newValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != confirmationEmail.lowercased() else { return }
+                                    self.confirmationEmail = nil
+                                    appState.accountMessage = nil
+                                }
                             HStack(spacing: 10) {
                                 Group {
                                     if showingPassword {
@@ -2705,10 +2764,11 @@ struct AuthenticationView: View {
                             .background(Color.liftCardRaised)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
+                        .disabled(isSubmitting || appState.accountOperationInProgress)
 
                         Text(
                             mode == "Sign In"
-                                ? "Use the email address connected to your account."
+                                ? "Use your existing account email and password. Signing in won’t create an account."
                                 : "Use a valid email and a password of at least 10 characters."
                         )
                         .font(.caption)
@@ -2717,11 +2777,14 @@ struct AuthenticationView: View {
 
                         if let confirmationEmail {
                             emailConfirmationNotice(for: confirmationEmail)
-                        } else if let message = appState.accountMessage {
+                        }
+                        if let message = appState.accountMessage,
+                           message != emailConfirmationMessage,
+                           message != emailResentMessage {
                             Text(message)
                                 .font(.subheadline)
                                 .foregroundStyle(
-                                    message == "Incorrect password. Check your password and try again."
+                                    message == "Incorrect email or password. Check your details and try again."
                                         ? .red
                                         : (message.localizedCaseInsensitiveContains("connection") || message.localizedCaseInsensitiveContains("network")
                                             ? Color.liftGold
@@ -2731,9 +2794,12 @@ struct AuthenticationView: View {
                         }
 
                         PrimaryButton(
-                            title: appState.accountOperationInProgress ? "Please wait…" : mode,
+                            title: isSubmitting || appState.accountOperationInProgress ? "Please wait…" : mode,
                             symbolName: mode == "Sign In" ? "arrow.right.circle.fill" : "person.badge.plus"
                         ) {
+                            guard !isSubmitting, !appState.accountOperationInProgress else { return }
+                            let submittedMode = mode
+                            let submittedPassword = password
                             let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
                             guard !normalizedEmail.isEmpty else {
                                 appState.accountMessage = "Enter your email address."
@@ -2751,14 +2817,16 @@ struct AuthenticationView: View {
                                 appState.accountMessage = "New passwords must contain at least 10 characters."
                                 return
                             }
+                            isSubmitting = true
                             Task {
-                                if mode == "Sign In" {
-                                    await appState.signIn(email: normalizedEmail, password: password)
+                                defer { isSubmitting = false }
+                                if submittedMode == "Sign In" {
+                                    await appState.signIn(email: normalizedEmail, password: submittedPassword)
                                     if appState.isAuthenticated {
                                         appState.selectedTab = 1
                                     }
-                                } else {
-                                    await appState.signUp(email: normalizedEmail, password: password)
+                                } else if submittedMode == "Create Account" {
+                                    await appState.signUp(email: normalizedEmail, password: submittedPassword)
                                     if appState.accountMessage == emailConfirmationMessage {
                                         confirmationEmail = normalizedEmail
                                         password = ""
@@ -2768,7 +2836,7 @@ struct AuthenticationView: View {
                             }
                         }
                         .accessibilityIdentifier("authentication.email.submit")
-                        .disabled(appState.accountOperationInProgress)
+                        .disabled(isSubmitting || appState.accountOperationInProgress)
 
 #if DEBUG
                         Label("Apple sign-in is enabled in the release build", systemImage: "apple.logo")
@@ -2814,12 +2882,13 @@ struct AuthenticationView: View {
                         .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
                         .frame(maxWidth: .infinity)
                         .frame(height: 50)
-                        .disabled(appState.accountOperationInProgress)
+                        .disabled(isSubmitting || appState.accountOperationInProgress)
 #endif
 
                         Button("Forgot password?") { resetEmail = email; showingReset = true }
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Color.liftAccentText)
+                            .disabled(isSubmitting || appState.accountOperationInProgress)
                     }
 
                     if AppState.allowsDemoMode {
@@ -2833,6 +2902,7 @@ struct AuthenticationView: View {
                         }
                         .buttonStyle(.bordered)
                         .tint(Color.liftAccentText)
+                        .disabled(isSubmitting || appState.accountOperationInProgress)
                         Text("Demo mode stays local and never writes to your Supabase account.")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -2870,7 +2940,7 @@ struct AuthenticationView: View {
                                 }
                             }
                         }
-                        .disabled(appState.accountOperationInProgress)
+                        .disabled(isSubmitting || appState.accountOperationInProgress)
                     }
                 }
                 .navigationTitle("Reset password")
@@ -2910,7 +2980,7 @@ struct AuthenticationView: View {
                 .font(.subheadline.weight(.semibold))
             }
             .foregroundStyle(Color.liftAccentText)
-            .disabled(appState.accountOperationInProgress)
+            .disabled(isSubmitting || appState.accountOperationInProgress)
 
             if appState.accountMessage == emailResentMessage {
                 Text(emailResentMessage)
@@ -2927,6 +2997,7 @@ struct AuthenticationView: View {
                 .stroke(Color.liftBlue.opacity(0.45), lineWidth: 1)
         }
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("authentication.emailConfirmationNotice")
     }
 }
 

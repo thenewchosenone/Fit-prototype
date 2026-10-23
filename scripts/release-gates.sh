@@ -10,6 +10,7 @@ required_scheme_file="$ROOT/LiftRank.xcodeproj/xcshareddata/xcschemes/LiftRank.x
 required_scheme_name="LiftRank"
 services_check_script="$ROOT/scripts/check_publish_readiness_services.sh"
 metadata_check_script="$ROOT/scripts/check_launch_metadata.sh"
+migration_versions_check_script="$ROOT/scripts/check_migration_versions.sh"
 
 evidence_file="$report_dir/release-evidence.md"
 summary_file="$report_dir/summary.txt"
@@ -202,6 +203,8 @@ append_summary() {
     echo "- skip: $skip_count"
     if [ "$fail_count" -gt 0 ]; then
       echo "- status: BLOCKED"
+    elif [ "$skip_count" -gt 0 ]; then
+      echo "- status: INCOMPLETE"
     else
       echo "- status: PASS"
     fi
@@ -233,15 +236,24 @@ Working directory: $ROOT
 - Full status: $source_state_file
 EVIDENCE
 
+for gate_group in run_web_frontend run_ios run_backend; do
+  if [ "${!gate_group}" -ne 1 ]; then
+    gate_name="${gate_group#run_}"
+    log "FAIL: release readiness requires the ${gate_name} gate group to be enabled."
+    capture_status fail "required_gate_group.${gate_name}" "required-gate-group-${gate_name}"
+  fi
+done
+
 verify_baseline_scheme
+run_step "backend.migration_versions" "migration-versions" "$migration_versions_check_script"
 
 if [ -x "$services_check_script" ]; then
-  run_step "publish_readiness.services" "ios-services-readiness" "$services_check_script"
+  run_step "publish_readiness.services" "ios-services-readiness" env "LIFTRANK_SERVICE_CHECK_STRICT=$strict_mode" "$services_check_script"
 elif [ -f "$services_check_script" ]; then
   log "Service check script is not executable; attempting fallback run via bash."
-  run_step "publish_readiness.services" "ios-services-readiness" bash "$services_check_script"
+  run_step "publish_readiness.services" "ios-services-readiness" env "LIFTRANK_SERVICE_CHECK_STRICT=$strict_mode" bash "$services_check_script"
 else
-  run_step "publish_readiness.services" "ios-services-readiness" bash ./scripts/check_publish_readiness_services.sh
+  run_step "publish_readiness.services" "ios-services-readiness" env "LIFTRANK_SERVICE_CHECK_STRICT=$strict_mode" bash ./scripts/check_publish_readiness_services.sh
 fi
 
 if [ -x "$metadata_check_script" ]; then
@@ -262,14 +274,14 @@ else
 fi
 
 if [ "$run_ios" -eq 1 ]; then
-  old_destination="${IOS_OLDEST_SIMULATOR_DESTINATION:-platform=iOS Simulator,name=iPhone 17,OS=latest}"
+  old_destination="${IOS_OLDEST_SIMULATOR_DESTINATION:-platform=iOS Simulator,name=iPhone 15,OS=17.0}"
   new_destination="${IOS_LATEST_SIMULATOR_DESTINATION:-platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest}"
 
-  run_xcode_test "ios.unit.oldest_ios" "$old_destination" LiftRankTests
+  run_xcode_test "ios.unit.minimum_supported_ios" "$old_destination" LiftRankTests
   run_xcode_test "ios.unit.latest_ios" "$new_destination" LiftRankTests
-  run_xcode_test "ios.ui.oldest_ios" "$old_destination" LiftRankUITests
+  run_xcode_test "ios.ui.minimum_supported_ios" "$old_destination" LiftRankUITests
   run_xcode_test "ios.ui.latest_ios" "$new_destination" LiftRankUITests
-  run_xcode_archive_smoke "ios.release_signing_validation" "$new_destination"
+  run_xcode_archive_smoke "ios.release_unsigned_simulator_build" "$new_destination"
 else
   log "iOS gates disabled via RUN_IOS_GATES=0"
 fi
@@ -284,11 +296,11 @@ append_summary
 log "\nGate evidence written to: $evidence_file"
 log "Machine-readable summary: $summary_file"
 
-if [ "$fail_count" -gt 0 ]; then
+if [ "$fail_count" -gt 0 ] || [ "$skip_count" -gt 0 ]; then
   if [ "$strict_mode" -eq 1 ]; then
-    echo "FAIL: one or more required gates failed. Review $summary_file for details." | tee -a "$evidence_file"
+    echo "FAIL: one or more required gates failed or were skipped. Review $summary_file for details." | tee -a "$evidence_file"
   else
-    echo "FAIL: one or more required gates failed in non-strict mode. Review $summary_file for details." | tee -a "$evidence_file"
+    echo "FAIL: one or more required gates failed or were skipped in non-strict mode. Review $summary_file for details." | tee -a "$evidence_file"
   fi
   exit 1
 fi

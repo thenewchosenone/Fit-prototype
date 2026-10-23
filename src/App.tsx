@@ -934,6 +934,7 @@ function SessionCard({ session, onAdd, onDelete }: { session: WorkoutSession; on
 function LibraryPage() {
   const { state } = useTracker();
   const [query, setQuery] = useState("");
+  const [visibleExerciseCount, setVisibleExerciseCount] = useState(100);
   const [bodyRegions, setBodyRegions] = useState<string[]>([]);
   const [primaryMuscles, setPrimaryMuscles] = useState<string[]>([]);
   const [equipment, setEquipment] = useState<string[]>([]);
@@ -952,6 +953,7 @@ function LibraryPage() {
     movementTypes,
     trackingTypes
   })), [bodyRegions, equipment, movementTypes, primaryMuscles, query, state.exercises, trackingTypes]);
+  useEffect(() => setVisibleExerciseCount(100), [bodyRegions, equipment, movementTypes, primaryMuscles, query, trackingTypes]);
   const hasActiveFilters = Boolean(query.trim()) || [bodyRegions, primaryMuscles, equipment, movementTypes, trackingTypes].some((values) => values.length);
   const clearFilters = () => {
     setQuery("");
@@ -977,12 +979,13 @@ function LibraryPage() {
         <MultiSelectFilter label="Movement" values={movementTypes} options={movementOptions} onChange={setMovementTypes} />
         <MultiSelectFilter label="Tracking" values={trackingTypes} options={trackingOptions} onChange={setTrackingTypes} />
       </div>
-      <div className="library-filter-summary"><div className="library-count" aria-live="polite">{filtered.length} exercises{query.trim() ? " · sorted by relevance" : ""}</div><button className="text-button" type="button" disabled={!hasActiveFilters} onClick={clearFilters}>Clear filters</button></div>
+      <div className="library-filter-summary"><div className="library-count" aria-live="polite">{Math.min(visibleExerciseCount, filtered.length)} of {filtered.length} exercises{query.trim() ? " · sorted by relevance" : ""}</div><button className="text-button" type="button" disabled={!hasActiveFilters} onClick={clearFilters}>Clear filters</button></div>
       <div className="exercise-grid">
-        {filtered.map(({ exercise, reason }) => <ExerciseCard key={exercise.id} exercise={exercise} matchReason={query.trim() ? reason : null} />)}
+        {filtered.slice(0, visibleExerciseCount).map(({ exercise, reason }) => <ExerciseCard key={exercise.id} exercise={exercise} matchReason={query.trim() ? reason : null} />)}
       </div>
+      {visibleExerciseCount < filtered.length && <button className="primary-button library-load-more" type="button" onClick={() => setVisibleExerciseCount((count) => count + 100)}>Show more exercises</button>}
       {!filtered.length && <EmptyState title="No matching exercises" body="Clear a filter or create a custom exercise." />}
-      {customOpen && <CustomExerciseDialog onClose={() => setCustomOpen(false)} />}
+      {customOpen && <CustomExerciseDialog onClose={() => setCustomOpen(false)} onCreated={(exercise) => { setCustomOpen(false); setQuery(exercise.name); }} />}
     </div>
   );
 }

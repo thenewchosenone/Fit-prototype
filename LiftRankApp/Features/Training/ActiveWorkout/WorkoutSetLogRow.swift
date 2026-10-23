@@ -3,6 +3,7 @@ import UIKit
 
 struct WorkoutSetLogRow: View {
     @FocusState.Binding var focusedInput: WorkoutSetInputFocus?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var draft: WorkoutSetLog
     @State private var repsText: String
     @State private var weightText: String
@@ -61,71 +62,191 @@ struct WorkoutSetLogRow: View {
 
     private var parsedWeight: Double? {
         let trimmed = weightText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let value = Double(trimmed), value >= 0 else { return nil }
+        guard let value = MeasurementFormatting.parseLocalizedDecimal(trimmed), value >= 0 else { return nil }
         return value
     }
 
     private static func formatWeight(_ value: Double) -> String {
-        RankingCalculator.format(value)
+        MeasurementFormatting.localizedDecimalText(value, maximumFractionDigits: 1)
+    }
+
+    private var setNumberBadge: some View {
+        Text("\(draft.setNumber)")
+            .font(.subheadline.weight(.black).monospacedDigit())
+            .foregroundStyle(draft.isComplete ? Color.liftOnAccent : Color.liftText)
+            .frame(width: dynamicTypeSize.isAccessibilitySize ? 44 : 34, height: dynamicTypeSize.isAccessibilitySize ? 44 : 38)
+            .background(draft.isComplete ? Color.liftGreen : Color.liftCardRaised)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var previousValuesButton: some View {
+        Button {
+            usePreviousValues()
+        } label: {
+            Text(previousLog == nil ? "No previous" : "Prev · \(previousSummary)")
+                .font(.caption.weight(.bold).monospacedDigit())
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                .fixedSize(horizontal: false, vertical: true)
+                .foregroundStyle(previousLog == nil ? Color.liftMuted : Color.liftAccentText)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 44 : 38)
+                .background(Color.liftScrim)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(previousLog == nil)
+        .accessibilityLabel(previousLog == nil ? "No previous set values" : "Use previous workout values: \(previousSummary)")
+    }
+
+    private var repsInput: some View {
+        compactField(
+            trackingKind.usesDuration ? "Sec" : "Reps",
+            text: $repsText,
+            width: dynamicTypeSize.isAccessibilitySize ? 112 : 64,
+            field: .reps
+        )
+        .keyboardType(.numberPad)
+        .onChange(of: repsText) { _, _ in
+            draft.reps = parsedReps
+            invalidateCompletedSetWithoutRequiredInputs()
+            schedulePersistIfIdle()
+        }
+    }
+
+    @ViewBuilder
+    private var weightInput: some View {
+        if trackingKind.requiresWeight {
+            compactField(
+                weightPlaceholder,
+                text: $weightText,
+                width: dynamicTypeSize.isAccessibilitySize ? 136 : 72,
+                field: .weight
+            )
+            .keyboardType(.decimalPad)
+            .onChange(of: weightText) { _, _ in
+                draft.weight = parsedWeight
+                invalidateCompletedSetWithoutRequiredInputs()
+                schedulePersistIfIdle()
+            }
+        }
+    }
+
+    private var completionButton: some View {
+        Button {
+            toggleCompletion()
+        } label: {
+            Image(systemName: draft.isComplete ? "checkmark" : "circle")
+                .font(.subheadline.weight(.black))
+                .foregroundStyle(draft.isComplete ? Color.liftOnAccent : Color.liftAccentText)
+                .frame(width: dynamicTypeSize.isAccessibilitySize ? 48 : 38, height: dynamicTypeSize.isAccessibilitySize ? 48 : 38)
+                .background(draft.isComplete ? Color.liftGreen : Color.liftBlue.opacity(0.12))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .opacity(!draft.isComplete && !hasRequiredInputs ? 0.55 : 1)
+        .accessibilityLabel(draft.isComplete ? "Mark set incomplete" : "Complete set")
+    }
+
+    private var rpeMenu: some View {
+        Menu {
+            ForEach([6, 7, 8, 9, 10], id: \.self) { value in
+                Button {
+                    cancelPendingPersist()
+                    draft.rpe = draft.rpe == value ? nil : value
+                    persistDraft()
+                    Haptics.light()
+                } label: {
+                    if draft.rpe == value {
+                        Label("RPE \(value)", systemImage: "checkmark")
+                    } else {
+                        Text("RPE \(value)")
+                    }
+                }
+            }
+        } label: {
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(spacing: 2) {
+                        Text("RPE")
+                            .font(.caption2.weight(.black))
+                            .foregroundStyle(Color.liftMuted)
+                        Text(draft.rpe.map { String($0) } ?? "—")
+                            .font(.caption.weight(.black).monospacedDigit())
+                            .foregroundStyle(Color.liftText)
+                    }
+                    .frame(minWidth: 88, minHeight: 88)
+                } else {
+                    HStack(spacing: 4) {
+                        Text("RPE")
+                            .font(.caption2.weight(.black))
+                            .foregroundStyle(Color.liftMuted)
+                        Text(draft.rpe.map { String($0) } ?? "—")
+                            .font(.caption.weight(.black).monospacedDigit())
+                            .foregroundStyle(Color.liftText)
+                    }
+                    .frame(width: 64, height: 44)
+                }
+            }
+            .background(Color.liftCardRaised)
+            .clipShape(Capsule())
+        }
+        .accessibilityLabel(draft.rpe.map { "RPE \($0)" } ?? "Choose RPE")
+        .accessibilityHint("Choose a value from 6 to 10. Select the current value again to clear it.")
+    }
+
+    private var setOptionsButton: some View {
+        Button {
+            showingDetails.toggle()
+        } label: {
+            Label(showingDetails ? "Done" : "Set options", systemImage: showingDetails ? "checkmark" : "ellipsis.circle")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.liftMuted)
+                .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 52 : 44)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(showingDetails ? "Hide set options" : "Show set options")
+    }
+
+    @ViewBuilder
+    private var setRowActions: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 8) {
+                if !draft.isWarmup { rpeMenu }
+                setOptionsButton
+            }
+        } else {
+            HStack(spacing: 6) {
+                if !draft.isWarmup { rpeMenu }
+                Spacer(minLength: 0)
+                setOptionsButton
+            }
+        }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Text("\(draft.setNumber)")
-                    .font(.subheadline.weight(.black).monospacedDigit())
-                    .foregroundStyle(draft.isComplete ? Color.liftOnAccent : Color.liftText)
-                    .frame(width: 34, height: 38)
-                    .background(draft.isComplete ? Color.liftGreen : Color.liftCardRaised)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                Button {
-                    usePreviousValues()
-                } label: {
-                    Text(previousLog == nil ? "No previous" : "Prev · \(previousSummary)")
-                        .font(.caption.weight(.bold).monospacedDigit())
-                        .lineLimit(1)
-                        .foregroundStyle(previousLog == nil ? Color.liftMuted : Color.liftAccentText)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 38)
-                        .background(Color.liftScrim)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .disabled(previousLog == nil)
-                .accessibilityLabel(previousLog == nil ? "No previous set values" : "Use previous workout values: \(previousSummary)")
-
-                compactField(trackingKind.usesDuration ? "Sec" : "Reps", text: $repsText, width: 64, field: .reps)
-                    .keyboardType(.numberPad)
-                    .onChange(of: repsText) { _, _ in
-                        draft.reps = parsedReps
-                        invalidateCompletedSetWithoutRequiredInputs()
-                        schedulePersistIfIdle()
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        setNumberBadge
+                        Spacer(minLength: 0)
+                        completionButton
                     }
-
-                if trackingKind.requiresWeight {
-                    compactField(weightPlaceholder, text: $weightText, width: 72, field: .weight)
-                        .keyboardType(.decimalPad)
-                        .onChange(of: weightText) { _, _ in
-                            draft.weight = parsedWeight
-                        invalidateCompletedSetWithoutRequiredInputs()
-                            schedulePersistIfIdle()
-                        }
+                    previousValuesButton
+                    HStack(spacing: 8) {
+                        repsInput
+                        weightInput
+                        Spacer(minLength: 0)
+                    }
                 }
-
-                Button {
-                    toggleCompletion()
-                } label: {
-                    Image(systemName: draft.isComplete ? "checkmark" : "circle")
-                        .font(.subheadline.weight(.black))
-                        .foregroundStyle(draft.isComplete ? Color.liftOnAccent : Color.liftAccentText)
-                        .frame(width: 38, height: 38)
-                        .background(draft.isComplete ? Color.liftGreen : Color.liftBlue.opacity(0.12))
-                        .clipShape(Circle())
+            } else {
+                HStack(spacing: 8) {
+                    setNumberBadge
+                    previousValuesButton
+                    repsInput
+                    weightInput
+                    completionButton
                 }
-                .buttonStyle(.plain)
-                .opacity(!draft.isComplete && !hasRequiredInputs ? 0.55 : 1)
-                .accessibilityLabel(draft.isComplete ? "Mark set incomplete" : "Complete set")
             }
 
             if showingDetails {
@@ -155,42 +276,7 @@ struct WorkoutSetLogRow: View {
                 }
             }
 
-            HStack(spacing: 6) {
-                if !draft.isWarmup {
-                    Text("RPE")
-                        .font(.caption2.weight(.black))
-                        .foregroundStyle(Color.liftMuted)
-                        .frame(width: 34, alignment: .leading)
-                    ForEach([6, 7, 8, 9, 10], id: \.self) { value in
-                        Button {
-                            cancelPendingPersist()
-                            draft.rpe = draft.rpe == value ? nil : value
-                            persistDraft()
-                            Haptics.light()
-                        } label: {
-                            Text("\(value)")
-                                .font(.caption.weight(.black).monospacedDigit())
-                                .foregroundStyle(draft.rpe == value ? Color.liftOnAccent : Color.liftText)
-                                .frame(width: 30, height: 28)
-                                .background(draft.rpe == value ? rpeTint(value) : rpeTint(value).opacity(0.12))
-                                .clipShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Set RPE to \(value)")
-                        .accessibilityAddTraits(draft.rpe == value ? .isSelected : [])
-                    }
-                }
-                Spacer(minLength: 0)
-                Button {
-                    showingDetails.toggle()
-                } label: {
-                    Label(showingDetails ? "Done" : "Set options", systemImage: showingDetails ? "checkmark" : "ellipsis.circle")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.liftMuted)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(showingDetails ? "Hide set options" : "Show set options")
-            }
+            setRowActions
             .padding(.top, 1)
 
             if showValidation && !hasRequiredInputs {
@@ -287,7 +373,8 @@ struct WorkoutSetLogRow: View {
             .textFieldStyle(.plain)
             .accessibilityIdentifier("workout.set.\(draft.setNumber).\(field.rawValue)")
             .focused($focusedInput, equals: WorkoutSetInputFocus(logID: draft.id, field: field))
-            .frame(width: width, height: 38)
+            .frame(width: width)
+            .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 52 : 38)
             .background(Color.liftScrim)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay {

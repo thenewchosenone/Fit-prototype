@@ -109,6 +109,26 @@ extension HomeView {
     }
 
     @ViewBuilder
+    var savedAccountDataStatus: some View {
+        if appState.isAuthenticated && !appState.isDemoMode && appState.competitionStore.isProductionDataLoading {
+            HStack(spacing: 10) {
+                ProgressView()
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Loading saved lift data")
+                        .font(.subheadline.weight(.bold))
+                    Text("Your account is still being restored.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                }
+                Spacer(minLength: 4)
+            }
+            .padding(12)
+            .homePanelStyle()
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    @ViewBuilder
     var trainingAlerts: some View {
         let stalledLifts = Array(appState.plateauInsights.prefix(2))
         let stalledLiftNames = stalledLifts.map { $0.exerciseName }.joined(separator: ", ")
@@ -143,6 +163,8 @@ extension HomeView {
                                 .foregroundStyle(Color.liftGold)
                             Text(signalCount == 1 ? "Training signal" : "Training signals")
                                 .font(.subheadline.weight(.bold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.65)
                             Text("\(signalCount)")
                                 .font(.caption.weight(.black))
                                 .foregroundStyle(Color.liftAccentText)
@@ -158,6 +180,8 @@ extension HomeView {
                         if !stalledLifts.isEmpty {
                             Text("Possible plateau")
                                 .font(.caption.weight(.bold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.65)
                             Text("\(stalledLiftNames) · Open plateau details")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
@@ -166,6 +190,8 @@ extension HomeView {
                         if !recoveringMuscles.isEmpty {
                             Text("Recovery context")
                                 .font(.caption.weight(.bold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.65)
                             Text("\(recoveringMuscles.map { $0.muscle.displayName }.joined(separator: ", ")) · Review recovery")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
@@ -174,6 +200,8 @@ extension HomeView {
                         if unusualVolume {
                             Text("Unusual volume")
                                 .font(.caption.weight(.bold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.65)
                             Text("Volume is \(Int(((thisWeekVolume - baselineVolume) / baselineVolume * 100).rounded()))% above your prior four-week average · Review volume")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
@@ -215,7 +243,6 @@ extension HomeView {
                 }
             }
         }
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
     var headerIdentity: some View {
@@ -355,13 +382,15 @@ extension HomeView {
                 Text(homeTrainingTitle(today: today, missed: missed, todayComplete: todayComplete, programComplete: programComplete))
                     .font(.subheadline.weight(.black))
                     .foregroundStyle(Color.liftText)
-                    .lineLimit(2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .multilineTextAlignment(.leading)
 
                 Text(homeTrainingSubtitle(today: today, missed: missed, todayComplete: todayComplete, programComplete: programComplete))
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
-                    .lineLimit(2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Spacer(minLength: 2)
 
@@ -381,7 +410,8 @@ extension HomeView {
                             : "arrow.uturn.backward.circle")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.liftMuted)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, minHeight: 128, alignment: .leading)
             .padding(16)
@@ -419,9 +449,9 @@ extension HomeView {
 
     private var todayScheduledSessionCompleted: Bool {
         guard let scheduled = appState.scheduledWorkout() else { return false }
-        let planned = appState.prescriptions(for: scheduled.session)
-        guard !planned.isEmpty else { return false }
-        return appState.completedPrescriptionCount(for: scheduled.session) >= planned.count
+        return appState.completedWorkouts.contains {
+            $0.sourceSessionID == scheduled.session.id && !$0.completedWorkingSets.isEmpty
+        } || appState.isFullyCompletedPlanSession(scheduled.session)
     }
 
     private var selectedProgramIsCompleteForHome: Bool {
@@ -511,6 +541,9 @@ extension HomeView {
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text(summary.overallTier.label)
                         .font(.title2.weight(.black))
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                        .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.78)
+                        .fixedSize(horizontal: false, vertical: true)
                         .foregroundStyle(Color.liftText)
                 }
 
@@ -874,6 +907,7 @@ extension HomeView {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
                     header
+                    savedAccountDataStatus
                     workoutStatus
                     workoutSyncStatus
                     trainingAlerts
@@ -903,7 +937,7 @@ extension HomeView {
         }
         .sheet(item: $selectedBodyweightEntry) { entry in
             BodyweightEntryEditor(entry: entry) { updatedEntry in
-                appState.updateBodyweight(updatedEntry)
+                try await appState.updateBodyweight(updatedEntry)
             }
             .presentationDetents([.medium])
         }

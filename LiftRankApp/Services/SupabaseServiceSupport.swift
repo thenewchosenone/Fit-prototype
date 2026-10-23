@@ -38,7 +38,7 @@ struct SupabaseConfiguration: Equatable {
               let backendEnvironment = LiftRankBackendEnvironment(rawValue: environmentName.lowercased()) else {
             return nil
         }
-        guard backendEnvironment == .local || !isServiceRoleKey(key) else { return nil }
+        guard backendEnvironment == .local || isAllowedHostedClientKey(key) else { return nil }
         if backendEnvironment == .local {
             guard ["127.0.0.1", "localhost"].contains(host), ["http", "https"].contains(scheme) else { return nil }
         } else {
@@ -47,7 +47,10 @@ struct SupabaseConfiguration: Equatable {
         return SupabaseConfiguration(url: url, publicKey: key, environment: backendEnvironment)
     }
 
-    private static func isServiceRoleKey(_ key: String) -> Bool {
+    private static func isAllowedHostedClientKey(_ key: String) -> Bool {
+        if key.hasPrefix("sb_publishable_") {
+            return key.count > "sb_publishable_".count
+        }
         let parts = key.split(separator: ".", omittingEmptySubsequences: false)
         guard parts.count == 3 else { return false }
         var payload = String(parts[1])
@@ -57,7 +60,7 @@ struct SupabaseConfiguration: Equatable {
         guard let data = Data(base64Encoded: payload),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let role = object["role"] as? String else { return false }
-        return role == "service_role"
+        return role == "anon"
     }
 }
 

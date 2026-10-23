@@ -1,4 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { ownedLiftEvidenceCleanupPaths, profileAvatarCleanupPaths } from "../_shared/account-storage-paths.js";
+import { hasRecentAuthentication } from "../_shared/recent-authentication.js";
+import { selectAllRows } from "../_shared/paginated-select.js";
+import { removeStoragePathsInBatches } from "../_shared/storage-cleanup.js";
 
 const allowedOrigins = new Set(["https://liftrivals.com", "https://www.liftrivals.com"]);
 const headersFor = (origin: string | null) => ({
@@ -28,31 +32,26 @@ Deno.serve(async (request) => {
   const { data: { user }, error } = await userClient.auth.getUser();
   if (error || !user) return json({ error: "Unauthorized" }, 401, origin);
 
-  const payloadSegment = authorization.replace(/^Bearer\s+/i, "").split(".")[1] ?? "";
-  let issuedAt = Number.NaN;
-  try {
-    const normalized = payloadSegment.replaceAll("-", "+").replaceAll("_", "/")
-      .padEnd(Math.ceil(payloadSegment.length / 4) * 4, "=");
-    issuedAt = Number(JSON.parse(atob(normalized)).iat);
-  } catch {
-    // getUser above validates the token; malformed timestamp data is still
-    // rejected because deletion requires explicit recent authentication.
-  }
-  if (!Number.isFinite(issuedAt) || Date.now() / 1000 - issuedAt > 600) {
+  const accessToken = authorization.replace(/^Bearer\s+/i, "");
+  // getUser above validates the JWT signature. Its iat is not an authentication
+  // timestamp because Supabase issues a new access token when refreshing.
+  if (!hasRecentAuthentication(accessToken)) {
     return json({ error: "Recent authentication required" }, 403, origin);
   }
 
   const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
   // Database rows use ON DELETE CASCADE from auth-owned profiles. Delete private
   // media first because Storage objects are not covered by database cascades.
-  const { data: assets, error: assetError } = await admin.from("lift_media_assets")
+  const { data: assets, error: assetError } = await selectAllRows(() => admin.from("lift_media_assets")
     .select("storage_path")
-    .eq("owner_id", user.id);
+    .eq("owner_id", user.id)
+    .order("storage_path"));
   if (assetError) return json({ error: "Media cleanup lookup failed" }, 500, origin);
 
-  const { data: submissions, error: submissionError } = await admin.from("lift_submissions")
-    .select("evidence_storage_path,pending_evidence_storage_path,approved_evidence_storage_path")
-    .eq("user_id", user.id);
+  const { data: submissions, error: submissionError } = await selectAllRows(() => admin.from("lift_submissions")
+    .select("id,evidence_storage_path,pending_evidence_storage_path,approved_evidence_storage_path")
+    .eq("user_id", user.id)
+    .order("id"));
   if (submissionError) return json({ error: "Evidence cleanup lookup failed" }, 500, origin);
 
   const storagePaths = new Map<string, Set<string>>();
@@ -63,11 +62,13 @@ Deno.serve(async (request) => {
   };
   addStoragePaths("lift-videos", (assets ?? []).map((asset) => asset.storage_path));
 
-  const legacyEvidencePaths = [...new Set((submissions ?? []).flatMap((submission) => [
-    submission.evidence_storage_path,
-    submission.pending_evidence_storage_path,
-    submission.approved_evidence_storage_path,
-  ].filter((path): path is string => typeof path === "string" && path.length > 0)))];
+  const legacyEvidencePaths = (submissions ?? []).flatMap((submission) =>
+    ownedLiftEvidenceCleanupPaths(user.id, submission.id, [
+      submission.evidence_storage_path,
+      submission.pending_evidence_storage_path,
+      submission.approved_evidence_storage_path,
+    ]),
+  );
   if (legacyEvidencePaths.length) {
     const { data: buckets, error: bucketError } = await admin.storage.listBuckets();
     if (bucketError) return json({ error: "Evidence storage lookup failed" }, 500, origin);
@@ -77,17 +78,18 @@ Deno.serve(async (request) => {
   }
 
   for (const [bucket, paths] of storagePaths) {
-    const { error: storageError } = await admin.storage.from(bucket).remove([...paths]);
+    const storageError = await removeStoragePathsInBatches(admin.storage, bucket, [...paths]);
     if (storageError) return json({ error: "Media cleanup failed" }, 500, origin);
   }
 
   const { data: profile, error: profileError } = await admin.from("profiles").select("avatar_path").eq("id", user.id).maybeSingle();
   if (profileError) return json({ error: "Profile cleanup lookup failed" }, 500, origin);
   if (profile?.avatar_path) {
-    const { error: avatarError } = await admin.storage.from("profile-avatars").remove([
-      `${profile.avatar_path}/avatar-full.jpg`,
-      `${profile.avatar_path}/avatar-thumb.jpg`,
-    ]);
+    const avatarError = await removeStoragePathsInBatches(
+      admin.storage,
+      "profile-avatars",
+      profileAvatarCleanupPaths(user.id, profile.avatar_path),
+    );
     if (avatarError) return json({ error: "Avatar cleanup failed" }, 500, origin);
   }
   const { error: deletionError } = await admin.auth.admin.deleteUser(user.id, false);

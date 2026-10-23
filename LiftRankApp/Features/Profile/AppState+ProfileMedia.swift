@@ -3,9 +3,11 @@ import UIKit
 
 @MainActor
 extension AppState {
-    func updateBodyweight(_ entry: BodyweightEntry) {
+    func updateBodyweight(_ entry: BodyweightEntry) async throws {
         Haptics.light()
-        guard let actual = entry.actual, actual > 0 else { return }
+        guard let actual = entry.actual, (40...1500).contains(actual) else {
+            throw LiftRankServiceError.invalidInput("Bodyweight must be between 40 and 1500 pounds.")
+        }
         var profile = currentProfile
         profile.bodyweightPounds = actual
         guard isAuthenticated, !isDemoMode else {
@@ -15,22 +17,16 @@ extension AppState {
             return
         }
         let userID = profile.id
-        Task {
-            do {
-                guard accountSession?.userID == userID,
-                      repository.currentProfile.id == userID else { return }
-                try await profileStore.saveBodyweightEntry(entry)
-                _ = try await profileStore.updateProfile(profile)
-                guard accountSession?.userID == userID,
-                      repository.currentProfile.id == userID else { return }
-                trainingProgressStore.updateBodyweight(entry)
-                profileStore.saveProfile(profile)
-                repository.persistWorkoutSnapshotWithoutBlockingUI()
-            } catch {
-                guard accountSession?.userID == userID else { return }
-                accountMessage = userMessage(error)
-            }
-        }
+        guard accountSession?.userID == userID,
+              repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
+        try await profileStore.saveBodyweightEntry(entry)
+        repository.syncedBodyweightEntryIDs.insert(entry.id)
+        _ = try await profileStore.updateProfile(profile)
+        guard accountSession?.userID == userID,
+              repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
+        trainingProgressStore.updateBodyweight(entry)
+        profileStore.saveProfile(profile)
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
     func saveProfilePhoto(_ image: UIImage) async {

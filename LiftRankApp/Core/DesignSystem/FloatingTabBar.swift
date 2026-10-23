@@ -8,6 +8,7 @@ struct FloatingTabItem: Identifiable {
 }
 
 struct FloatingTabBar: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var selection: AppTab
     let items: [FloatingTabItem]
 
@@ -38,12 +39,13 @@ struct FloatingTabBar: View {
                         Image(systemName: item.icon)
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(item.tab == selection ? Color.liftAccentText : Color.liftTextSecondary)
-                        Text(item.title)
-                            .font(.system(size: 9, weight: .bold, design: .rounded))
-                            .tracking(0.3)
+                        Text(usesCompactTabTitle(item) ? "Ranks" : item.title)
+                            .font(.system(.caption2, design: .rounded, weight: .bold))
+                            .dynamicTypeSize(...DynamicTypeSize.large)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                            .allowsTightening(true)
+                            .minimumScaleFactor(0.7)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
                             .foregroundStyle(item.tab == selection ? Color.liftAccentText : Color.liftTextSecondary)
                     }
                     .frame(maxWidth: .infinity)
@@ -56,5 +58,9 @@ struct FloatingTabBar: View {
                 .accessibilityValue(item.tab == selection ? "selected" : "not selected")
             }
         }
+    }
+
+    private func usesCompactTabTitle(_ item: FloatingTabItem) -> Bool {
+        item.tab == .leaderboards && dynamicTypeSize >= .xxxLarge
     }
 }

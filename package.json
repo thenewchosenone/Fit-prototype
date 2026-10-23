@@ -9,7 +9,7 @@
     "build": "node scripts/clean-dist.mjs && tsc -b && vite build",
     "build:demo": "VITE_PUBLIC_DEMO=true VITE_AUTH_DEMO_MODE=true VITE_ENABLE_DEFERRED_FEATURES=true pnpm build",
     "preview": "vite preview",
-    "test": "vitest run tests && node --test scripts/gym-sources/*.test.mjs",
+    "test": "vitest run tests && node --test scripts/gym-sources/*.test.mjs supabase/functions/_shared/*.test.mjs",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:demo": "pnpm build:demo && playwright test --config=playwright.demo.config.ts",
@@ -35,7 +35,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "jsdom": "^25.0.1",
     "typescript": "~5.7.2",
-    "vite": "^6.0.5",
-    "vitest": "^2.1.8"
+    "vite": "^6.4.4",
+    "vitest": "^4.1.11"
   }
 }

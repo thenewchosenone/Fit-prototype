@@ -67,7 +67,20 @@ final class SupabaseSocialService: SocialService {
     func unblock(userID: UUID) async throws { try await rpc("unblock_user", userID) }
     func blocks() async throws -> [UserBlockRecord] {
         do {
-            let rows: [BlockDTO] = try await client.from("user_blocks").select().order("created_at", ascending: false).limit(500).execute().value
+            let pageSize = 500
+            var rows: [BlockDTO] = []
+            var offset = 0
+            while true {
+                let page: [BlockDTO] = try await client.from("user_blocks")
+                    .select()
+                    .order("created_at", ascending: false)
+                    .order("blocked_id")
+                    .range(from: offset, to: offset + pageSize - 1)
+                    .execute().value
+                rows.append(contentsOf: page)
+                guard page.count == pageSize else { break }
+                offset += pageSize
+            }
             return rows.map { .init(blockerID: $0.blockerID, blockedID: $0.blockedID, createdAt: $0.createdAt) }
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
@@ -111,7 +124,7 @@ private struct ForumPostDTO: Codable {
     let id: UUID
     let communityID: UUID?
     let gymID: UUID?
-    let authorID: UUID
+    let authorID: UUID?
     let kind: String
     let title: String
     let body: String
@@ -158,7 +171,7 @@ private struct ForumAggregateCountDTO: Codable {
 private struct ForumCommentDTO: Codable {
     let id: UUID
     let postID: UUID
-    let authorID: UUID
+    let authorID: UUID?
     let parentCommentID: UUID?
     let body: String
     let createdAt: Date
@@ -362,7 +375,23 @@ final class SupabaseForumService: ForumService {
         do {
             let user = try await client.auth.session.user
             let post: ForumPostDTO = try await client.from("forum_posts").select("id,community_id,gym_id,author_id,kind,title,body,tag,lift_id,is_pinned,is_locked,created_at,forum_post_votes(user_id,value),forum_comments(count)").eq("id", value: postID).is("removed_at", value: nil).single().execute().value
-            let comments: [ForumCommentDTO] = try await client.from("forum_comments").select("id,post_id,author_id,parent_comment_id,body,created_at,forum_comment_votes(user_id,value)").eq("post_id", value: postID).is("removed_at", value: nil).order("created_at").execute().value
+            let pageSize = 500
+            var comments: [ForumCommentDTO] = []
+            var offset = 0
+            while true {
+                let page: [ForumCommentDTO] = try await client.from("forum_comments")
+                    .select("id,post_id,author_id,parent_comment_id,body,created_at,forum_comment_votes(user_id,value)")
+                    .eq("post_id", value: postID)
+                    .is("removed_at", value: nil)
+                    .order("created_at")
+                    .order("id")
+                    .range(from: offset, to: offset + pageSize - 1)
+                    .execute()
+                    .value
+                comments.append(contentsOf: page)
+                guard page.count == pageSize else { break }
+                offset += pageSize
+            }
             return ForumThread(post: post.model(currentUserID: user.id), comments: comments.map { $0.model(currentUserID: user.id) })
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }

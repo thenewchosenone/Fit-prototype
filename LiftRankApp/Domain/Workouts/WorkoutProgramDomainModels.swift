@@ -296,6 +296,11 @@ struct CompletedWorkout: Identifiable, Codable, Hashable {
         sets.filter { $0.isComplete && !$0.isWarmup }
     }
 
+    var exercisesWithCompletedWorkingSets: [WorkoutExerciseSnapshot] {
+        let completedPrescriptionIDs = Set(completedWorkingSets.map(\.prescriptionID))
+        return exercises.filter { completedPrescriptionIDs.contains($0.id) }
+    }
+
     var totalVolume: Double {
         completedWorkingSets.reduce(0) { total, set in
             guard trackingKind(for: set) == .weightReps else { return total }
@@ -439,7 +444,7 @@ struct WorkoutPreferences: Codable, Hashable {
 
 struct WorkoutPersistenceSnapshot: Codable, Hashable {
     static let seedCleanupVersion = 10
-    static let currentVersion = 11
+    static let currentVersion = 12
 
     var schemaVersion: Int
     var currentProfile: UserProfile? = nil
@@ -468,7 +473,9 @@ struct WorkoutPersistenceSnapshot: Codable, Hashable {
     var rankingHistory: [RankingHistorySnapshot]? = nil
     var pendingCompletedWorkoutUploads: [CompletedWorkoutSnapshot]? = nil
     var deletedCompletedWorkoutIDs: Set<UUID>? = nil
+    var syncedCompletedWorkoutIDs: Set<UUID>? = nil
     var workoutPlanSyncRevisions: [UUID: Int]? = nil
     var workoutPlanLastSyncedPayloads: [UUID: Data]? = nil
     var pendingRemoteWorkoutPlanDeletions: Set<UUID>? = nil
+    var syncedBodyweightEntryIDs: Set<UUID>? = nil
 }

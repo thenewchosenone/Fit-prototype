@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PrescriptionTrackView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let exercise: WorkoutExerciseSnapshot
     let catalogExercise: TrainingExerciseCatalogItem
     @State private var restEndsAt: Date?
@@ -116,10 +117,12 @@ struct PrescriptionTrackView: View {
                                 .listRowBackground(Color.clear)
                             }
 
-                            setColumnHeader
-                                .listRowInsets(EdgeInsets(top: 8, leading: 18, bottom: 4, trailing: 18))
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
+                            if !dynamicTypeSize.isAccessibilitySize {
+                                setColumnHeader
+                                    .listRowInsets(EdgeInsets(top: 8, leading: 18, bottom: 4, trailing: 18))
+                                    .listRowSeparator(.hidden)
+                                    .listRowBackground(Color.clear)
+                            }
 
                             ForEach(logs) { log in
                                 WorkoutSetLogRow(

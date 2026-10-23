@@ -126,6 +126,12 @@ final class AccountSocialStore: ObservableObject {
             try await socialService.unblock(userID: userID)
         }
         guard repository.currentProfile.id == ownerID else { return }
+        if blocked {
+            blocks.removeAll { $0.blockedID == userID }
+            blocks.append(UserBlockRecord(blockerID: ownerID, blockedID: userID, createdAt: .now))
+        } else {
+            blocks.removeAll { $0.blockedID == userID }
+        }
         if let refreshed = try? await socialService.blocks() {
             guard repository.currentProfile.id == ownerID else { return }
             blocks = refreshed

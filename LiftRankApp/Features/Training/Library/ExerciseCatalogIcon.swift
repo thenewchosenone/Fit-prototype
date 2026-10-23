@@ -26,10 +26,12 @@ struct ExerciseCatalogIcon: View {
                     .font(.system(size: 23, weight: .semibold))
                     .frame(height: 27)
                 Text(iconGroup.rawValue)
-                    .font(.system(size: 8, weight: .bold, design: .rounded))
+                    .font(.caption2.weight(.bold))
                     .tracking(0.3)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
             }
-            .foregroundStyle(Color.liftAccentText)
+            .foregroundStyle(Color.liftLime)
         }
         .frame(width: 54, height: 54)
         .accessibilityElement(children: .ignore)

@@ -26,25 +26,33 @@ private struct ProfileSectionNavigation: View {
     let onSelect: (ProfileSection) -> Void
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(sections, id: \.id) { section in
-                    let isSelected = selection == section
-                    Button(action: { select(section) }) {
-                        Text(section.rawValue)
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(sections, id: \.id) { section in
+                        let isSelected = selection == section
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                proxy.scrollTo(section.id, anchor: .trailing)
+                            }
+                            select(section)
+                        } label: {
+                            Text(section.rawValue)
+                        }
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(isSelected ? Color.black : Color.liftText)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
+                        .background(isSelected ? Color.liftLime : Color.liftSurfaceElevated)
+                        .clipShape(Capsule())
+                        .accessibilityIdentifier("profile.section.\(section.id)")
+                        .id(section.id)
                     }
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(isSelected ? Color.liftText : Color.liftMuted)
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: LiftDesign.minimumTouchTarget)
-                    .background(isSelected ? Color.liftLime : Color.liftSurfaceElevated)
-                    .clipShape(Capsule())
-                    .accessibilityIdentifier("profile.section.\(section.id)")
                 }
             }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("profile.sectionNavigation")
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("profile.sectionNavigation")
     }
 
     private func select(_ section: ProfileSection) {
@@ -78,16 +86,6 @@ extension ProfileView {
                                 compact: true
                             )
                         }
-                        if !isCurrentUser && liftPresentation.lifts.isEmpty && profileLoadError == nil {
-                            LiftEmptyState(
-                                title: "No public training data",
-                                message: "Qualifying lifts are either not shared yet or not available to visitors.",
-                                symbolName: "eye.slash",
-                                compact: true
-                            )
-                            .accessibilityIdentifier("profile.noPublicData")
-                        }
-                        if isCurrentUser || !liftPresentation.lifts.isEmpty {
                         ProfileSectionNavigation(
                                 selection: $selectedProfileSection,
                             sections: isCurrentUser
@@ -95,10 +93,24 @@ extension ProfileView {
                                 : [.overview, .prVideos, .training, .submissions]
                         ) { section in
                             if section == .training { showingAthleteDetails = true }
-                            withAnimation(.easeInOut) { proxy.scrollTo(section.id, anchor: .top) }
+                            if isCurrentUser {
+                                withAnimation(.easeInOut) { proxy.scrollTo(section.id, anchor: .top) }
+                            }
                         }
                         .padding(.vertical, 2)
                         Group {
+                            if !isCurrentUser {
+                                switch selectedProfileSection {
+                                case .overview:
+                                    publicOverview(presentation: liftPresentation)
+                                case .prVideos:
+                                    ProfileLiftVideosSection(profile: profile, isCurrentUser: false, prefilteredLifts: liftPresentation.lifts)
+                                case .training:
+                                    publicTraining
+                                case .submissions, .history, .timeline:
+                                    recentSubmissions(profileLifts: liftPresentation.lifts)
+                                }
+                            } else {
                             summary(presentation: liftPresentation)
                                 .id(ProfileSection.overview.id)
                             ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: liftPresentation.lifts)
@@ -113,7 +125,7 @@ extension ProfileView {
                             }
                             recentSubmissions(profileLifts: liftPresentation.lifts)
                                 .id(ProfileSection.submissions.id)
-                        }
+                            }
                         }
                     }
                 }
@@ -168,7 +180,7 @@ extension ProfileView {
                         }
                         .accessibilityLabel("Profile actions")
                     }
-                } else {
+                } else if profile.id != appState.currentProfile.id {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             Button("Report athlete", role: .destructive) {

@@ -203,18 +203,18 @@ struct SectionHeader: View {
             VStack(alignment: .leading, spacing: 2) {
                 if let eyebrow {
                     Text(eyebrow.uppercased())
-                        .font(.system(size: 11, weight: .black, design: .rounded))
+                        .font(.system(.caption2, design: .rounded, weight: .black))
                         .tracking(0.8)
                         .foregroundStyle(Color.liftAccentText)
                 }
                 Text(title)
-                    .font(.system(size: 26, weight: .heavy, design: .rounded))
+                    .font(.system(.title2, design: .rounded, weight: .heavy))
                     .foregroundStyle(Color.liftTextPrimary)
             }
             Spacer()
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .font(.system(.caption, design: .rounded, weight: .bold))
                     .foregroundStyle(Color.liftAccentText)
                     .padding(.horizontal, 12)
                     .frame(minHeight: LiftDesign.minimumTouchTarget)
@@ -237,20 +237,21 @@ struct CompactSectionHeader: View {
             VStack(alignment: .leading, spacing: 2) {
                 if let eyebrow {
                     Text(eyebrow.uppercased())
-                        .font(.system(size: 11, weight: .black, design: .rounded))
+                        .font(.system(.caption2, design: .rounded, weight: .black))
                         .tracking(0.8)
                         .foregroundStyle(Color.liftAccentText)
                 }
                 Text(title)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(.system(.title3, design: .rounded, weight: .bold))
                     .foregroundStyle(Color.liftTextPrimary)
             }
             Spacer()
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .font(.system(.caption, design: .rounded, weight: .semibold))
                     .foregroundStyle(Color.liftAccentText)
                     .frame(minHeight: LiftDesign.minimumTouchTarget)
+                    .contentShape(Rectangle())
             }
         }
         .accessibilityElement(children: .contain)
@@ -283,6 +284,8 @@ struct MetricCard: View {
     let subtitle: String
     var symbolName = "chart.bar.fill"
     var tint = Color.liftLime
+    @ScaledMetric(relativeTo: .caption) private var titleFontSize: CGFloat = 11
+    @ScaledMetric(relativeTo: .largeTitle) private var valueFontSize: CGFloat = 56
 
     var body: some View {
         DashboardCard {
@@ -291,13 +294,13 @@ struct MetricCard: View {
                     Image(systemName: symbolName)
                         .foregroundStyle(tint)
                     Text(title)
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .font(.system(size: titleFontSize, weight: .bold, design: .rounded))
                         .tracking(0.4)
                         .foregroundStyle(Color.liftTextSecondary)
                     Spacer()
                 }
                 Text(value)
-                    .font(.system(size: 56, weight: .black, design: .rounded))
+                    .font(.system(size: valueFontSize, weight: .black, design: .rounded))
                     .minimumScaleFactor(0.7)
                     .foregroundStyle(Color.liftTextPrimary)
                     .lineLimit(1)
@@ -420,7 +423,7 @@ struct LiftSheetHeader: View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 34, weight: .black, design: .rounded))
+                    .font(.largeTitle.weight(.black))
                     .foregroundStyle(Color.liftTextPrimary)
                 if let subtitle {
                     Text(subtitle)

@@ -35,7 +35,6 @@ struct ProgramPlanDetailView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Program details")
                         .font(.headline.weight(.bold))
-                        .lineLimit(1)
                     Text("\(weeks.count) scheduled weeks")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
@@ -214,6 +213,7 @@ struct ProgramPlanDetailView: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(selectedWeekPosition == 0 ? Color.liftMuted.opacity(0.35) : Color.liftMuted)
@@ -237,7 +237,6 @@ struct ProgramPlanDetailView: View {
                     Text(selectedWeek?.title ?? "Select week")
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(Color.liftText)
-                        .lineLimit(2)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                     if let selectedWeekPosition {
@@ -256,6 +255,7 @@ struct ProgramPlanDetailView: View {
             } label: {
                 Image(systemName: "chevron.right")
                     .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(selectedWeekPosition == weeks.count - 1 ? Color.liftMuted.opacity(0.35) : Color.liftMuted)
@@ -380,7 +380,6 @@ struct ProgramPlanDetailView: View {
                                     .frame(width: 20)
                                 Text(session.name)
                                     .font(.caption)
-                                    .lineLimit(1)
                                 Spacer()
                                 Button {
                                     var ids = appState.selectedPlanQueuedSessions.map(\.id)
@@ -429,9 +428,13 @@ struct ProgramPlanDetailView: View {
                 let completedSessions = plannedSessions.filter { session in
                     presentation.completedSessionIDs.contains(session.id)
                 }
-                let nextSession = appState.selectedPlanQueueEnabled ? nil : plannedSessions.first { session in
-                    !presentation.completedSessionIDs.contains(session.id)
-                }
+                let scheduledSession = appState.scheduledPlanSessions(on: .now)
+                    .first(where: { $0.week.id == selectedWeek.id })?.session
+                let nextSession = appState.selectedPlanQueueEnabled ? nil : (
+                    scheduledSession ?? plannedSessions.first { session in
+                        !presentation.completedSessionIDs.contains(session.id)
+                    }
+                )
                 let plannedPlanSessions = appState.selectedPlanWeeks
                     .flatMap(appState.sessions(for:))
                     .filter { !appState.prescriptions(for: $0).isEmpty }

@@ -8,17 +8,17 @@ select plan(17);
 select has_function(
   'public',
   'notify_forum_reply',
-  array[],
+  array[]::text[],
   'reply notification trigger function exists'
 );
 select is_definer(
   'public',
   'notify_forum_reply',
-  array[],
+  array[]::text[],
   'reply notification is evaluated server-side'
 );
 select ok(
-  position('search_path=pg_catalog, public' in pg_get_functiondef('public.notify_forum_reply()'::regprocedure)) > 0,
+  (select proconfig @> array['search_path=pg_catalog, public']::text[] from pg_catalog.pg_proc where oid = 'public.notify_forum_reply()'::regprocedure),
   'reply notification uses a fixed search path'
 );
 
@@ -35,7 +35,7 @@ select is_definer(
   'moderator authorization is evaluated server-side'
 );
 select ok(
-  position('search_path = pg_catalog, public' in pg_get_functiondef('public.can_moderate_forum_community(uuid)'::regprocedure)) > 0,
+  (select proconfig @> array['search_path=pg_catalog, public']::text[] from pg_catalog.pg_proc where oid = 'public.can_moderate_forum_community(uuid)'::regprocedure),
   'moderator authorization uses a fixed search path'
 );
 select ok(
@@ -59,13 +59,13 @@ select is_definer(
   'forum post visibility is evaluated server-side'
 );
 select ok(
-  position('search_path = pg_catalog, public' in pg_get_functiondef('public.can_view_forum_post(uuid)'::regprocedure)) > 0,
+  (select proconfig @> array['search_path=pg_catalog, public']::text[] from pg_catalog.pg_proc where oid = 'public.can_view_forum_post(uuid)'::regprocedure),
   'forum post visibility uses a fixed search path'
 );
 select has_function(
   'public',
   'forum_comment_parent_matches_post',
-  array[],
+  array[]::text[],
   'same-post reply trigger function exists'
 );
 select has_trigger(

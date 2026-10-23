@@ -21,7 +21,8 @@ struct PlateauAlertCard: View {
                 Spacer()
                 Button(action: dismiss) {
                     Image(systemName: "xmark")
-                        .frame(width: 32, height: 32)
+                        .frame(width: LiftDesign.minimumTouchTarget, height: LiftDesign.minimumTouchTarget)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(Color.liftMuted)
@@ -31,6 +32,8 @@ struct PlateauAlertCard: View {
             Button("Review recent sets", action: openDetails)
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(Color.liftAccentText)
+                .frame(minHeight: LiftDesign.minimumTouchTarget)
+                .contentShape(Rectangle())
         }
         .padding(14)
         .background(Color.liftGold.opacity(0.08))
