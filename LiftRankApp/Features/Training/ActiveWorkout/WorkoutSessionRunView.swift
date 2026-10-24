@@ -497,12 +497,12 @@ struct WorkoutSessionRunView: View {
             prCandidates: appState.activeWorkoutPRCandidates(),
             automaticSubmissionEnabled: appState.workoutPreferences.automaticallySubmitVideoBackedPRs
         ) { effort, notes, videos, selectedSetIDs, isPublic in
-            guard let completed = appState.finishActiveWorkout(effort: effort, notes: notes, isPublic: isPublic) else { return false }
+            guard let completed = appState.finishActiveWorkout(effort: effort, notes: notes, isPublic: isPublic) else { return nil }
             dismissAfterSummary = true
             Task {
                 await appState.submitVideoBackedPRs(for: completed, videoURLsBySetID: videos, selectedSetIDs: selectedSetIDs)
             }
-            return true
+            return completed
         }
         .environmentObject(appState)
         .presentationDetents([.large])

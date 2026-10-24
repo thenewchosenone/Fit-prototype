@@ -22,6 +22,8 @@ struct TrainingTrackerView: View {
     @State var showingCreatePlan = false
     @State var showingCreatePlanFromHistory = false
     @State var showingDeletePlan = false
+    @State var planToDeleteID: UUID?
+    @State var revealedPlanID: UUID?
     @State var showingRenamePlan = false
     @State var renamePlanName = ""
     @State var planDetailTab = "Weeks"

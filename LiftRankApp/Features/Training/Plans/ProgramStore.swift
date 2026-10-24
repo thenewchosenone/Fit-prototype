@@ -58,14 +58,10 @@ struct ProgramWeekPresentation {
         var completedSetNumbersByPrescriptionID: [UUID: Set<Int>] = [:]
         var attemptsBySessionID: [UUID: [String: [UUID: Set<Int>]]] = [:]
         let sessionIDByPrescriptionID = Dictionary(uniqueKeysWithValues: prescriptions.map { ($0.id, $0.sessionID) })
-        func attemptKey(for log: WorkoutSetLog) -> String {
-            if let workoutID = log.workoutID { return workoutID.uuidString }
-            return String(Calendar.current.startOfDay(for: log.performedAt).timeIntervalSince1970)
-        }
         for log in workoutSetLogs where log.isComplete && !log.isWarmup && plannedPrescriptionIDs.contains(log.prescriptionID) {
             completedSetNumbersByPrescriptionID[log.prescriptionID, default: []].insert(log.setNumber)
-            if let sessionID = sessionIDByPrescriptionID[log.prescriptionID] {
-                attemptsBySessionID[sessionID, default: [:]][attemptKey(for: log), default: [:]][log.prescriptionID, default: []].insert(log.setNumber)
+            if let sessionID = sessionIDByPrescriptionID[log.prescriptionID], let workoutID = log.workoutID {
+                attemptsBySessionID[sessionID, default: [:]][workoutID.uuidString, default: [:]][log.prescriptionID, default: []].insert(log.setNumber)
             }
         }
         for workout in completedWorkouts where workout.sourceSessionID.map(sessionIDs.contains) == true {
@@ -287,9 +283,10 @@ final class ProgramStore {
     }
 
     @discardableResult
-    func createPlan(name: String) -> WorkoutPlan? {
+    func createPlan(name: String, phaseName: String = "Base Phase", phaseDurationWeeks: Int = 1) -> WorkoutPlan? {
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanName.isEmpty else { return nil }
+        let cleanPhaseName = phaseName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanName.isEmpty, !cleanPhaseName.isEmpty else { return nil }
         let plan = WorkoutPlan(
             id: makeID(),
             name: cleanName,
@@ -298,7 +295,7 @@ final class ProgramStore {
             notes: "",
             isActive: true
         )
-        repository.addWorkoutPlan(plan)
+        repository.addWorkoutPlan(plan, phaseName: cleanPhaseName, phaseDurationWeeks: phaseDurationWeeks)
         return plan
     }
 
@@ -409,6 +406,10 @@ final class ProgramStore {
         )
     }
 
+    func updateSession(_ session: WorkoutSession) {
+        repository.updateWorkoutSession(session)
+    }
+
     @discardableResult
     func startFreestyleSession(in week: WorkoutWeek, day: String) -> WorkoutSession {
         addSession(to: week, day: day, name: "Freestyle Workout")
@@ -427,7 +428,7 @@ final class ProgramStore {
     }
 
     func addExercises(_ exercises: [TrainingExerciseCatalogItem], to session: WorkoutSession) {
-        let nextOrder = prescriptions(session: session).count
+        let nextOrder = (prescriptions(session: session).map(\.order).max() ?? -1) + 1
         for (offset, exercise) in exercises.enumerated() {
             _ = repository.addWorkoutPrescription(
                 WorkoutExercisePrescription(
@@ -467,7 +468,7 @@ final class ProgramStore {
                 sets: max(1, sets),
                 reps: cleanReps.isEmpty ? "8-12" : cleanReps,
                 restSeconds: restSeconds,
-                order: prescriptions(session: session).count,
+                order: (prescriptions(session: session).map(\.order).max() ?? -1) + 1,
                 notes: ""
             )
         )
@@ -475,6 +476,15 @@ final class ProgramStore {
 
     func deletePrescription(_ prescription: WorkoutExercisePrescription) {
         repository.deleteWorkoutPrescription(prescription)
+    }
+
+    func updatePrescription(_ prescription: WorkoutExercisePrescription) {
+        repository.updateWorkoutPrescription(prescription)
+    }
+
+    @discardableResult
+    func reorderPrescriptions(sessionID: UUID, orderedIDs: [UUID]) -> Bool {
+        repository.reorderWorkoutPrescriptions(sessionID: sessionID, orderedIDs: orderedIDs)
     }
 
     @discardableResult

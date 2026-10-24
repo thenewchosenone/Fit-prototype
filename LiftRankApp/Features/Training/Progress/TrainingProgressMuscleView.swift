@@ -132,7 +132,8 @@ extension TrainingTrackerView {
     private func muscleAttention(referenceDate: Date) -> some View {
         let insights = appState.trainingProgressStore.muscleAttentionInsights(
             referenceDate: referenceDate, includeReferenceWeek: selectedVolumeWeek == .lastWeek,
-            trainingFocus: appState.currentProfile.trainingFocus
+            trainingFocus: appState.currentProfile.trainingFocus,
+            plannedPrimaryMuscles: plannedPrimaryMuscles
         )
         if let first = insights.first {
             DisclosureGroup {
@@ -163,6 +164,18 @@ extension TrainingTrackerView {
             .tint(Color.liftAccentText)
             .frame(minHeight: LiftDesign.minimumTouchTarget)
         }
+    }
+
+    private var plannedPrimaryMuscles: Set<ExerciseMuscleRegion> {
+        guard let plan = appState.workoutPlans.first(where: \.isActive),
+              let week = appState.currentSelectedProgramWeek,
+              week.planID == plan.id else { return [] }
+        let sessionIDs = Set(appState.sessions(for: week).map(\.id))
+        let catalog = Dictionary(appState.trainingExerciseLibrary.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return Set(appState.workoutPrescriptions.filter { sessionIDs.contains($0.sessionID) }.flatMap { prescription in
+            (prescription.muscleProfile ?? catalog[prescription.exerciseID]?.resolvedMuscleProfile)?.primary ??
+                ExerciseMuscleProfileResolver.profile(name: prescription.exerciseName, bodyPart: prescription.bodyPart).primary
+        })
     }
 
     private func muscleWorkloadList(week: MuscleTrainingWeek, weeks: [MuscleTrainingWeek]) -> some View {

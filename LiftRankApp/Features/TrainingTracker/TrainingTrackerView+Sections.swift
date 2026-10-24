@@ -104,12 +104,15 @@ extension TrainingTrackerView {
                 Button("Cancel", role: .cancel) {}
             }
             .confirmationDialog("Delete this plan?", isPresented: $showingDeletePlan, titleVisibility: .visible) {
-                Button("Delete plan", role: .destructive) {
-                    appState.deleteSelectedWorkoutPlan()
-                    syncSelectedWeek()
+                if let planToDeleteID {
+                    Button("Delete plan", role: .destructive) {
+                        appState.deleteWorkoutPlan(id: planToDeleteID)
+                        self.planToDeleteID = nil
+                        syncSelectedWeek()
+                    }
                 }
             } message: {
-                Text("Removes the schedule and returns you to freestyle. Saved workout history and submitted lifts remain.")
+                Text("Removes this plan and its schedule. Saved workout history and submitted lifts remain.")
             }
             .onAppear {
                 syncSelectedWeek()
@@ -255,13 +258,10 @@ extension TrainingTrackerView {
                     }
                     .disabled(selectedProgramSettings == nil || appState.activeWorkout != nil)
                     Button(role: .destructive) {
+                        planToDeleteID = appState.selectedWorkoutPlanID
                         showingDeletePlan = true
                     } label: {
                         Label("Delete Current Plan", systemImage: "trash")
-                    }
-                    .disabled(appState.selectedWorkoutPlan == nil || appState.activeWorkout != nil)
-                    Button("Stop program · return to freestyle") {
-                        _ = appState.selectWorkoutPlan(nil)
                     }
                     .disabled(appState.selectedWorkoutPlan == nil || appState.activeWorkout != nil)
                 } label: {
@@ -536,21 +536,44 @@ extension TrainingTrackerView {
 
     private var plans: some View {
         VStack(alignment: .leading, spacing: 12) {
-            programLibrary
             if appState.activeWorkout != nil {
                 Text("Finish or discard your active workout before changing plans or scheduled workouts.")
                     .font(.caption).foregroundStyle(Color.liftMuted)
             }
             if appState.workoutSyncStore.planSyncState == .needsAttention {
-                Button("Plan sync needs attention · Retry") {
-                    Task { await appState.synchronizeWorkoutPlans() }
+                VStack(alignment: .leading, spacing: 4) {
+                    Button("Plan sync needs attention · Retry") {
+                        Task { await appState.synchronizeWorkoutPlans() }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    if let reason = appState.workoutSyncStore.planSyncFailureReason {
+                        Text(reason)
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                    }
                 }
-                .font(.subheadline.weight(.semibold))
             }
             if appState.workoutPlans.filter(\.isActive).count > 1 {
                 Text("More than one program is marked active. Choose the one you want to continue.")
                     .font(.caption).foregroundStyle(Color.liftGold)
             }
+
+            if appState.selectedWorkoutPlan != nil {
+                ProgramPlanDetailView(
+                    selectedWeekID: $selectedWeekID,
+                    detailTab: $planDetailTab,
+                    selectedSessionForAdd: $selectedSessionForAdd,
+                    selectedSessionToRun: $selectedSessionToRun,
+                    selectedProgramTemplate: $selectedProgramTemplate,
+                    renamePlanName: $renamePlanName,
+                    showingRenamePlan: $showingRenamePlan,
+                    planToDeleteID: $planToDeleteID,
+                    showingDeletePlan: $showingDeletePlan
+                )
+                .environmentObject(appState)
+            }
+
+            programLibrary
 
             if appState.workoutPlans.isEmpty {
                 LiftCard {
@@ -573,13 +596,11 @@ extension TrainingTrackerView {
             } else {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(appState.workoutPlans.count > 1 ? "My Plans" : "Program")
+                        Text("My Plans")
                             .font(.headline)
-                        if appState.workoutPlans.count > 1 {
-                            Text("Select your active plan.")
-                                .font(.caption)
-                                .foregroundStyle(Color.liftMuted)
-                        }
+                        Text("Select your active plan.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
                     }
                     Spacer()
                     Button {
@@ -595,10 +616,27 @@ extension TrainingTrackerView {
                     .disabled(appState.activeWorkout != nil)
                 }
 
-                if appState.workoutPlans.count > 1 {
-                    VStack(spacing: 0) {
-                        ForEach(Array(appState.workoutPlans.enumerated()), id: \.element.id) { index, plan in
+                VStack(spacing: 0) {
+                    ForEach(Array(appState.workoutPlans.enumerated()), id: \.element.id) { index, plan in
+                        ZStack(alignment: .trailing) {
+                            if revealedPlanID == plan.id {
+                                Button(role: .destructive) {
+                                    planToDeleteID = plan.id
+                                    showingDeletePlan = true
+                                    revealedPlanID = nil
+                                } label: {
+                                    Label("Delete", systemImage: "trash.fill")
+                                        .font(.caption.weight(.bold))
+                                        .foregroundStyle(.white)
+                                        .frame(width: 78, height: 58)
+                                        .background(Color.liftRed)
+                                }
+                                .disabled(appState.activeWorkout != nil)
+                            }
+
                             Button {
+                                guard revealedPlanID != plan.id else { return }
+                                revealedPlanID = nil
                                 if appState.selectWorkoutPlan(plan.id) {
                                     isProgramLibraryExpanded = false
                                     syncSelectedWeek()
@@ -625,21 +663,33 @@ extension TrainingTrackerView {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("tracker.plan.row.\(plan.id.uuidString)")
                             .disabled(appState.activeWorkout != nil)
+                            .offset(x: revealedPlanID == plan.id ? -78 : 0)
+                            .simultaneousGesture(
+                                DragGesture(minimumDistance: 18)
+                                    .onEnded { value in
+                                        guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                                        withAnimation(.snappy) {
+                                            revealedPlanID = value.translation.width < -36 ? plan.id : nil
+                                        }
+                                    }
+                            )
+                        }
+                        .clipped()
 
-                            if index < appState.workoutPlans.count - 1 {
-                                Divider()
-                                    .overlay(Color.liftOverlay)
-                                    .padding(.leading, 54)
-                            }
+                        if index < appState.workoutPlans.count - 1 {
+                            Divider()
+                                .overlay(Color.liftOverlay)
+                                .padding(.leading, 54)
                         }
                     }
-                    .background(Color.liftCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.liftOverlay, lineWidth: 1)
-                    }
+                }
+                .background(Color.liftCard)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.liftOverlay, lineWidth: 1)
                 }
             }
 
@@ -659,15 +709,6 @@ extension TrainingTrackerView {
                 .accessibilityIdentifier("tracker.plans.buildFromHistory")
             }
 
-            if appState.selectedWorkoutPlan != nil {
-                ProgramPlanDetailView(
-                    selectedWeekID: $selectedWeekID,
-                    detailTab: $planDetailTab,
-                    selectedSessionForAdd: $selectedSessionForAdd,
-                    selectedSessionToRun: $selectedSessionToRun
-                )
-                .environmentObject(appState)
-            }
         }
     }
 

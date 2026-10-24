@@ -8,10 +8,12 @@ struct WorkoutProgramTemplateDetailView: View {
     @State private var method: WorkoutProgressionMethod
     @State private var startDate = Date.now
     @State private var scheduledWeekdays: [Int]
+    @State private var flexibleSessionOrder = false
     @State private var trainingMaxInputs: [String: String] = [:]
     @State private var startingNewCycle = false
     @State private var didStart = false
     @State private var editingExisting = false
+    @State private var showingSetup = false
     @State private var expandedSessionIndices: Set<Int> = [0]
 
     init(template: WorkoutProgramTemplate) {
@@ -64,11 +66,13 @@ struct WorkoutProgramTemplateDetailView: View {
                                         guard let settings = appState.workoutPlanProgressionSettings.first(where: { $0.planID == existingPlan.id }) else { return }
                                         startDate = settings.startedAt
                                         scheduledWeekdays = settings.scheduledWeekdays
+                                        flexibleSessionOrder = existingPlan.queueEnabled
                                         method = settings.method
                                         trainingMaxInputs = settings.trainingMaxKilograms.mapValues {
                                             MeasurementFormatting.convert($0, from: .kilograms, to: appState.currentProfile.preferredUnit).formatted(.number.grouping(.never).precision(.fractionLength(1)))
                                         }
                                         editingExisting = true
+                                        showingSetup = true
                                     }
                                     .disabled(appState.activeWorkout != nil)
                                     Button("Set up a new cycle") { startingNewCycle = true }
@@ -76,28 +80,38 @@ struct WorkoutProgramTemplateDetailView: View {
                                 }
                             }
                             Text(existingPlan.name).font(.subheadline)
-                        } else {
-                            setup
                         }
                         if appState.activeWorkout != nil {
                             Text("Finish or discard your active workout before changing programs.")
                                 .font(.caption).foregroundStyle(Color.liftGold)
                         }
-                        phaseSummary
-                        sessionPreview
+                        if showingSetup {
+                            setup
+                            Button("Review weekly workouts") { showingSetup = false }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.liftAccentText)
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                        } else {
+                            phaseSummary
+                            sessionPreview
+                        }
                     }
                     .padding(16)
                     .padding(.bottom, 100)
                 }
                 .scrollIndicators(.hidden)
                 .safeAreaInset(edge: .bottom) {
-                    Button(editingExisting ? "Save setup changes" : (existingPlan != nil && !startingNewCycle ? "Resume existing program" : "Start new 12-week cycle")) {
+                    Button(editingExisting ? "Save setup changes" : (existingPlan != nil && !startingNewCycle ? "Resume existing program" : showingSetup ? "Start new 12-week cycle" : "Customize setup")) {
                         if editingExisting, let existingPlan {
-                            if appState.updateWorkoutProgramSetup(planID: existingPlan.id, startDate: startDate, scheduledWeekdays: scheduledWeekdays, method: method, trainingMaxKilograms: parsedTrainingMaxKilograms) { dismiss() }
+                            if appState.updateWorkoutProgramSetup(planID: existingPlan.id, startDate: startDate, scheduledWeekdays: scheduledWeekdays, method: method, trainingMaxKilograms: parsedTrainingMaxKilograms, flexibleSessionOrder: flexibleSessionOrder) { dismiss() }
                             return
                         }
                         if let existingPlan, !startingNewCycle, !editingExisting {
                             if appState.selectWorkoutPlan(existingPlan.id) { dismiss() }
+                            return
+                        }
+                        if !showingSetup {
+                            showingSetup = true
                             return
                         }
                         guard !didStart else { return }
@@ -109,6 +123,9 @@ struct WorkoutProgramTemplateDetailView: View {
                             method: method,
                             trainingMaxKilograms: parsedTrainingMaxKilograms
                         ) != nil {
+                            if flexibleSessionOrder {
+                                _ = appState.setSelectedPlanQueueEnabled(true)
+                            }
                             dismiss()
                         } else { didStart = false }
                     }
@@ -159,32 +176,44 @@ struct WorkoutProgramTemplateDetailView: View {
                 } else {
                     DatePicker("Start date", selection: $startDate, in: Calendar.current.startOfDay(for: .now)..., displayedComponents: .date)
                 }
-                Text("Weeks advance every seven days from this date. Missed workouts stay available. Use the session queue in Plans to train in order instead.")
-                    .font(.caption).foregroundStyle(Color.liftMuted)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Schedule").font(.caption.weight(.bold)).foregroundStyle(Color.liftMuted)
+                    Picker("Schedule", selection: $flexibleSessionOrder) {
+                        Text("Fixed weekdays").tag(false)
+                        Text("Flexible order").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    Text(flexibleSessionOrder
+                         ? "Follow the full program in order whenever you train. Your program weeks advance as you complete each week’s sessions, so training more often moves you through the program faster."
+                         : "Weeks advance every seven days from the start date. Missed workouts stay available.")
+                        .font(.caption).foregroundStyle(Color.liftMuted)
+                }
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Progression").font(.caption.weight(.bold)).foregroundStyle(Color.liftMuted)
                     ForEach(WorkoutProgressionMethod.allCases) { option in
                         ProgramChoiceRow(title: option.rawValue, isSelected: method == option) { method = option }
                     }
                 }
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Training days").font(.caption.weight(.bold)).foregroundStyle(Color.liftMuted)
-                    ForEach(Array(template.sessions.enumerated()), id: \.offset) { index, session in
-                        HStack {
-                            Text(session.name).font(.subheadline.weight(.semibold))
-                            Spacer()
-                            Picker("Day for \(session.name)", selection: weekdayBinding(index)) {
-                                ForEach(1...7, id: \.self) { weekday in
-                                    Text(Calendar.current.weekdayName(for: weekday)).tag(weekday)
+                if !flexibleSessionOrder {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Training days").font(.caption.weight(.bold)).foregroundStyle(Color.liftMuted)
+                        ForEach(Array(template.sessions.enumerated()), id: \.offset) { index, session in
+                            HStack {
+                                Text(session.name).font(.subheadline.weight(.semibold))
+                                Spacer()
+                                Picker("Day for \(session.name)", selection: weekdayBinding(index)) {
+                                    ForEach(1...7, id: \.self) { weekday in
+                                        Text(Calendar.current.weekdayName(for: weekday)).tag(weekday)
+                                    }
                                 }
+                                .labelsHidden()
                             }
-                            .labelsHidden()
+                            .frame(minHeight: 44)
                         }
-                        .frame(minHeight: 44)
                     }
-                }
-                if Set(scheduledWeekdays).count != scheduledWeekdays.count {
-                    Text("Choose a different day for each session.").font(.caption).foregroundStyle(Color.liftGold)
+                    if Set(scheduledWeekdays).count != scheduledWeekdays.count {
+                        Text("Choose a different day for each session.").font(.caption).foregroundStyle(Color.liftGold)
+                    }
                 }
                 if method == .percentage { trainingMaxFields }
             }

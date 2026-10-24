@@ -25,6 +25,20 @@ Before creating an App Store archive:
 7. Confirm signup, confirmation, login, restoration, logout, password reset, and account deletion against staging.
 8. Archive with production signing and validate the archive in Xcode Organizer before TestFlight upload.
 
+## TestFlight upload workflow
+
+Verified in Xcode Organizer on 2026-10-24 with LiftRank 1.0 (46), bundle ID `com.liftrank.app`, and Apple Developer team **ROBERT JEANTY** (`32TGWTQNP8`).
+
+1. Increase `CURRENT_PROJECT_VERSION` to a build number that has never been uploaded. Keep `MARKETING_VERSION` at the intended release version.
+2. Run the required release gates above, then create a signed iOS archive from the `LiftRank` scheme in Xcode (`Product > Archive`).
+3. In Organizer, select the archive and confirm its version, build number, bundle ID, and team are correct.
+4. If the archive is stored outside Organizer's archive list, use Xcode `File > Open…`, navigate to the `.xcarchive` folder, and open it. Organizer adds the archive to its list.
+5. Choose `Distribute App`, select `App Store Connect`, and click `Distribute`. Xcode may refresh automatic signing and process the App Store metadata before upload.
+6. Wait for Organizer to report `App upload complete` and `Uploaded to Apple`; record the version, build number, team, and upload time. Do not treat starting distribution or exporting an IPA as a completed upload.
+7. Check App Store Connect > TestFlight separately for processing to finish and the build to become available to the intended tester group. `Uploaded to Apple` confirms transfer, not completion of Apple's processing.
+
+For the verified upload, Xcode's `App Store Connect` distribution option displayed `Upload for TestFlight (Internal Testing Only)`. Xcode Organizer completed the upload and then showed the archive as `Uploaded to Apple`. Prefer this Organizer flow when command-line upload reports an App Store Connect provider/credential error; an export-only IPA is not proof of upload.
+
 ## Promotion criteria
 
 - No critical defect or known data-loss issue.

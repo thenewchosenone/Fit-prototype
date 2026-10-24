@@ -6,6 +6,11 @@ struct ProgramPlanDetailView: View {
     @Binding var detailTab: String
     @Binding var selectedSessionForAdd: WorkoutSession?
     @Binding var selectedSessionToRun: WorkoutSession?
+    @Binding var selectedProgramTemplate: WorkoutProgramTemplate?
+    @Binding var renamePlanName: String
+    @Binding var showingRenamePlan: Bool
+    @Binding var planToDeleteID: UUID?
+    @Binding var showingDeletePlan: Bool
     @State private var weekToDelete: WorkoutWeek?
     @State private var sessionToDelete: WorkoutSession?
     @State private var showingDeleteConfirmation = false
@@ -33,7 +38,7 @@ struct ProgramPlanDetailView: View {
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Program details")
+                    Text(appState.selectedWorkoutPlan?.name ?? "Program details")
                         .font(.headline.weight(.bold))
                     Text("\(weeks.count) scheduled weeks")
                         .font(.caption)
@@ -41,20 +46,24 @@ struct ProgramPlanDetailView: View {
                 }
                 Spacer()
                 Menu {
-                    Button {
-                        detailTab = "Weeks"
-                    } label: {
-                        Label("Workouts", systemImage: "calendar")
+                    if let settings = appState.workoutPlanProgressionSettings.first(where: { $0.planID == appState.selectedWorkoutPlanID }),
+                       let template = WorkoutProgramCatalog.template(id: settings.sourceTemplateID) {
+                        Button {
+                            selectedProgramTemplate = template
+                        } label: {
+                            Label("Edit schedule and progression", systemImage: "slider.horizontal.3")
+                        }
                     }
                     Button {
-                        detailTab = "Overview"
+                        renamePlanName = appState.selectedWorkoutPlan?.name ?? ""
+                        showingRenamePlan = true
                     } label: {
-                        Label("Plan Overview", systemImage: "chart.bar")
+                        Label("Rename plan", systemImage: "pencil")
                     }
                     Button {
-                        detailTab = "Notes"
+                        appState.duplicateSelectedWorkoutPlan()
                     } label: {
-                        Label("Plan Notes", systemImage: "note.text")
+                        Label("Duplicate plan", systemImage: "doc.on.doc")
                     }
                     Divider()
                     Button {
@@ -92,6 +101,13 @@ struct ProgramPlanDetailView: View {
                         )
                     }
                     .disabled(appState.activeWorkout != nil)
+                    Button(role: .destructive) {
+                        planToDeleteID = appState.selectedWorkoutPlanID
+                        showingDeletePlan = true
+                    } label: {
+                        Label("Delete plan", systemImage: "trash")
+                    }
+                    .disabled(appState.activeWorkout != nil)
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.headline.weight(.bold))
@@ -127,6 +143,32 @@ struct ProgramPlanDetailView: View {
                     }
                 }
             }
+
+            HStack(spacing: 6) {
+                ForEach([(title: "Workouts", value: "Weeks"), (title: "Overview", value: "Overview"), (title: "Notes", value: "Notes")], id: \.value) { item in
+                    Button {
+                        detailTab = item.value
+                    } label: {
+                        Text(item.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(detailTab == item.value ? Color.liftText : Color.liftMuted)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(detailTab == item.value ? Color.liftBlue.opacity(0.2) : Color.clear)
+                            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(4)
+            .background(Color.liftCard)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            Button("Stop program and return to freestyle", systemImage: "stop.circle") {
+                _ = appState.selectWorkoutPlan(nil)
+            }
+            .buttonStyle(.bordered)
+            .disabled(appState.activeWorkout != nil)
+            .accessibilityIdentifier("tracker.program.stop")
 
             if detailTab == "Weeks" {
                 if weeks.isEmpty {

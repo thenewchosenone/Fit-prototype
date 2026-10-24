@@ -5,7 +5,7 @@ struct WorkoutSummaryView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     private let initialSummary: WorkoutSummary
-    let onComplete: (Int, String, [UUID: URL], Set<UUID>, Bool) -> Bool
+    let onComplete: (Int, String, [UUID: URL], Set<UUID>, Bool) -> CompletedWorkout?
     @State private var effort = 0
     @State private var notes = ""
     @State private var keepWorkoutPrivate = false
@@ -29,7 +29,7 @@ struct WorkoutSummaryView: View {
         summary: WorkoutSummary,
         prCandidates: [WorkoutPRCandidate],
         automaticSubmissionEnabled: Bool,
-        onComplete: @escaping (Int, String, [UUID: URL], Set<UUID>, Bool) -> Bool
+        onComplete: @escaping (Int, String, [UUID: URL], Set<UUID>, Bool) -> CompletedWorkout?
     ) {
         self.initialSummary = summary
         self.onComplete = onComplete
@@ -58,11 +58,14 @@ struct WorkoutSummaryView: View {
         let plannedSets = prescriptions.reduce(0) { $0 + $1.sets }
         guard plannedSets > 0 else { return nil }
         let isComplete = prescriptions.allSatisfy { prescription in
-            guard let exercise = activeWorkout.exercises.first(where: { $0.sourcePrescriptionID == prescription.id }) else {
+            let exercises = activeWorkout.exercises.filter { $0.sourcePrescriptionID == prescription.id }
+            guard !exercises.isEmpty else {
                 return false
             }
-            let progress = appState.activeWorkoutExerciseProgress(for: exercise)
-            return progress.completedWorkingSets >= prescription.sets
+            let completedSets = exercises.reduce(0) { total, exercise in
+                total + appState.activeWorkoutExerciseProgress(for: exercise).completedWorkingSets
+            }
+            return completedSets >= prescription.sets
         }
         return (plannedSets, isComplete)
     }
@@ -420,14 +423,14 @@ struct WorkoutSummaryView: View {
                             let reviewedSummary = summary
                             let eligibleIDs = Set(prCandidates.map(\.setID))
                             let sharedIDs = sharePRs ? selectedPRSetIDs.intersection(eligibleIDs) : []
-                            if onComplete(effort, notes, videoURLsBySetID.filter { sharedIDs.contains($0.key) }, sharedIDs, !keepWorkoutPrivate) {
+                            if let completedWorkout = onComplete(effort, notes, videoURLsBySetID.filter { sharedIDs.contains($0.key) }, sharedIDs, !keepWorkoutPrivate) {
                                 savedSummary = reviewedSummary
                                 completionHighlights = highlights
                                 savedAchievementBadges = newlyUnlockedAchievements.prefix(3).compactMap { unlock in
                                     appState.achievements.first { $0.title == unlock.title }
                                 }
                                 savedAchievementProgress = nextAchievementProgress
-                                finishedDuration = activeDuration
+                                finishedDuration = completedWorkout.duration
                                 finishedUnit = summaryUnit
                                 hasSavedWorkout = true
                             }
@@ -443,8 +446,10 @@ struct WorkoutSummaryView: View {
             .navigationTitle(hasSavedWorkout ? "Workout saved" : "Review workout")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(hasSavedWorkout ? "Done" : "Back") { dismiss() }
+                if !hasSavedWorkout {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Back") { dismiss() }
+                    }
                 }
             }
 
@@ -461,6 +466,7 @@ struct WorkoutSummaryView: View {
                     .frame(width: 72, height: 72)
                     .background(Color.liftGreen)
                     .clipShape(Circle())
+                    .symbolEffect(.bounce, value: hasSavedWorkout)
                 Text("Workout saved")
                     .font(.largeTitle.weight(.black))
                 Text(summary.workoutName)
@@ -492,6 +498,7 @@ struct WorkoutSummaryView: View {
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Color.liftGold)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .symbolEffect(.bounce, value: highlight)
                     }
                 }
                 .padding(14)

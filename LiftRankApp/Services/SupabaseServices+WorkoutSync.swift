@@ -30,6 +30,9 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
                 offset += pageSize
             }
             return rows.compactMap(\.document)
+        } catch let error as PostgrestError {
+            let code = error.code.map { " (\($0))" } ?? ""
+            throw LiftRankServiceError.server("Plan fetch failed\(code): \(error.message)")
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 

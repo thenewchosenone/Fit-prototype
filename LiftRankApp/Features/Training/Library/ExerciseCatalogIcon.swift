@@ -12,7 +12,7 @@ struct ExerciseCatalogIcon: View {
                         .stroke(Color.liftOverlay.opacity(0.7), lineWidth: 1)
                 }
 
-            Image(systemName: iconGroup.symbol)
+            Image(systemName: iconSymbol)
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(Color.liftAccentText)
         }
@@ -82,6 +82,20 @@ struct ExerciseCatalogIcon: View {
         if bodyPart.contains("chest") || bodyPart.contains("shoulder") { return .push }
         if bodyPart.contains("back") || bodyPart.contains("lat") { return .pull }
         return .strength
+    }
+
+    private var iconSymbol: String {
+        switch exercise.movementPattern {
+        case .horizontalPress: "figure.strengthtraining.traditional"
+        case .verticalPress: "figure.stand"
+        case .horizontalPull: "figure.rower"
+        case .verticalPull: "figure.climbing"
+        case .squat, .hinge, .lunge, .calf: "figure.strengthtraining.functional"
+        case .curl, .elbowExtension, .shoulderIsolation: "figure.arms.open"
+        case .core: "figure.core.training"
+        case .carry: "figure.walk"
+        case .other: iconGroup.symbol
+        }
     }
 }
 

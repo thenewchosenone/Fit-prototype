@@ -805,6 +805,8 @@ final class TrainingProgressStore {
 
     func strengthAttentionInsights(
         summary: StrengthTierSummary,
+        activePlanExerciseIDs: Set<String>? = nil,
+        trainingFocus: TrainingFocus? = nil,
         referenceDate: Date = .now
     ) -> [TrainingAttentionInsight] {
         var insights = plateauInsights
@@ -820,6 +822,13 @@ final class TrainingProgressStore {
 
         let cutoff = referenceDate.addingTimeInterval(-28 * 24 * 3_600)
         for lift in summary.liftProgress {
+            let isCompetitionLift = RankingCalculator.strengthTierExerciseIDs.contains(lift.exerciseID)
+            if let activePlanExerciseIDs,
+               !activePlanExerciseIDs.contains(lift.exerciseID),
+               !(isCompetitionLift && trainingFocus == .powerlifting) {
+                continue
+            }
+            if activePlanExerciseIDs == nil, isCompetitionLift, trainingFocus != .powerlifting { continue }
             let sessionCount = repository.completedWorkouts.filter { workout in
                 workout.completedAt >= cutoff && workout.completedAt <= referenceDate && workout.exercises.contains { exercise in
                     (exercise.rankingExerciseID ?? exercise.exerciseID) == lift.exerciseID && workout.sets.contains {
@@ -841,7 +850,8 @@ final class TrainingProgressStore {
     func muscleAttentionInsights(
         referenceDate: Date = .now,
         includeReferenceWeek: Bool = false,
-        trainingFocus: TrainingFocus? = nil
+        trainingFocus: TrainingFocus? = nil,
+        plannedPrimaryMuscles: Set<ExerciseMuscleRegion> = []
     ) -> [TrainingAttentionInsight] {
         let weeks = weeklyWorkingSetsByMuscle(referenceDate: referenceDate)
         let completedWeeks = Array(includeReferenceWeek ? weeks.suffix(3) : weeks.dropLast())
@@ -887,11 +897,22 @@ final class TrainingProgressStore {
                 nextStep: nextStep
             ))
         }
-        return insights.sorted {
+        let missingPlannedMuscles = plannedPrimaryMuscles
+            .filter { muscle in completedWeeks.reduce(0) { $0 + $1.counts[muscle, default: 0] } == 0 }
+            .map { muscle in
+                TrainingAttentionInsight(
+                    id: "planned-muscle-\(muscle.rawValue)",
+                    title: "No recent working sets for \(muscle.displayName.lowercased())",
+                    evidence: "No primary working sets were logged across the last \(completedWeeks.count) complete weeks, though your active plan includes this muscle.",
+                    nextStep: "Check whether the planned sessions were completed or whether this muscle is intentionally excluded."
+                )
+            }
+        let prioritizedInsights = insights.sorted {
             if $0.priority != $1.priority { return $0.priority }
             if $0.gap == $1.gap { return $0.insight.id < $1.insight.id }
             return $0.gap > $1.gap
         }.map(\.insight)
+        return prioritizedInsights + missingPlannedMuscles.sorted { $0.title < $1.title }
     }
 
     func homeWeeklySummary(

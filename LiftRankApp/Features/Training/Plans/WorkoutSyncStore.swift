@@ -25,6 +25,7 @@ final class WorkoutSyncStore: ObservableObject {
     private var planSyncInFlight = false
     private var planSyncRequested = false
     @Published private(set) var planSyncState: WorkoutHistorySyncState = .local
+    @Published private(set) var planSyncFailureReason: String?
     @Published private(set) var historySyncState: WorkoutHistorySyncState = .synced
 
     init(
@@ -202,23 +203,29 @@ final class WorkoutSyncStore: ObservableObject {
         }
         planSyncInFlight = true
         planSyncState = .syncing
+        planSyncFailureReason = nil
         var syncFailed = false
+        var failureReason: String?
+        func recordFailure(_ reason: String) {
+            syncFailed = true
+            failureReason = failureReason ?? reason
+        }
         defer {
             if repository.currentProfile.id == userID {
                 planSyncState = syncFailed ? .needsAttention : .synced
+                planSyncFailureReason = failureReason
             }
-            if planSyncRequested {
-                planSyncRequested = false
-                Task { await self.synchronizeWorkoutPlans() }
-            }
+            let shouldRetry = planSyncRequested
+            planSyncRequested = false
             planSyncInFlight = false
             if repository.currentProfile.id == userID, !force {
                 lastPassivePlanSyncAt = .now
             }
+            if shouldRetry { Task { await self.synchronizeWorkoutPlans() } }
         }
 
         guard let remotelyDeletedPlanIDs = try? await service.deletedWorkoutPlanIDs() else {
-            syncFailed = true
+            recordFailure("Could not check deleted plans.")
             return
         }
         guard repository.currentProfile.id == userID else { return }
@@ -240,21 +247,22 @@ final class WorkoutSyncStore: ObservableObject {
                 guard repository.currentProfile.id == userID else { return }
                 repository.pendingRemoteWorkoutPlanDeletions.remove(planID)
             } catch {
-                syncFailed = true
+                recordFailure("Could not delete a plan from the server.")
                 guard repository.currentProfile.id == userID else { return }
             }
         }
         guard repository.currentProfile.id == userID else { return }
-        guard var remoteByID = try? await service.plans().reduce(
-            into: [UUID: WorkoutPlanDocument](),
-            { result, document in
-                if document.ownerID == userID && !deletedPlanIDs.contains(document.id) {
-                    result[document.id] = document
-                }
-            }
-        ) else {
-            syncFailed = true
+        let remoteDocuments: [WorkoutPlanDocument]
+        do {
+            remoteDocuments = try await service.plans()
+        } catch {
+            recordFailure("Could not load saved plans from the server. \(error.localizedDescription)")
             return
+        }
+        var remoteByID = remoteDocuments.reduce(into: [UUID: WorkoutPlanDocument]()) { result, document in
+            if document.ownerID == userID && !deletedPlanIDs.contains(document.id) {
+                result[document.id] = document
+            }
         }
         guard repository.currentProfile.id == userID else { return }
         let localOnlyPlanIDs = Set([PersonalWorkoutPlanCatalog.planID])
@@ -262,27 +270,35 @@ final class WorkoutSyncStore: ObservableObject {
         for plan in repository.workoutPlans where !localOnlyPlanIDs.contains(plan.id)
             && !deletedPlanIDs.contains(plan.id)
             && !repository.pendingRemoteWorkoutPlanDeletions.contains(plan.id) {
-            guard let payload = payload(planID: plan.id), let data = try? encoder.encode(payload) else { continue }
+            guard let payload = payload(planID: plan.id), let data = try? encoder.encode(payload) else {
+                recordFailure("Could not prepare a plan for syncing.")
+                continue
+            }
             let knownRevision = repository.workoutPlanSyncRevisions[plan.id]
             let lastPayload = repository.workoutPlanLastSyncedPayloads[plan.id]
 
             if let remote = remoteByID[plan.id] {
                 if knownRevision == nil {
-                    if remote.payload == data {
+                    if payloadsMatch(remote.payload, data) {
                         remember(remote)
                     } else if let serverPayload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: remote.payload) {
                         let conflict = payload.conflictCopy(documentID: makeUUID(), makeUUID: makeUUID)
                         apply(serverPayload, replacing: plan.id)
                         apply(conflict, replacing: nil)
                         remember(remote)
-                        syncFailed = true
+                        recordFailure("A plan conflict was preserved. Review the conflict copy.")
+                    } else {
+                        recordFailure("A saved plan on the server could not be read.")
                     }
                     continue
                 }
 
-                if data == lastPayload {
-                    if remote.payload != data,
-                       let serverPayload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: remote.payload) {
+                if payloadsMatch(lastPayload, data) {
+                    if !payloadsMatch(remote.payload, data) {
+                        guard let serverPayload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: remote.payload) else {
+                            recordFailure("A saved plan on the server could not be read.")
+                            continue
+                        }
                         apply(serverPayload, replacing: plan.id)
                     }
                     remember(remote)
@@ -303,10 +319,10 @@ final class WorkoutSyncStore: ObservableObject {
                 )
                 guard repository.currentProfile.id == userID else { return }
                 if let result {
-                    if case .conflict = result { syncFailed = true }
-                    apply(result)
+                    if case .conflict = result { recordFailure("A plan conflict was preserved. Review the conflict copy.") }
+                    if !apply(result) { recordFailure("A plan conflict could not be applied locally.") }
                     if case let .saved(saved) = result { remoteByID[saved.id] = saved }
-                } else { syncFailed = true }
+                } else { recordFailure("Could not save a plan to the server.") }
             } else {
                 let document = WorkoutPlanDocument(
                     id: plan.id,
@@ -319,20 +335,25 @@ final class WorkoutSyncStore: ObservableObject {
                 let result = try? await service.savePlan(document, expectedRevision: 0)
                 guard repository.currentProfile.id == userID else { return }
                 if let result {
-                    if case .conflict = result { syncFailed = true }
-                    apply(result)
-                } else { syncFailed = true }
+                    if case .conflict = result { recordFailure("A plan conflict was preserved. Review the conflict copy.") }
+                    if !apply(result) { recordFailure("A plan conflict could not be applied locally.") }
+                } else { recordFailure("Could not save a plan to the server.") }
             }
         }
 
         for document in remoteByID.values
         where !repository.pendingRemoteWorkoutPlanDeletions.contains(document.id)
             && !repository.workoutPlans.contains(where: { $0.id == document.id }) {
-            guard let payload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: document.payload) else { continue }
+            guard let payload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: document.payload) else {
+                recordFailure("A saved plan on the server could not be read.")
+                continue
+            }
             apply(payload, replacing: nil)
             remember(document)
         }
-        if repository.workoutPlans.filter(\.isActive).count > 1 { syncFailed = true }
+        if repository.workoutPlans.filter(\.isActive).count > 1 {
+            recordFailure("More than one workout plan is marked active.")
+        }
         repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
@@ -380,6 +401,7 @@ final class WorkoutSyncStore: ObservableObject {
         } catch {
             guard repository.currentProfile.id == userID else { return }
             planSyncState = .needsAttention
+            planSyncFailureReason = "Could not delete a plan from the server."
         }
         repository.persistWorkoutSnapshot()
     }
@@ -401,25 +423,39 @@ final class WorkoutSyncStore: ObservableObject {
         )
     }
 
-    private func apply(_ result: WorkoutSyncResult) {
+    private func apply(_ result: WorkoutSyncResult) -> Bool {
         switch result {
         case let .saved(saved):
             remember(saved)
+            return true
         case let .conflict(server, localCopy):
-            if let payload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: server.payload) {
-                apply(payload, replacing: server.id)
+            guard let serverPayload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: server.payload),
+                  let localPayload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: localCopy.payload) else {
+                return false
             }
-            if let payload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: localCopy.payload) {
-                apply(payload.plan.id == localCopy.id ? payload : payload.conflictCopy(documentID: localCopy.id, makeUUID: makeUUID), replacing: nil)
-            }
+            apply(serverPayload, replacing: server.id)
+            apply(
+                localPayload.plan.id == localCopy.id
+                    ? localPayload
+                    : localPayload.conflictCopy(documentID: localCopy.id, makeUUID: makeUUID),
+                replacing: nil
+            )
             remember(server)
             repository.workoutPlanSyncRevisions[localCopy.id] = localCopy.revision
+            return true
         }
     }
 
     private func remember(_ document: WorkoutPlanDocument) {
         repository.workoutPlanSyncRevisions[document.id] = document.revision
         repository.workoutPlanLastSyncedPayloads[document.id] = document.payload
+    }
+
+    private func payloadsMatch(_ lhs: Data?, _ rhs: Data) -> Bool {
+        guard let lhs,
+              let left = try? decoder.decode(WorkoutPlanSyncPayload.self, from: lhs),
+              let right = try? decoder.decode(WorkoutPlanSyncPayload.self, from: rhs) else { return false }
+        return left == right
     }
 
     private func apply(_ payload: WorkoutPlanSyncPayload, replacing planID: UUID?) {

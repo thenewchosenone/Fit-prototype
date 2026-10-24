@@ -312,7 +312,8 @@ private struct CompletedWorkoutEditView: View {
                         guard canSave else { return }
                         var updated = draft
                         updated.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-                        updated.startedAt = updated.completedAt.addingTimeInterval(-updated.duration)
+                        updated.completedAt = max(updated.completedAt, updated.startedAt)
+                        updated.duration = updated.completedAt.timeIntervalSince(updated.startedAt)
                         updated.sets = normalizedSets(for: updated)
                         updated.exercises = normalizedExercises(for: updated)
                         onSave(updated)
@@ -354,8 +355,13 @@ private struct CompletedWorkoutEditView: View {
             Text("Workout")
                 .font(.headline.weight(.bold))
 
+            DatePicker("Started", selection: $draft.startedAt, displayedComponents: [.date, .hourAndMinute])
+                .font(.subheadline.weight(.semibold))
             DatePicker("Completed", selection: $draft.completedAt, displayedComponents: [.date, .hourAndMinute])
                 .font(.subheadline.weight(.semibold))
+            Text("Duration: \(MeasurementFormatting.shortDurationText(max(0, draft.completedAt.timeIntervalSince(draft.startedAt))))")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.liftMuted)
 
             Stepper(draft.effort == 0 ? "Effort: Not recorded" : "Effort \(draft.effort)/5", value: $draft.effort, in: 0...5)
                 .font(.subheadline.weight(.semibold))

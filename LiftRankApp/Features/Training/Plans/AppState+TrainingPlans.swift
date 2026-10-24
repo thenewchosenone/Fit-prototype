@@ -168,6 +168,27 @@ extension AppState {
         Haptics.warning()
     }
 
+    @discardableResult
+    func updateWorkoutSession(_ session: WorkoutSession, prescriptions: [WorkoutExercisePrescription]) -> Bool {
+        guard activeWorkout == nil,
+              !session.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let existing = workoutSessions.first(where: { $0.id == session.id }) else { return false }
+        let existingPrescriptionIDs = Set(programStore.prescriptions(session: existing).map(\.id))
+        guard Set(prescriptions.map(\.id)) == existingPrescriptionIDs,
+              prescriptions.allSatisfy({ $0.sessionID == session.id && $0.sets > 0 && $0.restSeconds >= 0 && !$0.reps.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else { return false }
+        programStore.updateSession(session)
+        if let week = workoutWeeks.first(where: { $0.id == session.weekID }),
+           let settingsIndex = repository.workoutPlanProgressionSettings.firstIndex(where: { $0.planID == week.planID }),
+           repository.workoutPlanProgressionSettings[settingsIndex].scheduledWeekdays.indices.contains(session.order),
+           let weekday = Calendar.current.weekdaySymbols.firstIndex(where: { $0.caseInsensitiveCompare(session.day) == .orderedSame }) {
+            repository.workoutPlanProgressionSettings[settingsIndex].scheduledWeekdays[session.order] = weekday + 1
+        }
+        prescriptions.forEach(programStore.updatePrescription)
+        Task { await synchronizeWorkoutPlans() }
+        Haptics.success()
+        return true
+    }
+
     func cancelWorkout(_ session: WorkoutSession) {
         guard activeWorkout == nil else { return }
         programStore.cancelSession(session)
@@ -209,6 +230,15 @@ extension AppState {
         programStore.deletePrescription(prescription)
         Task { await synchronizeWorkoutPlans() }
         Haptics.warning()
+    }
+
+    @discardableResult
+    func reorderWorkoutPrescriptions(for session: WorkoutSession, orderedIDs: [UUID]) -> Bool {
+        guard activeWorkout == nil,
+              programStore.reorderPrescriptions(sessionID: session.id, orderedIDs: orderedIDs) else { return false }
+        Task { await synchronizeWorkoutPlans() }
+        Haptics.success()
+        return true
     }
 
     func updateSetLog(_ log: WorkoutSetLog) {
@@ -322,6 +352,7 @@ extension AppState {
     private func scheduledPlanRows(referenceDate: Date) -> [(week: WorkoutWeek, session: WorkoutSession, date: Date)] {
         let calendar = Calendar.current
         let settings = workoutPlanProgressionSettings.first { $0.planID == selectedWorkoutPlanID }
+        let planStartDate = settings?.startedAt ?? selectedWorkoutPlan?.createdAt
         let currentWeekID = currentSelectedProgramWeek?.id ?? selectedPlanWeeks.first?.id
 
         return selectedPlanWeeks.flatMap { week in
@@ -351,6 +382,10 @@ extension AppState {
                 return (week, session, date)
             }
         }
+        .filter { row in
+            guard let planStartDate else { return true }
+            return row.date >= calendar.startOfDay(for: planStartDate)
+        }
         .sorted { $0.date < $1.date }
     }
 
@@ -372,9 +407,9 @@ extension AppState {
         )
     }
 
-    func createWorkoutPlan(name: String) {
+    func createWorkoutPlan(name: String, phaseName: String = "Base Phase", phaseDurationWeeks: Int = 1) {
         guard activeWorkout == nil else { return }
-        guard let plan = programStore.createPlan(name: name) else {
+        guard let plan = programStore.createPlan(name: name, phaseName: phaseName, phaseDurationWeeks: phaseDurationWeeks) else {
             Haptics.warning()
             return
         }
@@ -533,7 +568,8 @@ extension AppState {
     @discardableResult
     func updateWorkoutProgramSetup(
         planID: UUID, startDate: Date, scheduledWeekdays: [Int],
-        method: WorkoutProgressionMethod, trainingMaxKilograms: [String: Double]
+        method: WorkoutProgressionMethod, trainingMaxKilograms: [String: Double],
+        flexibleSessionOrder: Bool
     ) -> Bool {
         guard activeWorkout == nil,
               let index = repository.workoutPlanProgressionSettings.firstIndex(where: { $0.planID == planID }),
@@ -552,6 +588,7 @@ extension AppState {
             repository.workoutSessions[sessionIndex].day = Calendar.current.weekdayName(for: scheduledWeekdays[session.order])
         }
         guard programStore.changeProgression(planID: planID, method: method, trainingMaxKilograms: trainingMaxKilograms) else { return false }
+        _ = programStore.setQueue(planID: planID, enabled: flexibleSessionOrder)
         repository.persistWorkoutSnapshotWithoutBlockingUI()
         Task { await synchronizeWorkoutPlans() }
         return true
@@ -586,13 +623,19 @@ extension AppState {
     }
 
     func deleteSelectedWorkoutPlan() {
+        deleteWorkoutPlan(id: selectedWorkoutPlanID)
+    }
+
+    func deleteWorkoutPlan(id: UUID) {
         guard activeWorkout == nil else { return }
-        guard let deletion = programStore.deletePlan(id: selectedWorkoutPlanID) else {
+        guard let deletion = programStore.deletePlan(id: id) else {
             Haptics.warning()
             return
         }
         workoutSyncStore.forgetPlan(deletion.deletedPlanID)
-        selectedWorkoutPlanID = Self.noWorkoutPlanID
+        if selectedWorkoutPlanID == id {
+            selectedWorkoutPlanID = Self.noWorkoutPlanID
+        }
         Haptics.warning()
         if isAuthenticated, !isDemoMode {
             Task { await workoutSyncStore.deleteRemotePlan(deletion.deletedPlanID) }

@@ -8,6 +8,23 @@ Use these checks for a full review. For each action, record the result, visual i
 
 ## Unfinished
 
+### Current bug fixes requested — Build 44 Release installed; phone checks underway
+
+Track implementation, installation, and phone behavior separately. “Implemented” does not mean “phone verified.”
+
+- Follow-up: Winter Volume showed `3/5 exercises completed` after Pullover Machine was removed and then re-added; it showed `4/5` before the check. Confirm whether restoring a removed exercise should reconnect its prior completion state.
+- Code: diagnostic added · Migration: `202610240002` applied to LiftRank Production · Phone: **verified** — Build 44 exposed `42501` permission denied on `workout_plan_documents`. Granted authenticated SELECT/INSERT/UPDATE, kept DELETE RPC-only and the owner RLS policy intact. Runtime privilege/RLS assertions passed; tapping Retry on the physical iPhone cleared the sync error and the saved plans loaded.
+- Code: implemented · Build: 42 Release installed · Phone: pending — Verify sessions before the plan start date are excluded and early-ended workouts are not counted as full sessions.
+- Code: implemented · Build: 42 Release installed · Phone: partial — Saved workout shows editable Started/Completed times and a 1h 16m calculated duration; left unchanged. Inactivity reminder behavior still needs checking.
+- Code: implemented · Build: 42 Release installed · Phone: pending — Verify visible color-coded RPE 6–10 controls during a workout.
+- Code: implemented · Build: 42 Release installed · Phone: pending — Verify completion feedback and exercise/volume PR celebration.
+- Code: implemented · Build: 42 Release installed · Phone: partial — Library icons differ in the visible list; specific back-exercise icons still need review.
+- Code: implemented · Build: 42 Release installed · Phone: blocked — Search entry through mirroring produced malformed text; iso-lateral results not confirmed.
+- Code: implemented · Build: 42 Release installed · Phone: **pass** — Consistency no longer repeats Recently Trained Muscles; Muscle has the map and workload view.
+- Code: implemented · Build: 42 Release installed · Phone: pending — No generic squat/bench/deadlift neglect warning appeared, but the training-focus prompt is visible; confirm with a configured focus and active plan.
+- Code: implemented · Build: 42 Release installed · Phone: **pass** — Exercise progress shows Best Logged Set and a 2-of-3-workouts threshold before trends.
+- Code: implemented · Build: 42 Release installed · Phone: blocked — Muscle workload says “First logged week”; two complete weeks are needed to verify neglected-muscle detection.
+
 ### Review status
 
 - [ ] Home interactions and remaining Home states
@@ -362,6 +379,7 @@ Use these checks for a full review. For each action, record the result, visual i
 
 ## Finished
 
+- [x] Remove an exercise from an existing plan and verify saved history — On the physical iPhone, removed Pullover Machine from Winter Volume and then restored it. The plan changed from 5 exercises/16 prescribed sets to 4/13, then back to 5/16. Reviewing the saved workout still showed Pullover Machine and all three logged sets (90×12, 180×12, 225×8), with the workout’s duration, set count, and volume intact. Follow-up: the plan’s completion indicator changed from 4/5 to 3/5 after re-adding; see unfinished item above.
 - [x] Reconcile Build 30 Progress features with Build 32 — Restored and reviewed in Build 33 on the iPhone 18 Pro Max simulator: Consistency, Strength, Muscle, and Body tabs; 30D/90D/1Y activity heatmap with Time/Volume controls; This Month, All Workouts, and Week Streak tiles; and Recently trained muscles. Removed the weekly training goal card from Home and Progress per user preference.
 - [x] Verify Build 40 Progress feature restoration — On the iPhone 18 Pro Max simulator, confirmed Consistency shows weekly summary/activity history/program consistency, Strength shows main and other lift records plus progression, Muscle shows the front/back map and workload, and Body shows bodyweight trend/history. The Progress category selector switches between all four views.
 - [x] Progress > This Week: widen or adjust the card so “All workouts” stays on one line — Build 34 uses a compact one-line icon/text label; source fix applied, visual recheck pending.

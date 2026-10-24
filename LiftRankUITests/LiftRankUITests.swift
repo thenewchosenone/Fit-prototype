@@ -120,16 +120,9 @@ final class LiftRankUITests: XCTestCase {
         exercise.tap()
         XCTAssertTrue(app.navigationBars["Track exercise"].waitForExistence(timeout: 5))
 
-        let setOptions = app.buttons.matching(
-            NSPredicate(format: "label == %@", "Show set options")
-        ).firstMatch
-        XCTAssertTrue(setOptions.waitForExistence(timeout: 5))
-        setOptions.tap()
-        let chooseRPE = app.buttons.matching(
-            NSPredicate(format: "label == %@", "Choose RPE")
-        ).firstMatch
-        XCTAssertTrue(chooseRPE.waitForExistence(timeout: 5))
-        chooseRPE.tap()
+        for value in 6...10 {
+            XCTAssertTrue(app.buttons["RPE \(value)"].waitForExistence(timeout: 5))
+        }
         app.buttons["RPE 8"].tap()
         XCTAssertTrue(app.buttons["RPE 8"].exists)
 
@@ -215,14 +208,6 @@ final class LiftRankUITests: XCTestCase {
             app.alerts.firstMatch.buttons["Keep Private"].tap()
         }
 
-        let keepPrivate = app.switches["workout.summary.keepPrivate"]
-        for _ in 0..<6 where !keepPrivate.isHittable { app.swipeUp() }
-        XCTAssertTrue(keepPrivate.waitForExistence(timeout: 5))
-        XCTAssertEqual(keepPrivate.value as? String, "0")
-        keepPrivate.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
-        expectation(for: NSPredicate(format: "value == %@", "1"), evaluatedWith: keepPrivate)
-        waitForExpectations(timeout: 3)
-
         let save = app.buttons["workout.finish.save"]
         var attempts = 0
         while !save.isHittable && attempts < 8 {
@@ -233,6 +218,7 @@ final class LiftRankUITests: XCTestCase {
         save.tap()
 
         XCTAssertTrue(app.staticTexts["Workout saved"].exists)
+        XCTAssertFalse(app.navigationBars.buttons["Done"].exists)
         let achievements = app.buttons["workout.finish.saved.achievements"]
         XCTAssertTrue(achievements.waitForExistence(timeout: 5))
         achievements.tap()
@@ -423,7 +409,7 @@ final class LiftRankUITests: XCTestCase {
             "No previous set values",
             "Use previous workout values:"
         )).firstMatch
-        let chooseRPE = app.buttons["Choose RPE"]
+        let rpe6 = app.buttons["RPE 6"]
         let setOptions = app.buttons.matching(NSPredicate(format: "label == %@", "Show set options")).firstMatch
         let completeSet = app.buttons.matching(NSPredicate(format: "label == %@", "Complete set")).firstMatch
 
@@ -431,8 +417,8 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["PREVIOUS"].exists)
         XCTAssertTrue(weight.exists)
         XCTAssertTrue(previousValues.exists)
-        XCTAssertTrue(chooseRPE.isHittable)
-        XCTAssertGreaterThanOrEqual(chooseRPE.frame.height, 88)
+        XCTAssertTrue(rpe6.isHittable)
+        XCTAssertGreaterThanOrEqual(rpe6.frame.height, 48)
         XCTAssertTrue(setOptions.isHittable)
         XCTAssertGreaterThanOrEqual(setOptions.frame.height, 52)
         XCTAssertLessThanOrEqual(setOptions.frame.height, 100)
@@ -524,6 +510,52 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Continue workout"].exists)
     }
 
+    func testSinglePlanShowsStopAndSwipeToDeleteActions() {
+        let app = launchDemo()
+        let track = tab("track", in: app)
+        XCTAssertTrue(track.waitForExistence(timeout: 8))
+        track.tap()
+        let plans = app.buttons["tracker.segment.plans"]
+        XCTAssertTrue(plans.waitForExistence(timeout: 5))
+        plans.tap()
+
+        let createPlan = app.buttons["Create plan"]
+        if createPlan.waitForExistence(timeout: 2) {
+            createPlan.tap()
+            let planName = app.textFields["planFromHistory.name"]
+            let phaseName = app.textFields["planFromHistory.phaseName"]
+            XCTAssertTrue(planName.waitForExistence(timeout: 5))
+            XCTAssertTrue(phaseName.waitForExistence(timeout: 5))
+            planName.tap()
+            planName.typeText("Simulator Plan")
+            phaseName.tap()
+            phaseName.typeText("Simulator Phase")
+            let create = app.buttons["planFromHistory.continue"]
+            XCTAssertTrue(create.isEnabled)
+            create.tap()
+        }
+
+        XCTAssertTrue(app.staticTexts["My Plans"].waitForExistence(timeout: 5))
+        let planRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "tracker.plan.row.")).firstMatch
+        XCTAssertTrue(planRow.waitForExistence(timeout: 5))
+        planRow.tap()
+        let stopProgram = app.buttons["tracker.program.stop"]
+        XCTAssertTrue(stopProgram.waitForExistence(timeout: 5))
+        stopProgram.tap()
+        XCTAssertTrue(stopProgram.waitForNonExistence(timeout: 5))
+
+        planRow.tap()
+        XCTAssertTrue(stopProgram.waitForExistence(timeout: 5))
+        var scrollAttempts = 0
+        while !planRow.isHittable && scrollAttempts < 6 {
+            app.swipeUp()
+            scrollAttempts += 1
+        }
+        planRow.swipeLeft()
+        let delete = app.buttons["Delete"].firstMatch
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+    }
+
     func testTrackerPlansShowsActivePlanAndProgramLibrary() {
         let app = launchDemo()
         let track = tab("track", in: app)
@@ -538,6 +570,7 @@ final class LiftRankUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Active plan")).firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Workout program library")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["tracker.program.stop"].waitForExistence(timeout: 5))
 
         let planOptions = app.buttons["Plan detail options"]
         XCTAssertTrue(planOptions.waitForExistence(timeout: 5))
@@ -895,8 +928,7 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.buttons["training.programPreview.start"].waitForExistence(timeout: 3))
         let session = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "exercises,")).firstMatch
         XCTAssertTrue(session.waitForExistence(timeout: 5))
-        session.tap()
-        XCTAssertEqual(session.value as? String, "Expanded")
+        XCTAssertTrue(app.staticTexts["Week 1 preview"].exists)
 
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = "Audit Program Preview Expanded Session"

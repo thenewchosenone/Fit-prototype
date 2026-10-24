@@ -104,7 +104,7 @@ protocol ProgramRepository: AnyObject {
     var programDataRevision: Int { get }
 
     func currentProgramWeek(planID: UUID, at date: Date) -> WorkoutWeek?
-    func addWorkoutPlan(_ plan: WorkoutPlan)
+    func addWorkoutPlan(_ plan: WorkoutPlan, phaseName: String, phaseDurationWeeks: Int)
     func updateWorkoutPlan(_ plan: WorkoutPlan)
     @discardableResult
     func updateWorkoutQueue(planID: UUID, enabled: Bool, sessionIDs: [UUID]) -> Bool
@@ -118,12 +118,16 @@ protocol ProgramRepository: AnyObject {
 
     @discardableResult
     func addWorkoutSession(weekID: UUID, day: String, name: String) -> WorkoutSession
+    func updateWorkoutSession(_ session: WorkoutSession)
     func deleteWorkoutSession(_ session: WorkoutSession)
     func cancelWorkoutSession(_ session: WorkoutSession)
     func setWorkoutSessionOutcome(_ session: WorkoutSession, outcome: WorkoutSessionOutcome?)
 
     @discardableResult
     func addWorkoutPrescription(_ prescription: WorkoutExercisePrescription) -> WorkoutExercisePrescription
+    func updateWorkoutPrescription(_ prescription: WorkoutExercisePrescription)
+    @discardableResult
+    func reorderWorkoutPrescriptions(sessionID: UUID, orderedIDs: [UUID]) -> Bool
     func deleteWorkoutPrescription(_ prescription: WorkoutExercisePrescription)
 
     @discardableResult
@@ -143,6 +147,12 @@ protocol ProgramRepository: AnyObject {
         trainingMaxKilograms: [String: Double],
         at date: Date
     ) -> Bool
+}
+
+extension ProgramRepository {
+    func addWorkoutPlan(_ plan: WorkoutPlan) {
+        addWorkoutPlan(plan, phaseName: "Base Phase", phaseDurationWeeks: 1)
+    }
 }
 
 @MainActor

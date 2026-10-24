@@ -148,50 +148,40 @@ struct WorkoutSetLogRow: View {
     }
 
     private var rpeMenu: some View {
-        Menu {
-            ForEach([6, 7, 8, 9, 10], id: \.self) { value in
+        HStack(spacing: 4) {
+            Text("RPE")
+                .font(.caption2.weight(.black))
+                .foregroundStyle(Color.liftMuted)
+            ForEach(6...10, id: \.self) { value in
                 Button {
                     cancelPendingPersist()
                     draft.rpe = draft.rpe == value ? nil : value
                     persistDraft()
                     Haptics.light()
                 } label: {
-                    if draft.rpe == value {
-                        Label("RPE \(value)", systemImage: "checkmark")
-                    } else {
-                        Text("RPE \(value)")
-                    }
+                    Text("\(value)")
+                        .font(.caption.weight(.black).monospacedDigit())
+                        .foregroundStyle(draft.rpe == value ? Color.liftOnAccent : rpeColor(value))
+                        .frame(width: dynamicTypeSize.isAccessibilitySize ? 48 : 30, height: dynamicTypeSize.isAccessibilitySize ? 48 : 36)
+                        .background(draft.rpe == value ? rpeColor(value) : rpeColor(value).opacity(0.13))
+                        .clipShape(Circle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("RPE \(value)")
+                .accessibilityAddTraits(draft.rpe == value ? .isSelected : [])
             }
-        } label: {
-            Group {
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(spacing: 2) {
-                        Text("RPE")
-                            .font(.caption2.weight(.black))
-                            .foregroundStyle(Color.liftMuted)
-                        Text(draft.rpe.map { String($0) } ?? "—")
-                            .font(.caption.weight(.black).monospacedDigit())
-                            .foregroundStyle(Color.liftText)
-                    }
-                    .frame(minWidth: 88, minHeight: 88)
-                } else {
-                    HStack(spacing: 4) {
-                        Text("RPE")
-                            .font(.caption2.weight(.black))
-                            .foregroundStyle(Color.liftMuted)
-                        Text(draft.rpe.map { String($0) } ?? "—")
-                            .font(.caption.weight(.black).monospacedDigit())
-                            .foregroundStyle(Color.liftText)
-                    }
-                    .frame(width: 64, height: 44)
-                }
-            }
-            .background(Color.liftCardRaised)
-            .clipShape(Capsule())
         }
-        .accessibilityLabel(draft.rpe.map { "RPE \($0)" } ?? "Choose RPE")
-        .accessibilityHint("Choose a value from 6 to 10. Select the current value again to clear it.")
+        .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 52 : 40)
+    }
+
+    private func rpeColor(_ value: Int) -> Color {
+        switch value {
+        case 6: Color.liftGreen
+        case 7: Color.liftAccentText
+        case 8: Color.liftGold
+        case 9: Color.orange
+        default: Color.liftRed
+        }
     }
 
     private var setOptionsButton: some View {

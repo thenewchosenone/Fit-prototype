@@ -4,8 +4,12 @@ struct ProgramSessionCard: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedWorkout: CompletedWorkout?
+    @State private var editingSession: WorkoutSession?
     @State private var focusedSetID: UUID?
     @State private var showsExercises = false
+    @State private var dropTargetPrescriptionID: UUID?
+    @State private var prescriptionToRemove: WorkoutExercisePrescription?
+    @State private var showingRemoveConfirmation = false
     let session: WorkoutSession
     let prescriptions: [WorkoutExercisePrescription]
     let completedPrescriptionCount: Int
@@ -28,7 +32,13 @@ struct ProgramSessionCard: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     Spacer()
+                    Button("Edit") { editingSession = session }
+                        .font(.subheadline.weight(.semibold))
+                        .disabled(appState.activeWorkout != nil)
                     Menu {
+                        Button("Edit workout", systemImage: "pencil") { editingSession = session }
+                            .disabled(appState.activeWorkout != nil)
+                        Divider()
                         Button(role: .destructive, action: onDelete) {
                             Text("Delete Workout Day")
                         }
@@ -87,26 +97,7 @@ struct ProgramSessionCard: View {
                 if showsExercises {
                     VStack(spacing: 0) {
                         ForEach(Array(prescriptions.enumerated()), id: \.element.id) { index, prescription in
-                            HStack(spacing: 12) {
-                                ExerciseCatalogIcon(exercise: catalogExercise(for: prescription))
-                                    .frame(width: 42, height: 42)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(prescription.exerciseName)
-                                        .font(.subheadline.weight(.semibold))
-                                    Text("\(prescription.sets) × \(prescription.reps) • \(prescription.bodyPart)")
-                                        .font(.caption)
-                                        .foregroundStyle(Color.liftMuted)
-                                    if let kilograms = prescription.targetLoadKilograms {
-                                        Text("Target: \(MeasurementFormatting.convert(kilograms, from: .kilograms, to: appState.currentProfile.preferredUnit).formatted(.number.precision(.fractionLength(0...1)))) \(appState.currentProfile.preferredUnit.shortLabel)")
-                                            .font(.caption2).foregroundStyle(Color.liftAccentText)
-                                    } else if let rir = prescription.targetRIR {
-                                        Text("Target: \(rir) reps in reserve").font(.caption2).foregroundStyle(Color.liftMuted)
-                                    }
-                                }
-                                Spacer()
-                            }
-                            .padding(.vertical, 7)
-                            .frame(minHeight: 66)
+                            exerciseRow(prescription, at: index)
 
                             if index < prescriptions.count - 1 {
                                 Divider()
@@ -122,6 +113,19 @@ struct ProgramSessionCard: View {
         .sheet(item: $selectedWorkout) { workout in
             CompletedWorkoutDetailView(workout: workout, focusedSetID: $focusedSetID)
                 .environmentObject(appState)
+        }
+        .sheet(item: $editingSession) { session in
+            ProgramSessionEditorView(session: session, prescriptions: prescriptions)
+                .environmentObject(appState)
+        }
+        .confirmationDialog("Remove exercise from plan?", isPresented: $showingRemoveConfirmation, titleVisibility: .visible) {
+            Button("Remove Exercise", role: .destructive) {
+                if let prescriptionToRemove { appState.deletePrescription(prescriptionToRemove) }
+                prescriptionToRemove = nil
+            }
+            Button("Cancel", role: .cancel) { prescriptionToRemove = nil }
+        } message: {
+            Text("This removes the selected exercise from this plan. Saved workouts and history remain.")
         }
     }
 
@@ -161,6 +165,104 @@ struct ProgramSessionCard: View {
         .accessibilityHint(hasSavedWorkout ? "Starts a new workout attempt. Saved workout history remains available." : "Starts this scheduled workout.")
     }
 
+    private func exerciseRow(_ prescription: WorkoutExercisePrescription, at index: Int) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "line.3.horizontal")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Color.liftMuted)
+                .frame(width: 24, height: 44)
+                .contentShape(Rectangle())
+                .draggable(prescription.id.uuidString)
+                .accessibilityLabel("Reorder \(prescription.exerciseName)")
+                .accessibilityHint("Press and hold, then drag to move this exercise")
+            ExerciseCatalogIcon(exercise: catalogExercise(for: prescription))
+                .frame(width: 42, height: 42)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(prescription.exerciseName)
+                    .font(.subheadline.weight(.semibold))
+                Text("\(prescription.sets) × \(prescription.reps) • \(prescription.bodyPart)")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+                if let kilograms = prescription.targetLoadKilograms {
+                    Text("Target: \(MeasurementFormatting.convert(kilograms, from: .kilograms, to: appState.currentProfile.preferredUnit).formatted(.number.precision(.fractionLength(0...1)))) \(appState.currentProfile.preferredUnit.shortLabel)")
+                        .font(.caption2).foregroundStyle(Color.liftAccentText)
+                } else if let rir = prescription.targetRIR {
+                    Text("Target: \(rir) reps in reserve").font(.caption2).foregroundStyle(Color.liftMuted)
+                }
+            }
+            Spacer()
+            Menu {
+                Button {
+                    movePrescription(prescription, by: -1)
+                } label: {
+                    Label("Move up", systemImage: "arrow.up")
+                }
+                .disabled(index == 0 || appState.activeWorkout != nil)
+                Button {
+                    movePrescription(prescription, by: 1)
+                } label: {
+                    Label("Move down", systemImage: "arrow.down")
+                }
+                .disabled(index == prescriptions.count - 1 || appState.activeWorkout != nil)
+                Divider()
+                Button(role: .destructive) {
+                    prescriptionToRemove = prescription
+                    showingRemoveConfirmation = true
+                } label: {
+                    Label("Remove from plan", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .foregroundStyle(Color.liftMuted)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .disabled(appState.activeWorkout != nil)
+            .accessibilityLabel("Options for \(prescription.exerciseName)")
+        }
+        .padding(.vertical, 7)
+        .frame(minHeight: 66)
+        .background(
+            dropTargetPrescriptionID == prescription.id
+                ? Color.liftAccentText.opacity(0.16)
+                : Color.clear,
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+        .dropDestination(for: String.self) { items, _ in
+            guard let item = items.first,
+                  let draggedID = UUID(uuidString: item) else { return false }
+            return movePrescription(draggedID, to: prescription.id)
+        } isTargeted: { isTargeted in
+            if isTargeted {
+                dropTargetPrescriptionID = prescription.id
+            } else if dropTargetPrescriptionID == prescription.id {
+                dropTargetPrescriptionID = nil
+            }
+        }
+    }
+
+    private func movePrescription(_ prescription: WorkoutExercisePrescription, by offset: Int) {
+        guard let index = prescriptions.firstIndex(where: { $0.id == prescription.id }),
+              prescriptions.indices.contains(index + offset) else { return }
+        var reordered = prescriptions
+        reordered.swapAt(index, index + offset)
+        _ = appState.reorderWorkoutPrescriptions(for: session, orderedIDs: reordered.map(\.id))
+    }
+
+    private func movePrescription(_ draggedID: UUID, to targetID: UUID) -> Bool {
+        guard appState.activeWorkout == nil,
+              let sourceIndex = prescriptions.firstIndex(where: { $0.id == draggedID }),
+              let targetIndex = prescriptions.firstIndex(where: { $0.id == targetID }),
+              sourceIndex != targetIndex else { return false }
+        var reordered = prescriptions
+        let movedPrescription = reordered.remove(at: sourceIndex)
+        reordered.insert(movedPrescription, at: min(targetIndex, reordered.count))
+        dropTargetPrescriptionID = nil
+        return withAnimation(.snappy) {
+            appState.reorderWorkoutPrescriptions(for: session, orderedIDs: reordered.map(\.id))
+        }
+    }
+
     private var statusText: String {
         if let outcome = session.outcome { return outcome == .rest ? "Marked as rest" : "Skipped" }
         if appState.isFullyCompletedPlanSession(session) { return "All planned sets completed" }
@@ -186,5 +288,60 @@ struct ProgramSessionCard: View {
             equipment: prescription.equipment,
             muscleProfile: prescription.muscleProfile
         )
+    }
+}
+
+private struct ProgramSessionEditorView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    @State private var session: WorkoutSession
+    @State private var prescriptions: [WorkoutExercisePrescription]
+
+    private let days = Calendar.current.weekdaySymbols
+
+    init(session: WorkoutSession, prescriptions: [WorkoutExercisePrescription]) {
+        _session = State(initialValue: session)
+        _prescriptions = State(initialValue: prescriptions)
+    }
+
+    private var canSave: Bool {
+        !session.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            prescriptions.allSatisfy { $0.sets > 0 && $0.restSeconds >= 0 && !$0.reps.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Workout") {
+                    TextField("Workout name", text: $session.name)
+                    Picker("Day", selection: $session.day) {
+                        ForEach(days, id: \.self) { Text($0).tag($0) }
+                    }
+                }
+                Section("Exercises") {
+                    ForEach(prescriptions.indices, id: \.self) { index in
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(prescriptions[index].exerciseName).font(.headline)
+                            Stepper("\(prescriptions[index].sets) sets", value: $prescriptions[index].sets, in: 1...100)
+                            TextField("Reps or target", text: $prescriptions[index].reps)
+                            TextField("Rest (seconds)", value: $prescriptions[index].restSeconds, format: .number)
+                                .keyboardType(.numberPad)
+                        }
+                        .padding(.vertical, 5)
+                    }
+                }
+            }
+            .navigationTitle("Edit Workout")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        if appState.updateWorkoutSession(session, prescriptions: prescriptions) { dismiss() }
+                    }
+                    .disabled(!canSave || appState.activeWorkout != nil)
+                }
+            }
+        }
     }
 }

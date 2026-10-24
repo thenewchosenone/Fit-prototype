@@ -17,6 +17,7 @@ struct CreateWorkoutPlanFromHistoryView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var planName = ""
+    @State private var phaseDurationWeeks = 4
     @State private var selectedWorkoutIDs: Set<UUID> = []
     @State private var draftWorkouts: [CompletedWorkout] = []
     @State private var useHistory: Bool
@@ -79,7 +80,11 @@ struct CreateWorkoutPlanFromHistoryView: View {
                                 saveError = "The plan couldn't be created. Finish any active workout and try again."
                             }
                         } else {
-                            appState.createWorkoutPlan(name: planName)
+                            appState.createWorkoutPlan(
+                                name: planName,
+                                phaseName: "Base Phase",
+                                phaseDurationWeeks: phaseDurationWeeks
+                            )
                             dismiss()
                         }
                     }
@@ -110,7 +115,7 @@ struct CreateWorkoutPlanFromHistoryView: View {
                 if !isReviewing {
                     Text(useHistory
                          ? "Choose workouts below, then review their names, schedule, and exercises before creating your plan."
-                         : "Create an empty plan, then add workouts and exercises in Plans.")
+                         : "Start with a four-week phase and one workout day. Add exercises and adjust the plan as you go.")
                         .font(.subheadline)
                         .foregroundStyle(Color.liftMuted)
                 }

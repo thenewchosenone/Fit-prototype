@@ -249,7 +249,7 @@ extension DemoRepository {
               let index = workout.exercises.firstIndex(where: { $0.id == currentExerciseID }) else { return nil }
         let current = workout.exercises[index]
         let completedSets = workoutSetLogs.filter {
-            $0.workoutID == workout.id && $0.prescriptionID == current.id && $0.isComplete
+            $0.workoutID == workout.id && $0.prescriptionID == current.id && $0.isComplete && !$0.isWarmup
         }
 
         if completedSets.isEmpty {
@@ -259,10 +259,19 @@ extension DemoRepository {
             return workout.exercises[index]
         }
 
-        let replacement = replacementSnapshot(from: current, substitute: substitute, preserveID: false)
+        let remainingSets = current.targetSets - completedSets.count
+        guard remainingSets > 0 else { return nil }
+
+        workout.exercises[index].targetSets = completedSets.count
+        var replacement = replacementSnapshot(from: current, substitute: substitute, preserveID: false)
+        replacement.sourcePrescriptionID = current.sourcePrescriptionID
+        replacement.targetSets = remainingSets
         workout.exercises.insert(replacement, at: index + 1)
         normalizeActiveExerciseOrder(&workout)
-        for setNumber in 1...max(1, replacement.targetSets) {
+        workoutSetLogs.removeAll {
+            $0.workoutID == workout.id && $0.prescriptionID == current.id && !$0.isComplete && !$0.isWarmup
+        }
+        for setNumber in (completedSets.count + 1)...current.targetSets {
             workoutSetLogs.append(
                 WorkoutSetLog(
                     id: UUID(),
@@ -286,13 +295,23 @@ extension DemoRepository {
 
     @discardableResult
     func updateSourcePlanFromActiveWorkout() -> Bool {
-        guard let workout = activeWorkout, let sessionID = workout.sourceSessionID else { return false }
+        guard var workout = activeWorkout, let sessionID = workout.sourceSessionID else { return false }
         let existingIDs = Set(workoutPrescriptions.filter { $0.sessionID == sessionID }.map(\.id))
         workoutPrescriptions.removeAll { $0.sessionID == sessionID }
         workoutSetLogs.removeAll { $0.workoutID == nil && existingIDs.contains($0.prescriptionID) }
-        workoutPrescriptions += workout.exercises.sorted { $0.order < $1.order }.map { exercise in
-            WorkoutExercisePrescription(
-                id: exercise.sourcePrescriptionID ?? UUID(),
+        var usedPrescriptionIDs = Set<UUID>()
+        var updatedPrescriptions: [WorkoutExercisePrescription] = []
+        for exerciseIndex in workout.exercises.indices.sorted(by: { workout.exercises[$0].order < workout.exercises[$1].order }) {
+            let exercise = workout.exercises[exerciseIndex]
+            let prescriptionID: UUID
+            if let sourceID = exercise.sourcePrescriptionID, usedPrescriptionIDs.insert(sourceID).inserted {
+                prescriptionID = sourceID
+            } else {
+                prescriptionID = UUID()
+            }
+            workout.exercises[exerciseIndex].sourcePrescriptionID = prescriptionID
+            updatedPrescriptions.append(WorkoutExercisePrescription(
+                id: prescriptionID,
                 sessionID: sessionID,
                 exerciseID: exercise.exerciseID,
                 exerciseName: exercise.exerciseName,
@@ -303,12 +322,15 @@ extension DemoRepository {
                 restSeconds: exercise.restSeconds,
                 order: exercise.order,
                 notes: exercise.notes,
+                substitutionExerciseIDs: exercise.substitutionExerciseIDs,
                 muscleProfile: exercise.muscleProfile,
                 targetRIR: exercise.targetRIR,
                 trainingMaxPercentage: exercise.trainingMaxPercentage,
                 targetLoadKilograms: exercise.targetLoadKilograms
-            )
+            ))
         }
+        workoutPrescriptions += updatedPrescriptions
+        activeWorkout = workout
         scheduleWorkoutSnapshotPersistence()
         return true
     }
@@ -352,12 +374,22 @@ extension DemoRepository {
         guard let workout = activeWorkout else { return nil }
         let logs = workoutSetLogs.filter { $0.workoutID == workout.id }
         guard logs.contains(where: { $0.isComplete && !$0.isWarmup }) else { return nil }
-        let elapsedDuration = workout.elapsedDuration(at: completedAt)
+        let latestWorkingSetAt = logs
+            .filter { $0.isComplete && !$0.isWarmup }
+            .map(\.performedAt)
+            .max()
+        // Finishing late should not add idle time after the last recorded set to workout duration.
+        let effectiveEnd = min(completedAt, latestWorkingSetAt ?? completedAt)
+        let currentPause = workout.pausedAt.map { max(0, effectiveEnd.timeIntervalSince($0)) } ?? 0
+        let elapsedDuration = max(
+            0,
+            effectiveEnd.timeIntervalSince(workout.startedAt) - workout.accumulatedPausedTime - currentPause
+        )
         let historyCompletedAt: Date? = workout.historyDate.flatMap { historyDate in
             let time = Calendar.current.dateComponents([.hour, .minute, .second], from: completedAt)
             return Calendar.current.date(bySettingHour: time.hour ?? 12, minute: time.minute ?? 0, second: time.second ?? 0, of: historyDate)
         }
-        let safeCompletedAt = historyCompletedAt ?? max(completedAt, workout.startedAt)
+        let safeCompletedAt = historyCompletedAt ?? max(effectiveEnd, workout.startedAt)
         let effectiveStartedAt = historyCompletedAt.map { $0.addingTimeInterval(-elapsedDuration) } ?? workout.startedAt
         let effectiveLogs = logs.map { log -> WorkoutSetLog in
             guard historyCompletedAt != nil else { return log }

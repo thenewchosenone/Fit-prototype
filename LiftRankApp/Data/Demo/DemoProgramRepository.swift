@@ -93,9 +93,9 @@ extension DemoRepository {
         persistWorkoutSnapshot()
     }
 
-    func addWorkoutPlan(_ plan: WorkoutPlan) {
+    func addWorkoutPlan(_ plan: WorkoutPlan, phaseName: String, phaseDurationWeeks: Int) {
         workoutPlans.insert(plan, at: 0)
-        createDefaultProgramScaffold(for: plan)
+        createDefaultProgramScaffold(for: plan, phaseName: phaseName, phaseDurationWeeks: phaseDurationWeeks)
         scheduleWorkoutSnapshotPersistence()
     }
 
@@ -293,16 +293,26 @@ extension DemoRepository {
             for session in workoutSessions.filter({ $0.weekID == week.id }) {
                 guard !recordedSessionIDs.contains(session.id), session.id != activeSessionID,
                       session.outcome == nil else { continue }
-                guard let sessionTemplate = template.sessions.first(where: { $0.name == session.name }) else { continue }
+                guard template.sessions.indices.contains(session.order) else { continue }
+                let sessionTemplate = template.sessions[session.order]
                 for index in workoutPrescriptions.indices where workoutPrescriptions[index].sessionID == session.id {
-                    guard let base = sessionTemplate.exercises.first(where: { $0.exerciseID == workoutPrescriptions[index].exerciseID }),
-                          let replacement = programPrescription(
+                    let current = workoutPrescriptions[index]
+                    guard let match = sessionTemplate.exercises.enumerated().first(where: { pair in
+                        let (templateIndex, exercise) = pair
+                        return WorkoutProgramCatalog.effectiveTemplateExercise(
+                            exercise, templateID: template.id, sessionIndex: session.order,
+                            exerciseIndex: templateIndex, week: week.weekNumber
+                        ).exerciseID == current.exerciseID
+                    }) else { continue }
+                    let templateIndex = match.offset
+                    let base = match.element
+                    guard let replacement = programPrescription(
                             base,
                             sessionID: session.id,
-                            order: workoutPrescriptions[index].order,
+                            order: current.order,
                             templateID: template.id,
                             sessionIndex: session.order,
-                            exerciseIndex: workoutPrescriptions[index].order,
+                            exerciseIndex: templateIndex,
                             week: week.weekNumber,
                             method: method,
                             trainingMaxKilograms: trainingMaxKilograms
@@ -333,6 +343,14 @@ extension DemoRepository {
         let weeks = workoutWeeks.filter { $0.planID == planID }.sorted { $0.weekNumber < $1.weekNumber }
         guard !weeks.isEmpty else { return nil }
         guard let settings = workoutPlanProgressionSettings.first(where: { $0.planID == planID }) else { return weeks.first }
+        if workoutPlans.first(where: { $0.id == planID })?.queueEnabled == true {
+            let completedSessionIDs = Set(completedWorkouts.compactMap(\.sourceSessionID))
+            return weeks.first { week in
+                workoutSessions.contains { session in
+                    session.weekID == week.id && session.outcome == nil && !completedSessionIDs.contains(session.id)
+                }
+            } ?? weeks.last
+        }
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: settings.startedAt)
         let today = calendar.startOfDay(for: date)
@@ -342,13 +360,14 @@ extension DemoRepository {
     }
 
     func duplicateWorkoutPlan(_ plan: WorkoutPlan) -> WorkoutPlan {
-        let copy = WorkoutPlan(
+        var copy = WorkoutPlan(
             id: UUID(),
             name: "\(plan.name) Copy",
             createdAt: .now,
             goal: plan.goal,
             notes: plan.notes,
-            isActive: false
+            isActive: false,
+            queueEnabled: plan.queueEnabled
         )
         workoutPlans.insert(copy, at: 0)
 
@@ -393,11 +412,17 @@ extension DemoRepository {
                 restSeconds: prescription.restSeconds,
                 order: prescription.order,
                 notes: prescription.notes,
+                substitutionExerciseIDs: prescription.substitutionExerciseIDs,
                 muscleProfile: prescription.muscleProfile,
                 targetRIR: prescription.targetRIR,
                 trainingMaxPercentage: prescription.trainingMaxPercentage,
                 targetLoadKilograms: prescription.targetLoadKilograms
             ))
+        }
+
+        copy.queuedSessionIDs = plan.queuedSessionIDs.compactMap { sessionMap[$0] }
+        if let copyIndex = workoutPlans.firstIndex(where: { $0.id == copy.id }) {
+            workoutPlans[copyIndex] = copy
         }
 
         if var settings = workoutPlanProgressionSettings.first(where: { $0.planID == plan.id }) {
@@ -445,6 +470,7 @@ extension DemoRepository {
                 restSeconds: prescription.restSeconds,
                 order: prescription.order,
                 notes: prescription.notes,
+                substitutionExerciseIDs: prescription.substitutionExerciseIDs,
                 muscleProfile: prescription.muscleProfile,
                 targetRIR: prescription.targetRIR,
                 trainingMaxPercentage: prescription.trainingMaxPercentage,
@@ -473,6 +499,12 @@ extension DemoRepository {
         workoutSessions.append(session)
         scheduleWorkoutSnapshotPersistence()
         return session
+    }
+
+    func updateWorkoutSession(_ session: WorkoutSession) {
+        guard let index = workoutSessions.firstIndex(where: { $0.id == session.id }) else { return }
+        workoutSessions[index] = session
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func deleteWorkoutSession(_ session: WorkoutSession) {
@@ -518,10 +550,22 @@ extension DemoRepository {
         scheduleWorkoutSnapshotPersistence()
     }
 
+    @discardableResult
+    func reorderWorkoutPrescriptions(sessionID: UUID, orderedIDs: [UUID]) -> Bool {
+        let sessionPrescriptions = workoutPrescriptions.filter { $0.sessionID == sessionID }
+        guard sessionPrescriptions.count == orderedIDs.count,
+              Set(sessionPrescriptions.map(\.id)) == Set(orderedIDs) else { return false }
+        let orderByID = Dictionary(uniqueKeysWithValues: orderedIDs.enumerated().map { ($0.element, $0.offset) })
+        for index in workoutPrescriptions.indices where workoutPrescriptions[index].sessionID == sessionID {
+            workoutPrescriptions[index].order = orderByID[workoutPrescriptions[index].id] ?? workoutPrescriptions[index].order
+        }
+        scheduleWorkoutSnapshotPersistence()
+        return true
+    }
+
     func deleteWorkoutPrescription(_ prescription: WorkoutExercisePrescription) {
         workoutPrescriptions.removeAll { $0.id == prescription.id }
         workoutSetLogs.removeAll { $0.prescriptionID == prescription.id }
-        workoutEntries.removeAll { $0.exercise == prescription.exerciseName && $0.workout == session(for: prescription)?.name }
         scheduleWorkoutSnapshotPersistence()
     }
 
@@ -598,11 +642,19 @@ extension DemoRepository {
         }
     }
 
-    private func createDefaultProgramScaffold(for plan: WorkoutPlan) {
-        let phase = createDefaultPhase(for: plan.id)
-        let week = WorkoutWeek(id: UUID(), planID: plan.id, phaseID: phase.id, weekNumber: 1, title: "Week 1", notes: "")
-        workoutWeeks.append(week)
-        workoutSessions.append(WorkoutSession(id: UUID(), weekID: week.id, day: "Monday", name: "Freestyle Workout", order: 0, notes: ""))
+    private func createDefaultProgramScaffold(for plan: WorkoutPlan, phaseName: String, phaseDurationWeeks: Int) {
+        let weekCount = max(1, min(52, phaseDurationWeeks))
+        let phase = createDefaultPhase(for: plan.id, name: phaseName, durationWeeks: weekCount)
+        for weekNumber in 1...weekCount {
+            let week = WorkoutWeek(
+                id: UUID(), planID: plan.id, phaseID: phase.id, weekNumber: weekNumber,
+                title: "Week \(weekNumber)", notes: ""
+            )
+            workoutWeeks.append(week)
+            if weekNumber == 1 {
+                workoutSessions.append(WorkoutSession(id: UUID(), weekID: week.id, day: "Monday", name: "Freestyle Workout", order: 0, notes: ""))
+            }
+        }
     }
 
     func programPrescription(
@@ -674,8 +726,8 @@ extension DemoRepository {
         return names[weekday - 1]
     }
 
-    private func createDefaultPhase(for planID: UUID) -> WorkoutPhase {
-        let phase = WorkoutPhase(id: UUID(), planID: planID, name: "Base Phase", order: 0, goal: "Build strength and muscle", durationWeeks: 1)
+    private func createDefaultPhase(for planID: UUID, name: String = "Base Phase", durationWeeks: Int = 1) -> WorkoutPhase {
+        let phase = WorkoutPhase(id: UUID(), planID: planID, name: name, order: 0, goal: "Build strength and muscle", durationWeeks: durationWeeks)
         workoutPhases.append(phase)
         return phase
     }

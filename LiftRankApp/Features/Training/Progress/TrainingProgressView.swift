@@ -77,7 +77,7 @@ extension TrainingTrackerView {
                 progressOverviewCard
                 activityHeatmapSection
                 programConsistencySection(weekCompletion: weekCompletion)
-                recoveryInsightSection
+                muscleProgressLinkSection
 
                 if !appState.strainEntries.isEmpty || !appState.injuryEntries.isEmpty {
                     strainAndInjurySection
@@ -621,7 +621,7 @@ extension TrainingTrackerView {
             let savedWorkout = appState.completedWorkouts.first { workout in
                 workout.sourceSessionID == session.id && workout.sourcePlanID == appState.selectedWorkoutPlanID
             }
-            if completedCount == prescriptions.count {
+            if presentation.completedSessionIDs.contains(session.id) {
                 let scheduled = scheduledDate(for: week, session: session)
                 if let scheduled, let savedWorkout,
                    !Calendar.current.isDate(savedWorkout.completedAt, inSameDayAs: scheduled) {
@@ -674,7 +674,12 @@ extension TrainingTrackerView {
         let targetWeekday = weekdayIndex + 1
         let cycleWeekday = calendar.component(.weekday, from: cycleStart)
         let dayOffset = (targetWeekday - cycleWeekday + 7) % 7
-        return calendar.date(byAdding: .day, value: dayOffset, to: cycleStart)
+        guard let date = calendar.date(byAdding: .day, value: dayOffset, to: cycleStart) else { return nil }
+        if let settings = selectedProgramSettings,
+           date < calendar.startOfDay(for: settings.startedAt) {
+            return nil
+        }
+        return date
     }
 
     private func consistencyMetric(_ title: String, value: String, symbol: String) -> some View {
@@ -703,89 +708,30 @@ extension TrainingTrackerView {
             .frame(width: 1, height: 28)
     }
 
-    private var recoveryInsightSection: some View {
-        let summaries = Array(appState.recoverySummaries().prefix(4))
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Recently trained muscles")
-                    .font(.headline.weight(.bold))
+    private var muscleProgressLinkSection: some View {
+        Button {
+            withAnimation(.snappy) { selectedProgressCategory = .muscle }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "figure.strengthtraining.traditional")
+                    .foregroundStyle(Color.liftAccentText)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Muscle workload")
+                        .font(.subheadline.weight(.bold))
+                    Text("See trained muscles, weekly sets, and workload trends.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                }
                 Spacer()
-                Text("last 7 days")
-                    .font(.caption2.weight(.semibold))
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
                     .foregroundStyle(Color.liftMuted)
             }
-            Text("Shows primary and secondary muscles involved in completed working sets over the last 7 days. This is logged training activity, not a soreness or readiness score.")
-                .font(.caption)
-                .foregroundStyle(Color.liftMuted)
-
-            if summaries.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Complete working sets to see when each muscle was last trained.")
-                        .font(.caption)
-                        .foregroundStyle(Color.liftMuted)
-                    Button {
-                        withAnimation(.snappy) { segment = .today }
-                    } label: {
-                        Label("Start a workout", systemImage: "play.fill")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(Color.liftAccentText)
-                    }
-                    .buttonStyle(.plain)
-                }
-            } else {
-                ForEach(summaries, id: \.muscle) { summary in
-                    Button {
-                        focusedWorkoutSetID = nil
-                        selectedCompletedWorkout = mostRecentWorkout(for: summary.muscle)
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "clock")
-                                .foregroundStyle(summary.hoursSinceTraining < 48 ? Color.liftGold : Color.liftMuted)
-                                .frame(width: 24)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(summary.muscle.displayName)
-                                    .font(.caption.weight(.bold))
-                                Text("\(summary.setCount) sets involving this muscle · \(recoveryAgeText(summary.hoursSinceTraining))")
-                                    .font(.caption2)
-                                    .foregroundStyle(Color.liftMuted)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(Color.liftMuted)
-                        }
-                        .foregroundStyle(Color.liftText)
-                        .padding(.vertical, 7)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(mostRecentWorkout(for: summary.muscle) == nil)
-                    .accessibilityLabel("\(summary.muscle.displayName), \(summary.setCount) working sets, \(recoveryAgeText(summary.hoursSinceTraining))")
-                    .accessibilityHint("Opens the most recent workout for this muscle")
-                }
-                DisclosureGroup("How to read recovery context") {
-                    Text("Gold means under 48 hours since logged primary work; gray means 48 hours or more. Time alone does not confirm recovery. Soreness, sleep, stress, and readiness are not measured.")
-                        .font(.caption)
-                        .foregroundStyle(Color.liftMuted)
-                        .padding(.top, 4)
-                }
-                .font(.caption.weight(.semibold))
-                .tint(Color.liftAccentText)
-            }
+            .padding(14)
+            .background(Color.liftCard)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        .padding(14)
-        .background(Color.liftCard)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.liftOverlay, lineWidth: 1)
-        }
-    }
-
-    private func recoveryAgeText(_ hours: Int) -> String {
-        if hours < 1 { return "trained just now" }
-        if hours < 24 { return "trained \(hours)h ago" }
-        let days = hours / 24
-        return "trained \(days)d ago"
+        .buttonStyle(.plain)
     }
 
     private var strengthProgressSection: some View {
@@ -930,21 +876,6 @@ extension TrainingTrackerView {
         }
     }
 
-    private func mostRecentWorkout(for muscle: ExerciseMuscleRegion) -> CompletedWorkout? {
-        appState.trainingHistoryWorkouts.filter { workout in
-            workout.exercises.contains { exercise in
-                let profile = exercise.muscleProfile ?? ExerciseMuscleProfileResolver.profile(
-                    name: exercise.exerciseName,
-                    bodyPart: exercise.bodyPart
-                )
-                guard profile.primary.contains(where: { $0.trainingSummaryRegion == muscle }) else { return false }
-                return workout.sets.contains {
-                    $0.prescriptionID == exercise.id && $0.isComplete && !$0.isWarmup
-                }
-            }
-        }.max { $0.completedAt < $1.completedAt }
-    }
-
     private func volumeSummary(
         title: String,
         value: String,
@@ -1012,6 +943,7 @@ extension TrainingTrackerView {
         let exercise = options.first { $0.id == exerciseID }
         let setPoints = exercise.map { appState.exerciseProgressPoints(for: $0.id) } ?? []
         let chartPoints = ExerciseProgressSeries.dailyHighest(from: setPoints)
+        let recordedSessionCount = Set(setPoints.compactMap(\.workoutID)).count
         let estimatedMaxPoints = ExerciseProgressSeries.dailyHighestEstimatedOneRepMax(from: setPoints)
         let repRangeProgressions = ExerciseProgressSeries.repRangeProgressions(from: setPoints)
         let selectedStrengthTrendPoint = selectedExerciseStrengthTrendDate.flatMap { selection in
@@ -1073,18 +1005,22 @@ extension TrainingTrackerView {
                     }
                     .buttonStyle(.plain)
                 }
-            } else {
-                if estimatedMaxPoints.count == 1,
-                   let currentEstimatedMax = estimatedMaxPoints.first.map(ExerciseProgressSeries.estimatedOneRepMax) {
+            } else if recordedSessionCount < 3 {
+                if let bestPoint = chartPoints.max(by: {
+                    MeasurementFormatting.normalizeToKilograms($0.weight, unit: $0.unit) <
+                        MeasurementFormatting.normalizeToKilograms($1.weight, unit: $1.unit)
+                }) {
                     progressMetric(
-                        title: "CURRENT EST. 1RM",
-                        value: MeasurementFormatting.formatDisplayedWeight(currentEstimatedMax, unit: appState.currentProfile.preferredUnit),
-                        symbol: "scalemass.fill"
+                        title: "BEST LOGGED SET",
+                        value: "\(MeasurementFormatting.formatDisplayedWeight(MeasurementFormatting.normalizeToKilograms(bestPoint.weight, unit: bestPoint.unit), unit: appState.currentProfile.preferredUnit)) × \(bestPoint.reps)",
+                        symbol: "dumbbell.fill"
                     )
-                    Text("Log this exercise in another workout to see an estimated 1RM trend.")
-                        .font(.caption2)
-                        .foregroundStyle(Color.liftMuted)
-                } else if let startingEstimatedMax, let bestEstimatedMax, let strengthIncrease {
+                }
+                Text("Log this exercise in at least 3 workouts to see meaningful weight and estimated 1RM trends.\n\(recordedSessionCount) of 3 workouts logged.")
+                    .font(.caption2)
+                    .foregroundStyle(Color.liftMuted)
+            } else {
+                if let startingEstimatedMax, let bestEstimatedMax, let strengthIncrease {
                     HStack(spacing: 10) {
                         progressMetric(
                             title: "STARTING EST. 1RM",

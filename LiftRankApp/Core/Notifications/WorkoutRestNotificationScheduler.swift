@@ -10,6 +10,7 @@ final class SystemWorkoutRestNotificationScheduler: WorkoutRestNotificationSched
     static let shared = SystemWorkoutRestNotificationScheduler()
 
     private let identifier = "liftrank-active-rest-timer"
+    private let inactivityIdentifier = "liftrank-open-workout-reminder"
     private let center: UNUserNotificationCenter
 
     init(center: UNUserNotificationCenter = .current()) {
@@ -36,6 +37,28 @@ final class SystemWorkoutRestNotificationScheduler: WorkoutRestNotificationSched
 
     func cancel() {
         center.removePendingNotificationRequests(withIdentifiers: [identifier])
+    }
+
+    func scheduleInactivityReminder(at date: Date, workoutName: String) {
+        center.getNotificationSettings { [weak self] settings in
+            guard let self,
+                  [.authorized, .provisional, .ephemeral].contains(settings.authorizationStatus) else { return }
+            let content = UNMutableNotificationContent()
+            content.title = "Workout still open?"
+            content.body = "\(workoutName) has been open for a while. Finish it or pause it when you’re done."
+            content.sound = .default
+            let request = UNNotificationRequest(
+                identifier: self.inactivityIdentifier,
+                content: content,
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: max(1, date.timeIntervalSinceNow), repeats: false)
+            )
+            self.center.removePendingNotificationRequests(withIdentifiers: [self.inactivityIdentifier])
+            self.center.add(request)
+        }
+    }
+
+    func cancelInactivityReminder() {
+        center.removePendingNotificationRequests(withIdentifiers: [inactivityIdentifier])
     }
 
     private func addRequest(endsAt: Date, exerciseName: String) {

@@ -1296,7 +1296,18 @@ extension AppState {
     }
 
     var strengthAttentionInsights: [TrainingAttentionInsight] {
-        trainingProgressStore.strengthAttentionInsights(summary: strengthTierSummary)
+        let activePlan = workoutPlans.first(where: { $0.isActive })
+        let weekIDs = Set(workoutWeeks.filter { $0.planID == activePlan?.id }.map(\.id))
+        let sessionIDs = Set(workoutSessions.filter { weekIDs.contains($0.weekID) }.map(\.id))
+        let catalogByID = Dictionary(trainingExerciseLibrary.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let plannedRankingExerciseIDs = Set(workoutPrescriptions.filter { sessionIDs.contains($0.sessionID) }.compactMap { prescription in
+            catalogByID[prescription.exerciseID]?.rankingExerciseID
+        })
+        return trainingProgressStore.strengthAttentionInsights(
+            summary: strengthTierSummary,
+            activePlanExerciseIDs: activePlan == nil ? nil : plannedRankingExerciseIDs,
+            trainingFocus: currentProfile.trainingFocus
+        )
     }
 
     func recoverySummaries(referenceDate: Date = .now) -> [TrainingRecoverySummary] {

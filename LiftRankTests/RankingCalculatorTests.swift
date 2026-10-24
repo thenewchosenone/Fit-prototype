@@ -452,6 +452,27 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
+    func testWorkoutPlanDoesNotShowMissedSessionBeforePlanCreation() throws {
+        let repository = makePlannedRepository()
+        var plan = try XCTUnwrap(repository.workoutPlans.first)
+        let calendar = Calendar.current
+        let weekStart = try XCTUnwrap(calendar.dateInterval(of: .weekOfYear, for: .now)?.start)
+        let startDate = try XCTUnwrap(calendar.date(byAdding: .day, value: 6, to: weekStart))
+        plan.createdAt = startDate
+        repository.workoutPlans[0] = plan
+        repository.workoutPlanProgressionSettings.removeAll { $0.planID == plan.id }
+        let week = try XCTUnwrap(repository.workoutWeeks.first { $0.planID == plan.id })
+        let sessionIndex = try XCTUnwrap(repository.workoutSessions.firstIndex { $0.weekID == week.id })
+        repository.workoutSessions[sessionIndex].day = calendar.weekdayName(for: calendar.firstWeekday)
+
+        let appState = AppState(repository: repository, serviceContainer: .demo(repository: repository))
+        appState.selectedWorkoutPlanID = plan.id
+        let afterStart = try XCTUnwrap(calendar.date(byAdding: .day, value: 7, to: weekStart))
+
+        XCTAssertNil(appState.missedScheduledWorkout(referenceDate: afterStart))
+    }
+
+    @MainActor
     func testBackfillPickerOnlyReturnsUnresolvedSessionsForSelectedDate() {
         let repository = makePlannedRepository()
         let sessions = repository.workoutSessions
@@ -4298,8 +4319,15 @@ final class RankingCalculatorTests: XCTestCase {
         let updatedPrescriptions = repository.workoutPrescriptions
             .filter { $0.sessionID == session.id }
             .sorted { $0.order < $1.order }
+        let originalPrescriptionIDs = Dictionary(uniqueKeysWithValues: repository.workoutPrescriptions
+            .filter { $0.sessionID == session.id }
+            .map { ($0.exerciseID, $0.id) })
         XCTAssertEqual(updatedPrescriptions.map(\.exerciseID), store.workout?.exercises.map(\.exerciseID))
         XCTAssertEqual(updatedPrescriptions.map(\.sets), store.workout?.exercises.map(\.targetSets))
+        XCTAssertEqual(
+            updatedPrescriptions.filter { originalPrescriptionIDs[$0.exerciseID] != nil }.map(\.id),
+            updatedPrescriptions.compactMap { originalPrescriptionIDs[$0.exerciseID] }
+        )
 
         store.discard()
         XCTAssertNil(repository.activeWorkout)
@@ -4315,6 +4343,41 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(freestyle.source, .freestyle)
         XCTAssertEqual(freestyle.name, "Evening Training")
         XCTAssertNil(freestyle.sourceSessionID)
+    }
+
+    @MainActor
+    func testSubstitutingPlannedExerciseKeepsOnlyRemainingPrescribedSets() throws {
+        let repository = makePlannedRepository()
+        let store = ActiveWorkoutStore(repository: repository)
+        let session = try XCTUnwrap(repository.workoutSessions.first { session in
+            repository.workoutPrescriptions.contains { $0.sessionID == session.id && $0.sets > 1 }
+        })
+        let started = try XCTUnwrap(store.startPlanned(
+            session: session,
+            planID: repository.workoutWeeks.first(where: { $0.id == session.weekID })?.planID,
+            gymID: nil,
+            bodyweight: nil,
+            unit: .kilograms
+        ))
+        let original = try XCTUnwrap(started.exercises.first { $0.targetSets > 1 })
+        var completedSet = try XCTUnwrap(store.setLogs(for: original).first)
+        completedSet.weight = 50
+        completedSet.reps = 8
+        completedSet.isComplete = true
+        store.updateSet(completedSet)
+        let substitute = try XCTUnwrap(MockData.trainingExerciseLibrary.first { $0.id != original.exerciseID })
+
+        let replacement = try XCTUnwrap(store.substituteExercise(original, with: substitute))
+
+        XCTAssertEqual(replacement.sourcePrescriptionID, original.sourcePrescriptionID)
+        XCTAssertEqual(replacement.targetSets, original.targetSets - 1)
+        XCTAssertEqual(store.workout?.exercises.first(where: { $0.id == original.id })?.targetSets, 1)
+        XCTAssertEqual(store.setLogs(for: original).filter(\.isComplete).count, 1)
+        XCTAssertEqual(store.setLogs(for: replacement).count, original.targetSets - 1)
+        XCTAssertEqual(
+            repository.workoutSetLogs.filter { $0.workoutID == started.id && !$0.isWarmup }.count,
+            started.exercises.reduce(0) { $0 + $1.targetSets }
+        )
     }
 
     @MainActor
@@ -4540,6 +4603,9 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(created.id, createdID)
         XCTAssertEqual(created.name, "Meet Prep")
         XCTAssertEqual(created.createdAt, createdAt)
+        XCTAssertEqual(store.phases(planID: created.id).first?.name, "Base Phase")
+        XCTAssertEqual(store.phases(planID: created.id).first?.durationWeeks, 1)
+        XCTAssertEqual(store.weeks(planID: created.id).count, 1)
         XCTAssertTrue(store.renamePlan(id: created.id, to: "  Updated Prep "))
         XCTAssertEqual(store.plan(id: created.id)?.name, "Updated Prep")
         XCTAssertFalse(store.renamePlan(id: created.id, to: "  "))
@@ -4666,6 +4732,25 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(Array(reenabledQueue.prefix(3)), queuedIDs)
         XCTAssertEqual(Set(reenabledQueue), Set(store.weeks(planID: plan.id).flatMap { store.sessions(week: $0) }.map(\.id)))
         XCTAssertTrue(reenabledQueue.contains(addedSession.id))
+    }
+
+    @MainActor
+    func testDuplicatingQueuedPlanPreservesQueueWithCopiedSessionIDs() throws {
+        let repository = makePlannedRepository()
+        let store = ProgramStore(repository: repository)
+        let plan = try XCTUnwrap(store.plans.first)
+        let sessions = store.weeks(planID: plan.id).flatMap { store.sessions(week: $0) }
+        let queuedIDs = Array(sessions.suffix(3).map(\.id).reversed())
+        XCTAssertTrue(store.setQueue(planID: plan.id, enabled: true, sessionIDs: queuedIDs))
+
+        let copy = try XCTUnwrap(store.duplicatePlan(id: plan.id))
+        let copiedSessions = store.weeks(planID: copy.id).flatMap { store.sessions(week: $0) }
+        let copiedQueue = store.queuedSessions(planID: copy.id)
+
+        XCTAssertTrue(store.queueEnabled(planID: copy.id))
+        XCTAssertEqual(copiedQueue.map(\.name), queuedIDs.compactMap { id in sessions.first { $0.id == id }?.name })
+        XCTAssertTrue(Set(copiedQueue.map(\.id)).isDisjoint(with: Set(sessions.map(\.id))))
+        XCTAssertTrue(Set(copiedQueue.map(\.id)).isSubset(of: Set(copiedSessions.map(\.id))))
     }
 
     @MainActor
@@ -6967,6 +7052,31 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(repository.workoutPlanProgressionSettings.first { $0.planID == plan.id }?.sourceTemplateID, template.id)
         XCTAssertEqual(Set(repository.workoutPrescriptions.filter { sessions.map(\.id).contains($0.sessionID) }.map(\.id)).count,
                        repository.workoutPrescriptions.filter { sessions.map(\.id).contains($0.sessionID) }.count)
+
+        let rotationTemplate = try XCTUnwrap(WorkoutProgramCatalog.templates.first { $0.id == "bodybuilding_transformation_intermediate_advanced_12" })
+        let rotationPlan = repository.startWorkoutProgram(
+            template: rotationTemplate,
+            startDate: .now,
+            scheduledWeekdays: rotationTemplate.sessions.map(\.dayIndex),
+            method: rotationTemplate.defaultProgression,
+            preferredUnit: .pounds,
+            trainingMaxKilograms: [:]
+        )
+        let weekFive = try XCTUnwrap(repository.workoutWeeks.first { $0.planID == rotationPlan.id && $0.weekNumber == 5 })
+        let weekSix = try XCTUnwrap(repository.workoutWeeks.first { $0.planID == rotationPlan.id && $0.weekNumber == 6 })
+        let weekFiveSession = try XCTUnwrap(repository.workoutSessions.first { $0.weekID == weekFive.id })
+        let weekSixSession = try XCTUnwrap(repository.workoutSessions.first { $0.weekID == weekSix.id })
+        let weekFiveExerciseIDs = Set(repository.workoutPrescriptions.filter { $0.sessionID == weekFiveSession.id }.map(\.exerciseID))
+        let weekSixExerciseIDs = Set(repository.workoutPrescriptions.filter { $0.sessionID == weekSixSession.id }.map(\.exerciseID))
+        XCTAssertNotEqual(weekFiveExerciseIDs, weekSixExerciseIDs)
+
+        XCTAssertTrue(repository.changeWorkoutProgramProgression(
+            planID: rotationPlan.id,
+            method: .percentage,
+            trainingMaxKilograms: [:]
+        ))
+        let updatedWeekSixExerciseIDs = Set(repository.workoutPrescriptions.filter { $0.sessionID == weekSixSession.id }.map(\.exerciseID))
+        XCTAssertEqual(updatedWeekSixExerciseIDs, weekSixExerciseIDs)
     }
 
     @MainActor

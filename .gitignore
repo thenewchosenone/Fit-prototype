@@ -17,3 +17,4 @@ AppIconConcepts/
 AppStorePromo/FromSimulator/
 AppStorePromo/Leaderboard/
 AppStoreSubmission/
+.build/

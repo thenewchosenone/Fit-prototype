@@ -76,7 +76,10 @@ struct OnboardingView: View {
         let region = selectedRegionName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !city.isEmpty, !region.isEmpty else { return [] }
 
-        return Self.gymsMatchingLocation(appState.gyms, city: city, region: region, countryCode: selectedCountryCode)
+        let localGyms = Self.gymsMatchingLocation(appState.gyms, city: city, region: region, countryCode: selectedCountryCode)
+        return localGyms.isEmpty
+            ? appState.gyms.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            : localGyms
     }
 
     static func gymsMatchingLocation(_ gyms: [Gym], city: String, region: String, countryCode: String = "US") -> [Gym] {
@@ -699,6 +702,11 @@ struct OnboardingView: View {
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
                         } else {
+                            if Self.gymsMatchingLocation(appState.gyms, city: selectedCity, region: selectedRegionName, countryCode: selectedCountryCode).isEmpty {
+                                Text("No gyms listed in \(selectedCity); showing all gyms.")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.liftMuted)
+                            }
                             Picker("Primary gym", selection: $profile.primaryGymName) {
                                 Text("Choose later").tag("")
                                 ForEach(onboardingGyms) { gym in
