@@ -50,21 +50,35 @@ extension AppState {
 
     var leaderboardRequestKey: String {
         let filters = leaderboardFilters
+        let exerciseID = filters.exerciseID ?? "all"
+        let rankingType = filters.rankingType.rawValue
+        let gymID = filters.gymID?.uuidString ?? ""
+        let city = filters.city ?? ""
+        let state = filters.state ?? ""
+        let country = filters.country ?? ""
+        let ageGroup = filters.ageGroup ?? ""
+        let sexCategory = filters.sexCategory?.rawValue ?? ""
+        let weightClassID = filters.weightClassID ?? ""
+        let repetitionCount = filters.repetitionCount.map { String($0) } ?? ""
+        let experienceLevel = filters.experienceLevel?.rawValue ?? ""
+        let verificationLevel = filters.verificationLevel?.rawValue ?? ""
+        let timeRange = filters.timeRange
+        let verificationFilter = verifiedOnly ? "verified" : "all"
         return [
-            filters.exerciseID ?? "all",
-            filters.rankingType.rawValue,
-            filters.gymID?.uuidString ?? "",
-            filters.city ?? "",
-            filters.state ?? "",
-            filters.country ?? "",
-            filters.ageGroup ?? "",
-            filters.sexCategory?.rawValue ?? "",
-            filters.weightClassID ?? "",
-            filters.repetitionCount.map(String.init) ?? "",
-            filters.experienceLevel?.rawValue ?? "",
-            filters.verificationLevel?.rawValue ?? "",
-            filters.timeRange,
-            verifiedOnly ? "verified" : "all"
+            exerciseID,
+            rankingType,
+            gymID,
+            city,
+            state,
+            country,
+            ageGroup,
+            sexCategory,
+            weightClassID,
+            repetitionCount,
+            experienceLevel,
+            verificationLevel,
+            timeRange,
+            verificationFilter
         ].joined(separator: "|")
     }
 
