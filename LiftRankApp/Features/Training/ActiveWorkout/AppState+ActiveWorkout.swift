@@ -168,14 +168,17 @@ extension AppState {
     }
 
     @discardableResult
-    func finishActiveWorkout(effort: Int, notes: String) -> CompletedWorkout? {
+    func finishActiveWorkout(effort: Int, notes: String, isPublic: Bool = true) -> CompletedWorkout? {
         let completingUserID = accountSession?.userID
-        let completed = activeWorkoutStore.finish(effort: effort, notes: notes)
-        if let completed {
+        var completed = activeWorkoutStore.finish(effort: effort, notes: notes)
+        if var savedWorkout = completed {
+            savedWorkout.isPublic = isPublic
+            activeWorkoutStore.updateCompletedWorkout(savedWorkout)
+            completed = savedWorkout
             Haptics.success()
             if isAuthenticated, !isDemoMode {
                 let ownerID = currentProfile.id
-                Task { await enqueueCompletedWorkoutAfterEncoding(completed, ownerID: ownerID) }
+                Task { await enqueueCompletedWorkoutAfterEncoding(savedWorkout, ownerID: ownerID) }
             }
             if let completingUserID {
                 Task {
@@ -203,6 +206,23 @@ extension AppState {
             let ownerID = currentProfile.id
             Task { await enqueueCompletedWorkoutAfterEncoding(workout, ownerID: ownerID) }
         }
+        Haptics.success()
+    }
+
+    func setCompletedWorkoutPublic(_ workout: CompletedWorkout, isPublic: Bool) async throws {
+        var updated = workout
+        updated.isPublic = isPublic
+        let ownerID = currentProfile.id
+        if isAuthenticated && !isDemoMode {
+            let workoutToSave = updated
+            let payload = try await Task.detached(priority: .utility) { try JSONEncoder().encode(workoutToSave) }.value
+            guard currentProfile.id == ownerID else { throw LiftRankServiceError.sessionExpired }
+            try await workoutSyncStore.saveCompletedWorkoutVisibility(CompletedWorkoutSnapshot(
+                id: updated.id, ownerID: ownerID, payload: payload, completedAt: updated.completedAt
+            ))
+            guard currentProfile.id == ownerID else { throw LiftRankServiceError.sessionExpired }
+        }
+        activeWorkoutStore.updateCompletedWorkout(updated)
         Haptics.success()
     }
 

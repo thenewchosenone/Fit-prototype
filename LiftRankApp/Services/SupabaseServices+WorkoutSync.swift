@@ -5,6 +5,14 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
     private let client: SupabaseClient
     init(client: SupabaseClient) { self.client = client }
 
+    func publicWorkoutSummaries(for userID: UUID) async throws -> [PublicWorkoutSummary] {
+        do {
+            let rows: [PublicWorkoutSummaryDTO] = try await client.rpc("get_profile_workout_summaries", params: ["target_user_id": userID])
+                .execute().value
+            return rows.map(\.summary)
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
     func plans() async throws -> [WorkoutPlanDocument] {
         do {
             let pageSize = 100
@@ -172,6 +180,27 @@ private struct WorkoutPlanDocumentDTO: Codable {
 private struct WorkoutPlanDeletionDTO: Decodable {
     let planID: UUID
     enum CodingKeys: String, CodingKey { case planID = "plan_id" }
+}
+
+private struct PublicWorkoutSummaryDTO: Decodable {
+    let id: UUID
+    let name: String
+    let completedAt: Date
+    let duration: Double
+    let setCount: Int
+    let exerciseNames: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, duration
+        case completedAt = "completed_at"
+        case setCount = "set_count"
+        case exerciseNames = "exercise_names"
+    }
+
+    var summary: PublicWorkoutSummary {
+        PublicWorkoutSummary(id: id, name: name, completedAt: completedAt, duration: duration,
+                             setCount: setCount, exerciseNames: exerciseNames)
+    }
 }
 
 private struct CompletedWorkoutSnapshotDTO: Codable {

@@ -178,6 +178,7 @@ final class BackendFoundationTests: XCTestCase {
     func testBundledCitySearchSupportsRepresentativeCountriesAndRegions() async throws {
         let service = BundledLocationService()
         let cases = [
+            (country: "US", region: "Florida", query: "", expectedCity: "Miami"),
             (country: "US", region: "Florida", query: "mi", expectedCity: "Miami"),
             (country: "US", region: "Florida", query: "cut", expectedCity: "Cutler Bay"),
             (country: "US", region: "Florida", query: "hom", expectedCity: "Homestead"),
@@ -373,6 +374,12 @@ final class BackendFoundationTests: XCTestCase {
 
         await appState.signIn(email: "avatar@example.test", password: "password")
 
+        // Avatar caching is intentionally deferred so it cannot hold up sign-in.
+        for _ in 0..<200 {
+            if LocalProfilePhotoStore.shared.thumbnail(for: avatarPath) != nil { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
         XCTAssertEqual(service.downloadedAvatarPaths, [avatarPath])
         XCTAssertNotNil(LocalProfilePhotoStore.shared.thumbnail(for: avatarPath))
         await appState.cacheAuthenticatedProfilePhotoIfNeeded()
@@ -456,7 +463,7 @@ final class BackendFoundationTests: XCTestCase {
                 .withTintColor(.systemGreen, renderingMode: .alwaysOriginal)
         )
 
-        await appState.saveProfilePhoto(image)
+        try await appState.saveProfilePhoto(image)
         for _ in 0..<120 where appState.currentProfile.avatarPath != serverAvatarPath {
             try await Task.sleep(nanoseconds: 25_000_000)
         }
@@ -608,12 +615,18 @@ final class BackendFoundationTests: XCTestCase {
         await appState.signIn(email: "avatar-race@example.test", password: "password")
         let image = try XCTUnwrap(UIImage(systemName: "person.crop.circle.fill"))
 
-        await appState.saveProfilePhoto(image)
+        let upload = Task { try await appState.saveProfilePhoto(image) }
         for _ in 0..<20 where !service.avatarUploadStarted {
             try await Task.sleep(nanoseconds: 25_000_000)
         }
         appState.removeProfilePhoto()
         service.releaseAvatarUpload()
+        do {
+            try await upload.value
+            XCTFail("A superseded photo upload should fail")
+        } catch {
+            XCTAssertEqual(error as? LiftRankServiceError, .sessionExpired)
+        }
         for _ in 0..<20 where service.updateProfileCount < 1 {
             try await Task.sleep(nanoseconds: 25_000_000)
         }
@@ -641,12 +654,18 @@ final class BackendFoundationTests: XCTestCase {
         await appState.signIn(email: "avatar-account-race@example.test", password: "password")
         let image = try XCTUnwrap(UIImage(systemName: "person.crop.circle.fill"))
 
-        await appState.saveProfilePhoto(image)
+        let upload = Task { try await appState.saveProfilePhoto(image) }
         for _ in 0..<20 where !service.avatarUploadStarted {
             try await Task.sleep(nanoseconds: 25_000_000)
         }
         repository.currentProfile.id = UUID()
         service.releaseAvatarUpload()
+        do {
+            try await upload.value
+            XCTFail("A superseded photo upload should fail")
+        } catch {
+            XCTAssertEqual(error as? LiftRankServiceError, .sessionExpired)
+        }
         try await Task.sleep(nanoseconds: 100_000_000)
 
         XCTAssertEqual(service.updateProfileCount, 0)
@@ -2090,7 +2109,7 @@ final class BackendFoundationTests: XCTestCase {
         )
     }
 
-    func testOnboardingStartingLiftsSavePrivateSelfReportedRecordsAndRetryWithoutDuplicates() async throws {
+    func testOnboardingStartingLiftsSavePublicSelfReportedRecordsAndRetryWithoutDuplicates() async throws {
         let state = makeState(session: session, onboardingCompleted: false, includesLiftService: true)
         await state.restoreAccount()
         let startingLifts = [
@@ -2119,7 +2138,7 @@ final class BackendFoundationTests: XCTestCase {
             Set(saved.map(\.exerciseID)),
             Set(["barbell-bench-press", "back-squat", "conventional-deadlift", "standing-barbell-overhead-press"])
         )
-        XCTAssertTrue(saved.allSatisfy { $0.visibility == .privateLift })
+        XCTAssertTrue(saved.allSatisfy { $0.visibility == .publicLift })
         XCTAssertTrue(saved.allSatisfy { $0.verificationStatus == .selfReported })
         XCTAssertTrue(saved.allSatisfy { $0.evidenceStatus == .selfReported })
         XCTAssertTrue(saved.allSatisfy { $0.moderationStatus == .clear })
@@ -2829,6 +2848,70 @@ final class BackendFoundationTests: XCTestCase {
     }
 
     @MainActor
+    func testWorkoutVisibilityDefaultsAndLegacyHistoryStayDistinct() throws {
+        let workout = CompletedWorkout(
+            id: UUID(), source: .freestyle, sourceSessionID: nil, sourcePlanID: nil,
+            name: "Workout", dayLabel: "Monday", startedAt: .now.addingTimeInterval(-600),
+            completedAt: .now, duration: 600, effort: 3, notes: "Private note", gymID: nil,
+            bodyweight: 190, unit: .pounds, exercises: [], sets: [], linkedSubmissionIDs: []
+        )
+        XCTAssertEqual(workout.isPublic, true)
+        var legacy = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(workout)) as? [String: Any])
+        legacy.removeValue(forKey: "isPublic")
+        let restored = try JSONDecoder().decode(CompletedWorkout.self, from: JSONSerialization.data(withJSONObject: legacy))
+        XCTAssertNil(restored.isPublic)
+        let summary = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(PublicWorkoutSummary(workout: workout))) as? [String: Any])
+        XCTAssertNil(summary["notes"])
+        XCTAssertNil(summary["bodyweight"])
+        XCTAssertNil(summary["gymID"])
+    }
+
+    @MainActor
+    func testWorkoutVisibilitySaveUploadsAndPreservesPrivateDecision() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let service = MockWorkoutSyncService()
+        let store = WorkoutSyncStore(repository: repository, service: service)
+        let workout = CompletedWorkout(
+            id: UUID(), source: .freestyle, sourceSessionID: nil, sourcePlanID: nil,
+            name: "Workout", dayLabel: "Monday", startedAt: .now.addingTimeInterval(-600),
+            completedAt: .now, duration: 600, effort: 3, notes: "Private", gymID: nil,
+            bodyweight: nil, unit: .pounds, exercises: [], sets: [], linkedSubmissionIDs: [], isPublic: false
+        )
+        try await store.saveCompletedWorkoutVisibility(CompletedWorkoutSnapshot(
+            id: workout.id, ownerID: repository.currentProfile.id,
+            payload: try JSONEncoder().encode(workout), completedAt: workout.completedAt
+        ))
+        XCTAssertEqual(repository.completedWorkouts.first?.isPublic, false)
+        XCTAssertTrue(store.pendingCompletedWorkoutUploads.isEmpty)
+    }
+
+    @MainActor
+    func testWorkoutVisibilityWaitsForOlderUploadBeforeSavingPrivateDecision() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let service = GatedCompletedWorkoutUploadService()
+        let store = WorkoutSyncStore(repository: repository, service: service)
+        let workoutID = UUID()
+        let original = CompletedWorkoutSnapshot(id: workoutID, ownerID: repository.currentProfile.id,
+                                                payload: Data("old public snapshot".utf8), completedAt: .now)
+        store.enqueueCompletedWorkout(original)
+        let firstSync = Task { await store.synchronizeCompletedWorkoutHistory() }
+        while !service.requestStarted { await Task.yield() }
+        var privateSnapshot = original
+        privateSnapshot.payload = Data("new private snapshot".utf8)
+        let decision = privateSnapshot
+        let privacySave = Task { try await store.saveCompletedWorkoutVisibility(decision) }
+        service.requestStarted = false
+        service.release()
+        await firstSync.value
+        while !service.requestStarted { await Task.yield() }
+        service.release()
+        try await privacySave.value
+        let remote = try await service.completedWorkouts(since: nil)
+        XCTAssertEqual(remote.first?.payload, decision.payload)
+        XCTAssertTrue(store.pendingCompletedWorkoutUploads.isEmpty)
+    }
+
+    @MainActor
     func testWorkoutSyncRemovesOnlyPreviouslySyncedWorkoutsMissingRemotely() async throws {
         let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
         let service = MockWorkoutSyncService()
@@ -3024,6 +3107,25 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertEqual(queryValue("limit", from: requestState.requests[1]), "200")
         XCTAssertTrue(requestState.requests[0].url?.query?.contains("completed_at.asc") == true)
         XCTAssertTrue(requestState.requests[0].url?.query?.contains("id.asc") == true)
+    }
+
+    func testPublicWorkoutSummaryServiceMapsRestrictedRPCResponse() async throws {
+        let userID = UUID()
+        let workoutID = UUID()
+        let client = try makeLocalSupabaseClient(authenticatedUserID: userID)
+        let state = WorkoutSyncMockURLProtocol.state
+        state.reset()
+        state.enqueueResponses([try JSONSerialization.data(withJSONObject: [[
+            "id": workoutID.uuidString, "name": "Full Body B", "completed_at": "2026-10-24T12:00:00Z",
+            "duration": 600, "set_count": 16, "exercise_names": ["Bench press", "Row"]
+        ]])])
+        let summaries = try await SupabaseWorkoutSyncService(client: client).publicWorkoutSummaries(for: userID)
+        let summary = try XCTUnwrap(summaries.first)
+        XCTAssertEqual(summary.id, workoutID)
+        XCTAssertEqual(summary.name, "Full Body B")
+        XCTAssertEqual(summary.setCount, 16)
+        XCTAssertEqual(summary.exerciseNames, ["Bench press", "Row"])
+        XCTAssertEqual(state.requests.first?.url?.path, "/rest/v1/rpc/get_profile_workout_summaries")
     }
 
     func testSupabaseBlockListFetchesBeyondOnePage() async throws {

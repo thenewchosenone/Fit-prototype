@@ -23,7 +23,6 @@ enum ProfileSection: String, CaseIterable, Identifiable {
 private struct ProfileSectionNavigation: View {
     @Binding var selection: ProfileSection
     let sections: [ProfileSection]
-    let onSelect: (ProfileSection) -> Void
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -35,7 +34,7 @@ private struct ProfileSectionNavigation: View {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 proxy.scrollTo(section.id, anchor: .trailing)
                             }
-                            select(section)
+                            selection = section
                         } label: {
                             Text(section.rawValue)
                         }
@@ -55,16 +54,11 @@ private struct ProfileSectionNavigation: View {
         }
     }
 
-    private func select(_ section: ProfileSection) {
-        selection = section
-        onSelect(section)
-    }
 }
 
 extension ProfileView {
     var featureBody: some View {
         AppBackground {
-            ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                     if !isCurrentUser && appState.isBlocked(profile.id) {
@@ -87,45 +81,28 @@ extension ProfileView {
                             )
                         }
                         ProfileSectionNavigation(
-                                selection: $selectedProfileSection,
+                            selection: $selectedProfileSection,
                             sections: isCurrentUser
-                                ? ProfileSection.allCases
+                                ? [.overview, .prVideos, .training, .timeline, .submissions]
                                 : [.overview, .prVideos, .training, .submissions]
-                        ) { section in
-                            if section == .training { showingAthleteDetails = true }
-                            if isCurrentUser {
-                                withAnimation(.easeInOut) { proxy.scrollTo(section.id, anchor: .top) }
-                            }
-                        }
+                        )
                         .padding(.vertical, 2)
-                        Group {
-                            if !isCurrentUser {
-                                switch selectedProfileSection {
-                                case .overview:
-                                    publicOverview(presentation: liftPresentation)
-                                case .prVideos:
-                                    ProfileLiftVideosSection(profile: profile, isCurrentUser: false, prefilteredLifts: liftPresentation.lifts)
-                                case .training:
-                                    publicTraining
-                                case .submissions, .history, .timeline:
-                                    recentSubmissions(profileLifts: liftPresentation.lifts)
-                                }
-                            } else {
-                            summary(presentation: liftPresentation)
-                                .id(ProfileSection.overview.id)
-                            ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: liftPresentation.lifts)
-                                .id(ProfileSection.prVideos.id)
-                            athleteDetails(presentation: liftPresentation)
-                                .id(ProfileSection.training.id)
+                        switch selectedProfileSection {
+                        case .overview:
                             if isCurrentUser {
-                                trainingHistory
-                                    .id(ProfileSection.history.id)
-                                profileTimeline
-                                    .id(ProfileSection.timeline.id)
+                                summary(presentation: liftPresentation)
+                                athleteDetails(presentation: liftPresentation)
+                            } else {
+                                publicOverview(presentation: liftPresentation)
                             }
+                        case .prVideos:
+                            ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: liftPresentation.lifts)
+                        case .training, .history:
+                            if isCurrentUser { trainingHistory } else { publicTraining }
+                        case .timeline:
+                            if isCurrentUser { profileTimeline }
+                        case .submissions:
                             recentSubmissions(profileLifts: liftPresentation.lifts)
-                                .id(ProfileSection.submissions.id)
-                            }
                         }
                     }
                 }
@@ -134,7 +111,6 @@ extension ProfileView {
             }
             .refreshable {
                 await refreshProfileData(force: true)
-            }
             }
             .sheet(isPresented: $showingPhotoManager) {
                 ProfilePhotoManagerView()
@@ -153,6 +129,7 @@ extension ProfileView {
                     .presentationDetents([.large])
             }
             .navigationTitle(isCurrentUser ? "Personal profile" : (profile.username.isEmpty ? "Public profile" : profile.username))
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if isCurrentUser {
                     ToolbarItem(placement: .topBarLeading) {
@@ -179,6 +156,11 @@ extension ProfileView {
                             Label("Profile actions", systemImage: "gearshape.circle.fill")
                         }
                         .accessibilityLabel("Profile actions")
+                    }
+                } else if profile.id == appState.currentProfile.id {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") { dismiss() }
+                            .accessibilityIdentifier("profile.publicPreview.done")
                     }
                 } else if profile.id != appState.currentProfile.id {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -257,6 +239,16 @@ extension ProfileView {
             }
         }
         await refreshVisibleProfileLifts()
+        if !isCurrentUser {
+            isLoadingPublicWorkouts = true
+            publicWorkoutsError = nil
+            do {
+                publicWorkouts = try await appState.publicWorkoutSummaries(for: profile.id)
+            } catch {
+                publicWorkoutsError = appState.userMessage(error)
+            }
+            isLoadingPublicWorkouts = false
+        }
         if isCurrentUser {
             async let lifts: Void = appState.refreshProductionLifts(force: force)
             async let ranking: Void = appState.refreshCurrentUserTotalRanking(force: force)

@@ -242,9 +242,10 @@ final class SupabaseProfileService: ProfileService {
                 }
             }
             guard let userID else { throw LiftRankServiceError.sessionExpired }
-            let profile: ProfileDTO = try await client.from("profiles").select("id,username,display_name,bio,avatar_path,onboarding_completed").eq("id", value: userID).single().execute().value
-            let details: PrivateDetailsDTO = try await client.from("profile_private_details").select().eq("user_id", value: userID).single().execute().value
-            let privacy: PrivacyDTO = try await client.from("profile_privacy").select().eq("user_id", value: userID).single().execute().value
+            async let profileRequest: ProfileDTO = client.from("profiles").select("id,username,display_name,bio,avatar_path,onboarding_completed").eq("id", value: userID).single().execute().value
+            async let detailsRequest: PrivateDetailsDTO = client.from("profile_private_details").select().eq("user_id", value: userID).single().execute().value
+            async let privacyRequest: PrivacyDTO = client.from("profile_privacy").select().eq("user_id", value: userID).single().execute().value
+            let (profile, details, privacy) = try await (profileRequest, detailsRequest, privacyRequest)
             return map(profile: profile, details: details, privacy: privacy)
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }

@@ -73,11 +73,12 @@ struct SettingsView: View {
                     }
                     .id(SettingsSection.privacy)
                     Section("Notifications") {
-                        Button("Manage notification permissions") {
+                        Button("Open notification settings") {
                             if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
                                 openURL(settingsURL)
                             }
                         }
+                        .accessibilityHint("Opens Lift Rivals settings in iOS. Choose Notifications to change permissions.")
                         Text("Choose whether Lift Rivals can send notifications in iOS Settings.")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -355,6 +356,7 @@ struct LegalAcceptanceView: View {
     @EnvironmentObject private var appState: AppState
     @State private var acknowledged: Set<LegalDocumentKind> = []
     @State private var expanded: LegalDocumentKind?
+    @State private var showingProfileEditor = false
 
     private var documents: [LegalDocument] {
         appState.outstandingLegalDocuments.isEmpty ? LegalDocument.current : appState.outstandingLegalDocuments
@@ -368,6 +370,14 @@ struct LegalAcceptanceView: View {
                         .font(.system(size: 32, weight: .black, design: .rounded))
                     Text("Review and accept the current policies. We record each document version so future changes can be shown clearly.")
                         .foregroundStyle(Color.liftMuted)
+
+                    Button {
+                        showingProfileEditor = true
+                    } label: {
+                        Label("Edit profile details", systemImage: "chevron.left")
+                    }
+                    .disabled(appState.accountOperationInProgress)
+                    .accessibilityIdentifier("legal.editProfile")
 
                     ForEach(documents) { document in
                         LiftCard {
@@ -424,6 +434,16 @@ struct LegalAcceptanceView: View {
                 }
                 .padding(20)
             }
+        }
+        .onAppear {
+            // Account messages from an earlier onboarding step (for example,
+            // an optional starting-lift save) are not legal-acceptance errors.
+            appState.accountMessage = nil
+        }
+        .sheet(isPresented: $showingProfileEditor) {
+            EditProfileView()
+                .environmentObject(appState)
+                .presentationDetents([.large])
         }
     }
 

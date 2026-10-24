@@ -194,6 +194,7 @@ extension LeaderboardsView {
                         Image(systemName: "magnifyingglass")
                     }
                     .accessibilityLabel(isSearchVisible ? "Hide leaderboard search" : "Search leaderboard")
+                    .accessibilityIdentifier("leaderboard.search.toggle")
                 }
             }
             .sheet(item: $activeSelector) { selector in
@@ -206,7 +207,7 @@ extension LeaderboardsView {
                 ) { optionID in
                     apply(optionID, for: selector)
                 }
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
             }
             .alert("Custom rep count", isPresented: $showingCustomRepInput) {

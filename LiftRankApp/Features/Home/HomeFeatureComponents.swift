@@ -130,7 +130,9 @@ extension HomeView {
 
     @ViewBuilder
     var trainingAlerts: some View {
-        let stalledLifts = Array(appState.plateauInsights.prefix(2))
+        let stalledLifts = Array(appState.plateauInsights
+            .filter { RankingCalculator.strengthTierExerciseIDs.contains($0.exerciseID) }
+            .prefix(2))
         let stalledLiftNames = stalledLifts.map { $0.exerciseName }.joined(separator: ", ")
         let missedWorkout = appState.missedScheduledWorkout()
         let recoveringMuscles = Array(
@@ -524,7 +526,7 @@ extension HomeView {
     var strengthOverviewCard: some View {
         let summary = appState.strengthTierSummary
         return Button {
-            showingAwards = true
+            openWeeklyProgress()
         } label: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
@@ -771,10 +773,6 @@ extension HomeView {
         return "figure.strengthtraining.functional"
     }
 
-    var weeklyActivity: some View {
-        WeeklyTrainingDayGoalCard(summary: homeWeeklySummary)
-    }
-
     func openWeeklyProgress() {
         appState.trainingTrackerStartOnProgress = true
         appState.requestedTrackerSegment = "Progress"
@@ -798,95 +796,6 @@ extension HomeView {
 
     var homeWeeklySummary: HomeWeeklySummary {
         appState.homeWeeklySummary()
-    }
-}
-
-struct WeeklyTrainingDayGoalCard: View {
-    @EnvironmentObject private var appState: AppState
-    let summary: HomeWeeklySummary
-
-    private var goal: Int? { appState.workoutPreferences.weeklyTrainingDayGoal }
-
-    var body: some View {
-        Group {
-            if let goal {
-                let completedDays = summary.completedTrainingDayCount
-                HStack(spacing: 12) {
-                    ZStack {
-                        ProgressView(value: Double(min(completedDays, goal)), total: Double(goal))
-                            .progressViewStyle(.circular)
-                            .tint(Color.liftGreen)
-                            .scaleEffect(1.35)
-                        Text("\(min(completedDays, goal))")
-                            .font(.caption.weight(.black).monospacedDigit())
-                    }
-                    .frame(width: 36, height: 36)
-                    .accessibilityHidden(true)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Label("Training-day goal", systemImage: "target")
-                            .font(.subheadline.weight(.bold))
-                        Text(completedDays >= goal ? "Goal reached" : "\(goal - completedDays) to go")
-                            .font(.caption)
-                            .foregroundStyle(completedDays >= goal ? Color.liftGreen : Color.liftMuted)
-                    }
-                    Spacer(minLength: 4)
-                    goalMenu
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .homePanelStyle()
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Weekly training-day goal")
-                .accessibilityValue("\(min(completedDays, goal)) of \(goal) days")
-            } else {
-                Button {
-                    appState.setWeeklyTrainingDayGoal(3)
-                } label: {
-                    HStack(spacing: 9) {
-                        Image(systemName: "target")
-                            .foregroundStyle(Color.liftAccentText)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Set a weekly training goal")
-                                .font(.subheadline.weight(.bold))
-                                .foregroundStyle(Color.liftText)
-                            Text("Counts distinct training days")
-                                .font(.caption2)
-                                .foregroundStyle(Color.liftMuted)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(Color.liftMuted)
-                    }
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .homePanelStyle()
-                .accessibilityIdentifier("weeklyTrainingGoal.set")
-                .accessibilityHint("Sets a three-day weekly training goal; use the goal menu to change it.")
-            }
-        }
-    }
-
-    private var goalMenu: some View {
-        Menu {
-            ForEach(1...7, id: \.self) { days in
-                Button("\(days) day\(days == 1 ? "" : "s") per week") {
-                    appState.setWeeklyTrainingDayGoal(days)
-                }
-            }
-            Button("Turn off goal", role: .destructive) {
-                appState.setWeeklyTrainingDayGoal(nil)
-            }
-        } label: {
-            Label("\(goal ?? 0) days", systemImage: "chevron.down")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.liftAccentText)
-        }
-        .accessibilityIdentifier("weeklyTrainingGoal.menu")
     }
 }
 
@@ -914,7 +823,6 @@ extension HomeView {
                     balancedOverview
                     highlights
                     recentPRs
-                    weeklyActivity
                 }
                 .padding(.horizontal, LiftDesign.screenHorizontalPadding)
                 .padding(.top, 8)

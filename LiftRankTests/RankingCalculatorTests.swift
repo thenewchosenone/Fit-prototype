@@ -2073,6 +2073,27 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
+    func testCompetitionPlaybackRefreshesSignedMediaInsteadOfReusingStaleURL() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        var lift = makeLift(userID: repository.currentProfile.id, weight: 405)
+        lift.localVideoURL = nil
+        lift.remoteVideoURL = URL(string: "https://example.test/expired-signed-video")
+        lift.videoAssetID = UUID()
+        let media = GatedPlaybackMediaService()
+        let store = CompetitionStore(repository: repository, mediaUploadService: media)
+        let requestLift = lift
+        for forceRefresh in [false, true] {
+            media.requestStarted = false
+            let playback = Task { await store.playbackURL(for: requestLift, forceRefresh: forceRefresh) }
+            for _ in 0..<200 where !media.requestStarted { try await Task.sleep(for: .milliseconds(10)) }
+            XCTAssertTrue(media.requestStarted)
+            media.release()
+            let result = await playback.value
+            XCTAssertEqual(result, URL(fileURLWithPath: "/tmp/gated-playback.mov"))
+        }
+    }
+
+    @MainActor
     func testCompetitionSubmissionDoesNotApplyPreviousUsersResponse() async throws {
         let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
         let gymID = UUID()
@@ -4604,6 +4625,17 @@ final class RankingCalculatorTests: XCTestCase {
         XCTAssertEqual(pushPrescription.notes, "Pause each rep")
         XCTAssertEqual(store.prescriptions(session: sessions[0]).count, 1)
         XCTAssertEqual(store.prescriptions(session: sessions[1]).count, 1)
+
+        let reorderedPlan = try XCTUnwrap(store.createPlan(
+            fromWorkouts: [secondWorkout, firstWorkout],
+            name: "Reviewed Order",
+            preserveOrder: true
+        ))
+        let reorderedWeek = try XCTUnwrap(store.weeks(planID: reorderedPlan.id).first)
+        let reorderedSessions = store.sessions(week: reorderedWeek)
+        XCTAssertEqual(reorderedSessions.map(\.name), ["Pull", "Push"])
+        XCTAssertEqual(reorderedSessions.map(\.day), ["Tuesday", "Monday"])
+        XCTAssertEqual(store.prescriptions(session: reorderedSessions[1]).first?.restSeconds, 90)
     }
 
     @MainActor
@@ -6524,10 +6556,11 @@ final class RankingCalculatorTests: XCTestCase {
                 memberCount: 0,
                 verifiedLiftCount: 0
             )
-        } + [Gym(id: UUID(), name: "Alpha Miami", city: "Miami", state: "Florida", memberCount: 0, verifiedLiftCount: 0)]
+        } + [Gym(id: UUID(), name: "Alpha Miami", city: "Miami", state: "FL", memberCount: 0, verifiedLiftCount: 0)]
 
         let matches = OnboardingView.gymsMatchingLocation(gyms, city: "miami", region: "FLORIDA")
         XCTAssertEqual(matches.map(\.name), ["Alpha Miami", "Gym 997"])
+        XCTAssertEqual(OnboardingView.gymsMatchingLocation(gyms, city: "Miami", region: "FL").map(\.name), matches.map(\.name))
     }
 
     func testBundledExercisesHaveDetailedMuscleProfiles() {

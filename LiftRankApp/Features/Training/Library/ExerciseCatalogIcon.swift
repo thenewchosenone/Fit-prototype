@@ -6,32 +6,15 @@ struct ExerciseCatalogIcon: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.075, green: 0.082, blue: 0.105),
-                            Color(red: 0.115, green: 0.122, blue: 0.15)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .fill(Color.liftCardRaised)
                 .overlay {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(Color.liftOverlay.opacity(0.7), lineWidth: 1)
                 }
 
-            VStack(spacing: 2) {
-                Image(systemName: iconGroup.symbol)
-                    .font(.system(size: 23, weight: .semibold))
-                    .frame(height: 27)
-                Text(iconGroup.rawValue)
-                    .font(.caption2.weight(.bold))
-                    .tracking(0.3)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.65)
-            }
-            .foregroundStyle(Color.liftLime)
+            Image(systemName: iconGroup.symbol)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(Color.liftAccentText)
         }
         .frame(width: 54, height: 54)
         .accessibilityElement(children: .ignore)

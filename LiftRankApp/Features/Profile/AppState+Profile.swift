@@ -13,11 +13,22 @@ struct OnboardingStartingLift: Equatable {
 
 @MainActor
 extension AppState {
+    func publicWorkoutSummaries(for userID: UUID) async throws -> [PublicWorkoutSummary] {
+        if isDemoMode {
+            guard userID == currentProfile.id else { return [] }
+            return completedWorkouts.filter { $0.isPublic == true }
+                .sorted { $0.completedAt > $1.completedAt }
+                .map(PublicWorkoutSummary.init)
+        }
+        return try await serviceContainer.workoutSync.publicWorkoutSummaries(for: userID)
+    }
+
     func saveOnboardingStartingLifts(
         _ startingLifts: [OnboardingStartingLift],
         unit: UnitSystem,
         bodyweightPounds: Double,
-        gymID: UUID?
+        gymID: UUID?,
+        visibility: LiftVisibility = .publicLift
     ) async throws {
         guard isAuthenticated, !isDemoMode else { return }
         guard bodyweightPounds > 0 else {
@@ -45,7 +56,7 @@ extension AppState {
                 date: .now,
                 gymID: joinedGyms.contains(where: { $0.id == gymID }) ? gymID : nil,
                 equipment: .raw,
-                visibility: .privateLift,
+                visibility: visibility,
                 videoURL: nil,
                 caption: marker,
                 requestVerification: false

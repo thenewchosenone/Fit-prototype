@@ -576,6 +576,8 @@ struct LeaderboardOptionSheet: View {
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityLabel(option.title)
+                                .accessibilityValue(option.id == selectedID ? "Selected" : "Not selected")
                                 .accessibilityIdentifier("option.\(option.id)")
                                 .accessibilityAddTraits(option.id == selectedID ? .isSelected : [])
                                 Divider().overlay(Color.liftOverlay).padding(.leading, 56)
@@ -591,6 +593,7 @@ struct LeaderboardOptionSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                        .accessibilityIdentifier("leaderboard.optionSheet.done")
                 }
             }
         }

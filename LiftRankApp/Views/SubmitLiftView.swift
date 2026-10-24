@@ -36,7 +36,7 @@ private enum SubmitLiftSelector: String, Identifiable {
         switch self {
         case .exercise: return "Choose Exercise"
         case .gym: return "Choose Gym"
-        case .equipment: return "Choose Equipment"
+        case .equipment: return "Lifting Gear"
         case .visibility: return "Choose Visibility"
         }
     }
@@ -353,9 +353,12 @@ struct SubmitLiftView: View {
                 }
                 .accessibilityIdentifier("lift.gym")
                 Divider().overlay(Color.liftSeparator)
-                LiftActionRow(title: "Equipment", subtitle: equipment.rawValue, symbolName: "dumbbell") {
+                LiftActionRow(title: "Lifting gear", subtitle: equipment.rawValue, symbolName: "dumbbell") {
                     activeSelector = .equipment
                 }
+                Text("Raw means no supportive lifting suit or bench shirt. Equipped means you used that supportive gear.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
             }
         }
     }
@@ -366,7 +369,7 @@ struct SubmitLiftView: View {
                 HStack(spacing: 12) {
                     Image(systemName: "chart.line.uptrend.xyaxis")
                         .font(.title3.weight(.bold))
-                        .foregroundStyle(Color.liftGreen)
+                        .foregroundStyle(Color.liftAccentText)
                         .frame(width: 34, height: 34)
                         .background(Color.liftGreen.opacity(0.14))
                         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
@@ -540,7 +543,14 @@ struct SubmitLiftView: View {
                 )
             }
         case .equipment:
-            return EquipmentType.allCases.map { LeaderboardOption(id: $0.rawValue, title: $0.rawValue, symbol: "dumbbell") }
+            return EquipmentType.allCases.map {
+                LeaderboardOption(
+                    id: $0.rawValue,
+                    title: $0.rawValue,
+                    subtitle: $0 == .raw ? "No supportive lifting suit or bench shirt" : "Supportive lifting suit or bench shirt used",
+                    symbol: "dumbbell"
+                )
+            }
         case .visibility:
             return LiftVisibility.allCases.map { option in
                 LeaderboardOption(

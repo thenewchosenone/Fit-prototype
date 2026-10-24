@@ -53,14 +53,14 @@ extension Color {
     )
 
     static let liftMuted = semantic(
-        light: UIColor(red: 0x5A / 255, green: 0x63 / 255, blue: 0x73 / 255, alpha: 1),
+        light: UIColor(red: 0x4F / 255, green: 0x58 / 255, blue: 0x68 / 255, alpha: 1),
         dark: UIColor(red: 0xA4 / 255, green: 0xA5 / 255, blue: 0xAD / 255, alpha: 1)
     )
 
     static let liftTextPrimary = liftText
     static let liftTextSecondary = liftMuted
     static let liftAccentText = semantic(
-        light: UIColor(red: 0x52 / 255, green: 0x6A / 255, blue: 0x00 / 255, alpha: 1),
+        light: UIColor(red: 0x45 / 255, green: 0x59 / 255, blue: 0x00 / 255, alpha: 1),
         dark: UIColor(red: 0xC7 / 255, green: 0xFF / 255, blue: 0x00 / 255, alpha: 1)
     )
     static let liftTextDisabled = semantic(
@@ -74,11 +74,11 @@ extension Color {
         dark: UIColor(red: 0.74, green: 0.66, blue: 0.98, alpha: 1)
     )
     static let liftGreen = semantic(
-        light: UIColor(red: 0.03, green: 0.46, blue: 0.25, alpha: 1),
+        light: UIColor(red: 0x06 / 255, green: 0x5C / 255, blue: 0x32 / 255, alpha: 1),
         dark: UIColor(red: 0.36, green: 0.92, blue: 0.65, alpha: 1)
     )
     static let liftGold = semantic(
-        light: UIColor(red: 0.58, green: 0.36, blue: 0.02, alpha: 1),
+        light: UIColor(red: 0x80 / 255, green: 0x4D / 255, blue: 0x03 / 255, alpha: 1),
         dark: UIColor(red: 1.0, green: 0.80, blue: 0.28, alpha: 1)
     )
     static let liftSilver = semantic(

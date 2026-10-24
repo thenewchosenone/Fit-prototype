@@ -21,6 +21,7 @@ final class WorkoutSyncStore: ObservableObject {
     private var lastPassiveHistorySyncAt: Date?
     private var lastPassivePlanSyncAt: Date?
     private var historySyncInFlight = false
+    private var historySyncWaiters: [CheckedContinuation<Void, Never>] = []
     private var planSyncInFlight = false
     private var planSyncRequested = false
     @Published private(set) var planSyncState: WorkoutHistorySyncState = .local
@@ -72,6 +73,9 @@ final class WorkoutSyncStore: ObservableObject {
         var syncFailed = false
         defer {
             historySyncInFlight = false
+            let waiters = historySyncWaiters
+            historySyncWaiters.removeAll()
+            waiters.forEach { $0.resume() }
             if repository.currentProfile.id == userID, !force {
                 lastPassiveHistorySyncAt = .now
             }
@@ -153,6 +157,21 @@ final class WorkoutSyncStore: ObservableObject {
             historySyncState = .local
         }
         repository.persistWorkoutSnapshotWithoutBlockingUI()
+    }
+
+    func saveCompletedWorkoutVisibility(_ snapshot: CompletedWorkoutSnapshot) async throws {
+        // Finish any older upload before sending the new privacy decision.
+        while historySyncInFlight {
+            await withCheckedContinuation { historySyncWaiters.append($0) }
+        }
+        try Task.checkCancellation()
+        guard repository.currentProfile.id == snapshot.ownerID else { throw LiftRankServiceError.sessionExpired }
+        enqueueCompletedWorkout(snapshot)
+        await synchronizeCompletedWorkoutHistory()
+        guard repository.currentProfile.id == snapshot.ownerID else { throw LiftRankServiceError.sessionExpired }
+        guard !repository.pendingCompletedWorkoutUploads.contains(where: { $0.id == snapshot.id }) else {
+            throw LiftRankServiceError.server("Workout visibility wasn't saved. Check your connection and retry.")
+        }
     }
 
     func synchronizeDeletedCompletedWorkout(id: UUID) async {

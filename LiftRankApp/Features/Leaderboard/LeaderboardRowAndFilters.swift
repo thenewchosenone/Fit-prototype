@@ -151,7 +151,7 @@ struct LeaderboardRow: View {
                             if entry.rankMovement > 0 {
                                 Label("+\(entry.rankMovement)", systemImage: "arrow.up")
                                     .font(.caption.bold())
-                                    .foregroundStyle(Color.liftGreen)
+                                    .foregroundStyle(Color.liftAccentText)
                             } else if entry.rankMovement < 0 {
                                 Label("\(entry.rankMovement)", systemImage: "arrow.down")
                                     .font(.caption.bold())
@@ -305,6 +305,30 @@ struct LeaderboardFiltersView: View {
                                     .padding(12)
                                     .background(Color.liftBackground)
                                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                }
+                            }
+
+                            filterGroup("Evidence and time", symbol: "video.fill") {
+                                optionRow("Evidence") {
+                                    optionButton("All lifts", isActive: !appState.verifiedOnly && appState.leaderboardFilters.verificationLevel == nil) {
+                                        appState.verifiedOnly = false
+                                        appState.leaderboardFilters.verificationLevel = nil
+                                    }
+                                    optionButton("Video-backed", isActive: appState.verifiedOnly) {
+                                        appState.verifiedOnly = true
+                                        appState.leaderboardFilters.verificationLevel = nil
+                                    }
+                                    optionButton("Self-reported", isActive: appState.leaderboardFilters.verificationLevel == .selfReported) {
+                                        appState.verifiedOnly = false
+                                        appState.leaderboardFilters.verificationLevel = .selfReported
+                                    }
+                                }
+                                optionRow("Time range") {
+                                    ForEach(["All time", "This year", "Last 90 days", "This month", "This week"], id: \.self) { range in
+                                        optionButton(range, isActive: appState.leaderboardFilters.timeRange == range) {
+                                            appState.leaderboardFilters.timeRange = range
+                                        }
+                                    }
                                 }
                             }
 
@@ -475,31 +499,6 @@ struct LeaderboardFiltersView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         }
 
-                        if !isLocationSearchActive {
-                            filterGroup("Evidence and time", symbol: "video.fill") {
-                                optionRow("Evidence") {
-                                    optionButton("All lifts", isActive: !appState.verifiedOnly && appState.leaderboardFilters.verificationLevel == nil) {
-                                        appState.verifiedOnly = false
-                                        appState.leaderboardFilters.verificationLevel = nil
-                                    }
-                                    optionButton("Video-backed", isActive: appState.verifiedOnly) {
-                                        appState.verifiedOnly = true
-                                        appState.leaderboardFilters.verificationLevel = nil
-                                    }
-                                    optionButton("Self-reported", isActive: appState.leaderboardFilters.verificationLevel == .selfReported) {
-                                        appState.verifiedOnly = false
-                                        appState.leaderboardFilters.verificationLevel = .selfReported
-                                    }
-                                }
-                                optionRow("Time range") {
-                                    ForEach(["All time", "This year", "Last 90 days", "This month", "This week"], id: \.self) { range in
-                                        optionButton(range, isActive: appState.leaderboardFilters.timeRange == range) {
-                                            appState.leaderboardFilters.timeRange = range
-                                        }
-                                    }
-                                }
-                            }
-                        }
                     }
                     .padding()
                 }
@@ -520,9 +519,11 @@ struct LeaderboardFiltersView: View {
                         appState.verifiedOnly = true
                         Haptics.light()
                     }
+                    .accessibilityIdentifier("leaderboard.filters.reset")
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                        .accessibilityIdentifier("leaderboard.filters.done")
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     if locationSearchFocused {
@@ -557,6 +558,7 @@ struct LeaderboardFiltersView: View {
                 }
                 .font(.caption.weight(.bold))
                 .foregroundStyle(Color.liftAccentText)
+                .accessibilityIdentifier("leaderboard.filters.results.reset")
             }
         }
         .accessibilityIdentifier("leaderboard.filters.results")
@@ -568,15 +570,10 @@ struct LeaderboardFiltersView: View {
                 Label("Quick filters", systemImage: "line.3.horizontal.decrease.circle.fill")
                     .font(.headline)
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                    ForEach(["all", "city", "class"], id: \.self) { filter in
+                    ForEach(["city", "class", "gym"], id: \.self) { filter in
                         switch filter {
-                        case "all":
-                            quickFilterButton("All lifters", symbol: "globe") {
-                                appState.leaderboardFilters = LeaderboardFilters(exerciseID: appState.leaderboardFilters.exerciseID)
-                                appState.verifiedOnly = false
-                            }
                         case "city":
-                            quickFilterButton("My city", symbol: "mappin.and.ellipse") {
+                            quickFilterButton("My City", symbol: "mappin.and.ellipse") {
                                 applyLocation(
                                     cityID: appState.currentProfile.cityID,
                                     city: appState.currentProfile.city,
@@ -584,10 +581,19 @@ struct LeaderboardFiltersView: View {
                                     countryCode: nil
                                 )
                             }
-                        default:
-                            quickFilterButton("My class", symbol: "person.crop.rectangle.stack") {
+                        case "class":
+                            quickFilterButton("My Weight Class", symbol: "person.crop.rectangle.stack") {
+                                clearLocationFilter()
                                 appState.leaderboardFilters.sexCategory = appState.currentProfile.sexCategory
                                 appState.leaderboardFilters.weightClassID = bodyweightClass?.id
+                            }
+                        default:
+                            quickFilterButton("My Gym", symbol: "building.2") {
+                                appState.leaderboardFilters.cityID = nil
+                                appState.leaderboardFilters.city = nil
+                                appState.leaderboardFilters.state = nil
+                                appState.leaderboardFilters.country = nil
+                                appState.leaderboardFilters.gymID = appState.currentProfile.primaryGymID
                             }
                         }
                     }
@@ -743,6 +749,8 @@ struct LeaderboardFiltersView: View {
                 .fixedSize(horizontal: true, vertical: false)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityValue(isActive ? "Selected" : "Not selected")
         .accessibilityIdentifier("leaderboard.filters.option.\(identifierComponent(title))")
         .accessibilityAddTraits(isActive ? .isSelected : [])
     }
@@ -760,6 +768,8 @@ struct LeaderboardFiltersView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityIdentifier("leaderboard.filters.quick.\(identifierComponent(title))")
     }
 
     private func identifierComponent(_ title: String) -> String {

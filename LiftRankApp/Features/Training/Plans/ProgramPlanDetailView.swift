@@ -430,20 +430,23 @@ struct ProgramPlanDetailView: View {
                 }
                 let scheduledSession = appState.scheduledPlanSessions(on: .now)
                     .first(where: { $0.week.id == selectedWeek.id })?.session
+                let nextScheduledSession = appState.nextScheduledWorkout()
+                    .flatMap { $0.week.id == selectedWeek.id ? $0.session : nil }
                 let nextSession = appState.selectedPlanQueueEnabled ? nil : (
-                    scheduledSession ?? plannedSessions.first { session in
-                        !presentation.completedSessionIDs.contains(session.id)
-                    }
+                    scheduledSession ?? nextScheduledSession
                 )
                 let plannedPlanSessions = appState.selectedPlanWeeks
                     .flatMap(appState.sessions(for:))
                     .filter { !appState.prescriptions(for: $0).isEmpty }
                 let planIsComplete = !plannedPlanSessions.isEmpty && plannedPlanSessions.allSatisfy(sessionIsComplete)
-                let nextIncompleteWeek = appState.selectedPlanWeeks.first { week in
+                let incompleteWeeks = appState.selectedPlanWeeks.filter { week in
                     appState.sessions(for: week).contains {
                         !appState.prescriptions(for: $0).isEmpty && !sessionIsComplete($0)
                     }
                 }
+                let nextIncompleteWeek = incompleteWeeks.first {
+                    $0.id == appState.currentSelectedProgramWeek?.id
+                } ?? incompleteWeeks.first
                 let progression = appState.workoutPlanProgressionSettings.first {
                     $0.planID == appState.selectedWorkoutPlanID
                 }?.method
@@ -503,10 +506,10 @@ struct ProgramPlanDetailView: View {
                             }
                             .buttonStyle(.plain)
                             .foregroundStyle(Color.liftAccentText)
-                        } else if !plannedSessions.isEmpty {
-                            Label("Every workout this week has all planned sets completed", systemImage: "checkmark.circle.fill")
+                        } else if completedSessions.count < plannedSessions.count {
+                            Label("Unfinished sets remain in this week", systemImage: "arrow.uturn.backward.circle")
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Color.liftGreen)
+                                .foregroundStyle(Color.liftAccentText)
                         }
                         if let progression {
                             Label("Progression: \(progression.rawValue)", systemImage: "chart.line.uptrend.xyaxis")

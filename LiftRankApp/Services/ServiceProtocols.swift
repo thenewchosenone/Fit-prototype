@@ -230,6 +230,7 @@ protocol WorkoutSyncService {
     func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot]
     func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws
     func deleteCompletedWorkout(id: UUID) async throws
+    func publicWorkoutSummaries(for userID: UUID) async throws -> [PublicWorkoutSummary]
 }
 
 @MainActor
@@ -285,6 +286,9 @@ extension NotificationService {
     func revokeDevice(deviceID: String) async throws {}
 }
 extension WorkoutSyncService {
+    func publicWorkoutSummaries(for userID: UUID) async throws -> [PublicWorkoutSummary] {
+        throw LiftRankServiceError.configurationMissing
+    }
     func deletedWorkoutPlanIDs() async throws -> Set<UUID> { [] }
     func deleteCompletedWorkout(id: UUID) async throws { throw LiftRankServiceError.configurationMissing }
 }

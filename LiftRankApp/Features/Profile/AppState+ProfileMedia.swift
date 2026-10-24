@@ -29,7 +29,7 @@ extension AppState {
         repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
-    func saveProfilePhoto(_ image: UIImage) async {
+    func saveProfilePhoto(_ image: UIImage) async throws {
         do {
             profilePhotoMutation += 1
             let mutation = profilePhotoMutation
@@ -37,6 +37,8 @@ extension AppState {
             let userID = profile.id
             let mode: AccountMode = isDemoMode ? .demo : .authenticated
             profile.avatarPath = try await profilePhotoStore.save(image: image, userID: profile.id, mode: mode)
+            guard repository.currentProfile.id == userID,
+                  mutation == profilePhotoMutation else { throw LiftRankServiceError.sessionExpired }
             profileStore.saveProfile(profile)
             repository.persistWorkoutSnapshotWithoutBlockingUI()
             guard isAuthenticated, !isDemoMode else {
@@ -45,51 +47,45 @@ extension AppState {
             }
             guard let avatarPath = profile.avatarPath,
                   let fileURLs = profilePhotoStore.fileURLs(for: avatarPath) else {
-                accountMessage = "Lift Rivals couldn't prepare that profile photo for upload."
-                Haptics.warning()
-                return
+                throw LiftRankServiceError.invalidInput("Lift Rivals couldn't prepare that profile photo for upload.")
             }
-            Task {
-                do {
-                    guard repository.currentProfile.id == userID,
-                          mutation == profilePhotoMutation else { return }
-                    let uploadedAvatarPath = try await profileStore.uploadProfileAvatar(
-                        avatarPath: avatarPath,
-                        fullImageURL: fileURLs.fullImageURL,
-                        thumbnailURL: fileURLs.thumbnailURL
+            guard repository.currentProfile.id == userID,
+                  mutation == profilePhotoMutation else { throw LiftRankServiceError.sessionExpired }
+            let uploadedAvatarPath = try await profileStore.uploadProfileAvatar(
+                avatarPath: avatarPath,
+                fullImageURL: fileURLs.fullImageURL,
+                thumbnailURL: fileURLs.thumbnailURL
+            )
+            guard repository.currentProfile.id == userID,
+                  mutation == profilePhotoMutation else { throw LiftRankServiceError.sessionExpired }
+            if uploadedAvatarPath != avatarPath {
+                let (fullImageData, thumbnailData) = try await Task.detached(priority: .utility) {
+                    try (
+                        Data(contentsOf: fileURLs.fullImageURL),
+                        Data(contentsOf: fileURLs.thumbnailURL)
                     )
-                    guard repository.currentProfile.id == userID,
-                          mutation == profilePhotoMutation else { return }
-                    if uploadedAvatarPath != avatarPath {
-                        let (fullImageData, thumbnailData) = try await Task.detached(priority: .utility) {
-                            try (
-                                Data(contentsOf: fileURLs.fullImageURL),
-                                Data(contentsOf: fileURLs.thumbnailURL)
-                            )
-                        }.value
-                        try await profilePhotoStore.cache(
-                            fullImageData: fullImageData,
-                            thumbnailData: thumbnailData,
-                            avatarPath: uploadedAvatarPath
-                        )
-                    }
-                    guard repository.currentProfile.id == userID,
-                          mutation == profilePhotoMutation else { return }
-                    profile.avatarPath = uploadedAvatarPath
-                    _ = try await profileStore.updateProfile(profile)
-                    profilePhotoStore.markUploadComplete(avatarPath: avatarPath)
-                    profilePhotoStore.markUploadComplete(avatarPath: uploadedAvatarPath)
-                    if uploadedAvatarPath != avatarPath {
-                        profilePhotoStore.remove(avatarPath: avatarPath)
-                    }
-                    repository.persistWorkoutSnapshotWithoutBlockingUI()
-                } catch {
-                    accountMessage = userMessage(error)
-                }
+                }.value
+                try await profilePhotoStore.cache(
+                    fullImageData: fullImageData,
+                    thumbnailData: thumbnailData,
+                    avatarPath: uploadedAvatarPath
+                )
             }
+            guard repository.currentProfile.id == userID,
+                  mutation == profilePhotoMutation else { throw LiftRankServiceError.sessionExpired }
+            profile.avatarPath = uploadedAvatarPath
+            _ = try await profileStore.updateProfile(profile)
+            profilePhotoStore.markUploadComplete(avatarPath: avatarPath)
+            profilePhotoStore.markUploadComplete(avatarPath: uploadedAvatarPath)
+            if uploadedAvatarPath != avatarPath {
+                profilePhotoStore.remove(avatarPath: avatarPath)
+            }
+            repository.persistWorkoutSnapshotWithoutBlockingUI()
             Haptics.success()
         } catch {
-            accountMessage = "Lift Rivals couldn't save that profile photo."
+            accountMessage = userMessage(error)
+            Haptics.warning()
+            throw error
         }
     }
 
@@ -126,12 +122,19 @@ extension AppState {
     func cacheAuthenticatedProfilePhotoIfNeeded() async {
         guard isAuthenticated, !isDemoMode,
               let avatarPath = currentProfile.avatarPath else { return }
-        guard !(await profilePhotoStore.hasThumbnailWithoutBlockingUI(for: avatarPath)) else { return }
         let userID = currentProfile.id
+        let mutation = profilePhotoMutation
+        let requestKey = "\(userID.uuidString)|\(avatarPath)"
+        guard profilePhotoDownloadsInFlight.insert(requestKey).inserted else { return }
+        defer { profilePhotoDownloadsInFlight.remove(requestKey) }
+        guard !(await profilePhotoStore.hasThumbnailWithoutBlockingUI(for: avatarPath)) else { return }
+        guard currentProfile.id == userID, currentProfile.avatarPath == avatarPath,
+              profilePhotoMutation == mutation else { return }
         do {
             guard let download = try await profileStore.downloadProfileAvatar(avatarPath: avatarPath) else { return }
             guard repository.currentProfile.id == userID,
-                  repository.currentProfile.avatarPath == avatarPath else { return }
+                  repository.currentProfile.avatarPath == avatarPath,
+                  profilePhotoMutation == mutation else { return }
             try await profilePhotoStore.cache(
                 fullImageData: download.fullImageData,
                 thumbnailData: download.thumbnailData,
@@ -141,6 +144,7 @@ extension AppState {
             objectWillChange.send()
             repository.persistWorkoutSnapshotWithoutBlockingUI()
         } catch {
+            guard currentProfile.id == userID, profilePhotoMutation == mutation else { return }
             accountMessage = userMessage(error)
         }
     }

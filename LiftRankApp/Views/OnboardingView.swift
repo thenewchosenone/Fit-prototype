@@ -22,6 +22,7 @@ struct OnboardingView: View {
     @State private var step = 0
     @State private var goals: Set<String> = []
     @State private var profile = MockData.emptyProfile
+    @State private var hasLoadedProfile = false
     @State private var birthDate = Calendar.current.date(byAdding: .year, value: -25, to: .now) ?? .now
     @State private var isSavingProfile = false
     @State private var saveError: String?
@@ -31,6 +32,8 @@ struct OnboardingView: View {
     @State private var press = ""
     @State private var bio = ""
     @State private var yearsTraining = 0
+    @State private var keepStartingLiftsPrivate = false
+    @State private var automaticallyShareWorkoutPRs = true
     @State private var showingBodyweightPicker = false
     @State private var showingHeightPicker = false
     @State private var showingPhotoManager = false
@@ -73,24 +76,21 @@ struct OnboardingView: View {
         let region = selectedRegionName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !city.isEmpty, !region.isEmpty else { return [] }
 
-        return Self.gymsMatchingLocation(appState.gyms, city: city, region: region)
+        return Self.gymsMatchingLocation(appState.gyms, city: city, region: region, countryCode: selectedCountryCode)
     }
 
-    static func gymsMatchingLocation(_ gyms: [Gym], city: String, region: String) -> [Gym] {
+    static func gymsMatchingLocation(_ gyms: [Gym], city: String, region: String, countryCode: String = "US") -> [Gym] {
         gyms
             .filter {
                 $0.city.localizedCaseInsensitiveCompare(city) == .orderedSame &&
-                $0.state.localizedCaseInsensitiveCompare(region) == .orderedSame
+                LaunchLocationCatalog.regionName($0.state, countryCode: countryCode)
+                    .localizedCaseInsensitiveCompare(LaunchLocationCatalog.regionName(region, countryCode: countryCode)) == .orderedSame
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     private func ageGroup(for birthDate: Date) -> String {
         ProfileDisplayFormatting.ageGroup(for: birthDate)
-    }
-
-    private var onboardingScoreTier: (label: String, tint: Color) {
-        RankingFormatting.strengthTier(for: appState.overallScore)
     }
 
     private var hasCompletePowerliftingTotal: Bool {
@@ -131,18 +131,14 @@ struct OnboardingView: View {
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 controls
             }
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") { dismissKeyboard() }
-                }
-            }
         }
         .interactiveDismissDisabled()
         .onAppear {
+            guard !hasLoadedProfile else { return }
+            hasLoadedProfile = true
             profile = appState.currentProfile
-            profile.username = AppleIdentityStore.usernameSuggestion(from: appState.pendingAppleFullName) ?? ""
-            profile.displayName = ""
+            profile.username = AppleIdentityStore.usernameSuggestion(from: appState.pendingAppleFullName) ?? profile.username
+            if profile.trainingFocus == nil { profile.hideBodyweight = false }
             bio = profile.bio ?? ""
             yearsTraining = max(0, profile.yearsExperience)
             if profile.bodyweightPounds <= 0 {
@@ -152,14 +148,14 @@ struct OnboardingView: View {
                 profile.heightInches = 70
             }
             profile.ageGroup = ageGroup(for: birthDate)
-            selectedCountryCode = ""
-            selectedRegionName = ""
-            selectedCity = ""
-            selectedCityID = nil
-            cityQuery = ""
-            citySuggestions = []
-            profile.city = ""
-            profile.state = ""
+            selectedCountryCode = profile.countryCode ?? ""
+            selectedRegionName = LaunchLocationCatalog.regionName(profile.state, countryCode: selectedCountryCode)
+            selectedCity = profile.city
+            selectedCityID = profile.cityID
+            cityQuery = profile.city
+            citySuggestions = profile.city.isEmpty ? LaunchLocationCatalog.citySuggestions(
+                countryCode: selectedCountryCode, regionName: selectedRegionName, query: "", limit: 8
+            ) : []
             normalizeSelectedGym()
 #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-uiTestingPrefilledOnboarding") {
@@ -371,6 +367,9 @@ struct OnboardingView: View {
                     }
                 }
                 .pickerStyle(.wheel)
+                .frame(height: 190)
+                .clipped()
+                .frame(maxHeight: .infinity, alignment: .top)
                 .navigationTitle("Bodyweight (\(profile.preferredUnit.shortLabel))")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -448,6 +447,9 @@ struct OnboardingView: View {
                     }
                 }
                 .pickerStyle(.wheel)
+                .frame(height: 190)
+                .clipped()
+                .frame(maxHeight: .infinity, alignment: .top)
                 .navigationTitle("Height")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -605,6 +607,7 @@ struct OnboardingView: View {
                             displayedComponents: .date
                         )
                         .labelsHidden()
+                        .datePickerStyle(.wheel)
                         .onChange(of: birthDate) { _, newValue in
                             profile.ageGroup = ageGroup(for: newValue)
                         }
@@ -679,8 +682,20 @@ struct OnboardingView: View {
                             Text("Choose your city first")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
+                        } else if appState.accountSocialStore.isLoadingGymDirectory {
+                            ProgressView("Loading gyms…")
+                        } else if let error = appState.accountSocialStore.gymDirectoryError {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundStyle(Color.liftMuted)
+                                Button("Retry loading gyms") {
+                                    Task { await appState.refreshRemoteSocialState() }
+                                }
+                                .foregroundStyle(Color.liftAccentText)
+                            }
                         } else if onboardingGyms.isEmpty {
-                            Text("No gyms available in \(selectedCity)")
+                            Text("No gyms listed in \(selectedCity) yet. You can continue without a gym.")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
                         } else {
@@ -768,6 +783,8 @@ struct OnboardingView: View {
                         ForEach(launchCountries) { Text($0.name).tag($0.code) }
                     }
                     .pickerStyle(.wheel)
+                    .frame(height: 190)
+                    .clipped()
                     .onChange(of: selectedCountryCode) { _, _ in
                         selectedRegionName = ""
                         resetCitySelection()
@@ -779,12 +796,17 @@ struct OnboardingView: View {
                         ForEach(selectedCountry?.regions ?? []) { Text($0.name).tag($0.name) }
                     }
                     .pickerStyle(.wheel)
+                    .frame(height: 190)
+                    .clipped()
                     .onChange(of: selectedRegionName) { _, value in
                         resetCitySelection()
                         profile.state = value
                     }
                 case .city:
-                    if cityQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || citySuggestions.isEmpty {
+                    if isSearchingCities {
+                        ProgressView("Searching cities…")
+                            .padding()
+                    } else if citySuggestions.isEmpty {
                         ContentUnavailableView(
                             cityQuery.count < 2 ? "Search for a city" : "No matching cities",
                             systemImage: "mappin.and.ellipse"
@@ -825,6 +847,7 @@ struct OnboardingView: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .navigationTitle(picker == .country ? "Country" : picker == .region ? "State / province" : "City")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -873,6 +896,11 @@ struct OnboardingView: View {
             }
 
             if selectedRegion != nil, !citySuggestions.isEmpty {
+                if cityQuery.isEmpty {
+                    Text("Suggested cities")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.liftMuted)
+                }
                 VStack(spacing: 0) {
                     ForEach(citySuggestions) { suggestion in
                         Button {
@@ -909,7 +937,7 @@ struct OnboardingView: View {
             }
 
             if selectedRegion != nil, cityQuery.isEmpty {
-                Text("Start typing, then choose a city from \(selectedRegionName).")
+                Text("Choose a suggested city or search for another city in \(selectedRegionName).")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
                     .padding(.leading, 34)
@@ -932,13 +960,17 @@ struct OnboardingView: View {
         selectedCity = ""
         selectedCityID = nil
         cityQuery = ""
-        citySuggestions = []
+        citySuggestions = LaunchLocationCatalog.citySuggestions(
+            countryCode: selectedCountryCode, regionName: selectedRegionName, query: "", limit: 8
+        )
         isSearchingCities = false
         profile.city = ""
         normalizeSelectedGym()
     }
 
     private func selectCity(_ suggestion: LocationCitySuggestion) {
+        citySearchTask?.cancel()
+        isSearchingCities = false
         selectedCity = suggestion.city
         selectedCityID = suggestion.canonicalID
         cityQuery = suggestion.city
@@ -952,13 +984,16 @@ struct OnboardingView: View {
 
     private func searchCities(matching query: String) {
         citySearchTask?.cancel()
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedQuery.isEmpty && trimmedQuery == selectedCity { return }
         selectedCity = ""
         selectedCityID = nil
         profile.city = ""
 
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let selectedCountry, let selectedRegion, trimmedQuery.count >= 2 else {
-            citySuggestions = []
+            citySuggestions = trimmedQuery.isEmpty ? LaunchLocationCatalog.citySuggestions(
+                countryCode: selectedCountryCode, regionName: selectedRegionName, query: "", limit: 8
+            ) : []
             isSearchingCities = false
             return
         }
@@ -992,6 +1027,14 @@ struct OnboardingView: View {
                 Toggle("Hide city", isOn: $profile.hideCity)
                 Toggle("Hide gym", isOn: $profile.hideGym)
                 Toggle("Hide lift videos", isOn: $profile.hideLiftVideos)
+                Toggle("Keep starting lifts private", isOn: $keepStartingLiftsPrivate)
+                Text("Starting lifts are self reported and appear in rankings by default.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+                Toggle("Automatically share workout PRs", isOn: $automaticallyShareWorkoutPRs)
+                Text("Eligible PRs from completed workouts can appear in rankings. You can turn this off later in Settings.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
             }
             .tint(Color.liftAccentText)
         }
@@ -1014,7 +1057,9 @@ struct OnboardingView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "lock.shield.fill")
                         .foregroundStyle(Color.liftAccentText)
-                    Text("These starting numbers are private until you choose to share or verify a lift.")
+                    Text(keepStartingLiftsPrivate
+                         ? "These starting lifts will stay private. You can change their visibility later."
+                         : "These starting lifts will appear as self reported in rankings. You can keep them private in Privacy controls.")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
@@ -1042,44 +1087,37 @@ struct OnboardingView: View {
                     Text("You’re ready to compete.")
                         .font(.system(size: ratingTitleSize, weight: .black, design: .rounded))
                         .multilineTextAlignment(.center)
-                    Text("This is your starting point. Every verified lift can move you up.")
+                    Text("Your starting lifts are self reported. Track your progress from here.")
                         .foregroundStyle(Color.liftMuted)
                         .multilineTextAlignment(.center)
                 }
 
                 VStack(spacing: 14) {
-                    ZStack {
-                        Circle()
-                            .stroke(Color.liftOverlay, lineWidth: 14)
-                        Circle()
-                            .trim(from: 0, to: min(1, appState.overallScore / 100))
-                            .stroke(
-                                AngularGradient(
-                                    colors: [Color.liftBlue, .cyan, Color.liftPurple, Color.liftBlue],
-                                    center: .center
-                                ),
-                                style: StrokeStyle(lineWidth: 14, lineCap: .round)
-                            )
-                            .rotationEffect(.degrees(-90))
-                        VStack(spacing: 2) {
-                            Text("\(Int(appState.overallScore))")
-                                .font(.system(size: scoreSize, weight: .black, design: .rounded))
-                            Text("STRENGTH SCORE")
-                                .font(.caption2.weight(.bold))
-                                .tracking(1)
+                    VStack(spacing: 8) {
+                        if let total = onboardingTotalKilograms {
+                            Text(MeasurementFormatting.formatRecordedWeight(
+                                MeasurementFormatting.convert(total, from: .kilograms, to: profile.preferredUnit),
+                                unit: profile.preferredUnit
+                            ))
+                            .font(.system(size: scoreSize, weight: .black, design: .rounded))
+                            .minimumScaleFactor(0.5)
+                            .lineLimit(1)
+                            Text("STARTING THREE-LIFT TOTAL")
+                                .font(.caption.weight(.bold))
                                 .foregroundStyle(Color.liftMuted)
+                        } else {
+                            Text("Your starting lifts")
+                                .font(.title2.weight(.bold))
+                            Text("Add your bench press, squat, and deadlift to see a total. You can add them later.")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.liftMuted)
+                                .multilineTextAlignment(.center)
                         }
+                        Text("Self reported")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.liftAccentText)
                     }
-                    .frame(width: 190, height: 190)
-
-                    Text(onboardingScoreTier.label)
-                        .font(.headline.weight(.black))
-                        .tracking(1.4)
-                        .foregroundStyle(onboardingScoreTier.tint)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 8)
-                        .background(onboardingScoreTier.tint.opacity(0.12))
-                        .clipShape(Capsule())
+                    .padding(.horizontal, 16)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 24)
@@ -1097,15 +1135,21 @@ struct OnboardingView: View {
                 }
 
                 HStack(spacing: 12) {
-                    resultCard("Unranked", "Global rank", "chart.line.uptrend.xyaxis", .liftGold)
-                    resultCard("Unranked", "Weight class", "person.2.fill", .liftBlue)
+                    resultCard(
+                        MeasurementFormatting.formatBodyweight(profile.bodyweightPounds, preferredUnit: profile.preferredUnit),
+                        "Bodyweight", "scalemass", .liftAccentText
+                    )
+                    resultCard(
+                        "\([bench, squat, deadlift, press].filter { (MeasurementFormatting.parseLocalizedDecimal($0) ?? 0) > 0 }.count)",
+                        "Starting lifts", "dumbbell.fill", .liftAccentText
+                    )
                 }
 
                 LiftCard {
                     HStack(spacing: 14) {
                         Image(systemName: "arrow.up.right.circle.fill")
                             .font(.largeTitle)
-                            .foregroundStyle(Color.liftGreen)
+                            .foregroundStyle(Color.liftAccentText)
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Your next milestone")
                                 .font(.headline)
@@ -1131,19 +1175,19 @@ struct OnboardingView: View {
                 Label("Unverified starting comparison", systemImage: "chart.bar.xaxis")
                     .font(.headline.weight(.bold))
                     .foregroundStyle(Color.liftAccentText)
-                Text("Estimated standing from your starting lifts. These numbers do not affect official rankings until your lifts are verified.")
+                Text("Comparisons reflect the lifters currently sharing results. Small groups may not give a useful ranking. Public starting lifts appear in self-reported rankings; video-backed rankings require a video.")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
 
                 if onboardingComparisons.isEmpty {
-                    Text(hasCompletePowerliftingTotal ? "Loading local comparisons…" : "Enter bench press, back squat, and deadlift to see your estimated standing.")
+                    Text(isLoadingOnboardingComparisons ? "Loading local comparisons…" : hasCompletePowerliftingTotal ? "Comparisons will appear as lifters share results in your area." : "Enter bench press, back squat, and deadlift to see local comparisons.")
                         .font(.subheadline)
                         .foregroundStyle(Color.liftMuted)
                 } else {
                     ForEach(onboardingComparisons, id: \.label) { comparison in
                         HStack(spacing: 12) {
                             Image(systemName: comparison.label == "City" ? "mappin.and.ellipse" : "globe.americas.fill")
-                                .foregroundStyle(Color.liftBlue)
+                                .foregroundStyle(Color.liftAccentText)
                                 .frame(width: 24)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(comparison.label)
@@ -1356,7 +1400,8 @@ struct OnboardingView: View {
                             startingLifts,
                             unit: profile.preferredUnit,
                             bodyweightPounds: profile.bodyweightPounds,
-                            gymID: profile.primaryGymID
+                            gymID: profile.primaryGymID,
+                            visibility: keepStartingLiftsPrivate ? .privateLift : .publicLift
                         )
                     } catch {
                         let reason = (error as? LocalizedError)?.errorDescription ?? "Try again to save them."
@@ -1365,6 +1410,7 @@ struct OnboardingView: View {
                 }
                 if optionalSaveErrors.isEmpty {
                     try await appState.saveAuthenticatedProfile(profileDraft(true))
+                    appState.setAutomaticVideoPRSubmission(automaticallyShareWorkoutPRs)
                     appState.consumePendingAppleFullName()
                     Haptics.success()
                     complete()
@@ -1407,12 +1453,13 @@ struct OnboardingView: View {
     }
 
     private func normalizeSelectedGym() {
-        guard !profile.primaryGymName.isEmpty,
-              let gym = appState.gyms.first(where: { $0.id == profile.primaryGymID }),
+        guard !appState.gyms.isEmpty else { return }
+        guard let gym = appState.gyms.first(where: { $0.id == profile.primaryGymID }),
               onboardingGyms.contains(where: { $0.id == gym.id }) else {
             profile.primaryGymName = ""
             return
         }
+        profile.primaryGymName = gym.name
     }
 
     private func dismissKeyboard() {
@@ -1560,63 +1607,72 @@ struct LaunchCountry: Identifiable {
 struct LaunchRegion: Identifiable {
     let name: String
     let cities: [String]
+    var code: String? = nil
 
     var id: String { name }
 }
 
 enum LaunchLocationCatalog {
+    static func regionName(_ value: String, countryCode: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return countries.first { $0.code == countryCode }?.regions.first {
+            $0.name.localizedCaseInsensitiveCompare(trimmed) == .orderedSame ||
+            $0.code?.localizedCaseInsensitiveCompare(trimmed) == .orderedSame
+        }?.name ?? trimmed
+    }
+
     static let countries: [LaunchCountry] = [
         LaunchCountry(code: "US", name: "United States", regionLabel: "State", regions: [
-            LaunchRegion(name: "Alabama", cities: ["Birmingham", "Montgomery", "Mobile"]),
-            LaunchRegion(name: "Alaska", cities: ["Anchorage", "Fairbanks", "Juneau"]),
-            LaunchRegion(name: "Arizona", cities: ["Phoenix", "Tucson", "Mesa"]),
-            LaunchRegion(name: "Arkansas", cities: ["Little Rock", "Fayetteville", "Fort Smith"]),
-            LaunchRegion(name: "California", cities: ["Los Angeles", "San Diego", "San Francisco", "San Jose"]),
-            LaunchRegion(name: "Colorado", cities: ["Denver", "Colorado Springs", "Aurora"]),
-            LaunchRegion(name: "Connecticut", cities: ["Bridgeport", "New Haven", "Hartford"]),
-            LaunchRegion(name: "Delaware", cities: ["Wilmington", "Dover", "Newark"]),
-            LaunchRegion(name: "District of Columbia", cities: ["Washington"]),
-            LaunchRegion(name: "Florida", cities: ["Miami", "Cutler Bay", "Homestead", "Orlando", "Tampa", "Jacksonville"]),
-            LaunchRegion(name: "Georgia", cities: ["Atlanta", "Augusta", "Savannah"]),
-            LaunchRegion(name: "Hawaii", cities: ["Honolulu", "Hilo", "Kailua"]),
-            LaunchRegion(name: "Idaho", cities: ["Boise", "Meridian", "Nampa"]),
-            LaunchRegion(name: "Illinois", cities: ["Chicago", "Aurora", "Naperville"]),
-            LaunchRegion(name: "Indiana", cities: ["Indianapolis", "Fort Wayne", "Evansville"]),
-            LaunchRegion(name: "Iowa", cities: ["Des Moines", "Cedar Rapids", "Davenport"]),
-            LaunchRegion(name: "Kansas", cities: ["Wichita", "Overland Park", "Kansas City"]),
-            LaunchRegion(name: "Kentucky", cities: ["Louisville", "Lexington", "Bowling Green"]),
-            LaunchRegion(name: "Louisiana", cities: ["New Orleans", "Baton Rouge", "Shreveport"]),
-            LaunchRegion(name: "Maine", cities: ["Portland", "Lewiston", "Bangor"]),
-            LaunchRegion(name: "Maryland", cities: ["Baltimore", "Frederick", "Rockville"]),
-            LaunchRegion(name: "Massachusetts", cities: ["Boston", "Worcester", "Springfield"]),
-            LaunchRegion(name: "Michigan", cities: ["Detroit", "Grand Rapids", "Ann Arbor"]),
-            LaunchRegion(name: "Minnesota", cities: ["Minneapolis", "Saint Paul", "Rochester"]),
-            LaunchRegion(name: "Mississippi", cities: ["Jackson", "Gulfport", "Southaven"]),
-            LaunchRegion(name: "Missouri", cities: ["Kansas City", "St. Louis", "Springfield"]),
-            LaunchRegion(name: "Montana", cities: ["Billings", "Missoula", "Bozeman"]),
-            LaunchRegion(name: "Nebraska", cities: ["Omaha", "Lincoln", "Bellevue"]),
-            LaunchRegion(name: "Nevada", cities: ["Las Vegas", "Henderson", "Reno"]),
-            LaunchRegion(name: "New Hampshire", cities: ["Manchester", "Nashua", "Concord"]),
-            LaunchRegion(name: "New Jersey", cities: ["Newark", "Jersey City", "Paterson"]),
-            LaunchRegion(name: "New York", cities: ["New York City", "Buffalo", "Rochester", "Albany"]),
-            LaunchRegion(name: "North Carolina", cities: ["Charlotte", "Raleigh", "Greensboro"]),
-            LaunchRegion(name: "North Dakota", cities: ["Fargo", "Bismarck", "Grand Forks"]),
-            LaunchRegion(name: "Ohio", cities: ["Columbus", "Cleveland", "Cincinnati"]),
-            LaunchRegion(name: "Oklahoma", cities: ["Oklahoma City", "Tulsa", "Norman"]),
-            LaunchRegion(name: "Oregon", cities: ["Portland", "Eugene", "Salem"]),
-            LaunchRegion(name: "Pennsylvania", cities: ["Philadelphia", "Pittsburgh", "Allentown"]),
-            LaunchRegion(name: "Rhode Island", cities: ["Providence", "Warwick", "Cranston"]),
-            LaunchRegion(name: "South Carolina", cities: ["Charleston", "Columbia", "Greenville"]),
-            LaunchRegion(name: "South Dakota", cities: ["Sioux Falls", "Rapid City", "Aberdeen"]),
-            LaunchRegion(name: "Tennessee", cities: ["Nashville", "Memphis", "Knoxville"]),
-            LaunchRegion(name: "Texas", cities: ["Austin", "Dallas", "Houston", "San Antonio"]),
-            LaunchRegion(name: "Utah", cities: ["Salt Lake City", "West Valley City", "Provo"]),
-            LaunchRegion(name: "Vermont", cities: ["Burlington", "South Burlington", "Rutland"]),
-            LaunchRegion(name: "Virginia", cities: ["Virginia Beach", "Richmond", "Norfolk"]),
-            LaunchRegion(name: "Washington", cities: ["Seattle", "Spokane", "Tacoma"]),
-            LaunchRegion(name: "West Virginia", cities: ["Charleston", "Huntington", "Morgantown"]),
-            LaunchRegion(name: "Wisconsin", cities: ["Milwaukee", "Madison", "Green Bay"]),
-            LaunchRegion(name: "Wyoming", cities: ["Cheyenne", "Casper", "Laramie"])
+            LaunchRegion(name: "Alabama", cities: ["Birmingham", "Montgomery", "Mobile"], code: "AL"),
+            LaunchRegion(name: "Alaska", cities: ["Anchorage", "Fairbanks", "Juneau"], code: "AK"),
+            LaunchRegion(name: "Arizona", cities: ["Phoenix", "Tucson", "Mesa"], code: "AZ"),
+            LaunchRegion(name: "Arkansas", cities: ["Little Rock", "Fayetteville", "Fort Smith"], code: "AR"),
+            LaunchRegion(name: "California", cities: ["Los Angeles", "San Diego", "San Francisco", "San Jose"], code: "CA"),
+            LaunchRegion(name: "Colorado", cities: ["Denver", "Colorado Springs", "Aurora"], code: "CO"),
+            LaunchRegion(name: "Connecticut", cities: ["Bridgeport", "New Haven", "Hartford"], code: "CT"),
+            LaunchRegion(name: "Delaware", cities: ["Wilmington", "Dover", "Newark"], code: "DE"),
+            LaunchRegion(name: "District of Columbia", cities: ["Washington"], code: "DC"),
+            LaunchRegion(name: "Florida", cities: ["Miami", "Jacksonville", "Tampa", "Orlando", "Cutler Bay", "Homestead"], code: "FL"),
+            LaunchRegion(name: "Georgia", cities: ["Atlanta", "Augusta", "Savannah"], code: "GA"),
+            LaunchRegion(name: "Hawaii", cities: ["Honolulu", "Hilo", "Kailua"], code: "HI"),
+            LaunchRegion(name: "Idaho", cities: ["Boise", "Meridian", "Nampa"], code: "ID"),
+            LaunchRegion(name: "Illinois", cities: ["Chicago", "Aurora", "Naperville"], code: "IL"),
+            LaunchRegion(name: "Indiana", cities: ["Indianapolis", "Fort Wayne", "Evansville"], code: "IN"),
+            LaunchRegion(name: "Iowa", cities: ["Des Moines", "Cedar Rapids", "Davenport"], code: "IA"),
+            LaunchRegion(name: "Kansas", cities: ["Wichita", "Overland Park", "Kansas City"], code: "KS"),
+            LaunchRegion(name: "Kentucky", cities: ["Louisville", "Lexington", "Bowling Green"], code: "KY"),
+            LaunchRegion(name: "Louisiana", cities: ["New Orleans", "Baton Rouge", "Shreveport"], code: "LA"),
+            LaunchRegion(name: "Maine", cities: ["Portland", "Lewiston", "Bangor"], code: "ME"),
+            LaunchRegion(name: "Maryland", cities: ["Baltimore", "Frederick", "Rockville"], code: "MD"),
+            LaunchRegion(name: "Massachusetts", cities: ["Boston", "Worcester", "Springfield"], code: "MA"),
+            LaunchRegion(name: "Michigan", cities: ["Detroit", "Grand Rapids", "Ann Arbor"], code: "MI"),
+            LaunchRegion(name: "Minnesota", cities: ["Minneapolis", "Saint Paul", "Rochester"], code: "MN"),
+            LaunchRegion(name: "Mississippi", cities: ["Jackson", "Gulfport", "Southaven"], code: "MS"),
+            LaunchRegion(name: "Missouri", cities: ["Kansas City", "St. Louis", "Springfield"], code: "MO"),
+            LaunchRegion(name: "Montana", cities: ["Billings", "Missoula", "Bozeman"], code: "MT"),
+            LaunchRegion(name: "Nebraska", cities: ["Omaha", "Lincoln", "Bellevue"], code: "NE"),
+            LaunchRegion(name: "Nevada", cities: ["Las Vegas", "Henderson", "Reno"], code: "NV"),
+            LaunchRegion(name: "New Hampshire", cities: ["Manchester", "Nashua", "Concord"], code: "NH"),
+            LaunchRegion(name: "New Jersey", cities: ["Newark", "Jersey City", "Paterson"], code: "NJ"),
+            LaunchRegion(name: "New York", cities: ["New York City", "Buffalo", "Rochester", "Albany"], code: "NY"),
+            LaunchRegion(name: "North Carolina", cities: ["Charlotte", "Raleigh", "Greensboro"], code: "NC"),
+            LaunchRegion(name: "North Dakota", cities: ["Fargo", "Bismarck", "Grand Forks"], code: "ND"),
+            LaunchRegion(name: "Ohio", cities: ["Columbus", "Cleveland", "Cincinnati"], code: "OH"),
+            LaunchRegion(name: "Oklahoma", cities: ["Oklahoma City", "Tulsa", "Norman"], code: "OK"),
+            LaunchRegion(name: "Oregon", cities: ["Portland", "Eugene", "Salem"], code: "OR"),
+            LaunchRegion(name: "Pennsylvania", cities: ["Philadelphia", "Pittsburgh", "Allentown"], code: "PA"),
+            LaunchRegion(name: "Rhode Island", cities: ["Providence", "Warwick", "Cranston"], code: "RI"),
+            LaunchRegion(name: "South Carolina", cities: ["Charleston", "Columbia", "Greenville"], code: "SC"),
+            LaunchRegion(name: "South Dakota", cities: ["Sioux Falls", "Rapid City", "Aberdeen"], code: "SD"),
+            LaunchRegion(name: "Tennessee", cities: ["Nashville", "Memphis", "Knoxville"], code: "TN"),
+            LaunchRegion(name: "Texas", cities: ["Austin", "Dallas", "Houston", "San Antonio"], code: "TX"),
+            LaunchRegion(name: "Utah", cities: ["Salt Lake City", "West Valley City", "Provo"], code: "UT"),
+            LaunchRegion(name: "Vermont", cities: ["Burlington", "South Burlington", "Rutland"], code: "VT"),
+            LaunchRegion(name: "Virginia", cities: ["Virginia Beach", "Richmond", "Norfolk"], code: "VA"),
+            LaunchRegion(name: "Washington", cities: ["Seattle", "Spokane", "Tacoma"], code: "WA"),
+            LaunchRegion(name: "West Virginia", cities: ["Charleston", "Huntington", "Morgantown"], code: "WV"),
+            LaunchRegion(name: "Wisconsin", cities: ["Milwaukee", "Madison", "Green Bay"], code: "WI"),
+            LaunchRegion(name: "Wyoming", cities: ["Cheyenne", "Casper", "Laramie"], code: "WY")
         ]),
         LaunchCountry(code: "CA", name: "Canada", regionLabel: "Province", regions: [
             LaunchRegion(name: "Alberta", cities: ["Calgary", "Edmonton"]),
@@ -1662,20 +1718,20 @@ enum LaunchLocationCatalog {
         limit: Int
     ) -> [LocationCitySuggestion] {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty,
-              let country = countries.first(where: { $0.code == countryCode }) else { return [] }
+        guard let country = countries.first(where: { $0.code == countryCode }) else { return [] }
 
         let normalizedQuery = trimmedQuery.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
         let regions = regionName.isEmpty
             ? country.regions
             : country.regions.filter { $0.name == regionName }
-        return regions
+        var matches = regions
             .flatMap { region in region.cities.map { (region: region, city: $0) } }
             .filter { item in
                 let normalizedCity = item.city.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
                 return normalizedCity.hasPrefix(normalizedQuery) || normalizedCity.contains(normalizedQuery)
             }
-            .sorted { lhs, rhs in
+        if !normalizedQuery.isEmpty {
+            matches.sort { lhs, rhs in
                 let normalizedLeft = lhs.city.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
                 let normalizedRight = rhs.city.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
                 let leftStarts = normalizedLeft.hasPrefix(normalizedQuery)
@@ -1683,6 +1739,8 @@ enum LaunchLocationCatalog {
                 if leftStarts != rightStarts { return leftStarts }
                 return lhs.city < rhs.city
             }
+        }
+        return matches
             .prefix(limit)
             .map { item in
                 LocationCitySuggestion(

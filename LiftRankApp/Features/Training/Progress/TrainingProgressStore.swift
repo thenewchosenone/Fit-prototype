@@ -486,7 +486,7 @@ final class TrainingProgressStore {
                     name: exercise.exerciseName,
                     bodyPart: exercise.bodyPart
                 )
-                for muscle in Set(profile.primary.map(\.trainingSummaryRegion)) {
+                for muscle in Set((profile.primary + profile.secondary).map(\.trainingSummaryRegion)) {
                     let existing = workingSets[muscle]
                     workingSets[muscle] = (
                         max(existing?.lastTrained ?? workout.completedAt, workout.completedAt),
@@ -1197,7 +1197,12 @@ final class TrainingProgressStore {
                 performances: recent
             )
         }
-        .sorted { $0.latestPerformance.performedAt > $1.latestPerformance.performedAt }
+        .sorted {
+            if $0.latestPerformance.performedAt == $1.latestPerformance.performedAt {
+                return $0.exerciseID < $1.exerciseID
+            }
+            return $0.latestPerformance.performedAt > $1.latestPerformance.performedAt
+        }
         cachedPlateauInsightsSignature = signature
         cachedPlateauInsights = insights
         return insights

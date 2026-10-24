@@ -41,9 +41,13 @@ struct TrainingTrackerView: View {
     @State var selectedWorkoutHistoryDate: Date?
     @State var selectedProgressExerciseID: String?
     @State var selectedProgressCategory: TrackerProgressCategory = .consistency
+    @State var activityHeatmapPeriod = 90
+    @State var activityHeatmapMeasure = "Time"
+    @State var selectedBodyProgressPeriod = "1Y"
     @State var showAllMuscleSetRows = false
     @State var showAllMuscleVolumeRows = false
     @State var muscleWorkloadFilter: MuscleWorkloadFilter = .logged
+    @State var selectedMuscleMapOrientation: ExerciseMuscleMapOrientation = .front
     @State var selectedProgressMuscle: ExerciseMuscleRegion?
     @State var selectedProgressMuscleDate = Date.now
     @State var didLoadTrainingFocus = false

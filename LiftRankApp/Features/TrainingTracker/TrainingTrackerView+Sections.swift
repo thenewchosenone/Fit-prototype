@@ -28,6 +28,8 @@ extension TrainingTrackerView {
             .sheet(isPresented: $showingCreatePlan) {
                 CreateWorkoutPlanView()
                     .environmentObject(appState)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showingCreatePlanFromHistory) {
                 CreateWorkoutPlanFromHistoryView(workouts: freestyleWorkoutsForPlan)
@@ -217,45 +219,6 @@ extension TrainingTrackerView {
                     .font(.title3.weight(.black))
                     .lineLimit(1)
                     .minimumScaleFactor(0.65)
-
-                Menu {
-                    if appState.workoutPlans.isEmpty {
-                        Button {
-                            isProgramLibraryExpanded = true
-                            withAnimation(.snappy) { segment = .plans }
-                        } label: {
-                            Label("Browse workout programs", systemImage: "books.vertical.fill")
-                        }
-                    } else {
-                        Picker("Plan", selection: Binding(get: { appState.selectedWorkoutPlanID }, set: { _ = appState.selectWorkoutPlan($0 == AppState.noWorkoutPlanID ? nil : $0) })) {
-                            Text("Freestyle · no active program").tag(AppState.noWorkoutPlanID)
-                            ForEach(appState.workoutPlans) { plan in
-                                Text(plan.name).tag(plan.id)
-                            }
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 7) {
-                        Image(systemName: "folder.fill")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftAccentText)
-                        Text(selectedPlanName)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.liftText)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.65)
-                        Image(systemName: "chevron.down")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(Color.liftMuted)
-                    }
-                    .padding(.horizontal, 10)
-                    .frame(height: 40)
-                    .background(Color.liftCard)
-                    .clipShape(Capsule())
-                    .overlay { Capsule().stroke(Color.liftOverlay, lineWidth: 1) }
-                }
-                .disabled(appState.activeWorkout != nil)
-                .accessibilityLabel(appState.selectedWorkoutPlan == nil ? "No workout plan selected; browse workout programs" : "Active plan, \(selectedPlanName)")
 
                 Spacer(minLength: 0)
 
@@ -680,7 +643,7 @@ extension TrainingTrackerView {
                 }
             }
 
-            if freestyleWorkoutsForPlan.count > 1 {
+            if !freestyleWorkoutsForPlan.isEmpty {
                 Button {
                     showingCreatePlanFromHistory = true
                 } label: {
@@ -710,7 +673,7 @@ extension TrainingTrackerView {
 
     private var freestyleWorkoutsForPlan: [CompletedWorkout] {
         appState.completedWorkouts
-            .filter { $0.source == .freestyle && !$0.exercises.isEmpty && !$0.completedWorkingSets.isEmpty }
+            .filter { $0.source == .freestyle && !$0.exercisesWithCompletedWorkingSets.isEmpty }
             .sorted { $0.completedAt < $1.completedAt }
     }
 

@@ -171,6 +171,8 @@ extension LeaderboardsView {
             TextField("Search lifters, gyms, exercises", text: $searchText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .accessibilityLabel("Search lifters, gyms, or exercises")
+                .accessibilityIdentifier("leaderboard.search")
             if !searchText.isEmpty {
                 Button {
                     searchText = ""

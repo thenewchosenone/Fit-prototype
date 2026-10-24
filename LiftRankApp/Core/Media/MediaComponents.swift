@@ -263,30 +263,77 @@ private extension UIImage {
 
 struct ManagedVideoPlayer: View {
     let url: URL
+    var retryAction: (() -> Void)? = nil
 
     @State private var player: AVPlayer?
+    @State private var statusObservation: NSKeyValueObservation?
+    @State private var playbackFailed = false
+    @State private var isLoading = true
 
     var body: some View {
         ZStack {
             Color.black
-            if let player {
+            if playbackFailed {
+                VStack(spacing: 12) {
+                    Image(systemName: "video.slash")
+                        .font(.title)
+                    Text("Video unavailable")
+                        .font(.headline)
+                    Text("The video couldn't be played. Check your connection and try again.")
+                        .font(.subheadline)
+                        .multilineTextAlignment(.center)
+                    Button("Try again") {
+                        if let retryAction { retryAction() } else { preparePlayer() }
+                    }
+                        .buttonStyle(LiftCompactProminentButtonStyle())
+                }
+                .foregroundStyle(.white)
+                .padding(20)
+                .accessibilityIdentifier("video.playbackError")
+            } else if let player {
                 VideoPlayer(player: player)
+                if isLoading {
+                    ProgressView("Loading video…")
+                        .tint(.white)
+                        .foregroundStyle(.white)
+                        .allowsHitTesting(false)
+                }
             } else {
                 ProgressView()
                     .tint(.white)
             }
         }
             .task(id: url) {
-                player?.pause()
-                player = nil
                 await Task.yield()
                 guard !Task.isCancelled else { return }
-                player = AVPlayer(url: url)
+                preparePlayer()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .AVPlayerItemFailedToPlayToEndTime)) { notification in
+                guard let item = notification.object as? AVPlayerItem,
+                      item === player?.currentItem else { return }
+                playbackFailed = true
             }
             .onDisappear {
                 player?.pause()
                 player = nil
+                statusObservation = nil
             }
+    }
+
+    private func preparePlayer() {
+        player?.pause()
+        statusObservation = nil
+        playbackFailed = false
+        isLoading = true
+        let item = AVPlayerItem(url: url)
+        player = AVPlayer(playerItem: item)
+        statusObservation = item.observe(\.status, options: [.initial, .new]) { item, _ in
+            Task { @MainActor in
+                guard item === player?.currentItem else { return }
+                isLoading = item.status == .unknown
+                playbackFailed = item.status == .failed
+            }
+        }
     }
 }
 

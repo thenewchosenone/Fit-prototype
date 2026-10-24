@@ -6,9 +6,13 @@ final class LiftRankUITests: XCTestCase {
     }
 
     @MainActor
-    private func auditAccessibility(_ app: XCUIApplication, screen: String) {
+    private func auditAccessibility(_ app: XCUIApplication, screen: String, checks: XCUIAccessibilityAuditType = .all) {
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = screen
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
         do {
-            try app.performAccessibilityAudit()
+            try app.performAccessibilityAudit(for: checks)
         } catch {
             XCTFail("\(screen) accessibility audit failed: \(error)")
         }
@@ -210,6 +214,14 @@ final class LiftRankUITests: XCTestCase {
         if app.alerts.firstMatch.waitForExistence(timeout: 1) {
             app.alerts.firstMatch.buttons["Keep Private"].tap()
         }
+
+        let keepPrivate = app.switches["workout.summary.keepPrivate"]
+        for _ in 0..<6 where !keepPrivate.isHittable { app.swipeUp() }
+        XCTAssertTrue(keepPrivate.waitForExistence(timeout: 5))
+        XCTAssertEqual(keepPrivate.value as? String, "0")
+        keepPrivate.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        expectation(for: NSPredicate(format: "value == %@", "1"), evaluatedWith: keepPrivate)
+        waitForExpectations(timeout: 3)
 
         let save = app.buttons["workout.finish.save"]
         var attempts = 0
@@ -819,26 +831,30 @@ final class LiftRankUITests: XCTestCase {
     }
 
     @MainActor
-    func testPrimaryScreensPassPlatformAccessibilityAudit() {
-        let app = launchDemo()
-        XCTAssertTrue(tab("home", in: app).waitForExistence(timeout: 8))
-        auditAccessibility(app, screen: "Home")
+    func testPrimaryScreensPassContrastClippingAndTouchTargetAudit() {
+        for appearance in ["light", "dark"] {
+            let app = launchDemo(arguments: ["-liftrank.appearance", appearance,
+                                              "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryL"])
+            XCTAssertTrue(tab("home", in: app).waitForExistence(timeout: 8))
+            auditAccessibility(app, screen: "\(appearance) Home", checks: [.contrast, .textClipped, .hitRegion])
 
-        tab("track", in: app).tap()
-        auditAccessibility(app, screen: "Track Today")
-        for section in ["plans", "library", "progress"] {
-            app.buttons["tracker.segment.\(section)"].tap()
-            auditAccessibility(app, screen: "Track \(section)")
-        }
-        let categories = app.segmentedControls["tracker.progress.category"]
-        for category in ["Strength", "Muscle", "Consistency"] {
-            categories.buttons[category].tap()
-            auditAccessibility(app, screen: "Progress \(category)")
-        }
+            tab("track", in: app).tap()
+            auditAccessibility(app, screen: "\(appearance) Track Today", checks: [.contrast, .textClipped, .hitRegion])
+            for section in ["plans", "library", "progress"] {
+                app.buttons["tracker.segment.\(section)"].tap()
+                auditAccessibility(app, screen: "\(appearance) Track \(section)", checks: [.contrast, .textClipped, .hitRegion])
+            }
+            let categories = app.segmentedControls["tracker.progress.category"]
+            for category in ["Strength", "Muscle", "Body", "Consistency"] {
+                categories.buttons[category].tap()
+                auditAccessibility(app, screen: "\(appearance) Progress \(category)", checks: [.contrast, .textClipped, .hitRegion])
+            }
 
-        for name in ["leaderboards", "forum", "profile"] {
-            tab(name, in: app).tap()
-            auditAccessibility(app, screen: name)
+            for name in ["leaderboards", "forum", "profile"] {
+                tab(name, in: app).tap()
+                auditAccessibility(app, screen: "\(appearance) \(name)", checks: [.contrast, .textClipped, .hitRegion])
+            }
+            app.terminate()
         }
     }
 
@@ -930,7 +946,7 @@ final class LiftRankUITests: XCTestCase {
         plans.tap()
         XCTAssertTrue(app.staticTexts["Program details"].waitForExistence(timeout: 5))
 
-        let repeatWorkout = app.buttons["Repeat workout"]
+        let repeatWorkout = app.buttons.matching(identifier: "Repeat workout").firstMatch
         for _ in 0..<6 where !repeatWorkout.isHittable { app.swipeUp() }
         XCTAssertTrue(repeatWorkout.isHittable)
         XCTAssertGreaterThan(repeatWorkout.frame.width, app.windows.firstMatch.frame.width * 0.65)
@@ -952,8 +968,9 @@ final class LiftRankUITests: XCTestCase {
         build.tap()
 
         XCTAssertTrue(app.staticTexts["What are you training for?"].waitForExistence(timeout: 5))
-        let focus = app.buttons["onboarding.focus.get_stronger"]
+        let focus = app.buttons["onboarding.focus.powerlifting"]
         XCTAssertTrue(focus.waitForExistence(timeout: 5))
+        for _ in 0..<4 where !focus.isHittable { app.swipeUp() }
         XCTAssertTrue(focus.isHittable)
         focus.tap()
 
@@ -1209,11 +1226,15 @@ final class LiftRankUITests: XCTestCase {
         for section in ["overview", "prVideos", "training", "submissions"] {
             XCTAssertTrue(app.buttons["profile.section.\(section)"].waitForExistence(timeout: 5))
         }
+        app.buttons["profile.section.training"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["profile.completedWorkouts"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["profile.prVideos"].exists)
+        app.buttons["profile.section.prVideos"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["profile.prVideos"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Delete account"].exists)
 
         app.buttons["profile.section.submissions"].tap()
-        XCTAssertTrue(app.staticTexts["Recent submissions"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Submissions"].waitForExistence(timeout: 5))
     }
 
     func testMePublicProfileNavigationDoesNotFreezeOnRepeatedOpen() {
@@ -1494,7 +1515,7 @@ final class LiftRankUITests: XCTestCase {
         for _ in 0..<6 where !historyRoute.isHittable { app.swipeUp() }
         XCTAssertTrue(historyRoute.isHittable)
         historyRoute.tap()
-        let historySection = app.buttons["profile.section.history"]
+        let historySection = app.buttons["profile.section.training"]
         let navigation = app.scrollViews["profile.sectionNavigation"]
         for _ in 0..<3 where !historySection.isHittable { navigation.swipeLeft() }
         XCTAssertTrue(historySection.isHittable)
@@ -2336,6 +2357,13 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["You’re ready to compete."].waitForExistence(timeout: 5))
         app.buttons["Enter Lift Rivals"].tap()
         XCTAssertTrue(app.staticTexts["Before you compete"].waitForExistence(timeout: 8))
+        let editProfile = app.buttons["legal.editProfile"]
+        XCTAssertTrue(editProfile.exists)
+        editProfile.tap()
+        let cancel = app.buttons["profile.edit.cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        cancel.tap()
+        XCTAssertTrue(app.staticTexts["Before you compete"].waitForExistence(timeout: 5))
     }
 
     func testOnboardingYearsTrainingControlChangesValue() {
@@ -2389,7 +2417,7 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Build your lifter profile."].exists)
     }
 
-    func testFreshOnboardingKeepsSensitiveProfileFieldsPrivateByDefault() {
+    func testFreshOnboardingUsesRequestedBodyweightAndLocationPrivacyDefaults() {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTestingOnboarding"]
         app.launch()
@@ -2410,7 +2438,7 @@ final class LiftRankUITests: XCTestCase {
         }
         XCTAssertTrue(hideBodyweight.waitForExistence(timeout: 5))
         XCTAssertTrue(hideCity.waitForExistence(timeout: 5))
-        XCTAssertEqual(hideBodyweight.value as? String, "1")
+        XCTAssertEqual(hideBodyweight.value as? String, "0")
         XCTAssertEqual(hideCity.value as? String, "1")
     }
 

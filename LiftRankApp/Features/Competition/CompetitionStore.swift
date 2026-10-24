@@ -802,7 +802,7 @@ final class CompetitionStore: ObservableObject {
         }
     }
 
-    func playbackURL(for lift: LiftSubmission) async -> URL? {
+    func playbackURL(for lift: LiftSubmission, forceRefresh: Bool = false) async -> URL? {
         let userID = repository.currentProfile.id
         if let localURL = lift.localVideoURL {
             if !localURL.isFileURL || FileManager.default.fileExists(atPath: localURL.path) {
@@ -810,13 +810,8 @@ final class CompetitionStore: ObservableObject {
             }
         }
 
-        if let cached = cachedPlaybackURLs[lift.videoAssetID ?? lift.id], cached.expiresAt > .now {
+        if !forceRefresh, let cached = cachedPlaybackURLs[lift.videoAssetID ?? lift.id], cached.expiresAt > .now {
             return cached.url
-        }
-
-        if let remoteVideoURL = lift.remoteVideoURL {
-            cachedPlaybackURLs[lift.videoAssetID ?? lift.id] = (remoteVideoURL, .now.addingTimeInterval(240))
-            return remoteVideoURL
         }
 
         if let assetID = lift.videoAssetID, let mediaUploadService {
@@ -828,6 +823,11 @@ final class CompetitionStore: ObservableObject {
                 upsert(updated)
                 return signedURL
             }
+            return nil
+        }
+        if let remoteVideoURL = lift.remoteVideoURL {
+            cachedPlaybackURLs[lift.videoAssetID ?? lift.id] = (remoteVideoURL, .now.addingTimeInterval(240))
+            return remoteVideoURL
         }
         return lift.remoteVideoURL
     }

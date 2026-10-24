@@ -310,9 +310,9 @@ final class ProgramStore {
     }
 
     @discardableResult
-    func createPlan(fromWorkouts workouts: [CompletedWorkout], name: String) -> WorkoutPlan? {
+    func createPlan(fromWorkouts workouts: [CompletedWorkout], name: String, preserveOrder: Bool = false) -> WorkoutPlan? {
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let orderedWorkouts = workouts.sorted { $0.completedAt < $1.completedAt }
+        let orderedWorkouts = preserveOrder ? workouts : workouts.sorted { $0.completedAt < $1.completedAt }
         guard !cleanName.isEmpty,
               !orderedWorkouts.isEmpty,
               let plan = createPlan(name: cleanName),

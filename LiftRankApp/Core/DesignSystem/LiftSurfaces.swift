@@ -138,7 +138,7 @@ extension LiftEvidenceStatus {
     }
 
     var evidenceMetricValue: String {
-        self == .videoBacked ? "Video-backed" : "Self-reported"
+        self == .videoBacked ? "Video-backed" : "Self reported"
     }
 
     var evidenceMetricSubtitle: String {
@@ -244,6 +244,7 @@ struct CompactSectionHeader: View {
                 Text(title)
                     .font(.system(.title3, design: .rounded, weight: .bold))
                     .foregroundStyle(Color.liftTextPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
             if let actionTitle, let action {

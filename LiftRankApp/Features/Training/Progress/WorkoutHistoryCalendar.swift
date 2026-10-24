@@ -1,5 +1,125 @@
 import SwiftUI
 
+struct WorkoutActivityHeatmap: View {
+    let workouts: [CompletedWorkout]
+    @Binding var period: Int
+    @Binding var measure: String
+    let unit: UnitSystem
+
+    private var startDate: Date {
+        Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: -(period - 1), to: .now) ?? .now)
+    }
+
+    private var dailyValues: [Date: Double] {
+        var values: [Date: Double] = [:]
+        let calendar = Calendar.current
+        for workout in workouts {
+            let day = calendar.startOfDay(for: workout.completedAt)
+            let amount: Double
+            if measure == "Time" {
+                amount = max(0, workout.duration / 60)
+            } else {
+                amount = workout.completedWorkingSets.reduce(0) { total, set in
+                    guard let weight = set.weight, let reps = set.reps else { return total }
+                    let kilograms = MeasurementFormatting.normalizeToKilograms(weight, unit: set.recordedUnit)
+                    return total + kilograms * Double(reps)
+                }
+            }
+            values[day, default: 0] += amount
+        }
+        return values
+    }
+
+    private var days: [Date?] {
+        let calendar = Calendar.current
+        let leading = (calendar.component(.weekday, from: startDate) - calendar.firstWeekday + 7) % 7
+        let dates = (0..<period).compactMap { calendar.date(byAdding: .day, value: $0, to: startDate) }
+        let cells = Array(repeating: Optional<Date>.none, count: leading) + dates.map(Optional.some)
+        let trailing = (7 - cells.count % 7) % 7
+        return cells + Array(repeating: Optional<Date>.none, count: trailing)
+    }
+
+    var body: some View {
+        let values = dailyValues
+        let peak = max(values.values.max() ?? 0, 1)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("ACTIVITY")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.liftMuted)
+                Spacer()
+                Picker("Activity period", selection: $period) {
+                    Text("30D").tag(30)
+                    Text("90D").tag(90)
+                    Text("1Y").tag(365)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 155)
+            }
+            Picker("Activity measure", selection: $measure) {
+                Text("Time").tag("Time")
+                Text("Volume").tag("Volume")
+            }
+            .pickerStyle(.segmented)
+
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHGrid(rows: Array(repeating: GridItem(.fixed(12), spacing: 4), count: 7), spacing: 4) {
+                        ForEach(Array(days.enumerated()), id: \.offset) { index, date in
+                            if let date {
+                                let amount = values[Calendar.current.startOfDay(for: date)] ?? 0
+                                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                    .fill(amount == 0 ? Color.liftCardRaised : Color.liftAccentText.opacity(0.22 + 0.78 * min(1, amount / peak)))
+                                    .frame(width: 12, height: 12)
+                                    .accessibilityLabel("\(date.formatted(date: .abbreviated, time: .omitted)), \(activityValue(amount))")
+                                    .id(index)
+                            } else {
+                                Color.clear.frame(width: 12, height: 12)
+                                    .id(index)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+                .onAppear { proxy.scrollTo(days.count - 1, anchor: .trailing) }
+                .onChange(of: period) { _, _ in
+                    proxy.scrollTo(days.count - 1, anchor: .trailing)
+                }
+            }
+            HStack {
+                Text("\(period == 365 ? "Last year" : "Last \(period) days") · \(measure == "Time" ? "minutes trained" : "volume (\(unit.shortLabel))")")
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 8)
+                Text("Less")
+                HStack(spacing: 3) {
+                    ForEach(0..<4, id: \.self) { step in
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.liftAccentText.opacity(0.22 + Double(step) * 0.26))
+                            .frame(width: 10, height: 10)
+                    }
+                }
+                Text("More")
+            }
+            .font(.caption2)
+            .foregroundStyle(Color.liftMuted)
+        }
+        .padding(14)
+        .background(Color.liftCard)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.liftOverlay, lineWidth: 1)
+        }
+    }
+
+    private func activityValue(_ value: Double) -> String {
+        if measure == "Time" { return "\(Int(value.rounded())) training minutes" }
+        let displayed = MeasurementFormatting.convert(value, from: .kilograms, to: unit)
+        return "\(Int(displayed.rounded())) \(unit.shortLabel) volume"
+    }
+}
+
 struct WorkoutHistoryCalendarDay: Identifiable, Equatable {
     let id: Int
     let date: Date?

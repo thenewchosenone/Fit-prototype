@@ -5,9 +5,10 @@ struct WorkoutSummaryView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     private let initialSummary: WorkoutSummary
-    let onComplete: (Int, String, [UUID: URL], Set<UUID>) -> Bool
+    let onComplete: (Int, String, [UUID: URL], Set<UUID>, Bool) -> Bool
     @State private var effort = 0
     @State private var notes = ""
+    @State private var keepWorkoutPrivate = false
     @State private var sharePRs: Bool
     @State private var selectedPRSetIDs: Set<UUID>
     @State private var selectedVideoItems: [UUID: PhotosPickerItem] = [:]
@@ -28,7 +29,7 @@ struct WorkoutSummaryView: View {
         summary: WorkoutSummary,
         prCandidates: [WorkoutPRCandidate],
         automaticSubmissionEnabled: Bool,
-        onComplete: @escaping (Int, String, [UUID: URL], Set<UUID>) -> Bool
+        onComplete: @escaping (Int, String, [UUID: URL], Set<UUID>, Bool) -> Bool
     ) {
         self.initialSummary = summary
         self.onComplete = onComplete
@@ -337,6 +338,17 @@ struct WorkoutSummaryView: View {
 
                         exerciseReviewSection
 
+                        if !hasSavedWorkout {
+                            LiftCard {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Toggle("Keep workout private", isOn: $keepWorkoutPrivate)
+                                        .accessibilityIdentifier("workout.summary.keepPrivate")
+                                    Text("Your public profile shows a workout summary. Notes, bodyweight, and gym details stay private.")
+                                        .font(.caption).foregroundStyle(Color.liftMuted)
+                                }
+                            }
+                        }
+
                         if let previous = previousComparableWorkout {
                             comparisonSection(previous)
                         }
@@ -408,7 +420,7 @@ struct WorkoutSummaryView: View {
                             let reviewedSummary = summary
                             let eligibleIDs = Set(prCandidates.map(\.setID))
                             let sharedIDs = sharePRs ? selectedPRSetIDs.intersection(eligibleIDs) : []
-                            if onComplete(effort, notes, videoURLsBySetID.filter { sharedIDs.contains($0.key) }, sharedIDs) {
+                            if onComplete(effort, notes, videoURLsBySetID.filter { sharedIDs.contains($0.key) }, sharedIDs, !keepWorkoutPrivate) {
                                 savedSummary = reviewedSummary
                                 completionHighlights = highlights
                                 savedAchievementBadges = newlyUnlockedAchievements.prefix(3).compactMap { unlock in

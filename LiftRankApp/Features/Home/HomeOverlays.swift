@@ -32,7 +32,7 @@ struct RecentPRDetailView: View {
                             VStack(alignment: .leading, spacing: 10) {
                                 Text("PR video")
                                     .font(.headline.weight(.bold))
-                                ManagedVideoPlayer(url: playbackURL)
+                                ManagedVideoPlayer(url: playbackURL, retryAction: retryPlayback)
                                     .frame(height: 260)
                                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                             }
@@ -50,7 +50,9 @@ struct RecentPRDetailView: View {
                             LiftEmptyState(
                                 title: "Video unavailable",
                                 message: "The video could not be opened. Try this PR again after reconnecting.",
-                                symbolName: "video.slash"
+                                symbolName: "video.slash",
+                                actionTitle: "Try again",
+                                action: retryPlayback
                             )
                         }
 
@@ -92,6 +94,15 @@ struct RecentPRDetailView: View {
                 playbackURL = await playbackTask
                 isResolvingPlayback = false
             }
+        }
+    }
+
+    private func retryPlayback() {
+        playbackURL = nil
+        isResolvingPlayback = true
+        Task {
+            playbackURL = await appState.competitionStore.playbackURL(for: lift, forceRefresh: true)
+            isResolvingPlayback = false
         }
     }
 

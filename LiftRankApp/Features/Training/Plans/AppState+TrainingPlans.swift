@@ -383,9 +383,9 @@ extension AppState {
     }
 
     @discardableResult
-    func createWorkoutPlan(fromWorkouts workouts: [CompletedWorkout], name: String) -> Bool {
+    func createWorkoutPlan(fromWorkouts workouts: [CompletedWorkout], name: String, preserveOrder: Bool = false) -> Bool {
         guard activeWorkout == nil,
-              let plan = programStore.createPlan(fromWorkouts: workouts, name: name) else {
+              let plan = programStore.createPlan(fromWorkouts: workouts, name: name, preserveOrder: preserveOrder) else {
             Haptics.warning()
             return false
         }

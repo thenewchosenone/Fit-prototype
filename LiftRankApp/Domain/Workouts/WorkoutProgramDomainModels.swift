@@ -291,6 +291,8 @@ struct CompletedWorkout: Identifiable, Codable, Hashable {
     var exercises: [WorkoutExerciseSnapshot]
     var sets: [WorkoutSetLog]
     var linkedSubmissionIDs: [UUID]
+    // Older history has no sharing decision and remains private.
+    var isPublic: Bool? = true
 
     var completedWorkingSets: [WorkoutSetLog] {
         sets.filter { $0.isComplete && !$0.isWarmup }
@@ -398,6 +400,33 @@ struct CompletedWorkoutSnapshot: Identifiable, Codable, Hashable {
     var completedAt: Date
     var uploadedAt: Date? = nil
     var isSeededDemoData: Bool = false
+}
+
+struct PublicWorkoutSummary: Identifiable, Codable, Equatable {
+    var id: UUID
+    var name: String
+    var completedAt: Date
+    var duration: Double
+    var setCount: Int
+    var exerciseNames: [String]
+
+    init(workout: CompletedWorkout) {
+        id = workout.id
+        name = workout.name
+        completedAt = workout.completedAt
+        duration = workout.duration
+        setCount = workout.completedWorkingSets.count
+        exerciseNames = workout.exercisesWithCompletedWorkingSets.map(\.exerciseName)
+    }
+
+    init(id: UUID, name: String, completedAt: Date, duration: Double, setCount: Int, exerciseNames: [String]) {
+        self.id = id
+        self.name = name
+        self.completedAt = completedAt
+        self.duration = duration
+        self.setCount = setCount
+        self.exerciseNames = exerciseNames
+    }
 }
 
 enum WorkoutPRSubmissionState: String, Codable, Hashable {

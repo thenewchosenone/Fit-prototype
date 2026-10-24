@@ -8,6 +8,8 @@ import UserNotifications
 @MainActor
 final class AppState: ObservableObject {
     static let maximumJoinedGyms = 3
+    static let emailConfirmationSuccessMessage = "Email confirmed. Sign in with your email and password to continue."
+    static let emailConfirmationSetupMessage = "Your email is confirmed, but we couldn't finish opening your account. Sign in to continue."
     private static let launchLog = OSLog(subsystem: "com.liftrank.app", category: "Launch")
 #if DEBUG
     private static let uiTestGymFixture = Gym(
@@ -33,6 +35,7 @@ final class AppState: ObservableObject {
     @Published var showingPasswordUpdate = false
     private var cancellables = Set<AnyCancellable>()
     var profilePhotoMutation = 0
+    var profilePhotoDownloadsInFlight: Set<String> = []
     let router: AppRouter
     let sessionStore: SessionStore
     let profileStore: ProfileStore
@@ -277,7 +280,7 @@ final class AppState: ObservableObject {
         }
         if ProcessInfo.processInfo.arguments.contains("-uiTestingOnboarding") {
             installServiceContainer(.demo(repository: repository))
-            repository.currentProfile = MockData.demoProfile
+            repository.currentProfile = MockData.emptyProfile
             profileStore.saveProfile(repository.currentProfile)
             activeWorkoutStore.synchronizeAccountScope()
             accountSession = AccountSession(
@@ -555,10 +558,41 @@ final class AppState: ObservableObject {
     func handleAuthCallback(_ url: URL) async {
         guard url.scheme?.lowercased() == "liftrank",
               url.host?.lowercased() == "auth-callback" else { return }
-        let isRecovery = Self.authCallbackValue(named: "type", in: url) == "recovery"
+        let callbackType = Self.authCallbackValue(named: "type", in: url)?.lowercased()
+        let isRecovery = callbackType == "recovery"
+        let hasCallbackError = ["error", "error_code", "error_description"].contains {
+            Self.authCallbackValue(named: $0, in: url) != nil
+        }
+        let isEmailConfirmation = !isRecovery && (
+            callbackType == "signup" ||
+            Self.authCallbackValue(named: "code", in: url) != nil ||
+            Self.authCallbackValue(named: "access_token", in: url) != nil
+        )
+
+        if isEmailConfirmation, hasCallbackError {
+            accountMessage = "We couldn't confirm your email. The link may have expired; request a new confirmation email and try again."
+            accountStatus = .signedOut
+            return
+        }
+
         await performAccountOperation {
-            self.accountSession = try await self.sessionStore.handleAuthCallback(url)
-            try await self.loadAuthenticatedAccount()
+            do {
+                self.accountSession = try await self.sessionStore.handleAuthCallback(url)
+            } catch {
+                guard isEmailConfirmation else { throw error }
+                self.accountSession = nil
+                self.accountStatus = .signedOut
+                self.accountMessage = Self.emailConfirmationSuccessMessage
+                return
+            }
+
+            do {
+                try await self.loadAuthenticatedAccount()
+            } catch {
+                guard isEmailConfirmation else { throw error }
+                self.accountStatus = .signedOut
+                self.accountMessage = Self.emailConfirmationSetupMessage
+            }
             self.showingPasswordUpdate = isRecovery
         }
     }
@@ -697,6 +731,9 @@ final class AppState: ObservableObject {
             accountStatus = .needsOnboarding
         }
         await refreshRemoteSocialState()
+        if wasAwaitingOnboardingCompletion, let userID = accountSession?.userID {
+            schedulePostAuthenticationRefresh(for: userID)
+        }
     }
 
     func saveTrainingGoals(_ goalIDs: [String]) async throws {
@@ -725,7 +762,9 @@ final class AppState: ObservableObject {
         await performAccountOperation {
             guard self.isAuthenticated, !self.isDemoMode else { throw LiftRankServiceError.permissionDenied }
             try await self.sessionStore.acceptCurrentLegalDocuments()
-            await self.requestPushRegistrationIfNeeded()
+            if let userID = self.accountSession?.userID {
+                self.schedulePostAuthenticationRefresh(for: userID)
+            }
         }
     }
 
@@ -783,29 +822,27 @@ final class AppState: ObservableObject {
         if profile.onboardingCompleted {
             AppleIdentityStore.clearPendingFullName()
             try await refreshLegalAcceptanceStatus()
-            if accountStatus == .authenticated {
-                await track(.weeklyReturn)
-                await requestPushRegistrationIfNeeded()
-            }
         } else {
             outstandingLegalDocuments = []
             accountStatus = .needsOnboarding
         }
         guard accountSession?.userID == accountUserID,
               repository.currentProfile.id == accountUserID else { throw LiftRankServiceError.sessionExpired }
-        if accountStatus == .authenticated {
-            await synchronizeWorkoutPlans()
-        }
-        await cacheAuthenticatedProfilePhotoIfNeeded()
         schedulePostAuthenticationRefresh(for: accountUserID)
     }
 
     private func schedulePostAuthenticationRefresh(for userID: UUID) {
-        guard accountStatus == .authenticated else { return }
+        guard isAuthenticated, !isDemoMode else { return }
         postAuthenticationRefreshTask?.cancel()
         postAuthenticationRefreshTask = Task { [weak self] in
             await Task.yield()
-            await self?.runPostAuthenticationRefresh(for: userID)
+            guard let self, self.accountSession?.userID == userID,
+                  self.repository.currentProfile.id == userID, !Task.isCancelled else { return }
+            if self.accountStatus == .authenticated {
+                await self.runPostAuthenticationRefresh(for: userID)
+            } else {
+                await self.cacheAuthenticatedProfilePhotoIfNeeded()
+            }
         }
     }
 
@@ -814,25 +851,23 @@ final class AppState: ObservableObject {
               repository.currentProfile.id == userID,
               accountStatus == .authenticated,
               !Task.isCancelled else { return }
-        await refreshProductionLaunchData()
+        async let launchDataRefresh: Void = refreshProductionLaunchData()
+        async let workoutHistoryRefresh: Void = synchronizeCompletedWorkoutHistory()
+        async let workoutPlanRefresh: Void = synchronizeWorkoutPlans()
+        async let profilePhotoRefresh: Void = cacheAuthenticatedProfilePhotoIfNeeded()
+        async let socialRefresh: Void = refreshRemoteSocialState()
+        async let bodyweightRefresh: Void = synchronizeAuthenticatedBodyweightEntries(for: userID)
+        _ = await (launchDataRefresh, workoutHistoryRefresh, workoutPlanRefresh, profilePhotoRefresh, socialRefresh, bodyweightRefresh)
         guard accountSession?.userID == userID,
               repository.currentProfile.id == userID,
               accountStatus == .authenticated,
               !Task.isCancelled else { return }
-        if ProcessInfo.processInfo.arguments.contains("-uiTestingStartupWorkoutSync") {
-            await synchronizeCompletedWorkoutHistory()
-        }
-        await refreshRemoteSocialState()
+        await track(.weeklyReturn)
         guard accountSession?.userID == userID,
               repository.currentProfile.id == userID,
               accountStatus == .authenticated,
               !Task.isCancelled else { return }
-        await synchronizeAuthenticatedBodyweightEntries(for: userID)
-        guard accountSession?.userID == userID,
-              repository.currentProfile.id == userID,
-              accountStatus == .authenticated,
-              !Task.isCancelled else { return }
-        await cacheAuthenticatedProfilePhotoIfNeeded()
+        await requestPushRegistrationIfNeeded()
     }
 
     private func synchronizeAuthenticatedBodyweightEntries(for userID: UUID) async {

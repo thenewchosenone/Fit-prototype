@@ -317,12 +317,6 @@ private struct ForumView: View {
                 }
             )
         }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showingComposer = true } label: { Image(systemName: "plus") }
-                    .accessibilityLabel("New discussion")
-            }
-        }
         .sheet(item: $requestedPost) { post in
             NavigationStack {
                 ForumThreadView(post: post, highlightedCommentID: requestedCommentID)
@@ -375,6 +369,17 @@ private struct ForumView: View {
                 }
                 .buttonStyle(.plain)
             }
+
+            Button { showingComposer = true } label: {
+                Image(systemName: "square.and.pencil")
+                    .font(.headline)
+                    .foregroundStyle(Color.liftAccentText)
+                    .frame(width: LiftDesign.minimumTouchTarget, height: LiftDesign.minimumTouchTarget)
+                    .background(Color.liftSurfaceElevated, in: RoundedRectangle(cornerRadius: 12))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("New discussion")
+            .accessibilityIdentifier("forum.newDiscussion")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -400,6 +405,7 @@ private struct ForumView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Browse communities")
+            .accessibilityIdentifier("forum.browseCommunities")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -436,6 +442,8 @@ private struct ForumView: View {
                     .background(Color.liftSurfaceElevated, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .accessibilityLabel("Sort discussions by \(sort.title)")
+            .accessibilityValue(sort.title)
+            .accessibilityIdentifier("forum.sortDiscussions")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -1475,9 +1483,9 @@ private struct MeHubContentView: View {
                 let handle = profile.username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Add a handle in Edit profile" : "@\(profile.username)"
 
                 LazyVStack(alignment: .leading, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 8) {
                         HStack(alignment: .top, spacing: 12) {
-                            ProfileAvatar(profile: profile, size: 66)
+                            ProfileAvatar(profile: profile, size: 60)
                                 .accessibilityIdentifier("me.profileHeader")
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(displayName)
@@ -1536,7 +1544,7 @@ private struct MeHubContentView: View {
                         }
                         .padding(.top, 2)
                     }
-                    .padding(12)
+                    .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .liftSurface(radius: 12)
 
@@ -1639,12 +1647,12 @@ private struct MeHubContentView: View {
                         .accessibilityIdentifier("me.section.awardsHistory")
                     VStack(spacing: 0) {
                         NavigationLink(value: MeRoute.awards) {
-                            meRow("Rival tier & awards", "Strength milestones, records, and progress", "trophy.fill", Color.liftGold, badge: tierSummary.overallTier.label)
+                            meRow("Rival tier & awards", "Strength milestones, records, and progress", "trophy.fill", badge: tierSummary.overallTier.label)
                         }
                         .accessibilityIdentifier("me.awards")
                         Divider().overlay(Color.liftSeparator).padding(.leading, 66)
                         NavigationLink(value: MeRoute.personalProfile) {
-                            meRow("Your lifts and history", "Submissions, workouts, and personal activity", "chart.xyaxis.line", Color.liftGreen)
+                            meRow("Your lifts and history", "Submissions, workouts, and personal activity", "chart.xyaxis.line")
                         }
                         .accessibilityIdentifier("me.personalProfile")
                         Divider().overlay(Color.liftSeparator).padding(.leading, 66)
@@ -1655,7 +1663,6 @@ private struct MeHubContentView: View {
                                     ? "Browse locations and choose your primary gym"
                                     : "\(appState.gyms.count) \(appState.gyms.count == 1 ? "location" : "locations") · \(appState.joinedGymCount) joined",
                                 "building.2.fill",
-                                Color.liftBlue,
                                 badge: appState.currentProfile.primaryGymName.isEmpty
                                     ? nil
                                     : appState.currentProfile.primaryGymName
@@ -1880,12 +1887,12 @@ private struct MeHubContentView: View {
         .accessibilityIdentifier("me.strength.lift.\(lift.exerciseID)")
     }
 
-    private func meRow(_ title: String, _ subtitle: String, _ symbol: String, _ tint: Color, badge: String? = nil) -> some View {
-        meRow(title, subtitle, symbol, tint, badge: badge, isDestructive: false)
+    private func meRow(_ title: String, _ subtitle: String, _ symbol: String, badge: String? = nil) -> some View {
+        meRow(title, subtitle, symbol, badge: badge, isDestructive: false)
     }
 
-    private func meRow(_ title: String, _ subtitle: String, _ symbol: String, _ tint: Color, badge: String? = nil, isDestructive: Bool = false) -> some View {
-        let iconColor = isDestructive ? Color.liftRed : tint
+    private func meRow(_ title: String, _ subtitle: String, _ symbol: String, badge: String? = nil, isDestructive: Bool = false) -> some View {
+        let iconColor = isDestructive ? Color.liftRed : Color.liftAccentText
         let textColor = isDestructive ? Color.liftRed : Color.liftText
         let chevronColor = isDestructive ? Color.liftRed : Color.liftMuted
         return HStack(spacing: 13) {
@@ -2106,6 +2113,9 @@ struct AwardsView: View {
             bodyweightLogCount: bodyweightLogCount,
             bodyweightKilograms: bodyweightKilograms
         )
+        let scoredAwardIDs = Set(closestAwardProgress.map { $0.achievement.id })
+        let orderedLockedAchievements = closestAwardProgress.map(\.achievement)
+            + progressAchievements.filter { !scoredAwardIDs.contains($0.id) }.sorted { $0.title < $1.title }
         let unlockedCount = unlockedAchievements.count
         let lockedCount = progressAchievements.count
         AppBackground {
@@ -2238,7 +2248,7 @@ struct AwardsView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         CompactSectionHeader(title: "Locked awards (\(lockedCount))")
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                            ForEach(progressAchievements) { awardTile($0, unlocked: false) }
+                            ForEach(orderedLockedAchievements) { awardTile($0, unlocked: false) }
                         }
                     }
                 }
@@ -2690,6 +2700,10 @@ struct AuthenticationView: View {
 
     private let emailConfirmationMessage = "Check your email to confirm your account, then sign in."
     private let emailResentMessage = "A new confirmation email is on the way."
+    private let emailConfirmationSuccessMessages = [
+        AppState.emailConfirmationSuccessMessage,
+        AppState.emailConfirmationSetupMessage
+    ]
 
     var body: some View {
         AppBackground {
@@ -2735,6 +2749,9 @@ struct AuthenticationView: View {
                                 .background(Color.liftCardRaised)
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                                 .onChange(of: email) { _, newValue in
+                                    if emailConfirmationSuccessMessages.contains(appState.accountMessage ?? "") {
+                                        appState.accountMessage = nil
+                                    }
                                     guard let confirmationEmail,
                                           newValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != confirmationEmail.lowercased() else { return }
                                     self.confirmationEmail = nil
@@ -2775,10 +2792,14 @@ struct AuthenticationView: View {
                         .foregroundStyle(Color.liftMuted)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                        if let confirmationEmail {
+                        if let confirmationEmail,
+                           !emailConfirmationSuccessMessages.contains(appState.accountMessage ?? "") {
                             emailConfirmationNotice(for: confirmationEmail)
                         }
                         if let message = appState.accountMessage,
+                           emailConfirmationSuccessMessages.contains(message) {
+                            emailConfirmedNotice(message)
+                        } else if let message = appState.accountMessage,
                            message != emailConfirmationMessage,
                            message != emailResentMessage {
                             Text(message)
@@ -2998,6 +3019,24 @@ struct AuthenticationView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("authentication.emailConfirmationNotice")
+    }
+
+    private func emailConfirmedNotice(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Email confirmed", systemImage: "checkmark.seal.fill")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(Color.liftAccentText)
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(Color.liftMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.liftLime.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("authentication.emailConfirmedNotice")
     }
 }
 

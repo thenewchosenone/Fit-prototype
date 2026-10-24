@@ -5,6 +5,8 @@ import Foundation
 final class AccountSocialStore: ObservableObject {
     @Published private(set) var gymMemberships: [GymMembershipRecord] = []
     @Published private(set) var blocks: [UserBlockRecord] = []
+    @Published private(set) var isLoadingGymDirectory = false
+    @Published private(set) var gymDirectoryError: String?
 
     private let repository: any AccountSocialRepository
     private let profileStore: ProfileStore
@@ -46,13 +48,24 @@ final class AccountSocialStore: ObservableObject {
     func refreshDirectoryAndRelationships() async throws {
         let userID = repository.currentProfile.id
         resetAccountScopedCacheIfNeeded()
-        async let gyms = gymService.gyms()
-        async let memberships = gymService.memberships()
-        let (directory, joined) = try await (gyms, memberships)
-
-        guard repository.currentProfile.id == userID else { return }
-        profileStore.replaceGymDirectory(directory, memberships: joined)
-        gymMemberships = joined
+        isLoadingGymDirectory = true
+        gymDirectoryError = nil
+        defer {
+            if repository.currentProfile.id == userID { isLoadingGymDirectory = false }
+        }
+        do {
+            async let gyms = gymService.gyms()
+            async let memberships = gymService.memberships()
+            let (directory, joined) = try await (gyms, memberships)
+            guard repository.currentProfile.id == userID else { return }
+            profileStore.replaceGymDirectory(directory, memberships: joined)
+            gymMemberships = joined
+        } catch {
+            if repository.currentProfile.id == userID {
+                gymDirectoryError = (error as? LocalizedError)?.errorDescription ?? "The gym directory could not be loaded."
+            }
+            throw error
+        }
     }
 
     func refreshBlocks() async {
@@ -141,6 +154,8 @@ final class AccountSocialStore: ObservableObject {
     func clear() {
         gymMemberships = []
         blocks = []
+        isLoadingGymDirectory = false
+        gymDirectoryError = nil
         repository.gymRequests = []
         cachedUserID = repository.currentProfile.id
         profileStore.clearGymDirectory()
@@ -151,6 +166,8 @@ final class AccountSocialStore: ObservableObject {
         cachedUserID = repository.currentProfile.id
         gymMemberships = []
         blocks = []
+        isLoadingGymDirectory = false
+        gymDirectoryError = nil
         repository.gymRequests = []
         profileStore.clearGymDirectory()
     }

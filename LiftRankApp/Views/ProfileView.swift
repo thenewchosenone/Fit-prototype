@@ -7,6 +7,7 @@ enum ProfileSurface {
 
 struct ProfileView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.dismiss) var dismiss
     private let initialProfile: UserProfile
     var profile: UserProfile {
         guard initialProfile.id == appState.currentProfile.id else { return initialProfile }
@@ -31,6 +32,9 @@ struct ProfileView: View {
     @State var selectedProfileSection: ProfileSection = .overview
     @State var liftPresentation = ProfileLiftPresentation.empty
     @State var profileLoadError: String?
+    @State var publicWorkouts: [PublicWorkoutSummary] = []
+    @State var publicWorkoutsError: String?
+    @State var isLoadingPublicWorkouts = true
     @State var submissionPendingDeletion: LiftSubmission?
     @State var submissionDeletionError: String?
     @State var isDeletingSubmission = false

@@ -55,11 +55,16 @@ struct ProfileLiftVideosSection: View {
         var bestByExercise: [String: LiftSubmission] = [:]
         for lift in candidates where isCurrentUser || lift.resolvedModerationStatus == .clear {
             let key = lift.exerciseName.lowercased()
-            if bestByExercise[key] == nil || lift.weight > bestByExercise[key]!.weight {
+            if bestByExercise[key] == nil ||
+                MeasurementFormatting.convert(lift.weight, from: lift.unit, to: .kilograms) >
+                MeasurementFormatting.convert(bestByExercise[key]!.weight, from: bestByExercise[key]!.unit, to: .kilograms) {
                 bestByExercise[key] = lift
             }
         }
-        return bestByExercise.values.sorted { $0.weight > $1.weight }
+        return bestByExercise.values.sorted {
+            MeasurementFormatting.convert($0.weight, from: $0.unit, to: .kilograms) >
+            MeasurementFormatting.convert($1.weight, from: $1.unit, to: .kilograms)
+        }
     }
 
     var body: some View {
@@ -210,7 +215,7 @@ private struct ProfileLiftVideoDetailView: View {
                         .liftSurface()
 
                         if let playbackURL {
-                            ManagedVideoPlayer(url: playbackURL)
+                            ManagedVideoPlayer(url: playbackURL, retryAction: retryPlayback)
                                 .frame(height: 320)
                                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                                 .accessibilityIdentifier("profile.liftVideoPlayer")
@@ -226,7 +231,9 @@ private struct ProfileLiftVideoDetailView: View {
                             LiftEmptyState(
                                 title: "Video unavailable",
                                 message: "This upload has a lift record, but its video file could not be opened.",
-                                symbolName: "video.slash"
+                                symbolName: "video.slash",
+                                actionTitle: "Try again",
+                                action: retryPlayback
                             )
                         }
                     }
@@ -245,6 +252,15 @@ private struct ProfileLiftVideoDetailView: View {
                 playbackURL = await appState.competitionStore.playbackURL(for: lift)
                 isResolvingPlayback = false
             }
+        }
+    }
+
+    private func retryPlayback() {
+        playbackURL = nil
+        isResolvingPlayback = true
+        Task {
+            playbackURL = await appState.competitionStore.playbackURL(for: lift, forceRefresh: true)
+            isResolvingPlayback = false
         }
     }
 }
@@ -307,7 +323,8 @@ struct EditProfileView: View {
     private var locations: [EditProfileLocation] {
         var unique = Dictionary(uniqueKeysWithValues: EditProfileLocation.catalog.map { ($0.id, $0) })
         for gym in appState.gyms where !gym.city.isEmpty && !gym.state.isEmpty {
-            let location = EditProfileLocation(city: gym.city, state: gym.state, countryCode: LaunchLocationCatalog.countries.first { $0.regions.contains { $0.name == gym.state } }?.code ?? draft.countryCode ?? "US")
+            let countryCode = LaunchLocationCatalog.countries.first { $0.regions.contains { $0.name == gym.state } }?.code ?? draft.countryCode ?? "US"
+            let location = EditProfileLocation(city: gym.city, state: LaunchLocationCatalog.regionName(gym.state, countryCode: countryCode), countryCode: countryCode)
             unique[location.id] = location
         }
         if !draft.city.isEmpty && !draft.state.isEmpty {
@@ -319,11 +336,13 @@ struct EditProfileView: View {
 
     private var orderedGyms: [Gym] {
         func locationPriority(for gym: Gym) -> Int {
+            let gymRegion = LaunchLocationCatalog.regionName(gym.state, countryCode: draft.countryCode ?? "US")
+            let profileRegion = LaunchLocationCatalog.regionName(draft.state, countryCode: draft.countryCode ?? "US")
             if gym.city.caseInsensitiveCompare(draft.city) == .orderedSame,
-               gym.state.caseInsensitiveCompare(draft.state) == .orderedSame {
+               gymRegion.caseInsensitiveCompare(profileRegion) == .orderedSame {
                 return 0
             }
-            if gym.state.caseInsensitiveCompare(draft.state) == .orderedSame {
+            if gymRegion.caseInsensitiveCompare(profileRegion) == .orderedSame {
                 return 1
             }
             return 2
@@ -500,6 +519,7 @@ struct EditProfileView: View {
                         }
                     }
                     .disabled(appState.accountOperationInProgress)
+                    .accessibilityIdentifier("profile.edit.cancel")
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
@@ -516,6 +536,7 @@ struct EditProfileView: View {
                         }
                     }
                     .disabled(appState.accountOperationInProgress)
+                    .accessibilityIdentifier("profile.edit.save")
                 }
             }
             .confirmationDialog("Discard profile changes?", isPresented: $confirmingDiscardChanges) {
@@ -642,6 +663,7 @@ struct ProfilePhotoManagerView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var item: PhotosPickerItem?
     @State private var loading = false
+    @State private var savingPhoto = false
     @State private var photoError: String?
     @State private var selectedSourceImage: UIImage?
     @State private var previewImage: UIImage?
@@ -677,20 +699,26 @@ struct ProfilePhotoManagerView: View {
             }
             .buttonStyle(LiftSecondaryButtonStyle())
 
-            Button("Use Photo") {
+            Button(savingPhoto ? "Saving…" : "Use Photo") {
                 guard let previewImage else { return }
-                storedImage = previewImage
-                self.previewImage = nil
-                selectedSourceImage = nil
                 Task { @MainActor in
-                    await Task.yield()
+                    savingPhoto = true
+                    defer { savingPhoto = false }
                     photoError = nil
                     appState.accountMessage = nil
-                    await appState.saveProfilePhoto(previewImage)
+                    do {
+                        try await appState.saveProfilePhoto(previewImage)
+                        storedImage = previewImage
+                        self.previewImage = nil
+                        selectedSourceImage = nil
+                    } catch {
+                        photoError = appState.userMessage(error)
+                    }
                 }
             }
             .buttonStyle(LiftPrimaryButtonStyle())
         }
+        .disabled(savingPhoto)
     }
 
     var body: some View {
@@ -747,7 +775,7 @@ struct ProfilePhotoManagerView: View {
                                 .foregroundStyle(Color.liftRed)
                         }
 
-                        if loading {
+                        if loading || savingPhoto {
                             ProgressView()
                                 .tint(Color.liftAccentText)
                         }
@@ -1161,7 +1189,7 @@ struct GymDirectoryView: View {
                         } else if appState.isGymJoined(gym) {
                             Text("Joined")
                                 .font(.caption2.weight(.black))
-                                .foregroundStyle(Color.liftGreen)
+                                .foregroundStyle(Color.liftAccentText)
                         }
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.bold))

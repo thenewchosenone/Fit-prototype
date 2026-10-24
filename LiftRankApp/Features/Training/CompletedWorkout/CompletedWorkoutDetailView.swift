@@ -9,6 +9,8 @@ struct CompletedWorkoutDetailView: View {
     @State private var showingSaveRoutinePrompt = false
     @State private var routineName = ""
     @State private var editingWorkout: CompletedWorkout?
+    @State private var isSavingVisibility = false
+    @State private var visibilityError: String?
 
     init(workout: CompletedWorkout, focusedSetID: Binding<UUID?> = .constant(nil)) {
         self.workout = workout
@@ -44,6 +46,32 @@ struct CompletedWorkoutDetailView: View {
                             }
                             .padding(14)
                             .liftSurface()
+
+                            LiftCard {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Toggle("Keep workout private", isOn: Binding(
+                                        get: { displayedWorkout.isPublic != true },
+                                        set: { keepPrivate in
+                                            visibilityError = nil
+                                            isSavingVisibility = true
+                                            Task {
+                                                do {
+                                                    try await appState.setCompletedWorkoutPublic(displayedWorkout, isPublic: !keepPrivate)
+                                                } catch { visibilityError = appState.userMessage(error) }
+                                                isSavingVisibility = false
+                                            }
+                                        }
+                                    ))
+                                    .disabled(isSavingVisibility)
+                                    .accessibilityIdentifier("workout.keepPrivate")
+                                    Text("Public workouts show their name, date, duration, exercises, and set count on your profile. Notes, bodyweight, and gym details stay private.")
+                                        .font(.caption).foregroundStyle(Color.liftMuted)
+                                    if isSavingVisibility { ProgressView("Saving visibility…") }
+                                    if let visibilityError {
+                                        Text(visibilityError).font(.caption).foregroundStyle(Color.liftRed)
+                                    }
+                                }
+                            }
 
                             ForEach(exercises) { exercise in
                                 let trackingKind = trackingKinds[exercise.exerciseID] ?? .weightReps

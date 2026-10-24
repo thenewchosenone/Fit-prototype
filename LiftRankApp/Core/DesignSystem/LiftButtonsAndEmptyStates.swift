@@ -129,7 +129,7 @@ struct LiftActionRow: View {
     var subtitle: String?
     var symbolName: String
     var catalogExercise: TrainingExerciseCatalogItem? = nil
-    var tint = Color.liftLime
+    var tint = Color.liftAccentText
     var trailingText: String?
     let action: () -> Void
 
