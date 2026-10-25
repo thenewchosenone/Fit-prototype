@@ -210,27 +210,32 @@ extension ProfileView {
                         : [.overview, .prVideos, .training, .submissions]
                 )
                 .padding(.vertical, 2)
-                switch selectedProfileSection {
-                case .overview:
-                    if isCurrentUser {
-                        summary(presentation: liftPresentation)
-                        athleteDetails(presentation: liftPresentation)
-                    } else {
-                        publicOverview(presentation: liftPresentation)
-                    }
-                case .prVideos:
-                    ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: liftPresentation.lifts)
-                case .training, .history:
-                    if isCurrentUser { trainingHistory } else { publicTraining }
-                case .timeline:
-                    if isCurrentUser { profileTimeline }
-                case .submissions:
-                    recentSubmissions(profileLifts: liftPresentation.lifts)
-                }
+                selectedProfileSectionContent
             }
         }
         .padding()
         .padding(.bottom, 24)
+    }
+
+    @ViewBuilder
+    private var selectedProfileSectionContent: some View {
+        switch selectedProfileSection {
+        case .overview:
+            if isCurrentUser {
+                summary(presentation: liftPresentation)
+                athleteDetails(presentation: liftPresentation)
+            } else {
+                publicOverview(presentation: liftPresentation)
+            }
+        case .prVideos:
+            ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: liftPresentation.lifts)
+        case .training, .history:
+            if isCurrentUser { trainingHistory } else { publicTraining }
+        case .timeline:
+            if isCurrentUser { profileTimeline }
+        case .submissions:
+            recentSubmissions(profileLifts: liftPresentation.lifts)
+        }
     }
 
     private func refreshProfileData(force: Bool) async {
