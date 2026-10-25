@@ -59,55 +59,8 @@ private struct ProfileSectionNavigation: View {
 extension ProfileView {
     var featureBody: some View {
         AppBackground {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                    if !isCurrentUser && appState.isBlocked(profile.id) {
-                        blockedProfileState
-                    } else if !isCurrentUser && !appState.competitionStore.canViewProfile(
-                        profile,
-                        viewerID: viewerID ?? appState.currentProfile.id
-                    ) {
-                        restrictedProfileState
-                    } else {
-                        header
-                        if let profileLoadError {
-                            LiftEmptyState(
-                                title: "Couldn't load training data",
-                                message: profileLoadError,
-                                symbolName: "wifi.exclamationmark",
-                                actionTitle: "Retry",
-                                action: { Task { await refreshProfileData(force: true) } },
-                                compact: true
-                            )
-                        }
-                        ProfileSectionNavigation(
-                            selection: $selectedProfileSection,
-                            sections: isCurrentUser
-                                ? [.overview, .prVideos, .training, .timeline, .submissions]
-                                : [.overview, .prVideos, .training, .submissions]
-                        )
-                        .padding(.vertical, 2)
-                        switch selectedProfileSection {
-                        case .overview:
-                            if isCurrentUser {
-                                summary(presentation: liftPresentation)
-                                athleteDetails(presentation: liftPresentation)
-                            } else {
-                                publicOverview(presentation: liftPresentation)
-                            }
-                        case .prVideos:
-                            ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: liftPresentation.lifts)
-                        case .training, .history:
-                            if isCurrentUser { trainingHistory } else { publicTraining }
-                        case .timeline:
-                            if isCurrentUser { profileTimeline }
-                        case .submissions:
-                            recentSubmissions(profileLifts: liftPresentation.lifts)
-                        }
-                    }
-                }
-                .padding()
-                .padding(.bottom, 24)
+            ScrollView {
+                profileContent
             }
             .refreshable {
                 await refreshProfileData(force: true)
@@ -227,6 +180,57 @@ extension ProfileView {
         } message: {
             Text("You won’t see this athlete’s profile, lifts, or activity until you unblock them.")
         }
+    }
+
+    private var profileContent: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            if !isCurrentUser && appState.isBlocked(profile.id) {
+                blockedProfileState
+            } else if !isCurrentUser && !appState.competitionStore.canViewProfile(
+                profile,
+                viewerID: viewerID ?? appState.currentProfile.id
+            ) {
+                restrictedProfileState
+            } else {
+                header
+                if let profileLoadError {
+                    LiftEmptyState(
+                        title: "Couldn't load training data",
+                        message: profileLoadError,
+                        symbolName: "wifi.exclamationmark",
+                        actionTitle: "Retry",
+                        action: { Task { await refreshProfileData(force: true) } },
+                        compact: true
+                    )
+                }
+                ProfileSectionNavigation(
+                    selection: $selectedProfileSection,
+                    sections: isCurrentUser
+                        ? [.overview, .prVideos, .training, .timeline, .submissions]
+                        : [.overview, .prVideos, .training, .submissions]
+                )
+                .padding(.vertical, 2)
+                switch selectedProfileSection {
+                case .overview:
+                    if isCurrentUser {
+                        summary(presentation: liftPresentation)
+                        athleteDetails(presentation: liftPresentation)
+                    } else {
+                        publicOverview(presentation: liftPresentation)
+                    }
+                case .prVideos:
+                    ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: liftPresentation.lifts)
+                case .training, .history:
+                    if isCurrentUser { trainingHistory } else { publicTraining }
+                case .timeline:
+                    if isCurrentUser { profileTimeline }
+                case .submissions:
+                    recentSubmissions(profileLifts: liftPresentation.lifts)
+                }
+            }
+        }
+        .padding()
+        .padding(.bottom, 24)
     }
 
     private func refreshProfileData(force: Bool) async {
