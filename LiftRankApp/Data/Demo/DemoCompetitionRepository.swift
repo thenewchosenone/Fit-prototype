@@ -1,0 +1,529 @@
+import Foundation
+
+extension DemoRepository {
+    func rebuildWorkoutHistoryDerivedState() {
+        completedWorkouts.sort { $0.completedAt > $1.completedAt }
+        refreshAchievementUnlocks(now: .now)
+    }
+
+    func seedDemoLeaderboardDataIfNeeded() {
+        let marker = "[demo:leaderboard-100-v2]"
+        guard !lifts.contains(where: { $0.caption == marker }) else { return }
+
+        let gymID = UUID(uuidString: "D0000000-0000-0000-0000-000000000100")!
+        if !gyms.contains(where: { $0.id == gymID }) {
+            gyms.append(Gym(
+                id: gymID,
+                name: "Lift Rivals Demo Gym",
+                city: "Miami",
+                state: "Florida",
+                memberCount: 100,
+                verifiedLiftCount: 100
+            ))
+        }
+
+        let demoProfiles = (0..<25).map { index -> UserProfile in
+            var profile = MockData.demoProfile
+            profile.id = UUID(uuidString: String(format: "D0000000-0000-0000-0000-%012d", index + 1))!
+            profile.username = "demo_lifter_\(index + 1)"
+            profile.displayName = "Demo Lifter \(index + 1)"
+            profile.ageGroup = "25-34"
+            profile.heightInches = 68
+            profile.bodyweightPounds = 160 + Double(index % 10)
+            profile.city = "Miami"
+            profile.state = "Florida"
+            profile.primaryGymID = gymID
+            profile.primaryGymName = "Lift Rivals Demo Gym"
+            profile.yearsExperience = 2 + index % 8
+            profile.experienceLevel = index % 3 == 0 ? .advanced : .intermediate
+            return profile
+        }
+        let existingIDs = Set(profiles.map(\.id))
+        profiles.append(contentsOf: demoProfiles.filter { !existingIDs.contains($0.id) })
+
+        let movements: [(id: String, name: String, movement: CompetitiveMovement, baseWeight: Double)] = [
+            ("squat", "Back squat", .backSquat, 315),
+            ("bench", "Barbell bench press", .barbellBenchPress, 225),
+            ("deadlift", "Conventional deadlift", .conventionalDeadlift, 365),
+            ("overhead_press", "Overhead press", .standingBarbellOverheadPress, 135)
+        ]
+        for (index, profile) in demoProfiles.enumerated() {
+            let bodyweight = profile.bodyweightPounds
+            for (movementIndex, movement) in movements.enumerated() {
+                let weight = movement.baseWeight + Double(index * (movementIndex + 1) * 5)
+                let currentID = UUID(uuidString: String(format: "D1000000-0000-0000-0000-%012d", index * 4 + movementIndex + 1))!
+                let priorID = UUID(uuidString: String(format: "D1100000-0000-0000-0000-%012d", index * 4 + movementIndex + 1))!
+                let performedAt = Calendar.current.date(byAdding: .day, value: -(index + movementIndex), to: .now) ?? .now
+                let improvementPercent = 5 + Double((index * 3 + movementIndex * 2) % 16)
+                let priorWeight = (weight / (1 + improvementPercent / 100) * 10).rounded() / 10
+                let priorPerformedAt = Calendar.current.date(byAdding: .day, value: -90, to: performedAt) ?? performedAt.addingTimeInterval(-90 * 86_400)
+
+                if !lifts.contains(where: { $0.id == priorID }) {
+                    lifts.append(LiftSubmission(
+                        id: priorID,
+                        userID: profile.id,
+                        exerciseID: movement.id,
+                        exerciseName: movement.name,
+                        weight: priorWeight,
+                        unit: .pounds,
+                        normalizedWeightKilograms: RankingCalculator.poundsToKilograms(priorWeight),
+                        repetitions: 1,
+                        isActualOneRepMax: true,
+                        estimatedOneRepMax: priorWeight,
+                        bodyweightAtLift: bodyweight,
+                        bodyweightMultiple: priorWeight / bodyweight,
+                        equipmentType: .raw,
+                        variation: "Demo",
+                        gymID: gymID,
+                        performedAt: priorPerformedAt,
+                        remoteVideoURL: URL(string: "https://example.test/demo-history-\(index + 1)-\(movementIndex + 1).mp4"),
+                        caption: index == 0 && movementIndex == 0 ? marker : "[demo:leaderboard-history-v2]",
+                        verificationStatus: .videoVerified,
+                        visibility: .publicLift,
+                        createdAt: .now,
+                        updatedAt: .now,
+                        competitiveMovement: movement.movement,
+                        evidenceStatus: .videoBacked,
+                        moderationStatus: .clear
+                    ))
+                }
+                if !lifts.contains(where: { $0.id == currentID }) {
+                    lifts.append(LiftSubmission(
+                        id: currentID,
+                        userID: profile.id,
+                        exerciseID: movement.id,
+                        exerciseName: movement.name,
+                        weight: weight,
+                        unit: .pounds,
+                        normalizedWeightKilograms: RankingCalculator.poundsToKilograms(weight),
+                        repetitions: 1,
+                        isActualOneRepMax: true,
+                        estimatedOneRepMax: weight,
+                        bodyweightAtLift: bodyweight,
+                        bodyweightMultiple: weight / bodyweight,
+                        equipmentType: .raw,
+                        variation: "Demo",
+                        gymID: gymID,
+                        performedAt: performedAt,
+                        remoteVideoURL: URL(string: "https://example.test/demo-lift-\(index + 1)-\(movementIndex + 1).mp4"),
+                        caption: marker,
+                        verificationStatus: .videoVerified,
+                        visibility: .publicLift,
+                        createdAt: .now,
+                        updatedAt: .now,
+                        competitiveMovement: movement.movement,
+                        evidenceStatus: .videoBacked,
+                        moderationStatus: .clear
+                    ))
+                }
+            }
+        }
+
+        let publicProfileMarker = "[demo:public-profile-v1]"
+        if !lifts.contains(where: { $0.userID == currentProfile.id && $0.caption == publicProfileMarker }) {
+            let publicMovements: [(id: String, name: String, movement: CompetitiveMovement, weight: Double)] = [
+                ("squat", "Back squat", .backSquat, 365),
+                ("bench", "Barbell bench press", .barbellBenchPress, 245),
+                ("deadlift", "Conventional deadlift", .conventionalDeadlift, 455)
+            ]
+            let bodyweight = currentProfile.bodyweightPounds
+            lifts.append(contentsOf: publicMovements.enumerated().map { index, movement in
+                LiftSubmission(
+                    id: UUID(uuidString: String(format: "D2000000-0000-0000-0000-%012d", index + 1))!,
+                    userID: currentProfile.id,
+                    exerciseID: movement.id,
+                    exerciseName: movement.name,
+                    weight: movement.weight,
+                    unit: .pounds,
+                    normalizedWeightKilograms: RankingCalculator.poundsToKilograms(movement.weight),
+                    repetitions: 1,
+                    isActualOneRepMax: true,
+                    estimatedOneRepMax: movement.weight,
+                    bodyweightAtLift: bodyweight,
+                    bodyweightMultiple: bodyweight > 0 ? movement.weight / bodyweight : 0,
+                    equipmentType: .raw,
+                    variation: "Competition",
+                    gymID: currentProfile.primaryGymID,
+                    performedAt: Calendar.current.date(byAdding: .day, value: -(index + 1) * 7, to: .now) ?? .now,
+                    localVideoURL: nil,
+                    remoteVideoURL: nil,
+                    caption: publicProfileMarker,
+                    verificationStatus: .selfReported,
+                    visibility: .publicLift,
+                    createdAt: .now,
+                    updatedAt: .now,
+                    competitiveMovement: movement.movement,
+                    evidenceStatus: .selfReported,
+                    moderationStatus: .clear
+                )
+            })
+        }
+    }
+
+    func addLift(_ lift: LiftSubmission, refreshAchievements: Bool = true) {
+        var eligibleLift = lift
+        if eligibleLift.leaderboardEligibleAt == .distantPast {
+            eligibleLift.leaderboardEligibleAt = Self.nextLocalMidnight()
+        }
+        lifts.insert(eligibleLift, at: 0)
+        notifications.insert(NotificationItem(id: UUID(), title: "Lift submitted", message: "Your lift will enter eligible rankings at the next daily update.", kind: "Lift submitted", createdAt: .now, isRead: false, destination: NotificationDestination(kind: .lift, targetID: eligibleLift.id)), at: 0)
+        if refreshAchievements {
+            refreshAchievementUnlocks()
+        }
+    }
+
+    private static func nextLocalMidnight(referenceDate: Date = .now) -> Date {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: referenceDate)
+        return calendar.date(byAdding: .day, value: 1, to: start) ?? referenceDate
+    }
+
+    func computedStatistics(referenceDate: Date = .now) -> CompetitiveStatistics {
+        let lifetimeWorkingSetVolume = completedWorkouts.reduce(0.0) { workoutTotal, workout in
+            workoutTotal + workout.completedWorkingSets.reduce(0.0) { total, log in
+                let trackingKind = trackingKind(for: log, workout: workout)
+                guard trackingKind == .weightReps,
+                      let weight = log.weight,
+                      weight > 0,
+                      let reps = log.reps,
+                      reps > 0 else { return total }
+                let kilograms = log.recordedUnit == .kilograms
+                    ? weight
+                    : RankingCalculator.poundsToKilograms(weight)
+                return total + (kilograms * Double(reps))
+            }
+        }
+        return CompetitiveStatistics(
+            totalWorkouts: completedWorkouts.filter { !$0.completedWorkingSets.isEmpty }.count,
+            lifetimeWorkingSetVolume: lifetimeWorkingSetVolume,
+            totalActiveTrainingTime: completedWorkouts.reduce(0) { $0 + $1.duration },
+            totalWorkingSetRepetitions: completedWorkouts.reduce(0) { workoutTotal, workout in
+                workoutTotal + workout.completedWorkingSets.reduce(0) { total, log in
+                    guard !trackingKind(for: log, workout: workout).usesDuration else { return total }
+                    return total + (log.reps ?? 0)
+                }
+            },
+            prCount: completedPRCount(),
+            currentStreak: currentWorkoutStreak(referenceDate: referenceDate),
+            longestStreak: longestWorkoutStreak(),
+            verifiedLiftCount: currentUserLifts.filter(\.verificationStatus.isDefaultLeaderboardEligible).count,
+            currentGlobalTotalRank: nil,
+            highestGlobalTotalRank: nil,
+            currentGymTotalRank: nil,
+            highestGymTotalRank: nil
+        )
+    }
+
+    private func trackingKind(for log: WorkoutSetLog, workout: CompletedWorkout) -> ExerciseTrackingKind {
+        guard let exercise = workout.exercises.first(where: { $0.id == log.prescriptionID }) else { return .weightReps }
+        let rawTrackingType = exercise.trackingType ??
+            trainingExerciseCatalog.first(where: { $0.id == exercise.exerciseID })?.trackingType
+        return ExerciseTrackingKind(rawTrackingType ?? "Weight + Reps")
+    }
+
+    private func completedPRCount() -> Int {
+        var bestByKey: [String: Double] = [:]
+        var count = 0
+        for workout in completedWorkouts.sorted(by: { $0.completedAt < $1.completedAt }) {
+            for set in workout.completedWorkingSets {
+                guard let exercise = workout.exercises.first(where: { $0.id == set.prescriptionID }),
+                      let rankingID = exercise.rankingExerciseID,
+                      let weight = set.weight,
+                      let reps = set.reps else { continue }
+                let kilograms = set.recordedUnit == .kilograms ? weight : RankingCalculator.poundsToKilograms(weight)
+                let key = "\(rankingID)|\(reps)"
+                if kilograms > (bestByKey[key] ?? 0) {
+                    count += 1
+                    bestByKey[key] = kilograms
+                }
+            }
+        }
+        return count
+    }
+
+    private func currentWorkoutStreak(referenceDate: Date = .now) -> Int {
+        let calendar = Calendar.current
+        let completedDays = Set(completedWorkouts.filter { !$0.completedWorkingSets.isEmpty }.map { calendar.startOfDay(for: $0.completedAt) })
+        let today = calendar.startOfDay(for: referenceDate)
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+        var cursor: Date
+        if completedDays.contains(today) {
+            cursor = today
+        } else if completedDays.contains(yesterday) {
+            cursor = yesterday
+        } else {
+            return 0
+        }
+
+        var streak = 0
+        while completedDays.contains(cursor) {
+            streak += 1
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
+            cursor = previous
+        }
+        return streak
+    }
+
+    private func longestWorkoutStreak() -> Int {
+        let calendar = Calendar.current
+        let days = completedWorkouts
+            .filter { !$0.completedWorkingSets.isEmpty }
+            .map { calendar.startOfDay(for: $0.completedAt) }
+            .sorted()
+        guard !days.isEmpty else { return 0 }
+        var longest = 1
+        var current = 1
+        for index in 1..<days.count {
+            let delta = calendar.dateComponents([.day], from: days[index - 1], to: days[index]).day ?? 0
+            if delta == 0 { continue }
+            if delta == 1 {
+                current += 1
+                longest = max(longest, current)
+            } else {
+                current = 1
+            }
+        }
+        return longest
+    }
+
+    func refreshAchievementUnlocks(now: Date = .now) {
+        var refreshedByTitle = achievementUnlocks.reduce(into: [String: AchievementUnlock]()) { result, unlock in
+            result[unlock.title] = unlock
+        }
+        for title in earnedAchievementTitles() {
+            refreshedByTitle[title] = refreshedByTitle[title] ?? AchievementUnlock(
+                id: title.lowercased().replacingOccurrences(of: " ", with: "-"),
+                title: title,
+                unlockedAt: now
+            )
+        }
+        let sortedUnlocks = refreshedByTitle.values.sorted {
+            if $0.unlockedAt != $1.unlockedAt {
+                return $0.unlockedAt > $1.unlockedAt
+            }
+            return $0.title < $1.title
+        }
+        if achievementUnlocks != sortedUnlocks {
+            achievementUnlocks = sortedUnlocks
+        }
+    }
+
+    private func earnedAchievementTitles() -> [String] {
+        let stats = computedStatistics()
+        let bodyweightKilograms = RankingCalculator.poundsToKilograms(currentProfile.bodyweightPounds)
+        let userLifts = currentUserLifts
+        let strengthMaxes = verifiedOrCompletedOneRepKilogramsByExercise(userLifts: userLifts)
+        let maxBench = strengthMaxes["bench"] ?? 0
+        let maxSquat = strengthMaxes["squat"] ?? 0
+        let maxDeadlift = strengthMaxes["deadlift"] ?? 0
+        let powerliftingTotal = maxBench + maxSquat + maxDeadlift
+        let distinctExerciseCount = Set(completedWorkouts.flatMap { $0.exercises.map(\.exerciseID) }).count
+        var titles: [String] = []
+        func add(_ title: String, when condition: Bool) { if condition { titles.append(title) } }
+        add("First Workout", when: stats.totalWorkouts >= 1)
+        add("2 Workouts", when: stats.totalWorkouts >= 2)
+        add("3 Workouts", when: stats.totalWorkouts >= 3)
+        add("5 Workouts", when: stats.totalWorkouts >= 5)
+        add("10 Workouts", when: stats.totalWorkouts >= 10)
+        add("25 Workouts", when: stats.totalWorkouts >= 25)
+        add("50 Workouts", when: stats.totalWorkouts >= 50)
+        add("75 Workouts", when: stats.totalWorkouts >= 75)
+        add("100 Workouts", when: stats.totalWorkouts >= 100)
+        add("200 Workouts", when: stats.totalWorkouts >= 200)
+        add("300 Workouts", when: stats.totalWorkouts >= 300)
+        add("500 Workouts", when: stats.totalWorkouts >= 500)
+        add("1,000 Workouts", when: stats.totalWorkouts >= 1_000)
+        add("First Lift Logged", when: !userLifts.isEmpty)
+        add("3 Lifts Logged", when: userLifts.count >= 3)
+        add("10 Lifts Logged", when: userLifts.count >= 10)
+        add("First Verified Lift", when: stats.verifiedLiftCount >= 1)
+        add("Five Verified Lifts", when: stats.verifiedLiftCount >= 5)
+        add("Ten Verified Lifts", when: stats.verifiedLiftCount >= 10)
+        add("25 Verified Lifts", when: stats.verifiedLiftCount >= 25)
+        add("50 Verified Lifts", when: stats.verifiedLiftCount >= 50)
+        add("100 Verified Lifts", when: stats.verifiedLiftCount >= 100)
+        add("First PR", when: stats.prCount >= 1)
+        add("5 PRs", when: stats.prCount >= 5)
+        add("10 PRs", when: stats.prCount >= 10)
+        add("25 PRs", when: stats.prCount >= 25)
+        add("50 PRs", when: stats.prCount >= 50)
+        add("100 PRs", when: stats.prCount >= 100)
+        add("1,000 Reps", when: stats.totalWorkingSetRepetitions >= 1_000)
+        add("5,000 Reps", when: stats.totalWorkingSetRepetitions >= 5_000)
+        add("10,000 Reps", when: stats.totalWorkingSetRepetitions >= 10_000)
+        add("15,000 Reps", when: stats.totalWorkingSetRepetitions >= 15_000)
+        add("25,000 Reps", when: stats.totalWorkingSetRepetitions >= 25_000)
+        add("50,000 Reps", when: stats.totalWorkingSetRepetitions >= 50_000)
+        add("100,000 Reps", when: stats.totalWorkingSetRepetitions >= 100_000)
+        add("10 Training Hours", when: stats.totalActiveTrainingTime >= 10 * 60 * 60)
+        add("50 Training Hours", when: stats.totalActiveTrainingTime >= 50 * 60 * 60)
+        add("100 Training Hours", when: stats.totalActiveTrainingTime >= 100 * 60 * 60)
+        add("150 Training Hours", when: stats.totalActiveTrainingTime >= 150 * 60 * 60)
+        add("250 Training Hours", when: stats.totalActiveTrainingTime >= 250 * 60 * 60)
+        add("500 Training Hours", when: stats.totalActiveTrainingTime >= 500 * 60 * 60)
+        add("1,000 Training Hours", when: stats.totalActiveTrainingTime >= 1_000 * 60 * 60)
+        add("135 Bench", when: maxBench >= RankingCalculator.poundsToKilograms(135))
+        add("185 Bench", when: maxBench >= RankingCalculator.poundsToKilograms(185))
+        add("225 Bench", when: maxBench >= RankingCalculator.poundsToKilograms(225))
+        add("315 Bench", when: maxBench >= RankingCalculator.poundsToKilograms(315))
+        add("405 Bench", when: maxBench >= RankingCalculator.poundsToKilograms(405))
+        add("500 Bench", when: maxBench >= RankingCalculator.poundsToKilograms(500))
+        add("225 Squat", when: maxSquat >= RankingCalculator.poundsToKilograms(225))
+        add("315 Squat", when: maxSquat >= RankingCalculator.poundsToKilograms(315))
+        add("405 Squat", when: maxSquat >= RankingCalculator.poundsToKilograms(405))
+        add("500 Squat", when: maxSquat >= RankingCalculator.poundsToKilograms(500))
+        add("600 Squat", when: maxSquat >= RankingCalculator.poundsToKilograms(600))
+        add("315 Deadlift", when: maxDeadlift >= RankingCalculator.poundsToKilograms(315))
+        add("405 Deadlift", when: maxDeadlift >= RankingCalculator.poundsToKilograms(405))
+        add("500 Deadlift", when: maxDeadlift >= RankingCalculator.poundsToKilograms(500))
+        add("600 Deadlift", when: maxDeadlift >= RankingCalculator.poundsToKilograms(600))
+        add("700 Deadlift", when: maxDeadlift >= RankingCalculator.poundsToKilograms(700))
+        add("500 lb Total", when: powerliftingTotal >= RankingCalculator.poundsToKilograms(500))
+        add("750 lb Total", when: powerliftingTotal >= RankingCalculator.poundsToKilograms(750))
+        add("1,000 lb Total", when: powerliftingTotal >= RankingCalculator.poundsToKilograms(1_000))
+        add("1,250 lb Total", when: powerliftingTotal >= RankingCalculator.poundsToKilograms(1_250))
+        add("1,500 lb Total", when: powerliftingTotal >= RankingCalculator.poundsToKilograms(1_500))
+        add("2,000 lb Total", when: powerliftingTotal >= RankingCalculator.poundsToKilograms(2_000))
+        add("Bodyweight Bench", when: bodyweightKilograms > 0 && maxBench >= bodyweightKilograms)
+        add("1.5x Bodyweight Bench", when: bodyweightKilograms > 0 && maxBench >= bodyweightKilograms * 1.5)
+        add("1.5x Bodyweight Squat", when: bodyweightKilograms > 0 && maxSquat >= bodyweightKilograms * 1.5)
+        add("2x Bodyweight Squat", when: bodyweightKilograms > 0 && maxSquat >= bodyweightKilograms * 2)
+        add("2x Bodyweight Deadlift", when: bodyweightKilograms > 0 && maxDeadlift >= bodyweightKilograms * 2)
+        add("2.5x Bodyweight Deadlift", when: bodyweightKilograms > 0 && maxDeadlift >= bodyweightKilograms * 2.5)
+        for milestone in [15, 40, 60, 150, 250, 400, 750] {
+            add("\(milestone.formatted()) Workouts", when: stats.totalWorkouts >= milestone)
+        }
+        for milestone in [25, 50, 100, 250, 500] {
+            add("\(milestone.formatted()) Lifts Logged", when: userLifts.count >= milestone)
+        }
+        for milestone in [2, 15, 40, 75, 150, 250, 500, 1_000, 2_000, 5_000] {
+            add("\(milestone.formatted()) PRs", when: stats.prCount >= milestone)
+        }
+        for milestone in [2_000, 7_500, 20_000, 75_000, 250_000, 500_000] {
+            add("\(milestone.formatted()) Reps", when: stats.totalWorkingSetRepetitions >= milestone)
+        }
+        for milestone in [1, 5, 25, 75, 750, 1_500, 2_500] {
+            add("\(milestone.formatted()) Training Hours", when: stats.totalActiveTrainingTime >= Double(milestone) * 60 * 60)
+        }
+        for milestone in [155, 205, 275, 365, 455, 550] {
+            add("\(milestone) Bench", when: maxBench >= RankingCalculator.poundsToKilograms(Double(milestone)))
+        }
+        for milestone in [275, 365, 455, 550, 650, 750] {
+            add("\(milestone) Squat", when: maxSquat >= RankingCalculator.poundsToKilograms(Double(milestone)))
+        }
+        for milestone in [365, 455, 550, 650, 750, 800] {
+            add("\(milestone) Deadlift", when: maxDeadlift >= RankingCalculator.poundsToKilograms(Double(milestone)))
+        }
+        for milestone in [600, 900, 1_100, 1_400, 1_700, 1_800] {
+            add("\(milestone.formatted()) lb Total", when: powerliftingTotal >= RankingCalculator.poundsToKilograms(Double(milestone)))
+        }
+        add("1.25x Bodyweight Bench", when: bodyweightKilograms > 0 && maxBench >= bodyweightKilograms * 1.25)
+        add("2x Bodyweight Bench", when: bodyweightKilograms > 0 && maxBench >= bodyweightKilograms * 2)
+        add("2x Bodyweight Deadlift", when: bodyweightKilograms > 0 && maxDeadlift >= bodyweightKilograms * 2)
+        add("2.5x Bodyweight Squat", when: bodyweightKilograms > 0 && maxSquat >= bodyweightKilograms * 2.5)
+        add("3x Bodyweight Deadlift", when: bodyweightKilograms > 0 && maxDeadlift >= bodyweightKilograms * 3)
+        for milestone in [10, 25, 50, 100] {
+            add("\(milestone) Exercises Explored", when: distinctExerciseCount >= milestone)
+        }
+        for milestone in [1, 2, 3] {
+            add("\(milestone) Gyms Joined", when: joinedGymIDs.count >= milestone)
+        }
+        for milestone in [1, 3, 5] {
+            add("\(milestone) Programs Started", when: workoutPlans.count >= milestone)
+        }
+
+        let strengthTier = RankingCalculator.strengthTierSummary(
+            performances: RankingCalculator.strengthPerformances(from: completedWorkouts)
+                + RankingCalculator.strengthPerformances(fromSubmissions: userLifts),
+            bodyweightKilograms: bodyweightKilograms,
+            sexCategory: currentProfile.sexCategory
+        ).overallTier
+        for tier in StrengthTier.allCases where tier != .unranked && tier <= strengthTier {
+            add("\(tier.label) Rival", when: true)
+        }
+        let actualBodyweightEntryCount = bodyweightEntries.reduce(0) { count, entry in
+            count + (entry.actual == nil ? 0 : 1)
+        }
+        add("Bodyweight Logged", when: actualBodyweightEntryCount >= 1)
+        add("4 Bodyweight Logs", when: actualBodyweightEntryCount >= 4)
+        add("12 Bodyweight Logs", when: actualBodyweightEntryCount >= 12)
+        add("18 Bodyweight Logs", when: actualBodyweightEntryCount >= 18)
+        add("26 Bodyweight Logs", when: actualBodyweightEntryCount >= 26)
+        add("52 Bodyweight Logs", when: actualBodyweightEntryCount >= 52)
+        for milestone in [2, 8, 24, 104, 208] {
+            add("\(milestone) Bodyweight Logs", when: actualBodyweightEntryCount >= milestone)
+        }
+        add("3-Day Workout Streak", when: stats.currentStreak >= 3)
+        add("7-Day Workout Streak", when: stats.currentStreak >= 7)
+        add("14-Day Workout Streak", when: stats.currentStreak >= 14)
+        add("30-Day Workout Streak", when: stats.currentStreak >= 30)
+        add("60-Day Workout Streak", when: stats.currentStreak >= 60)
+        add("90-Day Workout Streak", when: stats.currentStreak >= 90)
+        add("180-Day Workout Streak", when: stats.currentStreak >= 180)
+        add("365-Day Workout Streak", when: stats.currentStreak >= 365)
+        for milestone in [5, 10, 21, 45, 120, 240] {
+            add("\(milestone)-Day Workout Streak", when: stats.currentStreak >= milestone)
+        }
+        add("10,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 10_000)
+        add("50,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 50_000)
+        add("100,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 100_000)
+        add("250,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 250_000)
+        add("500,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 500_000)
+        add("1,000,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 1_000_000)
+        add("2,500,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 2_500_000)
+        add("5,000,000 kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= 5_000_000)
+        for milestone in [25_000, 75_000, 150_000, 750_000, 1_500_000, 10_000_000] {
+            add("\(milestone.formatted()) kg Lifted Volume", when: stats.lifetimeWorkingSetVolume >= Double(milestone))
+        }
+        add("Global Top 100", when: stats.highestGlobalTotalRank.map { $0 <= 100 } == true)
+        add("Global Top 50", when: stats.highestGlobalTotalRank.map { $0 <= 50 } == true)
+        add("Global Top 10", when: stats.highestGlobalTotalRank.map { $0 <= 10 } == true)
+        add("Gym Top 10", when: stats.highestGymTotalRank.map { $0 <= 10 } == true)
+        add("Gym Record Holder", when: stats.highestGymTotalRank == 1)
+        add("Global Number One", when: stats.highestGlobalTotalRank == 1)
+        add("Global Top 250", when: stats.highestGlobalTotalRank.map { $0 <= 250 } == true)
+        add("Global Top 25", when: stats.highestGlobalTotalRank.map { $0 <= 25 } == true)
+        add("Global Top 5", when: stats.highestGlobalTotalRank.map { $0 <= 5 } == true)
+        add("10 Days at Number One", when: stats.daysAtNumberOne >= 10)
+        add("30 Days at Number One", when: stats.daysAtNumberOne >= 30)
+        add("100 Days at Number One", when: stats.daysAtNumberOne >= 100)
+        add("4 Weeks at Number One", when: stats.weeksAtNumberOne >= 4)
+        add("12 Weeks at Number One", when: stats.weeksAtNumberOne >= 12)
+        add("90-Day Improvement Leader", when: stats.biggestRealDailyRankingJump >= 25)
+        add("Profile Complete", when: isProfileComplete())
+        return titles
+    }
+
+    private func verifiedOrCompletedOneRepKilogramsByExercise(userLifts: [LiftSubmission]) -> [String: Double] {
+        let trackedExerciseIDs: Set<String> = ["bench", "squat", "deadlift"]
+        var bestByExercise: [String: Double] = [:]
+        for lift in userLifts where lift.repetitions == 1 && lift.resolvedModerationStatus != .rejected {
+            guard let exerciseID = trackedExerciseIDs.first(where: { RankingCalculator.matchesExerciseID(lift, exerciseID: $0) }) else { continue }
+            bestByExercise[exerciseID] = max(bestByExercise[exerciseID] ?? 0, lift.normalizedWeightKilograms)
+        }
+        for workout in completedWorkouts {
+            let exerciseByID = Dictionary(uniqueKeysWithValues: workout.exercises.map { ($0.id, $0) })
+            for log in workout.completedWorkingSets {
+                guard log.reps == 1,
+                      let exercise = exerciseByID[log.prescriptionID],
+                      let rankingExerciseID = exercise.rankingExerciseID,
+                      trackedExerciseIDs.contains(rankingExerciseID),
+                      let weight = log.weight else { continue }
+                let kilograms = log.recordedUnit == .kilograms ? weight : RankingCalculator.poundsToKilograms(weight)
+                bestByExercise[rankingExerciseID] = max(bestByExercise[rankingExerciseID] ?? 0, kilograms)
+            }
+        }
+        return bestByExercise
+    }
+
+    private var currentUserLifts: [LiftSubmission] {
+        lifts.filter { $0.userID == currentProfile.id }
+    }
+
+    private func isProfileComplete() -> Bool {
+        !currentProfile.username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !currentProfile.displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !currentProfile.city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !currentProfile.state.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}

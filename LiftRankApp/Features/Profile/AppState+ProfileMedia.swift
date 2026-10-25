@@ -1,0 +1,187 @@
+import Foundation
+import UIKit
+
+@MainActor
+extension AppState {
+    func updateBodyweight(_ entry: BodyweightEntry) async throws {
+        Haptics.light()
+        guard let actual = entry.actual, (40...1500).contains(actual) else {
+            throw LiftRankServiceError.invalidInput("Bodyweight must be between 40 and 1500 pounds.")
+        }
+        var profile = currentProfile
+        profile.bodyweightPounds = actual
+        guard isAuthenticated, !isDemoMode else {
+            trainingProgressStore.updateBodyweight(entry)
+            profileStore.saveProfile(profile)
+            repository.persistWorkoutSnapshotWithoutBlockingUI()
+            return
+        }
+        let userID = profile.id
+        guard accountSession?.userID == userID,
+              repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
+        try await profileStore.saveBodyweightEntry(entry)
+        repository.syncedBodyweightEntryIDs.insert(entry.id)
+        _ = try await profileStore.updateProfile(profile)
+        guard accountSession?.userID == userID,
+              repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
+        trainingProgressStore.updateBodyweight(entry)
+        profileStore.saveProfile(profile)
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
+    }
+
+    func saveProfilePhoto(_ image: UIImage) async throws {
+        do {
+            profilePhotoMutation += 1
+            let mutation = profilePhotoMutation
+            var profile = currentProfile
+            let userID = profile.id
+            let mode: AccountMode = isDemoMode ? .demo : .authenticated
+            profile.avatarPath = try await profilePhotoStore.save(image: image, userID: profile.id, mode: mode)
+            guard repository.currentProfile.id == userID,
+                  mutation == profilePhotoMutation else { throw LiftRankServiceError.sessionExpired }
+            profileStore.saveProfile(profile)
+            repository.persistWorkoutSnapshotWithoutBlockingUI()
+            guard isAuthenticated, !isDemoMode else {
+                Haptics.success()
+                return
+            }
+            guard let avatarPath = profile.avatarPath,
+                  let fileURLs = profilePhotoStore.fileURLs(for: avatarPath) else {
+                throw LiftRankServiceError.invalidInput("Lift Rivals couldn't prepare that profile photo for upload.")
+            }
+            guard repository.currentProfile.id == userID,
+                  mutation == profilePhotoMutation else { throw LiftRankServiceError.sessionExpired }
+            let uploadedAvatarPath = try await profileStore.uploadProfileAvatar(
+                avatarPath: avatarPath,
+                fullImageURL: fileURLs.fullImageURL,
+                thumbnailURL: fileURLs.thumbnailURL
+            )
+            guard repository.currentProfile.id == userID,
+                  mutation == profilePhotoMutation else { throw LiftRankServiceError.sessionExpired }
+            if uploadedAvatarPath != avatarPath {
+                let (fullImageData, thumbnailData) = try await Task.detached(priority: .utility) {
+                    try (
+                        Data(contentsOf: fileURLs.fullImageURL),
+                        Data(contentsOf: fileURLs.thumbnailURL)
+                    )
+                }.value
+                try await profilePhotoStore.cache(
+                    fullImageData: fullImageData,
+                    thumbnailData: thumbnailData,
+                    avatarPath: uploadedAvatarPath
+                )
+            }
+            guard repository.currentProfile.id == userID,
+                  mutation == profilePhotoMutation else { throw LiftRankServiceError.sessionExpired }
+            profile.avatarPath = uploadedAvatarPath
+            _ = try await profileStore.updateProfile(profile)
+            profilePhotoStore.markUploadComplete(avatarPath: avatarPath)
+            profilePhotoStore.markUploadComplete(avatarPath: uploadedAvatarPath)
+            if uploadedAvatarPath != avatarPath {
+                profilePhotoStore.remove(avatarPath: avatarPath)
+            }
+            repository.persistWorkoutSnapshotWithoutBlockingUI()
+            Haptics.success()
+        } catch {
+            accountMessage = userMessage(error)
+            Haptics.warning()
+            throw error
+        }
+    }
+
+    func removeProfilePhoto() {
+        profilePhotoMutation += 1
+        let mutation = profilePhotoMutation
+        let oldPath = currentProfile.avatarPath
+        var profile = currentProfile
+        let userID = profile.id
+        profile.avatarPath = nil
+        profileStore.saveProfile(profile)
+        profilePhotoStore.remove(avatarPath: oldPath)
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
+        guard isAuthenticated, !isDemoMode else {
+            Haptics.warning()
+            return
+        }
+        Task {
+            do {
+                guard repository.currentProfile.id == userID,
+                      mutation == profilePhotoMutation else { return }
+                try await profileStore.removeProfileAvatar(avatarPath: oldPath)
+                guard repository.currentProfile.id == userID,
+                      mutation == profilePhotoMutation else { return }
+                _ = try await profileStore.updateProfile(profile)
+                repository.persistWorkoutSnapshotWithoutBlockingUI()
+            } catch {
+                accountMessage = userMessage(error)
+            }
+        }
+        Haptics.warning()
+    }
+
+    func cacheAuthenticatedProfilePhotoIfNeeded() async {
+        guard isAuthenticated, !isDemoMode,
+              let avatarPath = currentProfile.avatarPath else { return }
+        let userID = currentProfile.id
+        let mutation = profilePhotoMutation
+        let requestKey = "\(userID.uuidString)|\(avatarPath)"
+        guard profilePhotoDownloadsInFlight.insert(requestKey).inserted else { return }
+        defer { profilePhotoDownloadsInFlight.remove(requestKey) }
+        guard !(await profilePhotoStore.hasThumbnailWithoutBlockingUI(for: avatarPath)) else { return }
+        guard currentProfile.id == userID, currentProfile.avatarPath == avatarPath,
+              profilePhotoMutation == mutation else { return }
+        do {
+            guard let download = try await profileStore.downloadProfileAvatar(avatarPath: avatarPath) else { return }
+            guard repository.currentProfile.id == userID,
+                  repository.currentProfile.avatarPath == avatarPath,
+                  profilePhotoMutation == mutation else { return }
+            try await profilePhotoStore.cache(
+                fullImageData: download.fullImageData,
+                thumbnailData: download.thumbnailData,
+                avatarPath: avatarPath
+            )
+            profilePhotoStore.markUploadComplete(avatarPath: avatarPath)
+            objectWillChange.send()
+            repository.persistWorkoutSnapshotWithoutBlockingUI()
+        } catch {
+            guard currentProfile.id == userID, profilePhotoMutation == mutation else { return }
+            accountMessage = userMessage(error)
+        }
+    }
+
+    func uploadProfilePhotoIfNeeded(avatarPath: String?) async throws -> String? {
+        guard !isDemoMode,
+              let userID = accountSession?.userID,
+              userID == currentProfile.id,
+              let avatarPath else { return avatarPath }
+        guard let fileURLs = profilePhotoStore.fileURLs(for: avatarPath) else { return avatarPath }
+        guard repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
+        let uploadedAvatarPath = try await profileStore.uploadProfileAvatar(
+            avatarPath: avatarPath,
+            fullImageURL: fileURLs.fullImageURL,
+            thumbnailURL: fileURLs.thumbnailURL
+        )
+        guard repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
+        if uploadedAvatarPath != avatarPath {
+            let (fullImageData, thumbnailData) = try await Task.detached(priority: .utility) {
+                try (
+                    Data(contentsOf: fileURLs.fullImageURL),
+                    Data(contentsOf: fileURLs.thumbnailURL)
+                )
+            }.value
+            try await profilePhotoStore.cache(
+                fullImageData: fullImageData,
+                thumbnailData: thumbnailData,
+                avatarPath: uploadedAvatarPath
+            )
+        }
+        guard repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
+        profilePhotoStore.markUploadComplete(avatarPath: avatarPath)
+        profilePhotoStore.markUploadComplete(avatarPath: uploadedAvatarPath)
+        if uploadedAvatarPath != avatarPath {
+            profilePhotoStore.remove(avatarPath: avatarPath)
+        }
+        return uploadedAvatarPath
+    }
+
+}

@@ -1,0 +1,264 @@
+import Foundation
+
+@MainActor
+protocol WorkoutPRLiftSubmitting: AnyObject {
+    func submitWorkoutPR(
+        candidate: WorkoutPRCandidate,
+        exercise: Exercise,
+        workout: CompletedWorkout,
+        profile: UserProfile,
+        videoURL: URL?,
+        submissionID: UUID
+    ) async -> LiftSubmission?
+    func retryWorkoutPRVideo(submissionID: UUID, videoURL: URL) async -> Bool
+}
+
+@MainActor
+final class WorkoutPRSubmissionStore {
+    private let repository: any WorkoutPRSubmissionRepository
+    private let liftSubmitter: any WorkoutPRLiftSubmitting
+    private let videoStore: any WorkoutVideoStoring
+    private let exercise: (String) -> Exercise?
+    private let now: () -> Date
+    private let makeID: () -> UUID
+    private var cachedUserID: UUID
+
+    init(
+        repository: any WorkoutPRSubmissionRepository,
+        liftSubmitter: any WorkoutPRLiftSubmitting,
+        videoStore: any WorkoutVideoStoring = LocalWorkoutVideoStore(),
+        exercise: @escaping (String) -> Exercise?,
+        now: @escaping () -> Date = { .now },
+        makeID: @escaping () -> UUID = { UUID() }
+    ) {
+        self.repository = repository
+        self.liftSubmitter = liftSubmitter
+        self.videoStore = videoStore
+        self.exercise = exercise
+        self.now = now
+        self.makeID = makeID
+        self.cachedUserID = repository.currentProfile.id
+        pruneLocalVideos()
+    }
+
+    var pendingSubmissions: [PendingWorkoutPRSubmission] {
+        resetAccountScopedQueueIfNeeded()
+        return repository.pendingWorkoutPRSubmissions
+    }
+
+    var preferences: WorkoutPreferences {
+        resetAccountScopedQueueIfNeeded()
+        return repository.workoutPreferences
+    }
+
+    func setAutomaticSubmissionEnabled(_ enabled: Bool) {
+        repository.workoutPreferences.automaticallySubmitVideoBackedPRs = enabled
+        repository.workoutPreferences.didExplainAutomaticPRs = true
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
+    }
+
+    func setWeeklyTrainingDayGoal(_ goal: Int?) {
+        repository.workoutPreferences.weeklyTrainingDayGoal = goal.map { min(max($0, 1), 7) }
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
+    }
+
+    func markAutomaticSubmissionExplanationShown() {
+        repository.workoutPreferences.didExplainAutomaticPRs = true
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
+    }
+
+    func candidates(
+        for workout: CompletedWorkout,
+        existingLifts: [LiftSubmission]
+    ) -> [WorkoutPRCandidate] {
+        WorkoutPRDetector.candidates(
+            workoutID: workout.id,
+            exercises: workout.exercises,
+            sets: workout.sets,
+            existingLifts: existingLifts,
+            completedWorkouts: repository.completedWorkouts,
+            excludingCompletedWorkoutID: workout.id
+        )
+    }
+
+    func submitVideoBackedPRs(
+        for workout: CompletedWorkout,
+        videoURLsBySetID: [UUID: URL],
+        existingLifts: [LiftSubmission],
+        selectedSetIDs: Set<UUID>? = nil
+    ) async {
+        guard selectedSetIDs != nil || preferences.automaticallySubmitVideoBackedPRs else { return }
+        for candidate in candidates(for: workout, existingLifts: existingLifts) {
+            if let selectedSetIDs, !selectedSetIDs.contains(candidate.setID) { continue }
+            await submit(candidate, workout: workout, videoURL: videoURLsBySetID[candidate.setID])
+        }
+    }
+
+    func retryFailedSubmissions() async {
+        let retryable = pendingSubmissions.filter { $0.state == .failed || $0.state == .pending }
+        for pending in retryable {
+            if let submissionID = pending.submissionID, let videoURL = pending.localVideoURL {
+                await retryVideo(pending, submissionID: submissionID, videoURL: videoURL)
+                continue
+            }
+            guard let workout = repository.completedWorkouts.first(where: {
+                $0.id == pending.candidate.completedWorkoutID
+            }) else { continue }
+            await submit(pending.candidate, workout: workout, videoURL: pending.localVideoURL)
+        }
+    }
+
+    func persistVideo(_ data: Data, fileExtension: String = "mov") async throws -> URL {
+        try await videoStore.save(data, fileExtension: fileExtension)
+    }
+
+    func persistVideo(from sourceURL: URL, fileExtension: String = "mov") async throws -> URL {
+        try await videoStore.save(from: sourceURL, fileExtension: fileExtension)
+    }
+
+    func clearAccountScopedMedia() {
+        repository.pendingWorkoutPRSubmissions.compactMap(\.localVideoURL).forEach { videoStore.remove($0) }
+        videoStore.prune(retaining: [], olderThan: .distantFuture)
+    }
+
+    private func submit(
+        _ candidate: WorkoutPRCandidate,
+        workout: CompletedWorkout,
+        videoURL: URL?
+    ) async {
+        resetAccountScopedQueueIfNeeded()
+        let userID = repository.currentProfile.id
+        if pendingSubmissions.contains(where: {
+            $0.candidate.setID == candidate.setID &&
+                ($0.state == .submitted || $0.state == .uploading)
+        }) {
+            return
+        }
+
+        var pending = pendingSubmissions.first(where: { $0.candidate.setID == candidate.setID }) ??
+            PendingWorkoutPRSubmission(
+                id: makeID(),
+                candidate: candidate,
+                localVideoURL: videoURL,
+                state: .pending,
+                attemptCount: 0,
+                lastError: nil,
+                submissionID: nil,
+                updatedAt: now()
+            )
+        pending.state = .uploading
+        pending.localVideoURL = videoURL
+        pending.attemptCount += 1
+        pending.lastError = nil
+        pending.updatedAt = now()
+        repository.upsertPendingPRSubmission(pending)
+        repository.persistWorkoutSnapshot()
+
+        guard let rankingExercise = exercise(candidate.rankingExerciseID) else {
+            pending.state = .failed
+            pending.lastError = "The exercise is no longer eligible for ranking."
+            pending.updatedAt = now()
+            repository.upsertPendingPRSubmission(pending)
+            return
+        }
+
+        let submission = await liftSubmitter.submitWorkoutPR(
+            candidate: candidate,
+            exercise: rankingExercise,
+            workout: workout,
+            profile: repository.currentProfile,
+            videoURL: videoURL,
+            submissionID: pending.id
+        )
+        guard repository.currentProfile.id == userID else {
+            resetAccountScopedQueueIfNeeded()
+            return
+        }
+        if let submission {
+            pending.submissionID = submission.id
+            repository.linkSubmission(submission.id, to: workout.id)
+            if videoURL != nil && submission.resolvedEvidenceStatus != .videoBacked {
+                pending.state = .failed
+                pending.lastError = "The lift was saved, but its video could not be uploaded. The recording is available to retry."
+            } else {
+                pending.state = .submitted
+                pending.lastError = nil
+                if let videoURL {
+                    videoStore.remove(videoURL)
+                }
+            }
+        } else {
+            pending.state = .failed
+            pending.lastError = "Upload could not be completed. It will remain available to retry."
+        }
+        pending.updatedAt = now()
+        repository.upsertPendingPRSubmission(pending)
+        repository.persistWorkoutSnapshot()
+    }
+
+    private func retryVideo(
+        _ pending: PendingWorkoutPRSubmission,
+        submissionID: UUID,
+        videoURL: URL
+    ) async {
+        var pending = pending
+        let userID = repository.currentProfile.id
+        pending.state = .uploading
+        pending.attemptCount += 1
+        pending.lastError = nil
+        pending.updatedAt = now()
+        repository.upsertPendingPRSubmission(pending)
+        repository.persistWorkoutSnapshot()
+
+        let uploaded = await liftSubmitter.retryWorkoutPRVideo(submissionID: submissionID, videoURL: videoURL)
+        guard repository.currentProfile.id == userID else {
+            resetAccountScopedQueueIfNeeded()
+            return
+        }
+        if uploaded {
+            pending.state = .submitted
+            pending.lastError = nil
+            videoStore.remove(videoURL)
+        } else {
+            pending.state = .failed
+            pending.lastError = "The lift was saved, but its video could not be uploaded. The recording is available to retry."
+        }
+        pending.updatedAt = now()
+        repository.upsertPendingPRSubmission(pending)
+        repository.persistWorkoutSnapshot()
+    }
+
+    private func resetAccountScopedQueueIfNeeded() {
+        guard cachedUserID != repository.currentProfile.id else { return }
+        clearAccountScopedMedia()
+        cachedUserID = repository.currentProfile.id
+        repository.clearPendingPRSubmissions()
+        repository.workoutPreferences = WorkoutPreferences()
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
+    }
+
+    private func pruneLocalVideos() {
+        for var pending in repository.pendingWorkoutPRSubmissions where pending.state == .uploading {
+            pending.state = .failed
+            pending.lastError = "The previous upload was interrupted. It is available to retry."
+            pending.updatedAt = now()
+            repository.upsertPendingPRSubmission(pending)
+        }
+        let retryCutoff = now().addingTimeInterval(-30 * 24 * 60 * 60)
+        let expired = repository.pendingWorkoutPRSubmissions.filter {
+            $0.state != .submitted && $0.updatedAt < retryCutoff
+        }
+        expired.compactMap(\.localVideoURL).forEach { videoStore.remove($0) }
+        repository.pendingWorkoutPRSubmissions
+            .filter { $0.state == .submitted }
+            .compactMap(\.localVideoURL)
+            .forEach { videoStore.remove($0) }
+        if !expired.isEmpty {
+            repository.removePendingPRSubmissions(ids: Set(expired.map(\.id)))
+        }
+        let retained = Set(repository.pendingWorkoutPRSubmissions.compactMap {
+            $0.state == .pending || $0.state == .failed ? $0.localVideoURL : nil
+        })
+        videoStore.prune(retaining: retained, olderThan: now().addingTimeInterval(-24 * 60 * 60))
+    }
+}

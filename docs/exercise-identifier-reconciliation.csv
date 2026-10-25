@@ -1,0 +1,479 @@
+existing_identifier,source_platform,display_name,proposed_canonical_identifier,classification,ranking_movement,seeded_in_migration_2
+back_squat,ios,Back Squat,back-squat,duplicate,back_squat,yes
+barbell_bench_press,ios,Barbell Bench Press,barbell-bench-press,duplicate,bench_press,yes
+barbell_overhead_press,ios,Barbell Overhead Press,barbell-overhead-press,alias,,no
+bulgarian_split_squat,ios,Bulgarian Split Squat,bulgarian-split-squat,duplicate,,no
+cable_bayesian_curl,ios,Bayesian Cable Curl,bayesian-cable-curl,duplicate,,no
+cable_biceps_curl,ios,Cable Biceps Curl,cable-biceps-curl,duplicate,,no
+cable_close_grip_pulldown,ios,Close-Grip Cable Pulldown,close-grip-cable-pulldown,alias,,no
+cable_cross_body_triceps_extension,ios,Cross-Body Cable Triceps Extension,cross-body-cable-triceps-extension,alias,,no
+cable_crossover,ios,Cable Crossover,cable-crossover,duplicate,,no
+cable_crunch,ios,Cable Crunch,cable-crunch,duplicate,,yes
+cable_decline_press,ios,Decline Cable Press,decline-cable-press,alias,,no
+cable_drag_curl,ios,Cable Drag Curl,cable-drag-curl,alias,,no
+cable_external_rotation,ios,Cable External Rotation,cable-external-rotation,duplicate,,no
+cable_face_pull,ios,Cable Face Pull,cable-face-pull,duplicate,,yes
+cable_fly,ios,Cable Fly,cable-fly,duplicate,,yes
+cable_front_raise,ios,Cable Front Raise,cable-front-raise,duplicate,,no
+cable_goblet_squat,ios,Cable Goblet Squat,cable-goblet-squat,alias,,no
+cable_half_kneeling_row,ios,Half-Kneeling Cable Row,half-kneeling-cable-row,duplicate,,no
+cable_high_row,ios,High Cable Row,high-cable-row,duplicate,,no
+cable_high_to_low_fly,ios,High-to-Low Cable Fly,high-to-low-cable-fly,duplicate,,no
+cable_hip_abduction,ios,Cable Hip Abduction,cable-hip-abduction,duplicate,,no
+cable_hip_adduction,ios,Cable Hip Adduction,cable-hip-adduction,duplicate,,no
+cable_incline_press,ios,Incline Cable Press,incline-cable-press,alias,,no
+cable_internal_rotation,ios,Cable Internal Rotation,cable-internal-rotation,duplicate,,no
+cable_kickback,ios,Cable Kickback,cable-kickback,alias,,no
+cable_lateral_raise,ios,Cable Lateral Raise,cable-lateral-raise,alias,,no
+cable_low_row,ios,Low Cable Row,low-cable-row,duplicate,,no
+cable_low_to_high_fly,ios,Low-to-High Cable Fly,low-to-high-cable-fly,duplicate,,no
+cable_lunge,ios,Cable Reverse Lunge,cable-reverse-lunge,alias,,no
+cable_pallof_press,ios,Pallof Press,pallof-press,alias,,no
+cable_preacher_curl,ios,Cable Preacher Curl,cable-preacher-curl,duplicate,,no
+cable_pull_through,ios,Cable Pull-Through,cable-pull-through,duplicate,,no
+cable_pullover,ios,Cable Pullover,cable-pullover,duplicate,,no
+cable_rear_delt_fly,ios,Cable Rear Delt Fly,cable-rear-delt-fly,alias,,no
+cable_reverse_curl,ios,Cable Reverse Curl,cable-reverse-curl,alias,,no
+cable_reverse_grip_pulldown,ios,Reverse-Grip Cable Pulldown,reverse-grip-cable-pulldown,alias,,no
+cable_reverse_grip_pushdown,ios,Reverse-Grip Triceps Pushdown,reverse-grip-triceps-pushdown,alias,,no
+cable_romanian_deadlift,ios,Cable Romanian Deadlift,cable-romanian-deadlift,alias,,no
+cable_rope_hammer_curl,ios,Rope Hammer Curl,rope-hammer-curl,duplicate,,no
+cable_rope_pushdown,ios,Rope Triceps Pushdown,rope-triceps-pushdown,duplicate,,no
+cable_shoulder_press,ios,Cable Shoulder Press,cable-shoulder-press,duplicate,,no
+cable_single_arm_chest_press,ios,Single-Arm Cable Chest Press,single-arm-cable-chest-press,duplicate,,no
+cable_single_arm_curl,ios,Single-Arm Cable Curl,single-arm-cable-curl,alias,,no
+cable_single_arm_fly,ios,Single-Arm Cable Fly,single-arm-cable-fly,duplicate,,no
+cable_single_arm_kneeling_pulldown,ios,Single-Arm Kneeling Pulldown,single-arm-kneeling-pulldown,alias,,no
+cable_single_arm_pushdown,ios,Single-Arm Triceps Pushdown,single-arm-triceps-pushdown,duplicate,,no
+cable_single_arm_row,ios,Single-Arm Cable Row,single-arm-cable-row,duplicate,,no
+cable_skull_crusher,ios,Cable Skull Crusher,cable-skull-crusher,duplicate,,no
+cable_squat,ios,Cable Squat,cable-squat,alias,,no
+cable_standing_chest_press,ios,Standing Cable Chest Press,standing-cable-chest-press,duplicate,,no
+cable_standing_row,ios,Standing Cable Row,standing-cable-row,alias,,no
+cable_step_up,ios,Cable Step-Up,cable-step-up,alias,,no
+cable_straight_arm_pulldown,ios,Straight-Arm Cable Pulldown,straight-arm-cable-pulldown,alias,,no
+cable_straight_bar_pushdown,ios,Straight-Bar Triceps Pushdown,straight-bar-triceps-pushdown,duplicate,,no
+cable_upright_row,ios,Cable Upright Row,cable-upright-row,duplicate,,no
+cable_wide_grip_pulldown,ios,Wide-Grip Cable Pulldown,wide-grip-cable-pulldown,alias,,no
+cable_wood_chop,ios,Cable Wood Chop,cable-wood-chop,duplicate,,no
+cable_y_raise,ios,Cable Y Raise,cable-y-raise,alias,,no
+chest_supported_row,ios,Chest-Supported Row,chest-supported-row,alias,,no
+conventional_deadlift,ios,Conventional Deadlift,conventional-deadlift,duplicate,deadlift,yes
+db_shoulder_press,ios,DB Shoulder Press,db-shoulder-press,alias,,no
+dumbbell_alternating_bench_press,ios,Alternating Dumbbell Bench Press,alternating-dumbbell-bench-press,alias,,no
+dumbbell_alternating_curl,ios,Alternating Dumbbell Curl,alternating-dumbbell-curl,alias,,no
+dumbbell_arnold_press,ios,Arnold Press,arnold-press,duplicate,,no
+dumbbell_bent_over_row,ios,Dumbbell Bent-Over Row,dumbbell-bent-over-row,alias,,no
+dumbbell_calf_raise,ios,Dumbbell Calf Raise,dumbbell-calf-raise,alias,,no
+dumbbell_chest_supported_row,ios,Chest-Supported Dumbbell Row,chest-supported-dumbbell-row,duplicate,,no
+dumbbell_concentration_curl,ios,Concentration Curl,concentration-curl,duplicate,,no
+dumbbell_cross_body_hammer_curl,ios,Cross-Body Hammer Curl,cross-body-hammer-curl,duplicate,,no
+dumbbell_cuban_press,ios,Dumbbell Cuban Press,dumbbell-cuban-press,duplicate,,no
+dumbbell_dead_bug,ios,Dumbbell Dead Bug,dumbbell-dead-bug,alias,,no
+dumbbell_decline_bench_press,ios,Decline Dumbbell Bench Press,decline-dumbbell-bench-press,alias,,no
+dumbbell_flat_bench_press,ios,Flat Dumbbell Bench Press,flat-dumbbell-bench-press,alias,,no
+dumbbell_floor_press,ios,Dumbbell Floor Press,dumbbell-floor-press,duplicate,,no
+dumbbell_fly,ios,Dumbbell Fly,dumbbell-fly,duplicate,,no
+dumbbell_front_raise,ios,Dumbbell Front Raise,dumbbell-front-raise,duplicate,,no
+dumbbell_front_squat,ios,Dumbbell Front Squat,dumbbell-front-squat,duplicate,,no
+dumbbell_glute_bridge,ios,Dumbbell Glute Bridge,dumbbell-glute-bridge,alias,,no
+dumbbell_goblet_squat,ios,Dumbbell Goblet Squat,dumbbell-goblet-squat,alias,,no
+dumbbell_hammer_curl,ios,Dumbbell Hammer Curl,dumbbell-hammer-curl,alias,,no
+dumbbell_high_row,ios,Dumbbell High Row,dumbbell-high-row,duplicate,,no
+dumbbell_hip_thrust,ios,Dumbbell Hip Thrust,dumbbell-hip-thrust,alias,,no
+dumbbell_incline_fly,ios,Incline Dumbbell Fly,incline-dumbbell-fly,duplicate,,no
+dumbbell_lean_away_lateral_raise,ios,Lean-Away Dumbbell Lateral Raise,lean-away-dumbbell-lateral-raise,alias,,no
+dumbbell_neutral_grip_press,ios,Neutral-Grip Dumbbell Press,neutral-grip-dumbbell-press,duplicate,,no
+dumbbell_preacher_curl,ios,Dumbbell Preacher Curl,dumbbell-preacher-curl,alias,,no
+dumbbell_pullover,ios,Dumbbell Pullover,dumbbell-pullover,duplicate,,no
+dumbbell_rear_delt_fly,ios,Dumbbell Rear Delt Fly,dumbbell-rear-delt-fly,alias,,no
+dumbbell_rear_delt_row,ios,Dumbbell Rear Delt Row,dumbbell-rear-delt-row,alias,,no
+dumbbell_renegade_row,ios,Renegade Row,renegade-row,duplicate,,no
+dumbbell_reverse_lunge,ios,Dumbbell Reverse Lunge,dumbbell-reverse-lunge,duplicate,,no
+dumbbell_romanian_deadlift,ios,Dumbbell Romanian Deadlift,dumbbell-romanian-deadlift,duplicate,,no
+dumbbell_russian_twist,ios,Dumbbell Russian Twist,dumbbell-russian-twist,alias,,no
+dumbbell_seal_row,ios,Dumbbell Seal Row,dumbbell-seal-row,duplicate,,no
+dumbbell_seated_lateral_raise,ios,Seated Dumbbell Lateral Raise,seated-dumbbell-lateral-raise,alias,,no
+dumbbell_shrug,ios,Dumbbell Shrug,dumbbell-shrug,duplicate,,no
+dumbbell_side_bend,ios,Dumbbell Side Bend,dumbbell-side-bend,alias,,no
+dumbbell_single_arm_bench_press,ios,Single-Arm Dumbbell Bench Press,single-arm-dumbbell-bench-press,duplicate,,no
+dumbbell_single_arm_overhead_extension,ios,Single-Arm Overhead Dumbbell Extension,single-arm-overhead-dumbbell-extension,alias,,no
+dumbbell_single_leg_romanian_deadlift,ios,Single-Leg Dumbbell Romanian Deadlift,single-leg-dumbbell-romanian-deadlift,duplicate,,no
+dumbbell_skull_crusher,ios,Dumbbell Skull Crusher,dumbbell-skull-crusher,duplicate,,no
+dumbbell_spider_curl,ios,Dumbbell Spider Curl,dumbbell-spider-curl,alias,,no
+dumbbell_squeeze_press,ios,Dumbbell Squeeze Press,dumbbell-squeeze-press,duplicate,,no
+dumbbell_step_up,ios,Dumbbell Step-Up,dumbbell-step-up,duplicate,,no
+dumbbell_stiff_leg_deadlift,ios,Dumbbell Stiff-Leg Deadlift,dumbbell-stiff-leg-deadlift,duplicate,,no
+dumbbell_sumo_squat,ios,Dumbbell Sumo Squat,dumbbell-sumo-squat,alias,,no
+dumbbell_tate_press,ios,Dumbbell Tate Press,dumbbell-tate-press,duplicate,,no
+dumbbell_thruster,ios,Dumbbell Thruster,dumbbell-thruster,duplicate,,no
+dumbbell_upright_row,ios,Dumbbell Upright Row,dumbbell-upright-row,duplicate,,no
+dumbbell_walking_lunge,ios,Dumbbell Walking Lunge,dumbbell-walking-lunge,duplicate,,no
+dumbbell_zottman_curl,ios,Zottman Curl,zottman-curl,duplicate,,no
+ez_bar_curl,ios,EZ-Bar Curl,ez-bar-curl,alias,,no
+farmers_carry,ios,Farmer's Carry,farmer-s-carry,alias,,no
+hack_squat,ios,Hack Squat,hack-squat,duplicate,,yes
+hanging_leg_raise,ios,Hanging Leg Raise,hanging-leg-raise,alias,,no
+hip_thrust,ios,Hip Thrust,hip-thrust,alias,,yes
+incline_db_curl,ios,Incline DB Curl,incline-db-curl,alias,,no
+incline_db_press,ios,Incline DB Press,incline-db-press,alias,,no
+lat_pulldown,ios,Lat Pulldown,lat-pulldown,duplicate,,yes
+leg_extension,ios,Leg Extension,leg-extension,duplicate,,yes
+leg_press,ios,Leg Press,leg-press,duplicate,,yes
+lying_leg_curl,ios,Lying Leg Curl,lying-leg-curl,duplicate,,yes
+machine_abdominal_crunch,ios,Abdominal Crunch Machine,abdominal-crunch-machine,duplicate,,no
+machine_assisted_dip,ios,Assisted Dip Machine,assisted-dip-machine,duplicate,,no
+machine_assisted_pull_up,ios,Assisted Pull-Up Machine,assisted-pull-up-machine,duplicate,,no
+machine_back_extension,ios,Back Extension Machine,back-extension-machine,duplicate,,no
+machine_belt_squat,ios,Belt Squat Machine,belt-squat-machine,duplicate,,no
+machine_chest_press,ios,Machine Chest Press,machine-chest-press,duplicate,,yes
+machine_decline_chest_press,ios,Decline Chest Press Machine,decline-chest-press-machine,duplicate,,no
+machine_front_lat_pulldown,ios,Front Lat Pulldown Machine,front-lat-pulldown-machine,duplicate,,no
+machine_glute_drive,ios,Glute Drive Machine,glute-drive-machine,duplicate,,no
+machine_grip,ios,Grip Machine,grip-machine,duplicate,,no
+machine_ground_base_rotational_twist,ios,Ground-Base Rotational Twist,ground-base-rotational-twist,duplicate,,no
+machine_ground_base_squat,ios,Ground-Base Squat,ground-base-squat,duplicate,,no
+machine_high_incline_chest_press,ios,High-Incline Chest Press Machine,high-incline-chest-press-machine,duplicate,,no
+machine_high_row,ios,High Row Machine,high-row-machine,duplicate,,no
+machine_hip_abductor,ios,Hip Abductor Machine,hip-abductor-machine,alias,,no
+machine_hip_adductor,ios,Hip Adductor Machine,hip-adductor-machine,alias,,no
+machine_horizontal_leg_press,ios,Horizontal Leg Press,horizontal-leg-press,duplicate,,no
+machine_incline_chest_press,ios,Incline Chest Press Machine,incline-chest-press-machine,duplicate,,no
+machine_iso_lateral_chest_press,ios,Iso-Lateral Chest Press,iso-lateral-chest-press,duplicate,,no
+machine_iso_lateral_leg_curl,ios,Iso-Lateral Leg Curl,iso-lateral-leg-curl,duplicate,,no
+machine_iso_lateral_leg_press,ios,Iso-Lateral Leg Press,iso-lateral-leg-press,duplicate,,no
+machine_iso_lateral_row,ios,Iso-Lateral Row,iso-lateral-row,alias,,no
+machine_iso_lateral_underhand_row,ios,Iso-Lateral Underhand Row,iso-lateral-underhand-row,duplicate,,no
+machine_kneeling_leg_curl,ios,Kneeling Leg Curl Machine,kneeling-leg-curl-machine,alias,,no
+machine_lateral_neck_flexion,ios,Lateral Neck Flexion Machine,lateral-neck-flexion-machine,alias,,no
+machine_lateral_raise,ios,Lateral Raise Machine,lateral-raise-machine,duplicate,,no
+machine_linear_45_leg_press,ios,45-Degree Linear Leg Press,45-degree-linear-leg-press,duplicate,,no
+machine_low_row,ios,Low Row Machine,low-row-machine,duplicate,,no
+machine_neck_extension,ios,Neck Extension Machine,neck-extension-machine,alias,,no
+machine_neck_flexion,ios,Neck Flexion Machine,neck-flexion-machine,alias,,no
+machine_neutral_grip_pulldown,ios,Neutral-Grip Pulldown Machine,neutral-grip-pulldown-machine,alias,,no
+machine_nordic_curl,ios,Nordic Curl Machine,nordic-curl-machine,duplicate,,no
+machine_pendulum_squat,ios,Pendulum Squat,pendulum-squat,duplicate,,no
+machine_plate_loaded_chest_press,ios,Plate-Loaded Chest Press,plate-loaded-chest-press,duplicate,,no
+machine_plate_loaded_horizontal_bench_press,ios,Plate-Loaded Horizontal Bench Press,plate-loaded-horizontal-bench-press,alias,,no
+machine_plate_loaded_pec_fly,ios,Plate-Loaded Pec Fly,plate-loaded-pec-fly,duplicate,,no
+machine_preacher_curl,ios,Preacher Curl Machine,preacher-curl-machine,duplicate,,no
+machine_pullover,ios,Pullover Machine,pullover-machine,alias,,no
+machine_reverse_grip_pulldown,ios,Reverse-Grip Pulldown Machine,reverse-grip-pulldown-machine,alias,,no
+machine_reverse_pec_deck,ios,Reverse Pec Deck,reverse-pec-deck,duplicate,,no
+machine_rotary_torso,ios,Rotary Torso Machine,rotary-torso-machine,duplicate,,no
+machine_seated_biceps_curl,ios,Seated Biceps Curl Machine,seated-biceps-curl-machine,alias,,no
+machine_seated_calf_raise,ios,Seated Calf Raise Machine,seated-calf-raise-machine,duplicate,,no
+machine_shoulder_press,ios,Machine Shoulder Press,machine-shoulder-press,alias,,no
+machine_shrug,ios,Machine Shrug,machine-shrug,duplicate,,no
+machine_single_leg_press,ios,Single-Leg Press Machine,single-leg-press-machine,alias,,no
+machine_sissy_squat,ios,Sissy Squat Machine,sissy-squat-machine,duplicate,,no
+machine_smith_back_squat,ios,Smith Machine Back Squat,smith-machine-back-squat,alias,,no
+machine_smith_bench_press,ios,Smith Machine Bench Press,smith-machine-bench-press,alias,,no
+machine_smith_calf_raise,ios,Smith Machine Calf Raise,smith-machine-calf-raise,duplicate,,no
+machine_smith_decline_press,ios,Smith Machine Decline Press,smith-machine-decline-press,alias,,no
+machine_smith_front_squat,ios,Smith Machine Front Squat,smith-machine-front-squat,alias,,no
+machine_smith_hip_thrust,ios,Smith Machine Hip Thrust,smith-machine-hip-thrust,duplicate,,no
+machine_smith_incline_press,ios,Smith Machine Incline Press,smith-machine-incline-press,alias,,no
+machine_smith_romanian_deadlift,ios,Smith Machine Romanian Deadlift,smith-machine-romanian-deadlift,duplicate,,no
+machine_smith_shoulder_press,ios,Smith Machine Shoulder Press,smith-machine-shoulder-press,alias,,no
+machine_smith_split_squat,ios,Smith Machine Split Squat,smith-machine-split-squat,duplicate,,no
+machine_standing_calf_raise,ios,Standing Calf Raise Machine,standing-calf-raise-machine,duplicate,,no
+machine_standing_glute_kickback,ios,Standing Glute Kickback Machine,standing-glute-kickback-machine,duplicate,,no
+machine_standing_leg_curl,ios,Standing Leg Curl Machine,standing-leg-curl-machine,alias,,no
+machine_t_bar_row,ios,T-Bar Row Machine,t-bar-row-machine,duplicate,,no
+machine_tibialis_raise,ios,Tibialis Raise Machine,tibialis-raise-machine,alias,,no
+machine_triceps_dip,ios,Triceps Dip Machine,triceps-dip-machine,alias,,no
+machine_triceps_extension,ios,Triceps Extension Machine,triceps-extension-machine,duplicate,,no
+machine_v_squat,ios,V-Squat Machine,v-squat-machine,alias,,no
+machine_vertical_leg_press,ios,Vertical Leg Press,vertical-leg-press,alias,,no
+machine_wide_grip_chest_press,ios,Wide-Grip Chest Press Machine,wide-grip-chest-press-machine,duplicate,,no
+machine_wide_grip_pulldown,ios,Wide-Grip Pulldown Machine,wide-grip-pulldown-machine,alias,,no
+overhead_triceps_extension,ios,Overhead Triceps Extension,overhead-triceps-extension,alias,,no
+pec_deck,ios,Pec Deck,pec-deck,duplicate,,yes
+plank,ios,Plank,plank,exact,,yes
+pull_up,ios,Pull-Up,pull-up,duplicate,,yes
+rear_delt_fly,ios,Rear Delt Fly,rear-delt-fly,alias,,no
+romanian_deadlift,ios,Romanian Deadlift,romanian-deadlift,duplicate,,yes
+seated_cable_row,ios,Seated Cable Row,seated-cable-row,duplicate,,yes
+seated_leg_curl,ios,Seated Leg Curl,seated-leg-curl,duplicate,,no
+single_arm_db_row,ios,Single-Arm DB Row,single-arm-db-row,alias,,no
+sumo_deadlift,ios,Sumo Deadlift,sumo-deadlift,alias,deadlift,yes
+triceps_pressdown,ios,Triceps Pressdown,triceps-pushdown,alias,,yes
+weighted_dip,ios,Weighted Dip,weighted-dip,alias,,no
+back-squat,web,Back Squat,back-squat,exact,back_squat,yes
+barbell-bench,web,Barbell Bench Press,barbell-bench-press,duplicate,bench_press,yes
+barbell-curl,web,Barbell Curl,barbell-curl,exact,,yes
+barbell-row,web,Barbell Row,barbell-row,exact,,yes
+cable-crunch,web,Cable Crunch,cable-crunch,exact,,yes
+cable-fly,web,Cable Fly,cable-fly,exact,,yes
+catalog-arms-cable-bayesian-cable-curl,web,Bayesian Cable Curl,bayesian-cable-curl,duplicate,,no
+catalog-arms-cable-cable-biceps-curl,web,Cable Biceps Curl,cable-biceps-curl,duplicate,,no
+catalog-arms-cable-cable-preacher-curl,web,Cable Preacher Curl,cable-preacher-curl,duplicate,,no
+catalog-arms-cable-cable-reverse-wrist-curl,web,Cable Reverse Wrist Curl,cable-reverse-wrist-curl,alias,,no
+catalog-arms-cable-cable-skull-crusher,web,Cable Skull Crusher,cable-skull-crusher,duplicate,,no
+catalog-arms-cable-cable-wrist-curl,web,Cable Wrist Curl,cable-wrist-curl,alias,,no
+catalog-arms-cable-high-cable-curl,web,High Cable Curl,high-cable-curl,alias,,no
+catalog-arms-cable-overhead-cable-triceps-extension,web,Overhead Cable Triceps Extension,overhead-cable-triceps-extension,alias,,no
+catalog-arms-cable-reverse-cable-curl,web,Reverse Cable Curl,reverse-cable-curl,alias,,no
+catalog-arms-cable-reverse-grip-pushdown,web,Reverse-Grip Pushdown,reverse-grip-pushdown,alias,,no
+catalog-arms-cable-rope-hammer-curl,web,Rope Hammer Curl,rope-hammer-curl,duplicate,,no
+catalog-arms-cable-rope-triceps-pushdown,web,Rope Triceps Pushdown,rope-triceps-pushdown,duplicate,,no
+catalog-arms-cable-single-arm-triceps-pushdown,web,Single-Arm Triceps Pushdown,single-arm-triceps-pushdown,duplicate,,no
+catalog-arms-cable-straight-bar-triceps-pushdown,web,Straight-Bar Triceps Pushdown,straight-bar-triceps-pushdown,duplicate,,no
+catalog-arms-dumbbells-concentration-curl,web,Concentration Curl,concentration-curl,duplicate,,no
+catalog-arms-dumbbells-cross-body-hammer-curl,web,Cross-Body Hammer Curl,cross-body-hammer-curl,duplicate,,no
+catalog-arms-dumbbells-dumbbell-kickback,web,Dumbbell Kickback,dumbbell-kickback,alias,,no
+catalog-arms-dumbbells-dumbbell-overhead-triceps-extension,web,Dumbbell Overhead Triceps Extension,dumbbell-overhead-triceps-extension,alias,,no
+catalog-arms-dumbbells-dumbbell-reverse-wrist-curl,web,Dumbbell Reverse Wrist Curl,dumbbell-reverse-wrist-curl,alias,,no
+catalog-arms-dumbbells-dumbbell-skull-crusher,web,Dumbbell Skull Crusher,dumbbell-skull-crusher,duplicate,,no
+catalog-arms-dumbbells-dumbbell-tate-press,web,Dumbbell Tate Press,dumbbell-tate-press,duplicate,,no
+catalog-arms-dumbbells-dumbbell-wrist-curl,web,Dumbbell Wrist Curl,dumbbell-wrist-curl,alias,,no
+catalog-arms-dumbbells-hammer-curl,web,Hammer Curl,hammer-curl,alias,,no
+catalog-arms-dumbbells-incline-dumbbell-curl,web,Incline Dumbbell Curl,incline-dumbbell-curl,alias,,no
+catalog-arms-dumbbells-preacher-dumbbell-curl,web,Preacher Dumbbell Curl,preacher-dumbbell-curl,alias,,no
+catalog-arms-dumbbells-rolling-dumbbell-extension,web,Rolling Dumbbell Extension,rolling-dumbbell-extension,alias,,no
+catalog-arms-dumbbells-spider-curl,web,Spider Curl,spider-curl,alias,,no
+catalog-arms-dumbbells-zottman-curl,web,Zottman Curl,zottman-curl,duplicate,,no
+catalog-arms-machine-arm-curl-machine,web,Arm Curl Machine,arm-curl-machine,alias,,no
+catalog-arms-machine-assisted-dip-machine,web,Assisted Dip Machine,assisted-dip-machine,duplicate,,no
+catalog-arms-machine-biceps-curl-machine,web,Biceps Curl Machine,biceps-curl-machine,alias,,no
+catalog-arms-machine-dip-machine,web,Dip Machine,dip-machine,alias,,no
+catalog-arms-machine-grip-machine,web,Grip Machine,grip-machine,duplicate,,no
+catalog-arms-machine-plate-loaded-biceps-curl,web,Plate-Loaded Biceps Curl,plate-loaded-biceps-curl,alias,,no
+catalog-arms-machine-plate-loaded-triceps-extension,web,Plate-Loaded Triceps Extension,plate-loaded-triceps-extension,alias,,no
+catalog-arms-machine-preacher-curl-machine,web,Preacher Curl Machine,preacher-curl-machine,duplicate,,no
+catalog-arms-machine-triceps-extension-machine,web,Triceps Extension Machine,triceps-extension-machine,duplicate,,no
+catalog-arms-machine-wrist-curl-machine,web,Wrist Curl Machine,wrist-curl-machine,alias,,no
+catalog-back-cable-cable-pullover,web,Cable Pullover,cable-pullover,duplicate,,no
+catalog-back-cable-cable-rear-delt-row,web,Cable Rear-Delt Row,cable-rear-delt-row,alias,,no
+catalog-back-cable-cable-shrug,web,Cable Shrug,cable-shrug,alias,,no
+catalog-back-cable-close-grip-lat-pulldown,web,Close-Grip Lat Pulldown,close-grip-lat-pulldown,alias,,no
+catalog-back-cable-half-kneeling-cable-row,web,Half-Kneeling Cable Row,half-kneeling-cable-row,duplicate,,no
+catalog-back-cable-high-cable-row,web,High Cable Row,high-cable-row,duplicate,,no
+catalog-back-cable-kneeling-cable-pulldown,web,Kneeling Cable Pulldown,kneeling-cable-pulldown,alias,,no
+catalog-back-cable-low-cable-row,web,Low Cable Row,low-cable-row,duplicate,,no
+catalog-back-cable-neutral-grip-lat-pulldown,web,Neutral-Grip Lat Pulldown,neutral-grip-lat-pulldown,alias,,no
+catalog-back-cable-rope-seated-row,web,Rope Seated Row,rope-seated-row,alias,,no
+catalog-back-cable-single-arm-cable-row,web,Single-Arm Cable Row,single-arm-cable-row,duplicate,,no
+catalog-back-cable-single-arm-lat-pulldown,web,Single-Arm Lat Pulldown,single-arm-lat-pulldown,alias,,no
+catalog-back-cable-straight-arm-pulldown,web,Straight-Arm Pulldown,straight-arm-pulldown,alias,,no
+catalog-back-cable-wide-grip-lat-pulldown,web,Wide-Grip Lat Pulldown,wide-grip-lat-pulldown,alias,,no
+catalog-back-dumbbells-chest-supported-dumbbell-row,web,Chest-Supported Dumbbell Row,chest-supported-dumbbell-row,duplicate,,no
+catalog-back-dumbbells-dumbbell-high-row,web,Dumbbell High Row,dumbbell-high-row,duplicate,,no
+catalog-back-dumbbells-dumbbell-pullover,web,Dumbbell Pullover,dumbbell-pullover,duplicate,,no
+catalog-back-dumbbells-dumbbell-rear-delt-row,web,Dumbbell Rear-Delt Row,dumbbell-rear-delt-row,alias,,no
+catalog-back-dumbbells-dumbbell-seal-row,web,Dumbbell Seal Row,dumbbell-seal-row,duplicate,,no
+catalog-back-dumbbells-dumbbell-shrug,web,Dumbbell Shrug,dumbbell-shrug,duplicate,,no
+catalog-back-dumbbells-incline-dumbbell-row,web,Incline Dumbbell Row,incline-dumbbell-row,alias,,no
+catalog-back-dumbbells-one-arm-dumbbell-row,web,One-Arm Dumbbell Row,one-arm-dumbbell-row,alias,,no
+catalog-back-dumbbells-renegade-row,web,Renegade Row,renegade-row,duplicate,,no
+catalog-back-dumbbells-two-arm-dumbbell-row,web,Two-Arm Dumbbell Row,two-arm-dumbbell-row,alias,,no
+catalog-back-machine-assisted-pull-up-machine,web,Assisted Pull-Up Machine,assisted-pull-up-machine,duplicate,,no
+catalog-back-machine-chest-supported-row-machine,web,Chest-Supported Row Machine,chest-supported-row-machine,alias,,no
+catalog-back-machine-fixed-pulldown-machine,web,Fixed Pulldown Machine,fixed-pulldown-machine,alias,,no
+catalog-back-machine-front-lat-pulldown-machine,web,Front Lat Pulldown Machine,front-lat-pulldown-machine,duplicate,,no
+catalog-back-machine-high-row-machine,web,High Row Machine,high-row-machine,duplicate,,no
+catalog-back-machine-iso-lateral-row-machine,web,Iso-Lateral Row Machine,iso-lateral-row-machine,alias,,no
+catalog-back-machine-iso-lateral-underhand-row,web,Iso-Lateral Underhand Row,iso-lateral-underhand-row,duplicate,,no
+catalog-back-machine-low-row-machine,web,Low Row Machine,low-row-machine,duplicate,,no
+catalog-back-machine-machine-pullover,web,Machine Pullover,machine-pullover,alias,,no
+catalog-back-machine-machine-shrug,web,Machine Shrug,machine-shrug,duplicate,,no
+catalog-back-machine-plate-loaded-high-row,web,Plate-Loaded High Row,plate-loaded-high-row,alias,,no
+catalog-back-machine-plate-loaded-low-row,web,Plate-Loaded Low Row,plate-loaded-low-row,alias,,no
+catalog-back-machine-plate-loaded-row,web,Plate-Loaded Row,plate-loaded-row,alias,,no
+catalog-back-machine-t-bar-row-machine,web,T-Bar Row Machine,t-bar-row-machine,duplicate,,no
+catalog-back-machine-wide-pulldown-machine,web,Wide Pulldown Machine,wide-pulldown-machine,alias,,no
+catalog-calves-machine-donkey-calf-raise-machine,web,Donkey Calf Raise Machine,donkey-calf-raise-machine,alias,,no
+catalog-calves-machine-hack-squat-calf-raise,web,Hack Squat Calf Raise,hack-squat-calf-raise,alias,,no
+catalog-calves-machine-horizontal-calf-press,web,Horizontal Calf Press,horizontal-calf-press,alias,,no
+catalog-calves-machine-leg-press-calf-raise,web,Leg Press Calf Raise,leg-press-calf-raise,alias,,no
+catalog-calves-machine-seated-calf-raise-machine,web,Seated Calf Raise Machine,seated-calf-raise-machine,duplicate,,no
+catalog-calves-machine-single-leg-calf-raise-machine,web,Single-Leg Calf Raise Machine,single-leg-calf-raise-machine,alias,,no
+catalog-calves-machine-smith-machine-calf-raise,web,Smith Machine Calf Raise,smith-machine-calf-raise,duplicate,,no
+catalog-calves-machine-standing-calf-raise-machine,web,Standing Calf Raise Machine,standing-calf-raise-machine,duplicate,,no
+catalog-calves-machine-tibia-dorsi-flexion,web,Tibia Dorsi Flexion,tibia-dorsi-flexion,alias,,no
+catalog-calves-machine-tibia-raise-machine,web,Tibia Raise Machine,tibia-raise-machine,alias,,no
+catalog-chest-cable-cable-crossover,web,Cable Crossover,cable-crossover,duplicate,,no
+catalog-chest-cable-cable-pullover,web,Cable Pullover,cable-pullover,duplicate,,no
+catalog-chest-cable-cable-svend-press,web,Cable Svend Press,cable-svend-press,alias,,no
+catalog-chest-cable-high-to-low-cable-fly,web,High-to-Low Cable Fly,high-to-low-cable-fly,duplicate,,no
+catalog-chest-cable-low-to-high-cable-fly,web,Low-to-High Cable Fly,low-to-high-cable-fly,duplicate,,no
+catalog-chest-cable-lying-cable-fly,web,Lying Cable Fly,lying-cable-fly,alias,,no
+catalog-chest-cable-mid-cable-fly,web,Mid Cable Fly,mid-cable-fly,alias,,no
+catalog-chest-cable-single-arm-cable-chest-press,web,Single-Arm Cable Chest Press,single-arm-cable-chest-press,duplicate,,no
+catalog-chest-cable-single-arm-cable-fly,web,Single-Arm Cable Fly,single-arm-cable-fly,duplicate,,no
+catalog-chest-cable-standing-cable-chest-press,web,Standing Cable Chest Press,standing-cable-chest-press,duplicate,,no
+catalog-chest-dumbbells-dumbbell-around-the-world,web,Dumbbell Around the World,dumbbell-around-the-world,alias,,no
+catalog-chest-dumbbells-dumbbell-decline-press,web,Dumbbell Decline Press,dumbbell-decline-press,alias,,no
+catalog-chest-dumbbells-dumbbell-floor-press,web,Dumbbell Floor Press,dumbbell-floor-press,duplicate,,no
+catalog-chest-dumbbells-dumbbell-fly,web,Dumbbell Fly,dumbbell-fly,duplicate,,no
+catalog-chest-dumbbells-dumbbell-incline-press,web,Dumbbell Incline Press,dumbbell-incline-press,alias,,no
+catalog-chest-dumbbells-dumbbell-pullover,web,Dumbbell Pullover,dumbbell-pullover,duplicate,,no
+catalog-chest-dumbbells-dumbbell-squeeze-press,web,Dumbbell Squeeze Press,dumbbell-squeeze-press,duplicate,,no
+catalog-chest-dumbbells-incline-dumbbell-fly,web,Incline Dumbbell Fly,incline-dumbbell-fly,duplicate,,no
+catalog-chest-dumbbells-neutral-grip-dumbbell-press,web,Neutral-Grip Dumbbell Press,neutral-grip-dumbbell-press,duplicate,,no
+catalog-chest-dumbbells-single-arm-dumbbell-bench-press,web,Single-Arm Dumbbell Bench Press,single-arm-dumbbell-bench-press,duplicate,,no
+catalog-chest-machine-assisted-dip-machine,web,Assisted Dip Machine,assisted-dip-machine,duplicate,,no
+catalog-chest-machine-converging-chest-press-machine,web,Converging Chest Press Machine,converging-chest-press-machine,alias,,no
+catalog-chest-machine-decline-chest-press-machine,web,Decline Chest Press Machine,decline-chest-press-machine,duplicate,,no
+catalog-chest-machine-high-incline-chest-press-machine,web,High-Incline Chest Press Machine,high-incline-chest-press-machine,duplicate,,no
+catalog-chest-machine-horizontal-chest-press-machine,web,Horizontal Chest Press Machine,horizontal-chest-press-machine,alias,,no
+catalog-chest-machine-incline-chest-press-machine,web,Incline Chest Press Machine,incline-chest-press-machine,duplicate,,no
+catalog-chest-machine-iso-lateral-chest-press,web,Iso-Lateral Chest Press,iso-lateral-chest-press,duplicate,,no
+catalog-chest-machine-plate-loaded-chest-press,web,Plate-Loaded Chest Press,plate-loaded-chest-press,duplicate,,no
+catalog-chest-machine-plate-loaded-decline-press,web,Plate-Loaded Decline Press,plate-loaded-decline-press,alias,,no
+catalog-chest-machine-plate-loaded-incline-press,web,Plate-Loaded Incline Press,plate-loaded-incline-press,alias,,no
+catalog-chest-machine-plate-loaded-pec-fly,web,Plate-Loaded Pec Fly,plate-loaded-pec-fly,duplicate,,no
+catalog-chest-machine-wide-grip-chest-press-machine,web,Wide-Grip Chest Press Machine,wide-grip-chest-press-machine,duplicate,,no
+catalog-core-cable-cable-anti-rotation-hold,web,Cable Anti-Rotation Hold,cable-anti-rotation-hold,alias,,no
+catalog-core-cable-cable-lift,web,Cable Lift,cable-lift,alias,,no
+catalog-core-cable-cable-pallof-press,web,Cable Pallof Press,cable-pallof-press,alias,,no
+catalog-core-cable-cable-reverse-crunch,web,Cable Reverse Crunch,cable-reverse-crunch,alias,,no
+catalog-core-cable-cable-rotation,web,Cable Rotation,cable-rotation,alias,,no
+catalog-core-cable-cable-side-bend,web,Cable Side Bend,cable-side-bend,alias,,no
+catalog-core-cable-cable-wood-chop,web,Cable Wood Chop,cable-wood-chop,duplicate,,no
+catalog-core-cable-half-kneeling-pallof-press,web,Half-Kneeling Pallof Press,half-kneeling-pallof-press,alias,,no
+catalog-core-cable-kneeling-rope-crunch,web,Kneeling Rope Crunch,kneeling-rope-crunch,alias,,no
+catalog-core-cable-standing-cable-crunch,web,Standing Cable Crunch,standing-cable-crunch,alias,,no
+catalog-core-machine-ab-coaster,web,Ab Coaster,ab-coaster,alias,,no
+catalog-core-machine-abdominal-crunch-machine,web,Abdominal Crunch Machine,abdominal-crunch-machine,duplicate,,no
+catalog-core-machine-back-extension-machine,web,Back Extension Machine,back-extension-machine,duplicate,,no
+catalog-core-machine-captain-s-chair-leg-raise,web,Captain's Chair Leg Raise,captain-s-chair-leg-raise,alias,,no
+catalog-core-machine-combo-twist-machine,web,Combo Twist Machine,combo-twist-machine,alias,,no
+catalog-core-machine-decline-ab-crunch-machine,web,Decline Ab Crunch Machine,decline-ab-crunch-machine,alias,,no
+catalog-core-machine-ground-base-rotational-twist,web,Ground-Base Rotational Twist,ground-base-rotational-twist,duplicate,,no
+catalog-core-machine-hanging-knee-raise-station,web,Hanging Knee Raise Station,hanging-knee-raise-station,alias,,no
+catalog-core-machine-rotary-torso-machine,web,Rotary Torso Machine,rotary-torso-machine,duplicate,,no
+catalog-core-machine-torso-rotation-machine,web,Torso Rotation Machine,torso-rotation-machine,alias,,no
+catalog-full-body-bodyweight-bear-crawl,web,Bear Crawl,bear-crawl,alias,,no
+catalog-full-body-bodyweight-burpee,web,Burpee,burpee,alias,,no
+catalog-full-body-bodyweight-chin-up,web,Chin-Up,chin-up,alias,,no
+catalog-full-body-bodyweight-inchworm,web,Inchworm,inchworm,alias,,no
+catalog-full-body-bodyweight-jump-squat,web,Jump Squat,jump-squat,alias,,no
+catalog-full-body-bodyweight-mountain-climber,web,Mountain Climber,mountain-climber,alias,,no
+catalog-full-body-bodyweight-muscle-up,web,Muscle-Up,muscle-up,alias,,no
+catalog-full-body-bodyweight-pike-push-up,web,Pike Push-Up,pike-push-up,alias,,no
+catalog-full-body-bodyweight-push-up,web,Push-Up,push-up,alias,,no
+catalog-full-body-bodyweight-walking-lunge,web,Walking Lunge,walking-lunge,alias,,no
+catalog-full-body-dumbbells-dumbbell-burpee,web,Dumbbell Burpee,dumbbell-burpee,alias,,no
+catalog-full-body-dumbbells-dumbbell-clean,web,Dumbbell Clean,dumbbell-clean,alias,,no
+catalog-full-body-dumbbells-dumbbell-clean-and-press,web,Dumbbell Clean and Press,dumbbell-clean-and-press,alias,,no
+catalog-full-body-dumbbells-dumbbell-devil-press,web,Dumbbell Devil Press,dumbbell-devil-press,alias,,no
+catalog-full-body-dumbbells-dumbbell-farmer-carry,web,Dumbbell Farmer Carry,dumbbell-farmer-carry,alias,,no
+catalog-full-body-dumbbells-dumbbell-man-maker,web,Dumbbell Man Maker,dumbbell-man-maker,alias,,no
+catalog-full-body-dumbbells-dumbbell-snatch,web,Dumbbell Snatch,dumbbell-snatch,alias,,no
+catalog-full-body-dumbbells-dumbbell-suitcase-carry,web,Dumbbell Suitcase Carry,dumbbell-suitcase-carry,alias,,no
+catalog-full-body-dumbbells-dumbbell-thruster,web,Dumbbell Thruster,dumbbell-thruster,duplicate,,no
+catalog-full-body-dumbbells-dumbbell-turkish-get-up,web,Dumbbell Turkish Get-Up,dumbbell-turkish-get-up,alias,,no
+catalog-glutes-machine-cable-glute-kickback,web,Cable Glute Kickback,cable-glute-kickback,alias,,no
+catalog-glutes-machine-cable-hip-abduction,web,Cable Hip Abduction,cable-hip-abduction,duplicate,,no
+catalog-glutes-machine-cable-hip-adduction,web,Cable Hip Adduction,cable-hip-adduction,duplicate,,no
+catalog-glutes-machine-glute-drive-machine,web,Glute Drive Machine,glute-drive-machine,duplicate,,no
+catalog-glutes-machine-hip-abduction-machine,web,Hip Abduction Machine,hip-abduction-machine,alias,,no
+catalog-glutes-machine-hip-adduction-machine,web,Hip Adduction Machine,hip-adduction-machine,alias,,no
+catalog-glutes-machine-hip-thrust-machine,web,Hip Thrust Machine,hip-thrust-machine,alias,,no
+catalog-glutes-machine-kneeling-glute-kickback-machine,web,Kneeling Glute Kickback Machine,kneeling-glute-kickback-machine,alias,,no
+catalog-glutes-machine-multi-hip-machine,web,Multi-Hip Machine,multi-hip-machine,alias,,no
+catalog-glutes-machine-reverse-hyper-machine,web,Reverse Hyper Machine,reverse-hyper-machine,alias,,no
+catalog-glutes-machine-smith-machine-hip-thrust,web,Smith Machine Hip Thrust,smith-machine-hip-thrust,duplicate,,no
+catalog-glutes-machine-standing-glute-kickback-machine,web,Standing Glute Kickback Machine,standing-glute-kickback-machine,duplicate,,no
+catalog-hamstrings-dumbbells-dumbbell-good-morning,web,Dumbbell Good Morning,dumbbell-good-morning,alias,,no
+catalog-hamstrings-dumbbells-dumbbell-hamstring-curl,web,Dumbbell Hamstring Curl,dumbbell-hamstring-curl,alias,,no
+catalog-hamstrings-dumbbells-dumbbell-nordic-curl,web,Dumbbell Nordic Curl,dumbbell-nordic-curl,alias,,no
+catalog-hamstrings-dumbbells-dumbbell-romanian-deadlift,web,Dumbbell Romanian Deadlift,dumbbell-romanian-deadlift,duplicate,,no
+catalog-hamstrings-dumbbells-dumbbell-stiff-leg-deadlift,web,Dumbbell Stiff-Leg Deadlift,dumbbell-stiff-leg-deadlift,duplicate,,no
+catalog-hamstrings-dumbbells-dumbbell-sumo-deadlift,web,Dumbbell Sumo Deadlift,dumbbell-sumo-deadlift,alias,,no
+catalog-hamstrings-dumbbells-dumbbell-swing,web,Dumbbell Swing,dumbbell-swing,alias,,no
+catalog-hamstrings-dumbbells-single-leg-dumbbell-romanian-deadlift,web,Single-Leg Dumbbell Romanian Deadlift,single-leg-dumbbell-romanian-deadlift,duplicate,,no
+catalog-hamstrings-machine-back-extension-machine,web,Back Extension Machine,back-extension-machine,duplicate,,no
+catalog-hamstrings-machine-cable-pull-through,web,Cable Pull-Through,cable-pull-through,duplicate,,no
+catalog-hamstrings-machine-glute-ham-raise,web,Glute-Ham Raise,glute-ham-raise,alias,,no
+catalog-hamstrings-machine-iso-lateral-leg-curl,web,Iso-Lateral Leg Curl,iso-lateral-leg-curl,duplicate,,no
+catalog-hamstrings-machine-nordic-curl-machine,web,Nordic Curl Machine,nordic-curl-machine,duplicate,,no
+catalog-hamstrings-machine-reverse-hyperextension,web,Reverse Hyperextension,reverse-hyperextension,alias,,no
+catalog-hamstrings-machine-seated-leg-curl,web,Seated Leg Curl,seated-leg-curl,duplicate,,no
+catalog-hamstrings-machine-single-leg-curl,web,Single-Leg Curl,single-leg-curl,alias,,no
+catalog-hamstrings-machine-smith-machine-romanian-deadlift,web,Smith Machine Romanian Deadlift,smith-machine-romanian-deadlift,duplicate,,no
+catalog-hamstrings-machine-standing-leg-curl,web,Standing Leg Curl,standing-leg-curl,alias,,no
+catalog-quads-dumbbells-bulgarian-split-squat,web,Bulgarian Split Squat,bulgarian-split-squat,duplicate,,no
+catalog-quads-dumbbells-dumbbell-cyclist-squat,web,Dumbbell Cyclist Squat,dumbbell-cyclist-squat,alias,,no
+catalog-quads-dumbbells-dumbbell-front-squat,web,Dumbbell Front Squat,dumbbell-front-squat,duplicate,,no
+catalog-quads-dumbbells-dumbbell-lateral-lunge,web,Dumbbell Lateral Lunge,dumbbell-lateral-lunge,alias,,no
+catalog-quads-dumbbells-dumbbell-reverse-lunge,web,Dumbbell Reverse Lunge,dumbbell-reverse-lunge,duplicate,,no
+catalog-quads-dumbbells-dumbbell-sissy-squat,web,Dumbbell Sissy Squat,dumbbell-sissy-squat,alias,,no
+catalog-quads-dumbbells-dumbbell-split-squat,web,Dumbbell Split Squat,dumbbell-split-squat,alias,,no
+catalog-quads-dumbbells-dumbbell-step-up,web,Dumbbell Step-Up,dumbbell-step-up,duplicate,,no
+catalog-quads-dumbbells-dumbbell-walking-lunge,web,Dumbbell Walking Lunge,dumbbell-walking-lunge,duplicate,,no
+catalog-quads-dumbbells-goblet-squat,web,Goblet Squat,goblet-squat,alias,,no
+catalog-quads-machine-45-degree-linear-leg-press,web,45-Degree Linear Leg Press,45-degree-linear-leg-press,duplicate,,no
+catalog-quads-machine-belt-squat-machine,web,Belt Squat Machine,belt-squat-machine,duplicate,,no
+catalog-quads-machine-ground-base-squat,web,Ground-Base Squat,ground-base-squat,duplicate,,no
+catalog-quads-machine-horizontal-leg-press,web,Horizontal Leg Press,horizontal-leg-press,duplicate,,no
+catalog-quads-machine-iso-lateral-leg-press,web,Iso-Lateral Leg Press,iso-lateral-leg-press,duplicate,,no
+catalog-quads-machine-leverage-squat-machine,web,Leverage Squat Machine,leverage-squat-machine,alias,,no
+catalog-quads-machine-pendulum-squat,web,Pendulum Squat,pendulum-squat,duplicate,,no
+catalog-quads-machine-power-squat-machine,web,Power Squat Machine,power-squat-machine,alias,,no
+catalog-quads-machine-reverse-hack-squat,web,Reverse Hack Squat,reverse-hack-squat,alias,,no
+catalog-quads-machine-single-leg-press,web,Single-Leg Press,single-leg-press,alias,,no
+catalog-quads-machine-sissy-squat-machine,web,Sissy Squat Machine,sissy-squat-machine,duplicate,,no
+catalog-quads-machine-smith-machine-lunge,web,Smith Machine Lunge,smith-machine-lunge,alias,,no
+catalog-quads-machine-smith-machine-split-squat,web,Smith Machine Split Squat,smith-machine-split-squat,duplicate,,no
+catalog-quads-machine-smith-machine-squat,web,Smith Machine Squat,smith-machine-squat,alias,,no
+catalog-quads-machine-v-squat,web,V-Squat,v-squat,alias,,no
+catalog-shoulders-cable-behind-the-back-cable-lateral-raise,web,Behind-the-Back Cable Lateral Raise,behind-the-back-cable-lateral-raise,alias,,no
+catalog-shoulders-cable-cable-cuban-press,web,Cable Cuban Press,cable-cuban-press,alias,,no
+catalog-shoulders-cable-cable-external-rotation,web,Cable External Rotation,cable-external-rotation,duplicate,,no
+catalog-shoulders-cable-cable-front-raise,web,Cable Front Raise,cable-front-raise,duplicate,,no
+catalog-shoulders-cable-cable-internal-rotation,web,Cable Internal Rotation,cable-internal-rotation,duplicate,,no
+catalog-shoulders-cable-cable-rear-delt-fly,web,Cable Rear-Delt Fly,cable-rear-delt-fly,alias,,no
+catalog-shoulders-cable-cable-shoulder-press,web,Cable Shoulder Press,cable-shoulder-press,duplicate,,no
+catalog-shoulders-cable-cable-upright-row,web,Cable Upright Row,cable-upright-row,duplicate,,no
+catalog-shoulders-cable-cable-y-raise,web,Cable Y-Raise,cable-y-raise,alias,,no
+catalog-shoulders-cable-single-arm-cable-lateral-raise,web,Single-Arm Cable Lateral Raise,single-arm-cable-lateral-raise,alias,,no
+catalog-shoulders-dumbbells-arnold-press,web,Arnold Press,arnold-press,duplicate,,no
+catalog-shoulders-dumbbells-dumbbell-cuban-press,web,Dumbbell Cuban Press,dumbbell-cuban-press,duplicate,,no
+catalog-shoulders-dumbbells-dumbbell-front-raise,web,Dumbbell Front Raise,dumbbell-front-raise,duplicate,,no
+catalog-shoulders-dumbbells-dumbbell-rear-delt-fly,web,Dumbbell Rear-Delt Fly,dumbbell-rear-delt-fly,alias,,no
+catalog-shoulders-dumbbells-dumbbell-scaption,web,Dumbbell Scaption,dumbbell-scaption,alias,,no
+catalog-shoulders-dumbbells-dumbbell-upright-row,web,Dumbbell Upright Row,dumbbell-upright-row,duplicate,,no
+catalog-shoulders-dumbbells-dumbbell-y-raise,web,Dumbbell Y-Raise,dumbbell-y-raise,alias,,no
+catalog-shoulders-dumbbells-incline-rear-delt-fly,web,Incline Rear-Delt Fly,incline-rear-delt-fly,alias,,no
+catalog-shoulders-dumbbells-seated-dumbbell-shoulder-press,web,Seated Dumbbell Shoulder Press,seated-dumbbell-shoulder-press,alias,,no
+catalog-shoulders-dumbbells-single-arm-dumbbell-press,web,Single-Arm Dumbbell Press,single-arm-dumbbell-press,alias,,no
+catalog-shoulders-machine-iso-lateral-shoulder-press,web,Iso-Lateral Shoulder Press,iso-lateral-shoulder-press,alias,,no
+catalog-shoulders-machine-lateral-raise-machine,web,Lateral Raise Machine,lateral-raise-machine,duplicate,,no
+catalog-shoulders-machine-machine-front-raise,web,Machine Front Raise,machine-front-raise,alias,,no
+catalog-shoulders-machine-machine-upright-row,web,Machine Upright Row,machine-upright-row,alias,,no
+catalog-shoulders-machine-plate-loaded-shoulder-press,web,Plate-Loaded Shoulder Press,plate-loaded-shoulder-press,alias,,no
+catalog-shoulders-machine-rear-deltoid-fly-machine,web,Rear Deltoid Fly Machine,rear-deltoid-fly-machine,alias,,no
+catalog-shoulders-machine-reverse-pec-deck,web,Reverse Pec Deck,reverse-pec-deck,duplicate,,no
+catalog-shoulders-machine-rotator-cuff-machine,web,Rotator Cuff Machine,rotator-cuff-machine,alias,,no
+catalog-shoulders-machine-shoulder-press-machine,web,Shoulder Press Machine,shoulder-press-machine,alias,,no
+catalog-shoulders-machine-standing-lateral-raise-machine,web,Standing Lateral Raise Machine,standing-lateral-raise-machine,alias,,no
+db-bench,web,Dumbbell Bench Press,dumbbell-bench-press,alias,,yes
+db-curl,web,Dumbbell Curl,dumbbell-curl,alias,,yes
+deadlift,web,Conventional Deadlift,conventional-deadlift,duplicate,deadlift,yes
+dip,web,Dip,dip,exact,,yes
+face-pull,web,Cable Face Pull,cable-face-pull,duplicate,,yes
+front-squat,web,Front Squat,front-squat,exact,,yes
+group-general-strength,web,group-powerlifting,group-powerlifting,alias,,no
+hack-squat,web,Hack Squat,hack-squat,exact,,yes
+hip-thrust,web,Barbell Hip Thrust,barbell-hip-thrust,alias,,yes
+incline-bench,web,Incline Bench Press,incline-barbell-bench-press,alias,,yes
+lat-pulldown,web,Lat Pulldown,lat-pulldown,exact,,yes
+lateral-raise,web,Dumbbell Lateral Raise,dumbbell-lateral-raise,alias,,yes
+leg-curl,web,Lying Leg Curl,lying-leg-curl,duplicate,,yes
+leg-extension,web,Leg Extension,leg-extension,exact,,yes
+leg-press,web,Leg Press,leg-press,exact,,yes
+machine-chest,web,Machine Chest Press,machine-chest-press,duplicate,,yes
+ohp,web,Overhead Press,standing-barbell-overhead-press,alias,overhead_press,yes
+p-bench-2,web,session-push-2,session-push-2,alias,,no
+p-pull-2,web,session-pull-2,session-pull-2,alias,,no
+p-squat-2,web,session-legs-2,session-legs-2,alias,,no
+pec-deck,web,Pec Deck,pec-deck,exact,,yes
+plank,web,Plank,plank,exact,,yes
+pull-up,web,Pull-Up,pull-up,exact,,yes
+rdl,web,Romanian Deadlift,romanian-deadlift,duplicate,,yes
+seated-row,web,Seated Cable Row,seated-cable-row,duplicate,,yes
+tricep-pushdown,web,Tricep Pushdown,triceps-pushdown,alias,,yes

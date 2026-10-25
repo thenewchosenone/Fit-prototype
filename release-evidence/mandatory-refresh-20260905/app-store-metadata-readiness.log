@@ -1,0 +1,3 @@
+[PASS] App Store metadata contains no placeholders.
+[PASS] Profile-avatar migration and pgTAP contract are present.
+Launch metadata gate passed.
