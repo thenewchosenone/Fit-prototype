@@ -237,7 +237,7 @@ enum RankingCalculator {
         }
 
         let grouped = Dictionary(grouping: eligibleLifts, by: \.userID)
-        let candidates: [(lift: LiftSubmission, score: Double, breakdown: PowerliftingBreakdown?)] = grouped.compactMap { userID, userLifts in
+        let candidates: [(lift: LiftSubmission, score: Double, breakdown: PowerliftingBreakdown?)] = grouped.compactMap { userID, userLifts -> (lift: LiftSubmission, score: Double, breakdown: PowerliftingBreakdown?)? in
             if exerciseID == nil && (rankingType == .total || rankingType == .relativeTotal) {
                 let breakdown = powerliftingBreakdown(for: userID, lifts: userLifts)
                 guard breakdown.squatKilograms != nil,
@@ -265,9 +265,9 @@ enum RankingCalculator {
                 score(for: $0, rankingType: rankingType, allLifts: userLifts) <
                 score(for: $1, rankingType: rankingType, allLifts: userLifts)
             }) else { return nil }
-            let score = score(for: representative, rankingType: rankingType, allLifts: userLifts)
-            guard rankingType != .mostImproved || score > 0 else { return nil }
-            return (representative, score, nil)
+            let candidateScore = Self.score(for: representative, rankingType: rankingType, allLifts: userLifts)
+            guard rankingType != .mostImproved || candidateScore > 0 else { return nil }
+            return (representative, candidateScore, nil)
         }
 
         let profileByID = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
