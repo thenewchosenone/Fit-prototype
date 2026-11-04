@@ -153,6 +153,9 @@ owner-only, gitignored `.env.staging-auth` and the branch-restricted GitHub envi
 The first live API run (`8e261fc4-4412-438f-a543-bfe90ff31e88`) passed all checks and
 verified deletion of both disposable accounts. GitHub activation uses a dedicated
 branch because `main` still contains an older web app without the Auth dependency.
+The first [GitHub Actions run](https://github.com/thenewchosenone/Fit-prototype/actions/runs/41764623275)
+also passed all 10 guard tests, 7 mocked web tests, and the live staging suite,
+including verified deletion of both disposable accounts.
 
 ## 5) Remaining/remaining blockers (to be filled before publish)
 
