@@ -86,6 +86,74 @@ All gate output writes to `release-evidence/<RUN_ID>/`:
 - `LIFTRANK_RELEASE_RUN_ID` (optional identifier)
 - `LIFTRANK_RELEASE_COMMAND_TIMEOUT` (command timeout control)
 
+### Disposable staging authentication tests
+
+`pnpm test:staging-auth` runs server-side SDK integration checks against the Debug
+project only: `dfpvamnucwyafxklnjwt`. The runner rejects every other URL, including
+production, before creating a client. No migrations or Auth settings are changed.
+Use Node 24 and the existing locked dependencies (`pnpm install --frozen-lockfile`).
+
+Configure these values in a gitignored `.env.staging-auth` file, with file permissions
+restricted to the owner (`chmod 600 .env.staging-auth`). Obtain both keys from this
+staging project; do not paste secrets into chat, pass them as command-line arguments,
+prefix the server key with `VITE_`, or include them in a browser/iOS build:
+
+```dotenv
+STAGING_AUTH_URL=https://dfpvamnucwyafxklnjwt.supabase.co
+STAGING_AUTH_PUBLIC_KEY=<staging publishable or anon key>
+STAGING_AUTH_SERVER_KEY=<staging secret or service-role key>
+```
+
+```sh
+pnpm test:staging-auth:guards       # Local safety/cleanup tests; no credentials needed
+pnpm test:staging-auth --check      # Validate configuration without network requests
+pnpm test:staging-auth             # Create, exercise, and delete disposable accounts
+pnpm test:staging-auth --cleanup-stale
+```
+
+Each live run creates two confirmed accounts at reserved `example.test` addresses,
+with random passwords kept only in memory and server-owned suite/run markers in
+`app_metadata`. It checks unauthenticated password-update rejection, sign-in,
+incorrect passwords, session refresh, a generated recovery token and
+`PASSWORD_RECOVERY` event, weak-password rejection, password update, token reuse,
+old/new password behavior, session restoration into a fresh SDK client, and a second
+account remaining unchanged after invalid recovery. Admin privileges are used only
+for fixtures, token generation, and cleanup; user operations use the public key.
+
+Cleanup runs after success or failure, rechecks the server-owned marker and exact
+test email before each deletion, and confirms account absence. A cleanup failure
+fails the run and prints only the affected account ID. The next run (or
+`--cleanup-stale`) removes only matching suite accounts older than 24 hours, covering
+process termination or a lost account-creation response. Recent test accounts and
+all unmarked accounts are preserved. Tests do not upload media or create workouts.
+
+These are **API recovery tests**, not email-delivery, public signup, actual expired-link,
+PKCE redirect, web-form, iOS callback, keychain, or physical-device acceptance tests.
+Supabase's [admin link generator](https://supabase.com/docs/reference/javascript/auth-admin-generatelink)
+supplies a token without sending mail. Wrong and reused tokens are checked, but the
+runner does not wait an hour for expiry or weaken the expiry policy. The existing
+`tests/authRecovery.test.tsx` covers web-form behavior with a mocked SDK. Actual
+email/PKCE acceptance still needs a controlled test inbox; the runner does not claim
+to test email delivery. Staging's schema/settings may also differ from production.
+
+For GitHub execution, configure the `staging-auth` environment with
+`STAGING_AUTH_PUBLIC_KEY` and `STAGING_AUTH_SERVER_KEY` secrets, restricted to the
+trusted `main` and `codex/staging-auth` branches. `.github/workflows/staging-auth.yml`
+runs the guard tests, mocked web recovery tests, and this live suite after relevant
+pushes to either branch. Manual dispatch becomes available after the workflow reaches
+the default branch. It does not run on pull requests or a timer, publish the
+app, or expose the server key to dependency installation. It must be committed and
+pushed, and the secrets configured, before GitHub can run it. Local checks need no
+new dependencies.
+
+November 3 setup verification: 10 local runner guard/cleanup tests and the 7 existing
+mocked web recovery tests passed. Runner syntax, workflow YAML, and whitespace checks
+passed. After explicit owner authorization, existing staging keys were stored in
+owner-only, gitignored `.env.staging-auth` and the branch-restricted GitHub environment.
+The first live API run (`8e261fc4-4412-438f-a543-bfe90ff31e88`) passed all checks and
+verified deletion of both disposable accounts. GitHub activation uses a dedicated
+branch because `main` still contains an older web app without the Auth dependency.
+
 ## 5) Remaining/remaining blockers (to be filled before publish)
 
 - **Service gate outcome checklist**
