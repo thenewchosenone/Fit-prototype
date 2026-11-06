@@ -3,6 +3,7 @@ import Foundation
 @MainActor
 final class ForumStore {
     private var service: any ForumService
+    var replyDrafts: [UUID: [UUID: (body: String, parentID: UUID?)]] = [:]
 
     init(service: any ForumService) {
         self.service = service
@@ -41,19 +42,31 @@ final class ForumStore {
     }
 
     func createPost(_ draft: ForumPostDraft) async throws -> ForumPost {
-        try await service.createPost(draft)
+        guard !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !draft.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              draft.title.count <= 180, draft.body.count <= 10000 else {
+            throw LiftRankServiceError.invalidInput("Use a title up to 180 characters and a discussion up to 10,000 characters.")
+        }
+        return try await service.createPost(draft)
+    }
+
+    func mediaURL(for attachment: ForumAttachment) async throws -> URL {
+        try await service.mediaURL(for: attachment)
     }
 
     func createComment(postID: UUID, body: String, parentCommentID: UUID?) async throws -> ForumComment {
-        try await service.createComment(postID: postID, body: body, parentCommentID: parentCommentID)
+        guard !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && body.count <= 5000 else { throw LiftRankServiceError.invalidInput("Text is empty or exceeds the character limit.") }
+        return try await service.createComment(postID: postID, body: body, parentCommentID: parentCommentID)
     }
 
     func updatePost(postID: UUID, title: String, body: String) async throws -> ForumPost {
-        try await service.updatePost(postID: postID, title: title, body: body)
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && title.count <= 180 && !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && body.count <= 10000 else { throw LiftRankServiceError.invalidInput("Text is empty or exceeds the character limit.") }
+        return try await service.updatePost(postID: postID, title: title, body: body)
     }
 
     func updateComment(commentID: UUID, body: String) async throws -> ForumComment {
-        try await service.updateComment(commentID: commentID, body: body)
+        guard !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && body.count <= 5000 else { throw LiftRankServiceError.invalidInput("Text is empty or exceeds the character limit.") }
+        return try await service.updateComment(commentID: commentID, body: body)
     }
 
     func deletePost(postID: UUID) async throws {
@@ -64,8 +77,16 @@ final class ForumStore {
         try await service.deleteComment(commentID: commentID)
     }
 
-    func vote(postID: UUID, value: Int?) async throws {
-        try await service.vote(postID: postID, value: value)
+    func toggleVote(on post: ForumPost, direction: Int) async throws -> ForumPost {
+        guard direction == 1 || direction == -1 else {
+            throw LiftRankServiceError.invalidInput("Choose an upvote or downvote.")
+        }
+        let nextValue: Int? = post.currentUserVote == direction ? nil : direction
+        try await service.vote(postID: post.id, value: nextValue)
+        var updated = post
+        updated.voteCount += (nextValue ?? 0) - (post.currentUserVote ?? 0)
+        updated.currentUserVote = nextValue
+        return updated
     }
 
     func vote(commentID: UUID, value: Int?) async throws {

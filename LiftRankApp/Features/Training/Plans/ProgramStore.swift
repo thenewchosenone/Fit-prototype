@@ -206,7 +206,7 @@ final class ProgramStore {
     }
 
     @discardableResult
-    func setQueue(planID: UUID, enabled: Bool, sessionIDs: [UUID]? = nil) -> Bool {
+    func setQueue(planID: UUID, enabled: Bool, sessionIDs: [UUID]? = nil, allowsAnyOrder: Bool = false) -> Bool {
         let current = plan(id: planID)?.queuedSessionIDs ?? []
         let available = weeks(planID: planID).flatMap { sessions(week: $0) }.map(\.id)
         let resolved: [UUID]
@@ -218,13 +218,21 @@ final class ProgramStore {
         } else {
             resolved = current
         }
-        return repository.updateWorkoutQueue(planID: planID, enabled: enabled, sessionIDs: resolved)
+        return repository.updateWorkoutQueue(planID: planID, enabled: enabled, sessionIDs: resolved, allowsAnyOrder: allowsAnyOrder)
     }
 
     @discardableResult
     func reorderQueue(planID: UUID, sessionIDs: [UUID]) -> Bool {
         guard let plan = plan(id: planID), plan.queueEnabled else { return false }
-        return repository.updateWorkoutQueue(planID: planID, enabled: true, sessionIDs: sessionIDs)
+        return repository.updateWorkoutQueue(planID: planID, enabled: true, sessionIDs: sessionIDs, allowsAnyOrder: plan.allowsAnyOrder)
+    }
+
+    func availableFlexibleSessions(planID: UUID, completedWorkouts: [CompletedWorkout]) -> [WorkoutSession] {
+        guard plan(id: planID)?.scheduleMode == .flexible else { return [] }
+        let completedIDs = Set(completedWorkouts.compactMap(\.sourceSessionID))
+        return weeks(planID: planID).flatMap { sessions(week: $0) }.filter {
+            $0.outcome == nil && !completedIDs.contains($0.id) && !prescriptions(session: $0).isEmpty
+        }
     }
 
     func nextQueuedSession(planID: UUID, completedWorkouts: [CompletedWorkout]) -> WorkoutSession? {
@@ -236,6 +244,20 @@ final class ProgramStore {
 
     func prescriptions(session: WorkoutSession) -> [WorkoutExercisePrescription] {
         repository.resolvedWorkoutPrescriptions(sessionID: session.id, at: now())
+    }
+
+    func nextPrescription(after workout: CompletedWorkout, exercise: WorkoutExerciseSnapshot, completedWorkouts: [CompletedWorkout]) -> WorkoutExercisePrescription? {
+        guard let planID = workout.sourcePlanID, let sessionID = workout.sourceSessionID else { return nil }
+        let ordered = queueEnabled(planID: planID) ? queuedSessions(planID: planID)
+            : weeks(planID: planID).flatMap { sessions(week: $0) }
+        guard let index = ordered.firstIndex(where: { $0.id == sessionID }) else { return nil }
+        let completed = Set(completedWorkouts.compactMap(\.sourceSessionID))
+        for session in ordered.dropFirst(index + 1) where session.outcome == nil && !completed.contains(session.id) {
+            if let prescription = prescriptions(session: session).first(where: {
+                $0.exerciseID == exercise.exerciseID && $0.reps == exercise.targetReps
+            }) { return prescription }
+        }
+        return nil
     }
 
     func weekPresentation(
@@ -287,7 +309,7 @@ final class ProgramStore {
     }
 
     @discardableResult
-    func createPlan(name: String) -> WorkoutPlan? {
+    func createPlan(name: String, isActive: Bool = true, startDate: Date? = nil, schedule: WorkoutScheduleMode = .weekdays) -> WorkoutPlan? {
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanName.isEmpty else { return nil }
         let plan = WorkoutPlan(
@@ -296,10 +318,242 @@ final class ProgramStore {
             createdAt: now(),
             goal: "Build strength and muscle",
             notes: "",
-            isActive: true
+            isActive: isActive,
+            queueEnabled: schedule != .weekdays,
+            allowsAnyOrder: schedule == .flexible
         )
         repository.addWorkoutPlan(plan)
+        if let startDate {
+            for week in weeks(planID: plan.id) {
+                for session in sessions(week: week) { repository.deleteWorkoutSession(session) }
+            }
+            repository.workoutPlanProgressionSettings.append(WorkoutPlanProgressionSettings(
+                planID: plan.id, sourceTemplateID: "custom", sourceTemplateVersion: 1,
+                startedAt: Calendar.current.startOfDay(for: startDate), scheduledWeekdays: [],
+                method: .fixed, preferredUnit: .kilograms,
+                trainingMaxKilograms: [:]
+            ))
+        }
         return plan
+    }
+
+    static func importedSetCount(for exercise: WorkoutExerciseSnapshot, in workout: CompletedWorkout) -> Int {
+        let count = Set(workout.completedWorkingSets
+            .filter { $0.prescriptionID == exercise.id }.map(\.setNumber)).count
+        return max(1, count > 0 ? count : exercise.targetSets)
+    }
+
+    static func importedLoadKilograms(for exercise: WorkoutExerciseSnapshot, in workout: CompletedWorkout) -> Double? {
+        if let latestSet = workout.completedWorkingSets
+            .filter({ $0.prescriptionID == exercise.id && $0.weight.map { $0.isFinite && $0 >= 0 } == true })
+            .max(by: { $0.performedAt < $1.performedAt }), let weight = latestSet.weight {
+            return MeasurementFormatting.normalizeToKilograms(weight, unit: latestSet.recordedUnit)
+        }
+        return exercise.targetLoadKilograms
+    }
+
+    @discardableResult
+    func createPlanFromHistory(
+        name: String,
+        assignments: [(workout: CompletedWorkout, weekday: Int)],
+        durationWeeks: Int,
+        startDate: Date,
+        preferredUnit: UnitSystem,
+        schedule: WorkoutScheduleMode = .weekdays
+    ) -> WorkoutPlan? {
+        let weekdays = assignments.map(\.weekday)
+        guard (1...52).contains(durationWeeks),
+              !assignments.isEmpty,
+              Set(weekdays).count == weekdays.count,
+              weekdays.allSatisfy({ (1...7).contains($0) }),
+              let plan = createPlan(name: name, isActive: false, schedule: schedule) else { return nil }
+
+        let settings = WorkoutPlanProgressionSettings(
+            planID: plan.id,
+            sourceTemplateID: "custom-history",
+            sourceTemplateVersion: 1,
+            startedAt: Calendar.current.startOfDay(for: startDate),
+            scheduledWeekdays: weekdays.sorted(),
+            method: .fixed,
+            preferredUnit: preferredUnit,
+            trainingMaxKilograms: [:]
+        )
+        repository.workoutPlanProgressionSettings.append(settings)
+
+        guard let firstWeek = repository.workoutWeeks.first(where: { $0.planID == plan.id }) else {
+            repository.deleteWorkoutPlan(plan)
+            return nil
+        }
+        if let scaffoldSession = repository.workoutSessions.first(where: { $0.weekID == firstWeek.id }) {
+            repository.deleteWorkoutSession(scaffoldSession)
+        }
+
+        for weekNumber in 1...durationWeeks {
+            let week = weekNumber == 1
+                ? firstWeek
+                : repository.addWorkoutWeek(planID: plan.id, phaseID: firstWeek.phaseID, title: "Week \(weekNumber)")
+            if weekNumber == 1,
+               var phase = repository.workoutPhases.first(where: { $0.planID == plan.id }) {
+                phase.durationWeeks = durationWeeks
+                phase.goal = "Repeat the selected workout prescriptions as written."
+                repository.updateWorkoutPhase(phase)
+            }
+
+            for assignment in assignments.sorted(by: { $0.weekday < $1.weekday }) {
+                let session = repository.addWorkoutSession(
+                    weekID: week.id,
+                    day: Calendar.current.weekdayName(for: assignment.weekday),
+                    name: assignment.workout.name
+                )
+                let orderedExercises = assignment.workout.exercises.sorted { $0.order < $1.order }
+                for (exerciseOrder, exercise) in orderedExercises.enumerated() {
+                    _ = repository.addWorkoutPrescription(WorkoutExercisePrescription(
+                        id: makeID(),
+                        sessionID: session.id,
+                        exerciseID: exercise.exerciseID,
+                        exerciseName: exercise.exerciseName,
+                        bodyPart: exercise.bodyPart,
+                        equipment: exercise.equipment,
+                        sets: Self.importedSetCount(for: exercise, in: assignment.workout),
+                        reps: exercise.targetReps,
+                        restSeconds: exercise.restSeconds,
+                        order: exerciseOrder,
+                        notes: exercise.notes,
+                        substitutionExerciseIDs: exercise.substitutionExerciseIDs,
+                        muscleProfile: exercise.muscleProfile,
+                        targetRIR: exercise.targetRIR,
+                        trainingMaxPercentage: exercise.trainingMaxPercentage,
+                        targetLoadKilograms: Self.importedLoadKilograms(for: exercise, in: assignment.workout),
+                        supersetGroup: exercise.supersetGroup,
+                        supersetRestSeconds: exercise.supersetRestSeconds
+                    ))
+                }
+            }
+        }
+        if schedule != .weekdays {
+            _ = setQueue(planID: plan.id, enabled: true, allowsAnyOrder: schedule == .flexible)
+        }
+        return self.plan(id: plan.id)
+    }
+
+    func shareablePlanText(planID: UUID) -> String? {
+        guard let plan = plan(id: planID) else { return nil }
+        let phaseIDs = Set(repository.workoutPhases.filter { $0.planID == planID }.map(\.id))
+        let weeks = repository.workoutWeeks.filter { $0.planID == planID }
+        let weekIDs = Set(weeks.map(\.id))
+        let sessions = repository.workoutSessions.filter { weekIDs.contains($0.weekID) }
+        let sessionIDs = Set(sessions.map(\.id))
+        let payload = WorkoutPlanSyncPayload(
+            plan: plan,
+            phases: repository.workoutPhases.filter { phaseIDs.contains($0.id) },
+            weeks: weeks,
+            sessions: sessions,
+            prescriptions: repository.workoutPrescriptions.filter { sessionIDs.contains($0.sessionID) },
+            progression: repository.workoutPlanProgressionSettings.first { $0.planID == planID }
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let data = try? encoder.encode(payload) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    @discardableResult
+    func importSharedPlan(_ text: String) -> WorkoutPlan? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.utf8.count <= 1_000_000,
+              let data = trimmed.data(using: .utf8),
+              let shared = try? JSONDecoder().decode(WorkoutPlanSyncPayload.self, from: data),
+              isValidSharedPlan(shared) else { return nil }
+
+        let newPlanID = makeID()
+        var payload = shared.conflictCopy(documentID: newPlanID, makeUUID: makeID)
+        let cleanName = shared.plan.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanName.isEmpty else { return nil }
+        payload.plan.name = "\(cleanName) (Copy)"
+        payload.plan.createdAt = now()
+        payload.plan.isActive = false
+        payload.plan.queueEnabled = false
+        payload.plan.allowsAnyOrder = false
+        payload.plan.queuedSessionIDs = []
+        repository.addWorkoutPlan(payload.plan)
+
+        guard let scaffoldPhase = repository.workoutPhases.first(where: { $0.planID == newPlanID }),
+              let scaffoldWeek = repository.workoutWeeks.first(where: { $0.planID == newPlanID }) else {
+            repository.deleteWorkoutPlan(payload.plan)
+            return nil
+        }
+        repository.deleteWorkoutWeek(scaffoldWeek)
+        let orderedPhases = payload.phases.sorted { $0.order < $1.order }
+        guard let firstPhase = orderedPhases.first else {
+            repository.deleteWorkoutPlan(payload.plan)
+            return nil
+        }
+        var phaseIDMap: [UUID: UUID] = [firstPhase.id: scaffoldPhase.id]
+        var savedFirstPhase = firstPhase
+        savedFirstPhase.id = scaffoldPhase.id
+        savedFirstPhase.planID = newPlanID
+        repository.updateWorkoutPhase(savedFirstPhase)
+        for phase in orderedPhases.dropFirst() {
+            repository.addWorkoutPhase(phase)
+            phaseIDMap[phase.id] = phase.id
+        }
+
+        var weekIDMap: [UUID: UUID] = [:]
+        for sourceWeek in payload.weeks.sorted(by: { $0.weekNumber < $1.weekNumber }) {
+            let phaseID = phaseIDMap[sourceWeek.phaseID] ?? sourceWeek.phaseID
+            let newWeek = repository.addWorkoutWeek(planID: newPlanID, phaseID: phaseID, title: sourceWeek.title)
+            var updatedWeek = newWeek
+            updatedWeek.weekNumber = sourceWeek.weekNumber
+            updatedWeek.notes = sourceWeek.notes
+            repository.updateWorkoutWeek(updatedWeek)
+            weekIDMap[sourceWeek.id] = newWeek.id
+        }
+
+        var sessionIDMap: [UUID: UUID] = [:]
+        for sourceSession in payload.sessions.sorted(by: { $0.order < $1.order }) {
+            guard let weekID = weekIDMap[sourceSession.weekID] else { continue }
+            let newSession = repository.addWorkoutSession(weekID: weekID, day: sourceSession.day, name: sourceSession.name)
+            var updatedSession = newSession
+            updatedSession.order = sourceSession.order
+            updatedSession.notes = sourceSession.notes
+            updatedSession.outcome = nil
+            repository.updateWorkoutSession(updatedSession)
+            sessionIDMap[sourceSession.id] = newSession.id
+        }
+        for sourcePrescription in payload.prescriptions {
+            guard let sessionID = sessionIDMap[sourcePrescription.sessionID] else { continue }
+            var prescription = sourcePrescription
+            prescription.id = makeID()
+            prescription.sessionID = sessionID
+            _ = repository.addWorkoutPrescription(prescription)
+        }
+        if var progression = payload.progression {
+            progression.planID = newPlanID
+            repository.workoutPlanProgressionSettings.append(progression)
+        }
+        return payload.plan
+    }
+
+    private func isValidSharedPlan(_ payload: WorkoutPlanSyncPayload) -> Bool {
+        guard !payload.plan.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              (1...50).contains(payload.phases.count),
+              (1...104).contains(payload.weeks.count),
+              !payload.sessions.isEmpty, payload.sessions.count <= 1_000,
+              payload.prescriptions.count <= 10_000,
+              Set(payload.phases.map(\.id)).count == payload.phases.count,
+              Set(payload.weeks.map(\.id)).count == payload.weeks.count,
+              Set(payload.sessions.map(\.id)).count == payload.sessions.count,
+              Set(payload.prescriptions.map(\.id)).count == payload.prescriptions.count else { return false }
+        let phaseIDs = Set(payload.phases.filter { $0.planID == payload.plan.id }.map(\.id))
+        let weeks = payload.weeks.filter { $0.planID == payload.plan.id }
+        let weekIDs = Set(weeks.map(\.id))
+        let sessions = payload.sessions.filter { weekIDs.contains($0.weekID) }
+        let sessionIDs = Set(sessions.map(\.id))
+        return phaseIDs.count == payload.phases.count &&
+            weeks.count == payload.weeks.count &&
+            weeks.allSatisfy { phaseIDs.contains($0.phaseID) } &&
+            sessions.count == payload.sessions.count &&
+            payload.prescriptions.allSatisfy { sessionIDs.contains($0.sessionID) }
     }
 
     @discardableResult
@@ -384,16 +638,79 @@ final class ProgramStore {
     @discardableResult
     func addSession(to week: WorkoutWeek, day: String, name: String) -> WorkoutSession {
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return repository.addWorkoutSession(
+        let session = repository.addWorkoutSession(
             weekID: week.id,
             day: day,
             name: cleanName.isEmpty ? "Workout" : cleanName
         )
+        if let plan = plan(id: week.planID), plan.queueEnabled {
+            _ = setQueue(planID: plan.id, enabled: true, sessionIDs: plan.queuedSessionIDs + [session.id], allowsAnyOrder: plan.allowsAnyOrder)
+        }
+        return session
     }
 
     @discardableResult
     func startFreestyleSession(in week: WorkoutWeek, day: String) -> WorkoutSession {
         addSession(to: week, day: day, name: "Freestyle Workout")
+    }
+
+    func duplicateSession(_ session: WorkoutSession, day: String, weekID: UUID? = nil) -> WorkoutSession? {
+        guard let sourceWeek = repository.workoutWeeks.first(where: { $0.id == session.weekID }),
+              let week = repository.workoutWeeks.first(where: { $0.id == (weekID ?? session.weekID) && $0.planID == sourceWeek.planID }),
+              !sessions(week: week).contains(where: { $0.day.caseInsensitiveCompare(day) == .orderedSame }) else { return nil }
+        var copy = repository.addWorkoutSession(weekID: week.id, day: day, name: session.name)
+        copy.notes = session.notes
+        repository.updateWorkoutSession(copy)
+        for prescription in repository.workoutPrescriptions.filter({ $0.sessionID == session.id }) {
+            var copied = prescription
+            copied.id = makeID()
+            copied.sessionID = copy.id
+            _ = repository.addWorkoutPrescription(copied)
+        }
+        return copy
+    }
+
+    func rescheduleSession(_ session: WorkoutSession, day: String, weekID: UUID? = nil) -> Bool {
+        guard repository.workoutSessions.contains(where: { $0.id == session.id }),
+              let sourceWeek = repository.workoutWeeks.first(where: { $0.id == session.weekID }),
+              let week = repository.workoutWeeks.first(where: { $0.id == (weekID ?? session.weekID) && $0.planID == sourceWeek.planID }),
+              !repository.workoutSessions.contains(where: {
+                  $0.weekID == week.id && $0.id != session.id && $0.day.caseInsensitiveCompare(day) == .orderedSame
+              }) else { return false }
+        var updated = session
+        updated.day = day
+        if updated.weekID != week.id {
+            updated.weekID = week.id
+            updated.order = (sessions(week: week).map(\.order).max() ?? -1) + 1
+        }
+        repository.updateWorkoutSession(updated)
+        return true
+    }
+
+    func scheduleSession(_ session: WorkoutSession, on date: Date, duplicate: Bool) -> WorkoutSession? {
+        guard repository.workoutSessions.contains(where: { $0.id == session.id }),
+              let sourceWeek = repository.workoutWeeks.first(where: { $0.id == session.weekID }) else { return nil }
+        let calendar = Calendar.current
+        let existingSettings = repository.workoutPlanProgressionSettings.first { $0.planID == sourceWeek.planID }
+        guard let start = existingSettings?.startedAt ?? calendar.dateInterval(of: .weekOfYear, for: now())?.start else { return nil }
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: start), to: calendar.startOfDay(for: date)).day ?? -1
+        let number = days / 7 + 1
+        let planWeeks = weeks(planID: sourceWeek.planID)
+        guard days >= 0, number <= (planWeeks.map(\.weekNumber).max() ?? 0) + 1 else { return nil }
+        let day = calendar.weekdayName(for: calendar.component(.weekday, from: date))
+        if let week = planWeeks.first(where: { $0.weekNumber == number }),
+           sessions(week: week).contains(where: { (duplicate || $0.id != session.id) && $0.day.caseInsensitiveCompare(day) == .orderedSame }) { return nil }
+        if existingSettings == nil {
+            repository.workoutPlanProgressionSettings.append(WorkoutPlanProgressionSettings(
+                planID: sourceWeek.planID, sourceTemplateID: "custom", sourceTemplateVersion: 1,
+                startedAt: start, scheduledWeekdays: [], method: .fixed,
+                preferredUnit: .kilograms, trainingMaxKilograms: [:]
+            ))
+        }
+        let week = planWeeks.first { $0.weekNumber == number } ?? addWeek(planID: sourceWeek.planID)
+        if duplicate { return duplicateSession(session, day: day, weekID: week.id) }
+        guard rescheduleSession(session, day: day, weekID: week.id) else { return nil }
+        return repository.workoutSessions.first { $0.id == session.id }
     }
 
     func deleteSession(_ session: WorkoutSession) {
@@ -457,6 +774,83 @@ final class ProgramStore {
 
     func deletePrescription(_ prescription: WorkoutExercisePrescription) {
         repository.deleteWorkoutPrescription(prescription)
+    }
+
+    @discardableResult
+    func setSuperset(sessionID: UUID, exerciseIDs: [UUID], restSeconds: Int) -> Bool {
+        guard exerciseIDs.count == 2, Set(exerciseIDs).count == 2, (15...300).contains(restSeconds) else { return false }
+        let pair = repository.workoutPrescriptions.filter {
+            $0.sessionID == sessionID && exerciseIDs.contains($0.id)
+        }
+        guard pair.count == 2 else { return false }
+        for prescription in pair {
+            removeSuperset(sessionID: sessionID, exerciseID: prescription.id)
+        }
+        let group = makeID().uuidString
+        for var prescription in pair {
+            prescription.supersetGroup = group
+            prescription.supersetRestSeconds = restSeconds
+            repository.updateWorkoutPrescription(prescription)
+        }
+        return true
+    }
+
+    func removeSuperset(sessionID: UUID, exerciseID: UUID) {
+        guard let selected = repository.workoutPrescriptions.first(where: { $0.id == exerciseID && $0.sessionID == sessionID }),
+              let group = selected.supersetGroup else { return }
+        for var prescription in repository.workoutPrescriptions where prescription.sessionID == sessionID && prescription.supersetGroup == group {
+            prescription.supersetGroup = nil
+            prescription.supersetRestSeconds = nil
+            repository.updateWorkoutPrescription(prescription)
+        }
+    }
+
+    @discardableResult
+    func updatePrescription(
+        _ edited: WorkoutExercisePrescription,
+        scope: WorkoutPrescriptionEditScope,
+        excludingSessionIDs: Set<UUID>
+    ) -> Int {
+        guard let sourceSession = repository.workoutSessions.first(where: { $0.id == edited.sessionID }),
+              let sourceWeek = repository.workoutWeeks.first(where: { $0.id == sourceSession.weekID }),
+              repository.workoutPrescriptions.contains(where: { $0.id == edited.id }) else { return 0 }
+
+        let targetSessions = repository.workoutSessions.filter { session in
+            guard let week = repository.workoutWeeks.first(where: { $0.id == session.weekID }),
+                  week.planID == sourceWeek.planID,
+                  session.name.caseInsensitiveCompare(sourceSession.name) == .orderedSame else { return false }
+            switch scope {
+            case .thisWorkout:
+                return session.id == sourceSession.id
+            case .matchingWorkouts:
+                return true
+            case .futureWeeks:
+                return week.weekNumber >= sourceWeek.weekNumber
+            }
+        }
+
+        let sourceOccurrences = repository.workoutPrescriptions
+            .filter { $0.sessionID == sourceSession.id && $0.exerciseID == edited.exerciseID }
+            .sorted { $0.order < $1.order }
+        guard let occurrence = sourceOccurrences.firstIndex(where: { $0.id == edited.id }) else { return 0 }
+        var updatedCount = 0
+        for session in targetSessions where !excludingSessionIDs.contains(session.id) && session.outcome == nil {
+            let matches = repository.workoutPrescriptions
+                .filter { $0.sessionID == session.id && $0.exerciseID == edited.exerciseID }
+                .sorted { $0.order < $1.order }
+            if matches.indices.contains(occurrence) {
+                var prescription = matches[occurrence]
+                prescription.sets = edited.sets
+                prescription.reps = edited.reps
+                prescription.restSeconds = edited.restSeconds
+                prescription.targetRIR = edited.targetRIR
+                prescription.targetLoadKilograms = edited.targetLoadKilograms
+                prescription.substitutionExerciseIDs = edited.substitutionExerciseIDs
+                repository.updateWorkoutPrescription(prescription)
+                updatedCount += 1
+            }
+        }
+        return updatedCount
     }
 
     @discardableResult

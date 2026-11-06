@@ -75,8 +75,8 @@ struct RecentPRDetailView: View {
             .navigationTitle("PR details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Close", systemImage: "xmark") { dismiss() }.labelStyle(.iconOnly)
                 }
             }
             .task(id: lift.id) {
@@ -196,8 +196,10 @@ struct RecentPRDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Attempt details")
                 .font(LiftTypography.cardTitle)
-            detailRow("Bodyweight", MeasurementFormatting.formatBodyweight(lift.bodyweightAtLift, preferredUnit: appState.currentProfile.preferredUnit))
-            detailRow("Relative strength", RankingFormatting.ratioText(lift.bodyweightMultiple))
+            if lift.bodyweightAtLift > 0 {
+                detailRow("Bodyweight", MeasurementFormatting.formatBodyweight(lift.bodyweightAtLift, preferredUnit: appState.currentProfile.preferredUnit))
+                detailRow("Relative strength", RankingFormatting.ratioText(lift.bodyweightMultiple))
+            }
             detailRow("Evidence", lift.resolvedEvidenceStatus.displayName)
             detailRow("Review status", lift.resolvedModerationStatus.displayName)
         }
@@ -324,11 +326,11 @@ struct HomeNotificationCenterView: View {
             .navigationTitle("Notifications")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Close", systemImage: "xmark") { dismiss() }.labelStyle(.iconOnly)
                 }
                 if appState.unreadNotificationCount > 0 {
-                    ToolbarItem(placement: .confirmationAction) {
+                    ToolbarItem(placement: .topBarLeading) {
                         Button("Mark all as read") {
                             appState.markAllNotificationsRead()
                         }
@@ -422,67 +424,40 @@ struct HomeNotificationCenterView: View {
 struct StreakDetailView: View {
     @Environment(\.dismiss) private var dismiss
     let streakWeeks: Int
-    let trainingDaysThisWeek: Int
+    let summary: HomeWeeklySummary
+    private var trainingDaysThisWeek: Int { summary.completedTrainingDayCount }
     private let weeklyTrainingDayTarget = 3
 
     var body: some View {
         NavigationStack {
-        AppBackground {
-            ScrollView {
-            VStack(spacing: 18) {
-                ZStack {
-                    Circle()
-                        .fill(Color.liftOrange.opacity(0.12))
-                        .frame(width: 150, height: 150)
-                    Image(systemName: "flame.fill")
-                        .font(.system(size: 72, weight: .bold))
-                        .foregroundStyle(
-                                LinearGradient(colors: [Color.liftGold, Color.liftOrange, Color.liftRed], startPoint: .top, endPoint: .bottom)
-                        )
-                    Text("\(streakWeeks)")
-                        .font(.largeTitle.weight(.semibold))
-                        .offset(y: 65)
-                }
-                .padding(.bottom, 12)
-
-                Text(streakWeeks == 1 ? "1 week streak" : "\(streakWeeks) week streak")
-                    .font(.title.weight(.bold))
-                Text("\(min(trainingDaysThisWeek, weeklyTrainingDayTarget)) of \(weeklyTrainingDayTarget) training days this week")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.liftText)
-                Text(streakMessage)
-                    .font(.subheadline)
-                    .foregroundStyle(Color.liftMuted)
-                    .multilineTextAlignment(.center)
-
-                HStack(spacing: 7) {
-                    ForEach(1...weeklyTrainingDayTarget, id: \.self) { day in
-                        VStack(spacing: 7) {
-                            Circle()
-                                .fill(day <= trainingDaysThisWeek ? Color.orange : Color.liftSeparator)
-                                .frame(width: 30, height: 30)
-                                .overlay {
-                                    Image(systemName: day <= trainingDaysThisWeek ? "checkmark" : "circle")
-                                        .font(.caption2.weight(.bold))
-                                        .foregroundStyle(day <= trainingDaysThisWeek ? Color.liftOnAccent : Color.liftMuted)
-                                }
-                            Text("\(day)")
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(Color.liftMuted)
+            AppBackground {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        HStack(spacing: 16) {
+                            Image(systemName: "flame.fill")
+                                .font(.largeTitle).foregroundStyle(Color.liftOrange)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(streakWeeks == 1 ? "1 week streak" : "\(streakWeeks) week streak")
+                                    .font(.title.weight(.bold))
+                                Text("Consecutive weeks with 3 training days")
+                                    .font(.subheadline).foregroundStyle(Color.liftMuted)
+                            }
                         }
-                        .frame(maxWidth: .infinity)
+                        Text("This week").font(LiftTypography.cardTitle)
+                        WeeklyTrainingActivityCard(summary: summary)
+                        ProgressView(value: Double(min(trainingDaysThisWeek, weeklyTrainingDayTarget)), total: Double(weeklyTrainingDayTarget))
+                            .tint(Color.liftControlTint)
+                            .accessibilityLabel("Streak qualification this week")
+                        Text(streakMessage).font(.subheadline)
+                        Text("Each day with a saved working set counts once. Multiple workouts on the same day do not add extra days. Your streak stays active while this week is still in progress.")
+                            .font(.caption).foregroundStyle(Color.liftMuted)
                     }
+                    .padding(20)
                 }
-
             }
-            .padding(20)
-            }
-        }
-        .navigationTitle("Workout streak")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
-        }
+            .navigationTitle("Weekly streak")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Close", systemImage: "xmark") { dismiss() }.labelStyle(.iconOnly) } }
         }
     }
 

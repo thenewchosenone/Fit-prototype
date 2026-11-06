@@ -26,6 +26,29 @@ final class WorkoutPresentationFormattingTests: XCTestCase {
     func testWeightFormattingIsStable() {
         XCTAssertEqual(MeasurementFormatting.formatWeight(0), "0")
         XCTAssertEqual(MeasurementFormatting.formatWeight(77.5), "77.5")
+        XCTAssertEqual(MeasurementFormatting.workoutLoadText(225), "225")
+        XCTAssertEqual(MeasurementFormatting.workoutLoadText(225.015555), "225.02")
+        XCTAssertEqual(MeasurementFormatting.workoutLoadText(2.5), "2.5")
+    }
+
+    func testWorkoutSetWeightParsingUsesLocaleAndRejectsInvalidValues() {
+        let enUS = Locale(identifier: "en_US")
+        XCTAssertEqual(WorkoutSetLogRow.parseWeight("100.5", locale: enUS), 100.5)
+        XCTAssertNil(WorkoutSetLogRow.parseWeight("100,5", locale: enUS))
+        XCTAssertEqual(WorkoutSetLogRow.parseWeight("1,000", locale: enUS), 1_000)
+        XCTAssertNil(WorkoutSetLogRow.parseWeight("100.5 lb", locale: enUS))
+        XCTAssertNil(WorkoutSetLogRow.parseWeight("NaN", locale: enUS))
+        XCTAssertNil(WorkoutSetLogRow.parseWeight("inf", locale: enUS))
+        XCTAssertNil(WorkoutSetLogRow.parseWeight("", locale: enUS))
+
+        let frFR = Locale(identifier: "fr_FR")
+        XCTAssertEqual(WorkoutSetLogRow.parseWeight("100,5", locale: frFR), 100.5)
+        XCTAssertNil(WorkoutSetLogRow.parseWeight("100.5", locale: frFR))
+        XCTAssertEqual(WorkoutSetLogRow.parseWeight("1,000", locale: frFR), 1)
+        XCTAssertNil(WorkoutSetLogRow.parseWeight("100,5 lb", locale: frFR))
+        XCTAssertNil(WorkoutSetLogRow.parseWeight("NaN", locale: frFR))
+        XCTAssertNil(WorkoutSetLogRow.parseWeight("inf", locale: frFR))
+        XCTAssertNil(WorkoutSetLogRow.parseWeight("", locale: frFR))
     }
 
     func testRecordedLiftSetTextPreservesKilograms() {
@@ -206,7 +229,7 @@ final class WorkoutPresentationFormattingTests: XCTestCase {
         )
         XCTAssertEqual(
             MeasurementFormatting.formatRecordedVolume(100, recordedUnit: .kilograms, preferredUnit: .pounds),
-            "220.5 lb"
+            "220.5 lb × reps"
         )
     }
 
@@ -363,5 +386,187 @@ final class WorkoutPresentationFormattingTests: XCTestCase {
         XCTAssertEqual(best[1].reps, 5)
         XCTAssertEqual(best[1].weight, 500)
         XCTAssertEqual(best[1].unit, .kilograms)
+    }
+}
+
+@MainActor
+final class WorkoutProgramBuilderTests: XCTestCase {
+    func testHistoryImportBuildsTwelveWeeksAcrossSixWeekdaysWithoutChangingSources() throws {
+        let repository = DemoRepository()
+        let pull = sourceWorkout(name: "Pull", exerciseIDs: ["row", "curl"], completedSetsPerExercise: 2)
+        let push = sourceWorkout(name: "Push", exerciseIDs: ["press"], completedSetsPerExercise: 3)
+        let legs = sourceWorkout(name: "Legs", exerciseIDs: ["squat"], completedSetsPerExercise: 4)
+        repository.completedWorkouts = [pull, push, legs]
+        let originalWorkouts = repository.completedWorkouts
+        let store = ProgramStore(repository: repository)
+        let assignments: [(workout: CompletedWorkout, weekday: Int)] = [
+            (pull, 2), (push, 3), (legs, 4), (pull, 5), (push, 6), (legs, 7)
+        ]
+
+        let plan = try XCTUnwrap(store.createPlanFromHistory(
+            name: "Winter Volume V2",
+            assignments: assignments,
+            durationWeeks: 12,
+            startDate: .now,
+            preferredUnit: .pounds
+        ))
+        let weeks = store.weeks(planID: plan.id)
+        let sessions = weeks.flatMap(store.sessions(week:))
+
+        XCTAssertEqual(weeks.count, 12)
+        XCTAssertEqual(sessions.count, 72)
+        XCTAssertEqual(Set(sessions.map(\.day)).count, 6)
+        XCTAssertFalse(plan.isActive)
+        XCTAssertEqual(repository.completedWorkouts, originalWorkouts)
+
+        let firstPull = try XCTUnwrap(sessions.first { $0.name == "Pull" })
+        let copiedPrescriptions = store.prescriptions(session: firstPull)
+        XCTAssertEqual(copiedPrescriptions.map(\.exerciseName), ["Row", "Curl"])
+        XCTAssertEqual(copiedPrescriptions.map(\.sets), [2, 2])
+        XCTAssertEqual(copiedPrescriptions.map(\.reps), ["8–12", "8–12"])
+        XCTAssertEqual(copiedPrescriptions.first?.notes, "Keep source notes")
+        XCTAssertEqual(copiedPrescriptions.first?.targetRIR, 2)
+        XCTAssertEqual(copiedPrescriptions.first?.targetLoadKilograms, 50)
+        XCTAssertEqual(copiedPrescriptions.first?.substitutionExerciseIDs, ["test-sub"])
+    }
+
+    func testFutureWeekEditLeavesProtectedHistoryUnchanged() throws {
+        let repository = DemoRepository()
+        let source = sourceWorkout(name: "Full Body", exerciseIDs: ["squat"], completedSetsPerExercise: 2)
+        repository.completedWorkouts = [source]
+        let store = ProgramStore(repository: repository)
+        let plan = try XCTUnwrap(store.createPlanFromHistory(
+            name: "Three weeks",
+            assignments: [(source, 2)],
+            durationWeeks: 3,
+            startDate: .now,
+            preferredUnit: .kilograms
+        ))
+        let sessions = store.weeks(planID: plan.id).flatMap(store.sessions(week:))
+        let original = try XCTUnwrap(store.prescriptions(session: sessions[0]).first)
+        var edited = original
+        edited.sets = 5
+
+        let updatedCount = store.updatePrescription(
+            edited,
+            scope: .futureWeeks,
+            excludingSessionIDs: [sessions[0].id]
+        )
+
+        XCTAssertEqual(updatedCount, 2)
+        XCTAssertEqual(store.prescriptions(session: sessions[0]).first?.sets, 2)
+        XCTAssertEqual(store.prescriptions(session: sessions[1]).first?.sets, 5)
+        XCTAssertEqual(store.prescriptions(session: sessions[2]).first?.sets, 5)
+    }
+
+    func testSupersetGroupingStoresSharedRestBetweenRounds() throws {
+        let repository = DemoRepository()
+        let source = sourceWorkout(name: "Pair", exerciseIDs: ["row", "curl"], completedSetsPerExercise: 2)
+        let store = ProgramStore(repository: repository)
+        let plan = try XCTUnwrap(store.createPlanFromHistory(
+            name: "Pair plan",
+            assignments: [(source, 2)],
+            durationWeeks: 1,
+            startDate: .now,
+            preferredUnit: .kilograms
+        ))
+        let session = try XCTUnwrap(store.weeks(planID: plan.id).first.flatMap { store.sessions(week: $0).first })
+        let prescriptions = store.prescriptions(session: session)
+
+        XCTAssertTrue(store.setSuperset(sessionID: session.id, exerciseIDs: prescriptions.map(\.id), restSeconds: 60))
+        let grouped = store.prescriptions(session: session)
+        XCTAssertEqual(grouped.compactMap(\.supersetGroup).count, 2)
+        XCTAssertEqual(Set(grouped.compactMap(\.supersetGroup)).count, 1)
+        XCTAssertEqual(grouped.compactMap(\.supersetRestSeconds), [60, 60])
+
+        store.removeSuperset(sessionID: session.id, exerciseID: prescriptions[0].id)
+        XCTAssertTrue(store.prescriptions(session: session).allSatisfy { $0.supersetGroup == nil && $0.supersetRestSeconds == nil })
+    }
+
+    func testSharedPlanImportsAsInactiveEditableCopyWithFreshIDs() throws {
+        let repository = DemoRepository()
+        let source = sourceWorkout(name: "Share source", exerciseIDs: ["row", "curl"], completedSetsPerExercise: 2)
+        let store = ProgramStore(repository: repository)
+        let plan = try XCTUnwrap(store.createPlanFromHistory(
+            name: "Share source plan",
+            assignments: [(source, 2)],
+            durationWeeks: 2,
+            startDate: .now,
+            preferredUnit: .kilograms
+        ))
+        let sourceSession = try XCTUnwrap(store.weeks(planID: plan.id).first.flatMap { store.sessions(week: $0).first })
+        let sourcePrescriptions = store.prescriptions(session: sourceSession)
+        XCTAssertTrue(store.setSuperset(sessionID: sourceSession.id, exerciseIDs: sourcePrescriptions.map(\.id), restSeconds: 75))
+        let sharedText = try XCTUnwrap(store.shareablePlanText(planID: plan.id))
+
+        let copy = try XCTUnwrap(store.importSharedPlan(sharedText))
+        let originalSessions = store.weeks(planID: plan.id).flatMap { store.sessions(week: $0) }
+        let copiedSessions = store.weeks(planID: copy.id).flatMap { store.sessions(week: $0) }
+
+        XCTAssertEqual(copy.name, "Share source plan (Copy)")
+        XCTAssertFalse(copy.isActive)
+        XCTAssertEqual(copiedSessions.count, originalSessions.count)
+        XCTAssertTrue(Set(originalSessions.map(\.id)).isDisjoint(with: Set(copiedSessions.map(\.id))))
+        let copiedPrescriptions = store.prescriptions(session: copiedSessions[0])
+        XCTAssertEqual(copiedPrescriptions.first?.sets, 2)
+        XCTAssertEqual(Set(copiedPrescriptions.compactMap(\.supersetGroup)).count, 1)
+        XCTAssertEqual(copiedPrescriptions.compactMap(\.supersetRestSeconds), [75, 75])
+    }
+
+    func testSavedProgramSyncsAndRestoresFromRemotePlanService() async throws {
+        let service = MockWorkoutSyncService()
+        let persistence = InMemoryWorkoutPersistenceStore()
+        let originalRepository = DemoRepository(workoutPersistenceStore: persistence)
+        let plan = try XCTUnwrap(ProgramStore(repository: originalRepository).createPlan(name: "Sync test", isActive: false))
+        originalRepository.persistWorkoutSnapshot()
+        let initialSync = WorkoutSyncStore(repository: originalRepository, service: service)
+        await initialSync.synchronizeWorkoutPlans()
+        XCTAssertEqual(initialSync.planSyncState, .synced)
+        originalRepository.persistWorkoutSnapshot()
+
+        let relaunchedRepository = DemoRepository(workoutPersistenceStore: persistence)
+        XCTAssertEqual(relaunchedRepository.workoutPlans.first(where: { $0.id == plan.id })?.name, "Sync test")
+
+        let restoredRepository = DemoRepository()
+        restoredRepository.currentProfile = originalRepository.currentProfile
+        let restoredSync = WorkoutSyncStore(repository: restoredRepository, service: service)
+        await restoredSync.synchronizeWorkoutPlans()
+
+        XCTAssertEqual(restoredSync.planSyncState, .synced)
+        XCTAssertEqual(restoredRepository.workoutPlans.first(where: { $0.id == plan.id })?.name, "Sync test")
+        XCTAssertEqual(restoredRepository.workoutWeeks.filter { $0.planID == plan.id }.count, 1)
+    }
+
+    private func sourceWorkout(
+        name: String,
+        exerciseIDs: [String],
+        completedSetsPerExercise: Int
+    ) -> CompletedWorkout {
+        let workoutID = UUID()
+        let exercises = exerciseIDs.enumerated().map { order, exerciseID in
+            WorkoutExerciseSnapshot(
+                id: UUID(), sourcePrescriptionID: nil, exerciseID: exerciseID,
+                exerciseName: exerciseID.capitalized, bodyPart: "Full body", equipment: "Barbell",
+                targetSets: 4, targetReps: "8–12", restSeconds: 90, order: order,
+                notes: "Keep source notes", substitutionExerciseIDs: ["test-sub"],
+                targetRIR: 2, targetLoadKilograms: 50
+            )
+        }
+        let logs = exercises.flatMap { exercise in
+            (1...completedSetsPerExercise).map { number in
+                WorkoutSetLog(
+                    id: UUID(), prescriptionID: exercise.id, performedAt: .now,
+                    setNumber: number, weight: 50, reps: 8, rpe: 8, isWarmup: false,
+                    isComplete: true, workoutID: workoutID, recordedUnit: .kilograms
+                )
+            }
+        }
+        return CompletedWorkout(
+            id: workoutID, source: .freestyle, sourceSessionID: nil, sourcePlanID: nil,
+            name: name, dayLabel: "Monday", startedAt: .now.addingTimeInterval(-3600),
+            completedAt: .now, duration: 3600, effort: 3, notes: "Source workout note",
+            gymID: nil, bodyweight: nil, unit: .kilograms, exercises: exercises,
+            sets: logs, linkedSubmissionIDs: []
+        )
     }
 }

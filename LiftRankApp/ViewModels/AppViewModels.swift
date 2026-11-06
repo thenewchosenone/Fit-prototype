@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import Network
 import os
 import SwiftUI
 import UIKit
@@ -29,9 +30,19 @@ final class AppState: ObservableObject {
 #endif
     let profilePhotoStore: ProfilePhotoStore = LocalProfilePhotoStore.shared
     let repository: DemoRepository
+    @Published var workoutReminderError: String?
+    @Published private(set) var notificationAuthorizationStatus: UNAuthorizationStatus = .notDetermined
+    @Published var pushRegistrationError: String?
+    @Published var workoutCompletionError: String?
+    @Published private(set) var isLoadingInitialTrainingData = false
+    @Published var notificationNavigationMessage: String?
+    @Published var notificationDestinationLoading = false
+    @Published var friendActivityShareError: String?
     @Published var selectedWorkoutPlanID = MockData.defaultWorkoutPlanID
     @Published var showingPasswordUpdate = false
     private var cancellables = Set<AnyCancellable>()
+    private let friendActivityNetworkMonitor = NWPathMonitor()
+    private var friendActivityWasConnected: Bool?
     var profilePhotoMutation = 0
     let router: AppRouter
     let sessionStore: SessionStore
@@ -52,6 +63,7 @@ final class AppState: ObservableObject {
     private var cachedCompetitiveStatisticsSignature: CompetitiveStatisticsSignature?
     private var forwardedObjectWillChangeTask: Task<Void, Never>?
     private var postAuthenticationRefreshTask: Task<Void, Never>?
+    private var notificationDestinationTask: Task<Void, Never>?
     private let launchSignpostID: OSSignpostID
     private var didRecordLaunchReady = false
 
@@ -173,6 +185,22 @@ final class AppState: ObservableObject {
                 self?.scheduleForwardedObjectWillChange()
             }
             .store(in: &cancellables)
+        friendActivityNetworkMonitor.pathUpdateHandler = { [weak self] path in
+            let connected = path.status == .satisfied
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let wasConnected = self.friendActivityWasConnected
+                self.friendActivityWasConnected = connected
+                if wasConnected == false && connected && !self.repository.pendingFriendActivityShares.isEmpty {
+                    await self.retryFriendActivityShares()
+                }
+            }
+        }
+        friendActivityNetworkMonitor.start(queue: DispatchQueue(label: "com.liftrank.friend-activity-network"))
+    }
+
+    deinit {
+        friendActivityNetworkMonitor.cancel()
     }
 
     func recordLaunchReadyIfNeeded() {
@@ -240,7 +268,7 @@ final class AppState: ObservableObject {
             repository.removePersonalWorkoutDemoHistory()
         }
         if ProcessInfo.processInfo.arguments.contains("-uiTestingAuthentication") {
-            serviceContainer = .demo(repository: repository)
+            installServiceContainer(.demo(repository: repository))
             accountStatus = .signedOut
             return
         }
@@ -538,6 +566,7 @@ final class AppState: ObservableObject {
         workoutPRSubmissionStore.clearAccountScopedMedia()
         postAuthenticationRefreshTask?.cancel()
         repository.clearLocalUserData()
+        isLoadingInitialTrainingData = false
         profilePhotoStore.removeNamespace(.authenticated)
         accountStatus = sessionStore.isAuthenticationConfigured ? .signedOut : .configurationRequired
         accountMessage = "Your Apple authorization is no longer available. Sign in again to continue."
@@ -556,9 +585,11 @@ final class AppState: ObservableObject {
               url.host?.lowercased() == "auth-callback" else { return }
         let isRecovery = Self.authCallbackValue(named: "type", in: url) == "recovery"
         await performAccountOperation {
+            self.showingPasswordUpdate = false
             self.accountSession = try await self.sessionStore.handleAuthCallback(url)
-            try await self.loadAuthenticatedAccount()
+            if isRecovery { self.accountStatus = .signedOut }
             self.showingPasswordUpdate = isRecovery
+            if !isRecovery { try await self.loadAuthenticatedAccount() }
         }
     }
 
@@ -570,6 +601,12 @@ final class AppState: ObservableObject {
             try await self.sessionStore.updatePassword(password)
             self.showingPasswordUpdate = false
             self.accountMessage = "Your password has been updated."
+            do {
+                try await self.loadAuthenticatedAccount()
+            } catch {
+                self.accountStatus = .signedOut
+                self.accountMessage = "Your password has been updated, but your account could not be loaded. Sign in again to continue."
+            }
         }
     }
 
@@ -594,6 +631,7 @@ final class AppState: ObservableObject {
             await synchronizeWorkoutPlans()
             _ = repository.seedDemoProgramHistoryIfNeeded()
             repository.seedDemoStrengthTrendsIfNeeded()
+            repository.seedDemoTrainingGoalsIfNeeded(profileID: profile.id)
             restoreSelectedWorkoutPlanIfNeeded()
             repository.seedDemoLeaderboardDataIfNeeded()
             accountStatus = .demo
@@ -608,8 +646,8 @@ final class AppState: ObservableObject {
         await performAccountOperation {
             let session = try await self.sessionStore.signInAnonymously()
             self.accountSession = session
-            try await self.loadAuthenticatedAccount()
             self.selectedTab = 0
+            try await self.loadAuthenticatedAccount()
         }
     }
 
@@ -626,9 +664,21 @@ final class AppState: ObservableObject {
     }
 
     func signOutAccount() async {
+        guard beginAccountMutation() else { return }
+        defer { endAccountMutation() }
+        pushRegistrationError = nil
+        notificationDestinationTask?.cancel()
+        notificationDestinationTask = nil
+        notificationDestinationLoading = false
+        friendActivityShareError = nil
         let wasDemoMode = isDemoMode
         if isAuthenticated, !wasDemoMode { await notificationStore.revokeCurrentDevice() }
-        do { try await sessionStore.signOut() } catch { accountMessage = userMessage(error) }
+        do {
+            try await sessionStore.signOut()
+        } catch {
+            accountMessage = userMessage(error)
+            return
+        }
         AppleIdentityStore.clear()
         if wasDemoMode { installServiceContainer(launchServiceContainer) }
         sessionStore.clearRemoteAccountState()
@@ -637,8 +687,10 @@ final class AppState: ObservableObject {
         workoutPRSubmissionStore.clearAccountScopedMedia()
         postAuthenticationRefreshTask?.cancel()
         repository.clearLocalUserData()
+        isLoadingInitialTrainingData = false
         profilePhotoStore.removeNamespace(.authenticated)
         accountStatus = sessionStore.isAuthenticationConfigured ? .signedOut : .configurationRequired
+        showingPasswordUpdate = false
     }
 
     private func installServiceContainer(_ container: AppServiceContainer) {
@@ -712,6 +764,14 @@ final class AppState: ObservableObject {
         await refreshRemoteSocialState()
     }
 
+    func fetchStrengthGoalTargets() async throws -> [String: Double]? {
+        try await serviceContainer.profile.strengthGoalTargets()
+    }
+
+    func saveStrengthGoalTargets(_ targets: [String: Double]) async throws {
+        try await serviceContainer.profile.saveStrengthGoalTargets(targets)
+    }
+
     func saveTrainingGoals(_ goalIDs: [String]) async throws {
         try await serviceContainer.profile.saveTrainingGoals(goalIDs)
     }
@@ -738,7 +798,10 @@ final class AppState: ObservableObject {
         await performAccountOperation {
             guard self.isAuthenticated, !self.isDemoMode else { throw LiftRankServiceError.permissionDenied }
             try await self.sessionStore.acceptCurrentLegalDocuments()
-            await self.requestPushRegistrationIfNeeded()
+            if let userID = self.accountSession?.userID {
+                self.schedulePostAuthenticationRefresh(for: userID)
+            }
+            await self.retryFriendActivityShares()
         }
     }
 
@@ -767,6 +830,7 @@ final class AppState: ObservableObject {
             retainingDemoProfiles: sessionStore.usesDemoAuthenticationService
         )
         activeWorkoutStore.synchronizeAccountScope()
+        restoreSelectedWorkoutPlanIfNeeded()
         if profile.avatarPath == nil, let pendingAvatarPath {
             var localProfile = repository.currentProfile
             localProfile.avatarPath = pendingAvatarPath
@@ -796,29 +860,23 @@ final class AppState: ObservableObject {
         if profile.onboardingCompleted {
             AppleIdentityStore.clearPendingFullName()
             try await refreshLegalAcceptanceStatus()
-            if accountStatus == .authenticated || accountStatus == .guest {
-                await track(.weeklyReturn)
-                await requestPushRegistrationIfNeeded()
-            }
         } else {
             outstandingLegalDocuments = []
             accountStatus = .needsOnboarding
         }
         guard accountSession?.userID == accountUserID,
               repository.currentProfile.id == accountUserID else { throw LiftRankServiceError.sessionExpired }
-        if accountStatus == .authenticated || accountStatus == .guest {
-            await synchronizeWorkoutPlans()
-        }
-        await cacheAuthenticatedProfilePhotoIfNeeded()
         schedulePostAuthenticationRefresh(for: accountUserID)
+        await cacheAuthenticatedProfilePhotoIfNeeded()
+        Task { [weak self] in await self?.retryFriendActivityShares() }
     }
 
     private func schedulePostAuthenticationRefresh(for userID: UUID) {
         guard accountStatus == .authenticated || accountStatus == .guest else { return }
         postAuthenticationRefreshTask?.cancel()
+        isLoadingInitialTrainingData = true
         postAuthenticationRefreshTask = Task { [weak self] in
             await Task.yield()
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
             await self?.runPostAuthenticationRefresh(for: userID)
         }
     }
@@ -828,14 +886,19 @@ final class AppState: ObservableObject {
               repository.currentProfile.id == userID,
               accountStatus == .authenticated || accountStatus == .guest,
               !Task.isCancelled else { return }
-        await refreshProductionLaunchData()
+        let trainingSyncID = OSSignpostID(log: Self.launchLog)
+        os_signpost(.begin, log: Self.launchLog, name: "Initial training sync", signpostID: trainingSyncID)
+        async let planRefresh: Void = synchronizeWorkoutPlans(force: false)
+        async let historyRefresh: Void = synchronizeCompletedWorkoutHistory(force: false)
+        async let launchRefresh: Void = refreshProductionLaunchData()
+        _ = await (planRefresh, historyRefresh, launchRefresh)
+        os_signpost(.end, log: Self.launchLog, name: "Initial training sync", signpostID: trainingSyncID)
         guard accountSession?.userID == userID,
               repository.currentProfile.id == userID,
               accountStatus == .authenticated || accountStatus == .guest,
               !Task.isCancelled else { return }
-        if ProcessInfo.processInfo.arguments.contains("-uiTestingStartupWorkoutSync") {
-            await synchronizeCompletedWorkoutHistory()
-        }
+        refreshAchievementUnlocks()
+        isLoadingInitialTrainingData = false
         await refreshRemoteSocialState()
         guard accountSession?.userID == userID,
               repository.currentProfile.id == userID,
@@ -846,7 +909,8 @@ final class AppState: ObservableObject {
               repository.currentProfile.id == userID,
               accountStatus == .authenticated || accountStatus == .guest,
               !Task.isCancelled else { return }
-        await cacheAuthenticatedProfilePhotoIfNeeded()
+        await track(.weeklyReturn)
+        await requestPushRegistrationIfNeeded()
     }
 
     private func synchronizeAuthenticatedBodyweightEntries(for userID: UUID) async {
@@ -891,7 +955,12 @@ final class AppState: ObservableObject {
         await analyticsStore.track(name, userID: userID, properties: properties)
     }
 
-    func requestPushRegistrationIfNeeded() async {
+    func refreshNotificationAuthorization() async {
+        notificationAuthorizationStatus = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
+    func requestPushRegistrationIfNeeded(requestPermission: Bool = false) async {
+        await refreshNotificationAuthorization()
 #if DEBUG
         return
 #else
@@ -901,11 +970,17 @@ final class AppState: ObservableObject {
               ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
         else { return }
         let center = UNUserNotificationCenter.current()
-        let settings = await center.notificationSettings()
-        var authorized = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
-        if settings.authorizationStatus == .notDetermined {
-            authorized = (try? await center.requestAuthorization(options: [.alert, .badge, .sound])) ?? false
+        pushRegistrationError = nil
+        if requestPermission && notificationAuthorizationStatus == .notDetermined {
+            do {
+                _ = try await center.requestAuthorization(options: [.alert, .badge, .sound])
+                await refreshNotificationAuthorization()
+            } catch {
+                pushRegistrationError = "Couldn’t enable notifications. Try again."
+                return
+            }
         }
+        let authorized = [.authorized, .provisional, .ephemeral].contains(notificationAuthorizationStatus)
         if authorized { await MainActor.run { UIApplication.shared.registerForRemoteNotifications() } }
 #endif
     }
@@ -918,12 +993,20 @@ final class AppState: ObservableObject {
               accountStatus == .authenticated,
               let userID = accountSession?.userID,
               !token.isEmpty else { return }
-#if DEBUG
-        let pushEnvironment = "sandbox"
-#else
-        let pushEnvironment = "production"
-#endif
-        await notificationStore.registerPushToken(token, userID: userID, environment: pushEnvironment)
+        guard let pushEnvironment = NotificationStore.pushEnvironment(
+            signingEnvironment: Bundle.main.object(forInfoDictionaryKey: "LIFTRANK_APNS_ENVIRONMENT") as? String
+        ) else {
+            pushRegistrationError = "Notifications aren’t configured for this build. Contact support."
+            return
+        }
+        do {
+            try await notificationStore.registerPushToken(token, userID: userID, environment: pushEnvironment)
+            if accountSession?.userID == userID { pushRegistrationError = nil }
+        } catch {
+            if accountSession?.userID == userID {
+                pushRegistrationError = "Couldn’t connect notifications. Try again."
+            }
+        }
 #endif
     }
 
@@ -947,6 +1030,53 @@ final class AppState: ObservableObject {
     }
 
     func isBlocked(_ userID: UUID) -> Bool { accountSocialStore.isBlocked(userID) }
+
+    var suggestedTrainingRivals: [(profile: UserProfile, reason: String)] {
+        let visibleLifts = lifts.filter {
+            $0.visibility == .publicLift && $0.resolvedModerationStatus == .clear &&
+            $0.normalizedWeightKilograms > 0
+        }
+        let ownLifts = visibleLifts.filter { $0.userID == currentProfile.id }
+        let candidates = profiles.filter {
+            $0.id != currentProfile.id && $0.profileAudience == .publicProfile && !isBlocked($0.id)
+        }.compactMap { profile -> (profile: UserProfile, reason: String, score: Double)? in
+            let sameAge = !profile.hideExactAge && profile.ageGroup != "Hidden" &&
+                !profile.ageGroup.isEmpty && profile.ageGroup == currentProfile.ageGroup
+            let sameFocus = currentProfile.trainingFocus != nil && profile.trainingFocus == currentProfile.trainingFocus
+            let profileLifts = visibleLifts.filter { $0.userID == profile.id }
+            var closest: (gap: Double, exercise: String)?
+            for lift in profileLifts {
+                let comparable = ownLifts.filter {
+                    $0.exerciseID == lift.exerciseID && $0.repetitions == lift.repetitions &&
+                    $0.equipmentType == lift.equipmentType && $0.variation == lift.variation &&
+                    $0.weightPerHand == lift.weightPerHand
+                }
+                guard let ownBest = comparable.map(\.normalizedWeightKilograms).max() else { continue }
+                let rivalBest = profileLifts.filter {
+                    $0.exerciseID == lift.exerciseID &&
+                    $0.repetitions == lift.repetitions && $0.equipmentType == lift.equipmentType &&
+                    $0.variation == lift.variation && $0.weightPerHand == lift.weightPerHand
+                }.map(\.normalizedWeightKilograms).max() ?? lift.normalizedWeightKilograms
+                let gap = abs(rivalBest - ownBest) / ownBest
+                if gap <= 0.20 && (closest == nil || gap < (closest?.gap ?? .infinity)) {
+                    closest = (gap, lift.exerciseName)
+                }
+            }
+            guard sameAge || sameFocus || closest != nil else { return nil }
+            let reason: String
+            if let closest {
+                reason = "Similar \(closest.exercise)" + (sameAge ? " · Same age group" : "")
+            } else {
+                reason = sameAge ? "Same age group" : "Same training focus"
+            }
+            let score = (closest?.gap ?? 2.0) + (sameAge ? 0 : 0.25) + (sameFocus ? 0 : 0.05)
+            return (profile, reason, score)
+        }
+        return candidates.sorted {
+            if $0.score != $1.score { return $0.score < $1.score }
+            return $0.profile.username.localizedStandardCompare($1.profile.username) == .orderedAscending
+        }.prefix(10).map { (profile: $0.profile, reason: $0.reason) }
+    }
 
     func searchAthletes(_ query: String, limit: Int = 20) async -> [UserProfile] {
         let clean = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1074,6 +1204,9 @@ final class AppState: ObservableObject {
     func persistLocalWorkoutSnapshot() {
         repository.persistWorkoutSnapshot()
     }
+    func persistLocalWorkoutSnapshotIfChanged() {
+        repository.persistWorkoutSnapshotIfChanged()
+    }
     var pendingWorkoutPRSubmissions: [PendingWorkoutPRSubmission] { workoutPRSubmissionStore.pendingSubmissions }
     var workoutPreferences: WorkoutPreferences { workoutPRSubmissionStore.preferences }
     var workoutProgramTemplates: [WorkoutProgramTemplate] { WorkoutProgramCatalog.templates }
@@ -1187,26 +1320,112 @@ final class AppState: ObservableObject {
     }
 
     func openNotification(_ notification: NotificationItem) {
-        switch notificationStore.open(notification) {
+        let route = notificationStore.open(notification)
+        if let message = notificationDestinationError(notification.destination) {
+            notificationNavigationMessage = message
+            router.selectedTab = .home
+            return
+        }
+        openNotificationRoute(route)
+    }
+
+    func openNotificationDestination(_ destination: NotificationDestination) {
+        if let message = notificationDestinationError(destination) {
+            notificationNavigationMessage = message
+            router.selectedTab = .home
+            return
+        }
+        openNotificationRoute(notificationStore.route(for: destination))
+    }
+
+    private func notificationDestinationError(_ destination: NotificationDestination) -> String? {
+        if destination.kind == .unsupported { return "This notification destination is not available in this app version." }
+        if destination.kind == .forumPost && destination.targetID == nil { return "This discussion is no longer available." }
+        return nil
+    }
+
+    private func openNotificationRoute(_ route: NotificationRoute) {
+        notificationDestinationTask?.cancel()
+        notificationDestinationTask = nil
+        notificationDestinationLoading = false
+        notificationNavigationMessage = nil
+        switch route {
+        case .friendRequests:
+            router.sheet = .friendRequests
         case .leaderboard(let filters):
             competitionStore.requestFocus(filters: filters)
             selectedTab = 1
         case .profile(let targetID):
-            if let targetID,
-               let profile = profileStore.profile(id: targetID) {
+            guard let targetID else {
+                notificationNavigationMessage = "This profile is no longer available."
+                router.selectedTab = .home
+                break
+            }
+            if let profile = profileStore.profile(id: targetID) {
                 selectedProfile = profile
+                selectedTab = AppTab.profile.rawValue
+            } else {
+                let accountID = currentProfile.id
+                notificationDestinationLoading = true
+                notificationDestinationTask = Task { [weak self] in
+                    guard let self else { return }
+                    defer { if !Task.isCancelled { notificationDestinationLoading = false } }
+                    do {
+                        let profile = try await profileStore.publicProfile(userID: targetID)
+                        guard !Task.isCancelled, currentProfile.id == accountID else { return }
+                        if let profile {
+                            selectedProfile = profile
+                            selectedTab = AppTab.profile.rawValue
+                        } else {
+                            notificationNavigationMessage = "This profile is no longer available."
+                        }
+                    } catch {
+                        guard !Task.isCancelled, currentProfile.id == accountID else { return }
+                        notificationNavigationMessage = "Could not open this profile. Check your connection and try again."
+                    }
+                }
             }
-            selectedTab = AppTab.profile.rawValue
         case .gym(let targetID):
-            if let targetID,
-               let gym = gyms.first(where: { $0.id == targetID }) {
-                selectedGym = gym
+            guard let targetID else {
+                notificationNavigationMessage = "This gym is no longer available."
+                router.selectedTab = .home
+                break
             }
-            router.selectedTab = .home
+            if let gym = gyms.first(where: { $0.id == targetID }) {
+                selectedGym = gym
+                router.selectedTab = .home
+            } else {
+                let accountID = currentProfile.id
+                notificationDestinationLoading = true
+                notificationDestinationTask = Task { [weak self] in
+                    guard let self else { return }
+                    defer { if !Task.isCancelled { notificationDestinationLoading = false } }
+                    do {
+                        let gym = try await serviceContainer.gyms.gyms().first { $0.id == targetID }
+                        guard !Task.isCancelled, currentProfile.id == accountID else { return }
+                        if let gym {
+                            selectedGym = gym
+                            router.selectedTab = .home
+                        } else {
+                            notificationNavigationMessage = "This gym is no longer available."
+                        }
+                    } catch {
+                        guard !Task.isCancelled, currentProfile.id == accountID else { return }
+                        notificationNavigationMessage = "Could not open this gym. Check your connection and try again."
+                    }
+                }
+            }
         case .tracker(let section):
             trainingTrackerStartOnProgress = section == .progress
             requestedTrackerSegment = section.rawValue
             selectedTab = 2
+        case .activeWorkout:
+            if activeWorkout != nil {
+                router.cover = .activeWorkout
+            } else {
+                requestedTrackerSegment = TrackerSection.today.rawValue
+                router.selectedTab = .track
+            }
         case .forumPost(let postID, let commentID):
             router.forumPostToOpen = postID
             router.forumCommentToOpen = commentID
@@ -1229,16 +1448,16 @@ final class AppState: ObservableObject {
         programStore.plan(id: selectedWorkoutPlanID)
     }
 
-    var selectedPlanPhases: [WorkoutPhase] {
-        programStore.phases(planID: selectedWorkoutPlanID)
-    }
-
     var selectedPlanWeeks: [WorkoutWeek] {
         programStore.weeks(planID: selectedWorkoutPlanID)
     }
 
     var currentSelectedProgramWeek: WorkoutWeek? {
-        programStore.currentWeek(planID: selectedWorkoutPlanID)
+        if selectedPlanIsFlexible {
+            let readyWeekID = availableFlexibleWorkoutSessions.first?.weekID
+            return selectedPlanWeeks.first { $0.id == readyWeekID } ?? selectedPlanWeeks.last
+        }
+        return programStore.currentWeek(planID: selectedWorkoutPlanID)
     }
 
 }

@@ -33,7 +33,7 @@ final class SupabaseLiftService: LiftService {
             let pageSize = 500
             let recentRows: [CompetitiveLiftDTO] = try await client
                 .from("lift_submissions")
-                .select()
+                .select(CompetitiveLiftDTO.readableColumns)
                 .order("performed_at", ascending: false)
                 .order("id")
                 .limit(pageSize)
@@ -57,7 +57,7 @@ final class SupabaseLiftService: LiftService {
             while true {
                 let page: [CompetitiveLiftDTO] = try await client
                     .from("lift_submissions")
-                    .select()
+                    .select(CompetitiveLiftDTO.readableColumns)
                     .eq("user_id", value: userID)
                     .order("performed_at", ascending: false)
                     .order("id")
@@ -77,7 +77,7 @@ final class SupabaseLiftService: LiftService {
         do {
             let rows: [CompetitiveLiftDTO] = try await client
                 .from("lift_submissions")
-                .select()
+                .select(CompetitiveLiftDTO.readableColumns)
                 .in("id", values: ids.map(\.uuidString))
                 .execute()
                 .value
@@ -106,7 +106,7 @@ final class SupabaseLiftService: LiftService {
             let row: CompetitiveLiftDTO = try await client
                 .from("lift_submissions")
                 .insert(CompetitiveLiftInsertDTO(submission: submission))
-                .select()
+                .select(CompetitiveLiftDTO.readableColumns)
                 .single()
                 .execute()
                 .value
@@ -197,6 +197,14 @@ private struct CompetitiveLiftInsertDTO: Encodable {
 }
 
 struct CompetitiveLiftDTO: Decodable {
+    // Production restricts bodyweight columns; wildcard reads fail even for owners.
+    static let readableColumns = [
+        "id,user_id,exercise_id,gym_id,weight,unit,reps,visibility,verification,caption",
+        "performed_at,created_at,repetitions,is_actual_one_rep_max,competitive_movement",
+        "evidence_status,moderation_status,weight_per_hand,leaderboard_eligible_at,updated_at,video_asset_id",
+        "approved_evidence_storage_path,pending_evidence_storage_path,evidence_storage_path,review_status,evidence_public"
+    ].joined(separator: ",")
+
     let id: UUID
     let userID: UUID
     let exerciseID: String

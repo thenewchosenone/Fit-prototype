@@ -27,6 +27,44 @@ final class ProfileStore: ObservableObject {
         return try await profileService.authenticatedProfile()
     }
 
+    func sharedWorkoutStats(userID: UUID) async throws -> SharedWorkoutStats? {
+        guard let profileService else { throw LiftRankServiceError.configurationMissing }
+        return try await profileService.sharedWorkoutStats(userID: userID)
+    }
+
+    func recordFriendWorkoutStart(workoutID: UUID, ownerID: UUID) async throws {
+        guard let profileService else { throw LiftRankServiceError.configurationMissing }
+        try await profileService.recordFriendWorkoutStart(workoutID: workoutID, ownerID: ownerID)
+    }
+
+    func recordFriendTopLift(liftID: UUID) async throws {
+        guard let profileService else { throw LiftRankServiceError.configurationMissing }
+        try await profileService.recordFriendTopLift(liftID: liftID)
+    }
+
+    func friendTrainingActivity() async throws -> [FriendTrainingActivity] {
+        guard let profileService else { throw LiftRankServiceError.configurationMissing }
+        return try await profileService.friendTrainingActivity()
+    }
+
+    func publicProfile(userID: UUID) async throws -> UserProfile? {
+        guard let profileService else { throw LiftRankServiceError.configurationMissing }
+        let card = try await profileService.profileCard(userID: userID)
+        mergePublicProfileCard(card)
+        return profile(id: userID)
+    }
+
+    func saveSettings(_ settings: ProfileSettingsSnapshot, expected: ProfileSettingsSnapshot) async throws -> AuthenticatedProfile {
+        guard let profileService else { throw LiftRankServiceError.configurationMissing }
+        let userID = repository.currentProfile.id
+        let remote = try await profileService.saveSettings(settings, expected: expected)
+        guard repository.currentProfile.id == userID, remote.id == userID else {
+            throw LiftRankServiceError.sessionExpired
+        }
+        applyAuthenticatedProfile(remote, retainingDemoProfiles: false)
+        return remote
+    }
+
     func saveAuthenticatedProfile(
         _ draft: ProfileDraft,
         retainingDemoProfiles: Bool
@@ -225,6 +263,7 @@ final class ProfileStore: ObservableObject {
         local.displayName = remote.displayName
         local.bio = remote.bio
         local.preferredUnit = remote.preferredUnit
+        local.trainingFocus = remote.trainingFocus
         local.sexCategory = remote.sexCategory ?? .male
         local.heightInches = (remote.heightCentimeters ?? 0) / 2.54
         local.bodyweightPounds = remote.bodyweightPounds ?? 0

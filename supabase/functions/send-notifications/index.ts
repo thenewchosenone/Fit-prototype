@@ -4,8 +4,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 type NotificationRow = {
   id: string;
   user_id: string;
-  title: string;
-  body: string;
   kind: string;
   destination: Record<string, unknown>;
 };
@@ -30,7 +28,7 @@ Deno.serve(async (request) => {
 
   const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
   const { data: pending, error } = await admin.from("notifications")
-    .select("id,user_id,title,body,kind,destination")
+    .select("id,user_id,kind,destination")
     .is("push_sent_at", null)
     .order("created_at")
     .limit(100);
@@ -64,11 +62,13 @@ Deno.serve(async (request) => {
           "apns-topic": topic,
           "apns-push-type": "alert",
           "apns-priority": "10",
+          "apns-collapse-id": notification.id,
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          aps: { alert: { title: notification.title, body: notification.body }, sound: "default" },
+          aps: { alert: { title: "Lift Rivals", body: "You have a new update." }, sound: "default" },
           destination: notification.destination,
+          recipient_id: notification.user_id,
         }),
       });
       if (response.ok) {

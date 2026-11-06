@@ -9,9 +9,11 @@ enum TrackerSection: String, CaseIterable, Hashable {
 
 enum NotificationRoute: Hashable {
     case home
+    case friendRequests
     case leaderboard(LeaderboardFilters)
     case profile(UUID?)
     case gym(UUID?)
     case tracker(TrackerSection)
+    case activeWorkout
     case forumPost(UUID, commentID: UUID?)
 }

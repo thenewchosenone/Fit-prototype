@@ -107,6 +107,11 @@ struct ExerciseRecords: Hashable {
     var bestSetVolumeKilograms: Double?
     var heaviestWeightKilograms: Double?
     var mostRepetitions: Int?
+    var estimatedMaxWorkoutID: UUID? = nil
+    var sessionVolumeWorkoutID: UUID? = nil
+    var setVolumeWorkoutID: UUID? = nil
+    var heaviestWeightWorkoutID: UUID? = nil
+    var repetitionsWorkoutID: UUID? = nil
 }
 
 struct ExerciseStrengthTrend: Identifiable {

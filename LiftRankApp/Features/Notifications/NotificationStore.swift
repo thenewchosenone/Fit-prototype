@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import UserNotifications
 
 @MainActor
 final class NotificationStore: ObservableObject {
@@ -40,7 +41,15 @@ final class NotificationStore: ObservableObject {
         replaceNotifications(notifications)
     }
 
-    func registerPushToken(_ token: String, userID: UUID, environment: String) async {
+    static func pushEnvironment(signingEnvironment: String?) -> String? {
+        switch signingEnvironment {
+        case "development": "sandbox"
+        case "production": "production"
+        default: nil
+        }
+    }
+
+    func registerPushToken(_ token: String, userID: UUID, environment: String) async throws {
         guard !token.isEmpty, repository.currentProfile.id == userID, let notificationService else { return }
         let registration = PushDeviceRegistration(
             id: UUID(),
@@ -50,7 +59,7 @@ final class NotificationStore: ObservableObject {
             environment: environment,
             updatedAt: .now
         )
-        try? await notificationService.registerDevice(registration)
+        try await notificationService.registerDevice(registration)
     }
 
     func revokeCurrentDevice() async {
@@ -85,6 +94,7 @@ final class NotificationStore: ObservableObject {
     }
 
     func clear() {
+        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
         repository.notifications = []
         cachedUserID = repository.currentProfile.id
         clearNotificationCaches()
@@ -124,14 +134,22 @@ final class NotificationStore: ObservableObject {
 
     func open(_ notification: NotificationItem) -> NotificationRoute {
         markRead(notification.id)
-        let destination = notification.destination
+        return route(for: notification.destination)
+    }
 
+    func route(for destination: NotificationDestination) -> NotificationRoute {
         switch destination.kind {
-        case .home:
+        case .friendRequests:
+            return .friendRequests
+        case .home, .unsupported:
             return .home
         case .leaderboard:
             var filters = LeaderboardFilters(exerciseID: destination.exerciseID)
             filters.rankingType = destination.rankingType ?? .absolute
+            filters.gymID = destination.gymID
+            filters.ageGroup = destination.ageGroup
+            filters.sexCategory = destination.sexCategory
+            if destination.videoBackedOnly == true { filters.verificationLevel = .videoVerified }
             return .leaderboard(filters)
         case .lift:
             return .profile(repository.currentProfile.id)
@@ -141,6 +159,8 @@ final class NotificationStore: ObservableObject {
             return .gym(destination.gymID ?? destination.targetID)
         case .workoutTracker:
             return .tracker(destination.trackerStartsOnProgress ? .progress : .today)
+        case .activeWorkout:
+            return .activeWorkout
         case .forumPost:
             guard let targetID = destination.targetID else { return .home }
             return .forumPost(targetID, commentID: destination.commentID)

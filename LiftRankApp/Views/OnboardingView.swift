@@ -7,10 +7,13 @@ private enum OnboardingLocationPicker: String, Identifiable {
 }
 
 struct OnboardingView: View {
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
     @EnvironmentObject private var appState: AppState
-    @State private var step = 0
+    @State private var step = 1
+    @State private var showingStartingLifts = false
     @State private var goals: Set<String> = []
     @State private var profile = MockData.emptyProfile
+    @State private var privacy = ProfilePrivacySettings()
     @State private var loadedProfile = false
     @State private var showingLegalAcceptance = false
     @State private var isSavingProfile = false
@@ -20,7 +23,7 @@ struct OnboardingView: View {
     @State private var deadlift = ""
     @State private var press = ""
     @State private var bio = ""
-    @State private var yearsTraining = 0
+    @State private var yearsTraining: Int?
     @State private var showingHeightPicker = false
     @State private var showingPhotoManager = false
     @State private var selectedCountryCode = ""
@@ -36,9 +39,9 @@ struct OnboardingView: View {
     let complete: () -> Void
 
     private let goalOptions: [(id: String, title: String, symbol: String, subtitle: String, focus: TrainingFocus?)] = [
-        ("get_stronger", "Get stronger", "bolt.fill", "Build measurable strength", nil),
+        ("get_stronger", "Build all-around strength", "bolt.fill", "Improve strength across your exercises", nil),
         ("bodybuilding", "Build muscle", "figure.strengthtraining.traditional", "Focus on muscle growth and balance", .bodybuilding),
-        ("powerlifting", "Powerlifting", "dumbbell.fill", "Train squat, bench, and deadlift", .powerlifting),
+        ("powerlifting", "Improve my powerlifting total", "dumbbell.fill", "Focus on squat, bench, and deadlift", .powerlifting),
         ("generalFitness", "General fitness", "heart.fill", "Build a consistent training habit", .generalFitness)
     ]
     private let launchCountries = LaunchLocationCatalog.countries
@@ -64,16 +67,17 @@ struct OnboardingView: View {
         AppBackground {
             Group {
                 switch step {
-                case 0: welcome
                 case 1: goalsView
                 case 2: profileView
                 default: recordsView
                 }
             }
+            .disabled(isSavingProfile)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(.snappy, value: step)
+            .animation(reduceMotion ? nil : .snappy, value: step)
             .safeAreaInset(edge: .top, spacing: 0) {
                 topBar
+                    .disabled(isSavingProfile)
                     .background(Color.liftBackground)
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -88,7 +92,7 @@ struct OnboardingView: View {
         }
         .interactiveDismissDisabled()
         .fullScreenCover(isPresented: $showingLegalAcceptance) {
-            LegalAcceptanceView(onBack: { showingLegalAcceptance = false })
+            LegalAcceptanceView(onBack: { showingLegalAcceptance = false }, isOnboarding: true)
                 .environmentObject(appState)
                 .interactiveDismissDisabled()
         }
@@ -96,15 +100,11 @@ struct OnboardingView: View {
             guard !loadedProfile else { return }
             loadedProfile = true
             profile = appState.currentProfile
+            privacy = appState.authenticatedPrivacy
             profile.username = AppleIdentityStore.usernameSuggestion(from: appState.pendingAppleFullName) ?? ""
             profile.displayName = ""
-            profile.hideExactAge = false
-            profile.hideBodyweight = false
-            profile.hideCity = false
-            profile.hideGym = false
-            profile.hideLiftVideos = false
             bio = profile.bio ?? ""
-            yearsTraining = max(0, profile.yearsExperience)
+            yearsTraining = profile.yearsExperience > 0 ? profile.yearsExperience : nil
             selectedCountryCode = ""
             selectedRegionName = ""
             selectedCity = ""
@@ -144,25 +144,25 @@ struct OnboardingView: View {
     private var topBar: some View {
         VStack(spacing: 14) {
             HStack {
-                if step > 0 {
+                if step > 1 {
                     Button {
                         dismissKeyboard()
-                        withAnimation(.snappy) { step -= 1 }
+                        withAnimation(reduceMotion ? nil : .snappy) { step -= 1 }
                     } label: {
                         Image(systemName: "chevron.left")
                             .font(LiftTypography.cardTitle)
-                            .frame(width: 42, height: 42)
+                            .frame(width: 44, height: 44)
                             .background(Color.liftCard)
                             .clipShape(Circle())
                     }
                     .accessibilityLabel("Previous step")
                 } else {
-                    Color.clear.frame(width: 42, height: 42)
+                    Color.clear.frame(width: 44, height: 44)
                 }
 
                 Spacer()
 
-                Text("STEP \(step + 1) OF 4")
+                Text("STEP \(step) OF 4")
                     .font(LiftTypography.compactEmphasis)
                     .tracking(1.2)
                     .foregroundStyle(Color.liftMuted)
@@ -180,12 +180,12 @@ struct OnboardingView: View {
                     Button {
                         Task { await appState.signOutAccount() }
                     } label: {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                            .font(.headline.weight(.semibold))
+                        Text("Exit")
+                            .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Color.liftMuted)
-                            .frame(width: 42, height: 42)
+                            .frame(width: 44, height: 44)
                     }
-                    .accessibilityLabel("Sign out")
+                    .accessibilityLabel("Exit setup and sign out")
                     .disabled(appState.accountOperationInProgress)
                 }
             }
@@ -193,7 +193,7 @@ struct OnboardingView: View {
             HStack(spacing: 7) {
                 ForEach(0..<4, id: \.self) { index in
                     Capsule()
-                        .fill(index <= step ? Color.liftBlue : Color.liftOverlay)
+                        .fill(index < step ? Color.liftBlue : Color.liftOverlay)
                         .frame(height: 5)
                 }
             }
@@ -202,66 +202,6 @@ struct OnboardingView: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private var welcome: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                Image("BrandLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 150, height: 150)
-                    .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-                    .accessibilityLabel("Lift Rivals logo")
-                .frame(maxWidth: .infinity)
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("KNOW YOUR STRENGTH")
-                        .font(LiftTypography.compactEmphasis)
-                        .tracking(1.8)
-                        .foregroundStyle(Color.liftAccentText)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.65)
-                    Text("Track your lifts. See your progress.")
-                        .font(.largeTitle.weight(.semibold))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("Track your best lifts and see how your training progresses over time.")
-                        .font(.title3)
-                        .foregroundStyle(Color.liftMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                HStack(spacing: 10) {
-                    onboardingStat("bolt.fill", "Strength progress")
-                    onboardingStat("trophy.fill", "Personal records")
-                    onboardingStat("chart.bar.fill", "Clear progress")
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 24)
-            .padding(.bottom, 124)
-        }
-        .scrollIndicators(.hidden)
-        .scrollDismissesKeyboard(.interactively)
-    }
-
-    private func onboardingStat(_ symbol: String, _ title: String) -> some View {
-        VStack(spacing: 9) {
-            Image(systemName: symbol)
-                .foregroundStyle(Color.liftAccentText)
-            Text(title)
-                .font(.caption2.weight(.semibold))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(Color.liftMuted)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 15)
-        .background(Color.liftCard.opacity(0.82))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.liftOverlay, lineWidth: 1)
-        }
     }
 
     private var bodyweightField: some View {
@@ -369,7 +309,7 @@ struct OnboardingView: View {
                 screenHeader(
                     eyebrow: "YOUR TRAINING",
                     title: "What are you training for?",
-                    subtitle: "Choose your main goal. You can change your training focus later in Settings."
+                    subtitle: "Choose your main goal. This saves your training preference; it does not assign a workout plan. You can change it later in Settings."
                 )
 
                 Text("Choose one")
@@ -421,7 +361,7 @@ struct OnboardingView: View {
 
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 124)
+            .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.interactively)
@@ -433,10 +373,13 @@ struct OnboardingView: View {
                 screenHeader(
                     eyebrow: "YOUR PROFILE",
                     title: "Set up your profile.",
-                    subtitle: "Choose a username to get started. Everything else can wait."
+                    subtitle: "Choose a username. The other details below are optional."
                 )
 
                 field("Username", text: $profile.username, symbol: "at", disablesSuggestions: true)
+                    .onChange(of: profile.username) { _, _ in
+                        saveError = nil
+                    }
 
                 Button {
                     showingPhotoManager = true
@@ -482,46 +425,12 @@ struct OnboardingView: View {
                         heightScroller
                     }
                     labeledPicker("Years training", symbol: "calendar.badge.clock") {
-                        HStack(spacing: 0) {
-                            Button {
-                                dismissKeyboard()
-                                yearsTraining = max(0, yearsTraining - 1)
-                            } label: {
-                                Image(systemName: "minus")
-                                    .frame(width: 38, height: 36)
-                            }
-                            .disabled(yearsTraining == 0)
-                            .accessibilityLabel("Decrease years training")
-                            .accessibilityIdentifier("onboarding.yearsTraining.decrement")
-
-                            Divider()
-                                .frame(height: 22)
-
-                            Text("\(yearsTraining)")
-                                .font(.subheadline.weight(.bold).monospacedDigit())
-                                .frame(minWidth: 34)
-                                .accessibilityIdentifier("onboarding.yearsTraining.value")
-
-                            Divider()
-                                .frame(height: 22)
-
-                            Button {
-                                dismissKeyboard()
-                                yearsTraining = min(100, yearsTraining + 1)
-                            } label: {
-                                Image(systemName: "plus")
-                                    .frame(width: 38, height: 36)
-                            }
-                            .disabled(yearsTraining == 100)
-                            .accessibilityLabel("Increase years training")
-                            .accessibilityIdentifier("onboarding.yearsTraining.increment")
-                        }
-                        .foregroundStyle(Color.liftText)
-                        .padding(.horizontal, 8)
-                        .background(Color.liftCardRaised)
-                        .clipShape(Capsule())
-                        .accessibilityElement(children: .contain)
-                        .accessibilityIdentifier("onboarding.yearsTraining")
+                        TextField("Not set", value: $yearsTraining, format: .number)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                            .accessibilityLabel("Years training")
+                            .accessibilityIdentifier("onboarding.yearsTraining")
                     }
                 }
 
@@ -533,7 +442,7 @@ struct OnboardingView: View {
                 privacyToggles
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 124)
+            .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.interactively)
@@ -752,14 +661,35 @@ struct OnboardingView: View {
     private var privacyToggles: some View {
         LiftCard {
             VStack(alignment: .leading, spacing: 12) {
-                Label("Privacy controls", systemImage: "lock.shield.fill")
+                Label("Profile visibility", systemImage: "lock.shield.fill")
                     .font(.headline)
                     .foregroundStyle(Color.liftAccentText)
-                Toggle("Hide exact age", isOn: $profile.hideExactAge)
-                Toggle("Hide exact bodyweight", isOn: $profile.hideBodyweight)
-                Toggle("Hide city", isOn: $profile.hideCity)
-                Toggle("Hide gym", isOn: $profile.hideGym)
-                Toggle("Hide lift videos", isOn: $profile.hideLiftVideos)
+                ForEach([
+                    (title: "Profile", field: \ProfilePrivacySettings.profileAudience),
+                    (title: "Bodyweight", field: \ProfilePrivacySettings.bodyweightAudience),
+                    (title: "Location", field: \ProfilePrivacySettings.locationAudience)
+                ], id: \.title) { option in
+                    HStack {
+                        Text(option.title)
+                        Spacer()
+                        Picker(option.title, selection: Binding(
+                            get: { privacy[keyPath: option.field] },
+                            set: { privacy[keyPath: option.field] = $0 }
+                        )) {
+                            ForEach(PrivacyAudience.allCases) { audience in
+                                Text(audience.label).tag(audience)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .accessibilityIdentifier("onboarding.privacy.\(option.title.lowercased().replacingOccurrences(of: " ", with: "_"))")
+                        .accessibilityValue(privacy[keyPath: option.field].label)
+                    }
+                    .frame(minHeight: 44)
+                }
+                Text("These settings apply to details you choose to add. You can manage age group, gym, and video visibility later in Settings.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
             }
             .tint(Color.liftAccentText)
         }
@@ -770,14 +700,9 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 18) {
                 screenHeader(
                     eyebrow: "STARTING LIFTS",
-                    title: "What are your best lifts?",
-                    subtitle: "Enter the most weight you can lift once (your one-rep max, or 1RM). Leave a lift blank if you don’t know it yet."
+                    title: "Add starting lifts?",
+                    subtitle: "This is optional. If you already know your best single-rep lifts, add them as a baseline. Otherwise, continue and log your training later."
                 )
-
-                recordField("Bench press", text: $bench, badge: "BP", tint: .liftAccentText)
-                recordField("Back squat", text: $squat, badge: "SQ", tint: .liftPurple)
-                recordField("Deadlift", text: $deadlift, badge: "DL", tint: .liftGold)
-                recordField("Overhead press", text: $press, badge: "OHP", tint: .liftGreen)
 
                 HStack(spacing: 10) {
                     Image(systemName: "lock.shield.fill")
@@ -789,9 +714,21 @@ struct OnboardingView: View {
                 .padding(15)
                 .background(Color.liftBlue.opacity(0.08))
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                DisclosureGroup("Add known one-rep maxes", isExpanded: $showingStartingLifts) {
+                    VStack(spacing: 12) {
+                        recordField("Bench press", text: $bench, badge: "BP", tint: .liftAccentText)
+                        recordField("Back squat", text: $squat, badge: "SQ", tint: .liftPurple)
+                        recordField("Deadlift", text: $deadlift, badge: "DL", tint: .liftGold)
+                        recordField("Overhead press", text: $press, badge: "OHP", tint: .liftGreen)
+
+                    }
+                    .padding(.top, 12)
+                }
+                .tint(Color.liftAccentText)
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 124)
+            .padding(.bottom, 24)
         }
         .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.interactively)
@@ -806,32 +743,23 @@ struct OnboardingView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             PrimaryButton(
-                title: step == 3 ? (isSavingProfile ? "Saving…" : "Enter Lift Rivals") : nextButtonTitle,
+                title: isSavingProfile ? "Saving…" : (step == 3 ? "Continue to policies" : "Continue"),
                 symbolName: step == 3 ? "arrow.right" : "chevron.right"
             ) {
                 if step == 3 {
                     dismissKeyboard()
                     saveOnboardingProfile()
+                } else if step == 2 {
+                    dismissKeyboard()
+                    saveOnboardingProfile(completesOnboarding: false)
                 } else {
                     dismissKeyboard()
-                    guard step != 2 || validateProfileDetails() else { return }
                     saveError = nil
-                    withAnimation(.snappy) { step += 1 }
+                    withAnimation(reduceMotion ? nil : .snappy) { step += 1 }
                 }
             }
             .accessibilityIdentifier("onboarding.next")
             .disabled(isSavingProfile || (step == 1 && profile.trainingFocus == nil && goals.isEmpty))
-
-            if step == 3 && focusedRecord == nil {
-                Button("I’ll add my lifts later") {
-                    dismissKeyboard()
-                    saveOnboardingProfile()
-                }
-                .disabled(isSavingProfile)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.liftMuted)
-                .padding(.vertical, 3)
-            }
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)
@@ -839,7 +767,7 @@ struct OnboardingView: View {
         .background(Color.liftBackground)
     }
 
-    private func saveOnboardingProfile() {
+    private func saveOnboardingProfile(completesOnboarding: Bool = true) {
         guard !isSavingProfile else { return }
         guard validateProfileDetails() else { return }
         let username = profile.username.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -851,13 +779,7 @@ struct OnboardingView: View {
         profile.cityID = hasCompleteLocation ? selectedCityID : nil
         isSavingProfile = true
         saveError = nil
-        let privacy = ProfilePrivacySettings(
-            ageBandAudience: profile.hideExactAge ? .privateProfile : .publicProfile,
-            bodyweightAudience: profile.hideBodyweight ? .privateProfile : .publicProfile,
-            locationAudience: profile.hideCity ? .privateProfile : .publicProfile,
-            gymAudience: profile.hideGym ? .privateProfile : .publicProfile,
-            showLiftVideos: !profile.hideLiftVideos
-        )
+        let privacy = self.privacy
         let profileDraft: (Bool) -> ProfileDraft = { completesOnboarding in
             ProfileDraft(
             username: username,
@@ -889,8 +811,14 @@ struct OnboardingView: View {
             OnboardingStartingLift(exerciseID: exerciseID, weight: Double(value))
         }
         Task {
+            defer { isSavingProfile = false }
             do {
                 try await appState.saveAuthenticatedProfile(profileDraft(false), allowUsernameChange: true)
+                profile.username = appState.currentProfile.username
+                guard completesOnboarding else {
+                    withAnimation(reduceMotion ? nil : .snappy) { step = 3 }
+                    return
+                }
                 try await appState.saveTrainingGoals(Array(goals).sorted())
                 try await appState.saveAuthenticatedProfile(profileDraft(true))
                 // Starting lifts are optional. A failed lift submission must not block account setup.
@@ -905,10 +833,12 @@ struct OnboardingView: View {
                 showingLegalAcceptance = appState.accountStatus == .needsLegalAcceptance
                 complete()
             } catch {
+                if let serviceError = error as? LiftRankServiceError, case .usernameUnavailable = serviceError {
+                    step = 2
+                }
                 saveError = (error as? LocalizedError)?.errorDescription ?? "Your profile could not be saved."
                 Haptics.warning()
             }
-            isSavingProfile = false
         }
     }
 
@@ -916,6 +846,8 @@ struct OnboardingView: View {
         let username = profile.username.trimmingCharacters(in: .whitespacesAndNewlines)
         if username.isEmpty {
             saveError = "Choose a username to continue."
+        } else if let yearsTraining, !(0...100).contains(yearsTraining) {
+            saveError = "Enter years training from 0 to 100, or leave it blank."
         } else if profile.bodyweightPounds < 0 {
             saveError = "Enter a positive bodyweight or leave it blank."
         } else if profile.bodyweightPounds > 1_000 {
@@ -935,16 +867,6 @@ struct OnboardingView: View {
             from: nil,
             for: nil
         )
-    }
-
-    private var nextButtonTitle: String {
-        switch step {
-        case 0: return "Get started"
-        case 1: return "Continue"
-        case 2: return "Continue"
-        case 3: return "Continue"
-        default: return "Continue"
-        }
     }
 
     private func screenHeader(eyebrow: String, title: String, subtitle: String) -> some View {
@@ -1014,14 +936,19 @@ struct OnboardingView: View {
             Spacer()
 
             HStack(alignment: .firstTextBaseline, spacing: 5) {
-                TextField("—", text: text)
+                TextField("Weight", text: text)
                     .accessibilityIdentifier("onboarding.record.\(title)")
+                    .accessibilityLabel("\(title) one-rep max")
                     .keyboardType(.decimalPad)
                     .focused($focusedRecord, equals: title)
                     .multilineTextAlignment(.trailing)
-                    .font(.title2.weight(.bold))
-                    .frame(width: 72)
+                    .font(.body.weight(.semibold))
+                    .frame(width: 80)
+                    .padding(10)
+                    .background(Color.liftField)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 Text(profile.preferredUnit.shortLabel)
+                    .fixedSize()
                     .font(LiftTypography.compactEmphasis)
                     .foregroundStyle(Color.liftMuted)
             }
@@ -1033,8 +960,7 @@ struct OnboardingView: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(text.wrappedValue.isEmpty ? Color.liftOverlay : tint.opacity(0.65), lineWidth: 1)
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title) one-rep max")
+        .accessibilityElement(children: .contain)
     }
 
     private func labeledPicker<Content: View>(_ title: String, symbol: String, @ViewBuilder content: () -> Content) -> some View {

@@ -11,6 +11,7 @@ enum AppTab: Int, CaseIterable, Hashable {
 
 enum AppSheet: Identifiable, Hashable {
     case submitLift
+    case friendRequests
     case leaderboardFilters
     case editProfile
     case moderatorReview
@@ -24,6 +25,7 @@ enum AppSheet: Identifiable, Hashable {
 
     var id: String {
         switch self {
+        case .friendRequests: return "friend-requests"
         case .submitLift: return "submit-lift"
         case .leaderboardFilters: return "leaderboard-filters"
         case .editProfile: return "edit-profile"
@@ -41,6 +43,7 @@ enum AppSheet: Identifiable, Hashable {
 
 enum AppCover: String, Identifiable, Hashable {
     case authentication
+    case activeWorkout
 
     var id: String { rawValue }
 }

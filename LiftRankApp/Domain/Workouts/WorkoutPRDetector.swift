@@ -70,7 +70,7 @@ enum WorkoutPRDetector {
         excludingCompletedWorkoutID: UUID?
     ) -> Double? {
         var values = existingLifts
-            .filter { $0.exerciseID == rankingExerciseID && $0.repetitions == repetitions }
+            .filter { $0.exerciseID == rankingExerciseID && $0.repetitions >= repetitions }
             .map(\.normalizedWeightKilograms)
 
         for workout in completedWorkouts where workout.id != excludingCompletedWorkoutID {
@@ -85,7 +85,7 @@ enum WorkoutPRDetector {
                       exerciseIDs.contains(log.prescriptionID),
                       log.isComplete,
                       !log.isWarmup,
-                      log.reps == repetitions,
+                      (log.reps ?? 0) >= repetitions,
                       let weight = log.weight else {
                     return nil
                 }

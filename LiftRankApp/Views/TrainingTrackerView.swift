@@ -5,6 +5,7 @@ import SwiftUI
 import UserNotifications
 
 struct TrainingTrackerView: View {
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) var dismiss
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
@@ -20,7 +21,9 @@ struct TrainingTrackerView: View {
     @State var showingWorkoutDatePicker = false
     @State var showingActiveWorkout = false
     @State var showingWorkoutConflict = false
+    @State var showingPlanSwitcher = false
     @State var showingCreatePlan = false
+    @State var showingProgramImport = false
     @State var showingDeletePlan = false
     @State var showingRenamePlan = false
     @State var renamePlanName = ""
@@ -32,6 +35,10 @@ struct TrainingTrackerView: View {
     @State var showingCreateLibraryExercise = false
     @State var selectedProgramTemplate: WorkoutProgramTemplate?
     @State var isProgramLibraryExpanded = false
+    @State var programLibrarySearch = ""
+    @State var programLibraryCategory = "All"
+    @State var programLibraryDays = 0
+    @State var programLibraryEquipment = "All"
     @State var showingProgressionEditor = false
     @State var selectedCompletedWorkout: CompletedWorkout?
     @State var focusedWorkoutSetID: UUID?
@@ -39,16 +46,27 @@ struct TrainingTrackerView: View {
     @State var workoutHistoryMonth = Calendar.current.dateInterval(of: .month, for: .now)?.start ?? .now
     @State var selectedWorkoutHistoryDate: Date?
     @State var selectedProgressExerciseID: String?
-    @State var strengthExerciseScrollRequest = UUID()
     @State var showingProgressExercisePicker = false
     @State var selectedProgressCategory: TrackerProgressCategory = .consistency
+    @AppStorage("liftrank.progress.exercise") var storedProgressExerciseID = ""
+    @AppStorage("liftrank.rescheduleSuggestions.enabled") var rescheduleSuggestionsEnabled = true
+    @State var rescheduleError: String?
+    @State var movedWorkoutMessage: String?
+    @State var strengthGoalTargetDraft = ""
+    @State var strengthGoalExerciseID: String?
+    @State var strengthGoalsRevision = 0
+    @State var showingTrainingRecap = false
+    @State var showingProgressExplanation = false
+    @State var showingStrengthGoalEditor = false
+    @State var savingStrengthGoal = false
+    @State var strengthGoalError: String?
     @State var showAllMuscleSetRows = false
+    @State var selectedBodyweightEntry: BodyweightEntry?
     @State var showAllMuscleVolumeRows = false
     @State var muscleWorkloadFilter: MuscleWorkloadFilter = .logged
     @State var selectedProgressMuscle: ExerciseMuscleRegion?
     @State var selectedProgressMuscleDate = Date.now
-    @State var didLoadTrainingFocus = false
-    @State var dismissedTrainingFocusPrompt = false
+    @State var didOpenProgress = false
     @State var selectedExerciseWeightTrendDate: Date?
     @State var selectedExerciseStrengthTrendDate: Date?
     @State var selectedPlateauInsight: PlateauInsight?
@@ -59,10 +77,12 @@ struct TrainingTrackerView: View {
     @State var selectedBodyProgressPeriod = "1Y"
     @AppStorage("liftrank.dismissedPlateauInsights") var dismissedPlateauInsightIDs = ""
     let isEmbeddedInTab: Bool
+    let isActiveTab: Bool
 
-    init(startOnProgress: Bool = false, isEmbeddedInTab: Bool = false) {
+    init(startOnProgress: Bool = false, isEmbeddedInTab: Bool = false, isActiveTab: Bool = true) {
         _segment = State(initialValue: startOnProgress ? .progress : .today)
         self.isEmbeddedInTab = isEmbeddedInTab
+        self.isActiveTab = isActiveTab
     }
 
     var body: some View { featureBody }

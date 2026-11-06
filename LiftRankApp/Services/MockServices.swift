@@ -3,6 +3,9 @@ import Foundation
 @MainActor
 final class MockAuthenticationService: AuthenticationService {
     private let repository: DemoRepository
+#if DEBUG
+    private var didAttemptConfirmationResend = false
+#endif
     var isConfigured: Bool { true }
     var isDemoMode: Bool { true }
 
@@ -28,7 +31,26 @@ final class MockAuthenticationService: AuthenticationService {
     func addEmailToGuestAccount(email: String, password: String) async throws -> AccountSession {
         AccountSession(userID: repository.currentProfile.id, email: email, expiresAt: .now.addingTimeInterval(3_600))
     }
-    func signUp(email: String, password: String) async throws -> AccountSession { throw LiftRankServiceError.invalidCredentials }
+    func signUp(email: String, password: String) async throws -> AccountSession {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTestingEmailConfirmation") {
+            return AccountSession(userID: repository.currentProfile.id, email: email, expiresAt: nil)
+        }
+#endif
+        throw LiftRankServiceError.invalidCredentials
+    }
+    func resendConfirmation(email: String) async throws {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTestingEmailConfirmation") {
+            if !didAttemptConfirmationResend {
+                didAttemptConfirmationResend = true
+                throw LiftRankServiceError.server("Confirmation could not be sent. Try again.")
+            }
+            return
+        }
+#endif
+        throw LiftRankServiceError.configurationMissing
+    }
     func signIn(email: String, password: String) async throws -> AccountSession { throw LiftRankServiceError.invalidCredentials }
     func requestPasswordReset(email: String) async throws {}
     func signInWithApple(identityToken: String, nonce: String) async throws -> AccountSession { throw LiftRankServiceError.invalidCredentials }
@@ -42,12 +64,18 @@ final class MockAuthenticationService: AuthenticationService {
 @MainActor
 final class MockProfileService: ProfileService {
     private let repository: DemoRepository
+    private var savedPrivacy: ProfilePrivacySettings?
+    private var shouldFailNextSettingsSave = ProcessInfo.processInfo.arguments.contains("-uiTestingSettingsSaveFailure")
     init(repository: DemoRepository) { self.repository = repository }
     func currentProfile() async throws -> UserProfile { repository.currentProfile }
     func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry]) async throws -> [BodyweightEntry] { localEntries }
     func saveBodyweightEntry(_ entry: BodyweightEntry) async throws {}
     func deleteBodyweightEntry(id: UUID) async throws {}
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {
+        if shouldFailNextSettingsSave {
+            shouldFailNextSettingsSave = false
+            throw LiftRankServiceError.server("Simulated settings save failure.")
+        }
         var saved = profile
         saved.username = repository.currentProfile.username
         repository.currentProfile = saved
@@ -66,7 +94,7 @@ final class MockProfileService: ProfileService {
             bodyweightPounds: profile.bodyweightPounds, city: profile.city,
             region: profile.state, countryCode: profile.countryCode, cityID: profile.cityID, yearsExperience: profile.yearsExperience,
             experienceLevel: profile.experienceLevel,
-            privacy: ProfilePrivacySettings(
+            privacy: savedPrivacy ?? ProfilePrivacySettings(
                 profileAudience: profile.profileAudience,
                 ageBandAudience: profile.hideExactAge ? .privateProfile : .publicProfile,
                 bodyweightAudience: profile.hideBodyweight ? .privateProfile : .publicProfile,
@@ -77,6 +105,10 @@ final class MockProfileService: ProfileService {
             trainingFocus: profile.trainingFocus
         )
     }
+    func saveSettings(_ settings: ProfileSettingsSnapshot, expected: ProfileSettingsSnapshot) async throws -> AuthenticatedProfile {
+        throw LiftRankServiceError.configurationMissing
+    }
+
     func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile {
         var profile = repository.currentProfile
         profile.displayName = draft.displayName
@@ -95,10 +127,18 @@ final class MockProfileService: ProfileService {
         profile.profileAudience = draft.privacy.profileAudience
         profile.hideLiftVideos = !draft.privacy.showLiftVideos
         _ = try await updateProfile(profile)
+        savedPrivacy = draft.privacy
         return try await authenticatedProfile()
     }
+    func strengthGoalTargets() async throws -> [String: Double]? { nil }
+    func saveStrengthGoalTargets(_ targets: [String: Double]) async throws {}
     func saveTrainingGoals(_ goalIDs: [String]) async throws {}
     func changeUsername(currentUsername: String, newUsername: String) async throws -> String {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTestingUsernameUnavailable") {
+            throw LiftRankServiceError.usernameUnavailable
+        }
+#endif
         let normalized = newUsername.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "@"))
         guard normalized.range(of: "^[a-z0-9_]{3,24}$", options: .regularExpression) != nil else {
             throw LiftRankServiceError.invalidInput("Use 3–24 lowercase letters, numbers, or underscores.")
@@ -126,6 +166,28 @@ final class MockProfileService: ProfileService {
             bodyweightPounds: profile.hideBodyweight ? nil : profile.bodyweightPounds,
             bodyweightLastUpdatedAt: profile.hideBodyweight ? nil : profile.bodyweightLastUpdatedAt
         )
+    }
+    func sharedWorkoutStats(userID: UUID) async throws -> SharedWorkoutStats? { nil }
+    func recordFriendWorkoutStart(workoutID: UUID, ownerID: UUID) async throws {}
+    func recordFriendTopLift(liftID: UUID) async throws {}
+    func friendTrainingActivity() async throws -> [FriendTrainingActivity] {
+        guard let friend = repository.profiles.first(where: { profile in
+            profile.id != repository.currentProfile.id && repository.lifts.contains {
+                $0.userID == profile.id && $0.visibility == .publicLift
+            }
+        }) else { return [] }
+        var activities = [FriendTrainingActivity(
+            id: friend.id, ownerID: friend.id, displayName: friend.displayName,
+            kind: .workoutStarted, sourceID: friend.id, occurredAt: .now.addingTimeInterval(-3_600)
+        )]
+        if var lift = repository.lifts.first(where: { $0.userID == friend.id && $0.visibility == .publicLift }) {
+            if lift.caption.hasPrefix("[demo:") { lift.caption = "" }
+            activities.append(FriendTrainingActivity(
+                id: lift.id, ownerID: friend.id, displayName: friend.displayName,
+                kind: .topLift, sourceID: lift.id, occurredAt: lift.performedAt, lift: lift
+            ))
+        }
+        return activities
     }
     func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String { avatarPath }
     func downloadProfileAvatar(avatarPath: String) async throws -> ProfileAvatarDownload? { nil }
@@ -203,6 +265,13 @@ final class MockSocialService: SocialService {
     private var blockRecords: [UserBlockRecord] = []
     var shouldFailBlocksFetch = false
     init(repository: DemoRepository) { self.repository = repository }
+    func friendRequests() async throws -> [FriendRequest] { [] }
+    func requestFriendship(userID: UUID) async throws {
+        throw LiftRankServiceError.invalidInput("Friend requests require a signed-in account.")
+    }
+    func respondToFriendship(id: UUID, accept: Bool) async throws {
+        throw LiftRankServiceError.invalidInput("Friend requests require a signed-in account.")
+    }
     func searchProfiles(query: String, limit: Int) async throws -> [PublicProfileCard] {
         let clean = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return repository.profiles.filter {
@@ -334,10 +403,25 @@ final class MockForumService: ForumService {
     private var editedPost: ForumPost?
     private var editedComments: [ForumComment]?
     private var isTestPostDeleted = false
+    private var localPosts: [ForumPost] = []
+    private var localComments: [UUID: [ForumComment]] = [:]
+    private var localMedia: [String: URL] = [:]
+    private var joinedIDs: Set<UUID> = []
+    private var postVotes: [UUID: Int] = [:]
+    private var watchedPostIDs: Set<UUID> = []
 
     init(repository: DemoRepository) {
         self.repository = repository
         hasEditableTestFixture = ProcessInfo.processInfo.arguments.contains("-uiTestingEditableForumThread")
+        let communityID = UUID(uuidString: "00000000-0000-0000-0000-000000000201")!
+        localPosts = [
+            ForumPost(id: UUID(uuidString: "00000000-0000-0000-0000-000000000271")!, communityID: communityID, gymID: nil, authorID: MockData.demoProfile.id,
+                      kind: "Discussion", title: "Photo test · Lift Rivals", body: "A demo image for checking photo previews and full-screen viewing.", tag: "Test post", liftID: nil, isPinned: false, isLocked: false, createdAt: Date().addingTimeInterval(-60),
+                      attachments: [ForumAttachment(kind: .photo, storagePath: "demo/forum-demo-photo.png")]),
+            ForumPost(id: UUID(uuidString: "00000000-0000-0000-0000-000000000272")!, communityID: communityID, gymID: nil, authorID: MockData.demoProfile.id,
+                      kind: "Discussion", title: "Video test · App recording", body: "A demo app recording for checking video playback. This is not a verified lift.", tag: "Test post", liftID: nil, isPinned: false, isLocked: false, createdAt: Date().addingTimeInterval(-120),
+                      attachments: [ForumAttachment(kind: .video, storagePath: "demo/forum-demo-video.mp4")])
+        ]
     }
 
     private var testPostID: UUID { UUID(uuidString: "00000000-0000-0000-0000-000000000211")! }
@@ -351,31 +435,70 @@ final class MockForumService: ForumService {
     ]
 
     func communities() async throws -> [ForumCommunity] { demoCommunities }
-    func joinedCommunityIDs() async throws -> [UUID] { hasEditableTestFixture ? [testCommunityID] : [] }
+    func joinedCommunityIDs() async throws -> [UUID] { Array(joinedIDs.union(hasEditableTestFixture ? [testCommunityID] : [])) }
     func communityMembershipStatuses() async throws -> [UUID: String] {
-        hasEditableTestFixture ? [testCommunityID: "Joined"] : [:]
+        Dictionary(uniqueKeysWithValues: try await joinedCommunityIDs().map { ($0, "Joined") })
     }
     func posts(communityID: UUID?, limit: Int, offset: Int) async throws -> [ForumPost] {
-        guard hasEditableTestFixture, !isTestPostDeleted, communityID == nil || communityID == testCommunityID else { return [] }
-        return Array([currentTestPost].dropFirst(offset).prefix(limit))
+        var posts = localPosts.map(presentedPost)
+        if hasEditableTestFixture, !isTestPostDeleted { posts.insert(currentTestPost, at: 0) }
+        return Array(posts.filter { communityID == nil || $0.communityID == communityID }
+            .dropFirst(max(offset, 0)).prefix(max(limit, 0)))
     }
     func thread(postID: UUID) async throws -> ForumThread? {
+        if let post = localPosts.first(where: { $0.id == postID }) {
+            return ForumThread(post: presentedPost(post), comments: localComments[postID] ?? [], isWatching: watchedPostIDs.contains(postID))
+        }
         guard hasEditableTestFixture, !isTestPostDeleted, postID == testPostID else { return nil }
         return ForumThread(post: currentTestPost, comments: currentTestComments)
     }
     func join(communityID: UUID, requestNote: String) async throws -> String {
-        throw LiftRankServiceError.invalidInput("Joining communities is unavailable in the simulator demo.")
+        joinedIDs.insert(communityID)
+        return "Joined"
     }
     func leave(communityID: UUID) async throws {
-        throw LiftRankServiceError.invalidInput("Leaving communities is unavailable in the simulator demo.")
+        joinedIDs.remove(communityID)
     }
     func createPost(_ draft: ForumPostDraft) async throws -> ForumPost {
-        throw LiftRankServiceError.invalidInput("Posting is unavailable in the simulator demo.")
+        if ProcessInfo.processInfo.arguments.contains("-uiTestingForumPublishFailure") {
+            throw LiftRankServiceError.invalidInput("Posting is unavailable in the simulator demo.")
+        }
+        if let existing = localPosts.first(where: { $0.id == draft.id }) { return presentedPost(existing) }
+        var attachments: [ForumAttachment] = []
+        if let media = draft.media {
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("forum-post-\(UUID().uuidString)")
+                .appendingPathExtension(media.kind == .photo ? "jpg" : "mp4")
+            try FileManager.default.copyItem(at: media.fileURL, to: url)
+            localMedia[url.path] = url
+            attachments = [ForumAttachment(kind: media.kind, storagePath: url.path)]
+        }
+        let post = ForumPost(id: draft.id, communityID: draft.communityID, gymID: nil, authorID: repository.currentProfile.id, kind: draft.kind, title: draft.title, body: draft.body, tag: draft.tag, liftID: draft.liftID, isPinned: false, isLocked: false, createdAt: .now, attachments: attachments)
+        localPosts.insert(post, at: 0)
+        return post
+    }
+    func mediaURL(for attachment: ForumAttachment) async throws -> URL {
+        if let url = localMedia[attachment.storagePath] { return url }
+        if attachment.storagePath == "demo/forum-demo-photo.png",
+           let url = Bundle.main.url(forResource: "forum-demo-photo", withExtension: "png") { return url }
+        if attachment.storagePath == "demo/forum-demo-video.mp4",
+           let url = Bundle.main.url(forResource: "forum-demo-video", withExtension: "mp4") { return url }
+        throw LiftRankServiceError.invalidInput("This demo attachment is unavailable.")
     }
     func createComment(postID: UUID, body: String, parentCommentID: UUID?) async throws -> ForumComment {
+        if localPosts.contains(where: { $0.id == postID }) {
+            let comment = ForumComment(id: UUID(), postID: postID, authorID: repository.currentProfile.id, parentCommentID: parentCommentID, body: body, createdAt: .now)
+            localComments[postID, default: []].append(comment)
+            return comment
+        }
         throw LiftRankServiceError.invalidInput("Commenting is unavailable in the simulator demo.")
     }
     func updatePost(postID: UUID, title: String, body: String) async throws -> ForumPost {
+        if let index = localPosts.firstIndex(where: { $0.id == postID && $0.authorID == repository.currentProfile.id }) {
+            let post = localPosts[index]
+            let updated = ForumPost(id: post.id, communityID: post.communityID, gymID: post.gymID, authorID: post.authorID, kind: post.kind, title: title, body: body, tag: post.tag, liftID: post.liftID, isPinned: post.isPinned, isLocked: post.isLocked, createdAt: post.createdAt, attachments: post.attachments)
+            localPosts[index] = updated
+            return presentedPost(updated)
+        }
         if hasEditableTestFixture, postID == testPostID, currentTestPost.authorID == repository.currentProfile.id {
             let post = currentTestPost
             let updated = ForumPost(id: post.id, communityID: post.communityID, gymID: post.gymID, authorID: post.authorID, kind: post.kind, title: title, body: body, tag: post.tag, liftID: post.liftID, isPinned: post.isPinned, isLocked: post.isLocked, createdAt: post.createdAt, voteCount: post.voteCount, commentCount: post.commentCount, currentUserVote: post.currentUserVote)
@@ -385,6 +508,13 @@ final class MockForumService: ForumService {
         throw LiftRankServiceError.invalidInput("Editing posts is unavailable in the simulator demo.")
     }
     func updateComment(commentID: UUID, body: String) async throws -> ForumComment {
+        if let postID = localComments.first(where: { $0.value.contains(where: { $0.id == commentID }) })?.key,
+           let index = localComments[postID]?.firstIndex(where: { $0.id == commentID && $0.authorID == repository.currentProfile.id }),
+           let comment = localComments[postID]?[index] {
+            let updated = ForumComment(id: comment.id, postID: postID, authorID: comment.authorID, parentCommentID: comment.parentCommentID, body: body, createdAt: comment.createdAt)
+            localComments[postID]?[index] = updated
+            return updated
+        }
         if hasEditableTestFixture, let index = currentTestComments.firstIndex(where: { $0.id == commentID && $0.authorID == repository.currentProfile.id }) {
             let comment = currentTestComments[index]
             let updated = ForumComment(id: comment.id, postID: comment.postID, authorID: comment.authorID, parentCommentID: comment.parentCommentID, body: body, createdAt: comment.createdAt, voteCount: comment.voteCount, currentUserVote: comment.currentUserVote)
@@ -396,6 +526,18 @@ final class MockForumService: ForumService {
         throw LiftRankServiceError.invalidInput("Editing comments is unavailable in the simulator demo.")
     }
     func deletePost(postID: UUID) async throws {
+        if let post = localPosts.first(where: { $0.id == postID && $0.authorID == repository.currentProfile.id }) {
+            for attachment in post.attachments {
+                if let url = localMedia[attachment.storagePath] {
+                    try FileManager.default.removeItem(at: url)
+                    localMedia[attachment.storagePath] = nil
+                }
+            }
+            localPosts.removeAll { $0.id == postID }
+            localComments[postID] = nil
+            postVotes[postID] = nil
+            return
+        }
         if hasEditableTestFixture, postID == testPostID, currentTestPost.authorID == repository.currentProfile.id {
             isTestPostDeleted = true
             return
@@ -403,6 +545,10 @@ final class MockForumService: ForumService {
         throw LiftRankServiceError.invalidInput("Deleting posts is unavailable in the simulator demo.")
     }
     func deleteComment(commentID: UUID) async throws {
+        if let postID = localComments.first(where: { $0.value.contains(where: { $0.id == commentID && $0.authorID == repository.currentProfile.id }) })?.key {
+            localComments[postID]?.removeAll { $0.id == commentID }
+            return
+        }
         if hasEditableTestFixture, currentTestComments.contains(where: { $0.id == commentID && $0.authorID == repository.currentProfile.id }) {
             editedComments = currentTestComments.filter { $0.id != commentID }
             return
@@ -410,12 +556,20 @@ final class MockForumService: ForumService {
         throw LiftRankServiceError.invalidInput("Deleting comments is unavailable in the simulator demo.")
     }
     func vote(postID: UUID, value: Int?) async throws {
+        if localPosts.contains(where: { $0.id == postID }) {
+            postVotes[postID] = value
+            return
+        }
         throw LiftRankServiceError.invalidInput("Voting is unavailable in the simulator demo.")
     }
     func vote(commentID: UUID, value: Int?) async throws {
         throw LiftRankServiceError.invalidInput("Voting is unavailable in the simulator demo.")
     }
     func watch(postID: UUID, watched: Bool) async throws {
+        if localPosts.contains(where: { $0.id == postID }) {
+            if watched { watchedPostIDs.insert(postID) } else { watchedPostIDs.remove(postID) }
+            return
+        }
         throw LiftRankServiceError.invalidInput("Watching discussions is unavailable in the simulator demo.")
     }
     func report(targetType: String, targetID: UUID, communityID: UUID?, reason: String, note: String) async throws {
@@ -424,6 +578,10 @@ final class MockForumService: ForumService {
     func reports() async throws -> [ForumReport] { [] }
     func moderate(postID: UUID, action: String, reason: String) async throws {
         throw LiftRankServiceError.invalidInput("Moderation is unavailable in the simulator demo.")
+    }
+
+    private func presentedPost(_ post: ForumPost) -> ForumPost {
+        ForumPost(id: post.id, communityID: post.communityID, gymID: post.gymID, authorID: post.authorID, kind: post.kind, title: post.title, body: post.body, tag: post.tag, liftID: post.liftID, isPinned: post.isPinned, isLocked: post.isLocked, createdAt: post.createdAt, voteCount: postVotes[post.id] ?? 0, commentCount: localComments[post.id]?.count ?? 0, currentUserVote: postVotes[post.id], attachments: post.attachments)
     }
 
     private var currentTestPost: ForumPost {
@@ -466,10 +624,13 @@ final class MockWorkoutSyncService: WorkoutSyncService {
     func savePlan(_ document: WorkoutPlanDocument, expectedRevision: Int) async throws -> WorkoutSyncResult {
         guard !document.isSeededDemoData else { throw LiftRankServiceError.invalidInput("Demo data cannot be synced.") }
         if let current = planDocuments.first(where: { $0.id == document.id }), current.revision != expectedRevision {
-            var conflict = document
-            conflict.id = UUID(); conflict.isConflictCopy = true; conflict.conflictOfRevision = expectedRevision
             let payload = try JSONDecoder().decode(WorkoutPlanSyncPayload.self, from: document.payload)
-            conflict.payload = try JSONEncoder().encode(payload.conflictCopy(documentID: conflict.id))
+            let serverPayload = try JSONDecoder().decode(WorkoutPlanSyncPayload.self, from: current.payload)
+            if payload.canonicalized == serverPayload.canonicalized { return .saved(current) }
+            let conflict = try document.conflictCopy(expectedRevision: expectedRevision)
+            if let existing = planDocuments.first(where: { $0.id == conflict.id }) {
+                return .conflict(server: current, localCopy: existing)
+            }
             planDocuments.append(conflict)
             return .conflict(server: current, localCopy: conflict)
         }
@@ -483,6 +644,16 @@ final class MockWorkoutSyncService: WorkoutSyncService {
             throw LiftRankServiceError.invalidInput("Simulated plan deletion failure")
         }
         planDocuments.removeAll { $0.id == id }
+    }
+    func deleteDuplicatePlan(_ document: WorkoutPlanDocument) async throws -> Bool {
+        guard let current = planDocuments.first(where: { $0.id == document.id }),
+              current.ownerID == document.ownerID, current.revision == document.revision else { return false }
+        let payload = try JSONDecoder().decode(WorkoutPlanSyncPayload.self, from: current.payload)
+        guard !payload.plan.isActive, payload.plan.name.hasSuffix(" (Conflict copy)") else {
+            throw LiftRankServiceError.invalidInput("Only an inactive conflict copy can be cleaned up.")
+        }
+        try await deletePlan(id: document.id)
+        return true
     }
     func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot] { snapshots.filter { since == nil || $0.completedAt > since! } }
     func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws {

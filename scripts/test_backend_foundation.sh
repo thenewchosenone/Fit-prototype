@@ -12,6 +12,14 @@ for command in initdb pg_ctl createdb dropdb psql pg_config; do
   [[ -x "$PGBIN/$command" ]] || { echo "Missing $PGBIN/$command. Set LIFTRANK_POSTGRES_ROOT." >&2; exit 1; }
 done
 
+PGSHARE=$("$PGBIN/pg_config" --sharedir)
+for required_file in postgres.bki extension/pgcrypto.control extension/dblink.control; do
+  [[ -f "$PGSHARE/$required_file" ]] || {
+    echo "Incomplete PostgreSQL installation: missing $PGSHARE/$required_file. Set LIFTRANK_POSTGRES_ROOT to a complete installation with pgcrypto and dblink." >&2
+    exit 1
+  }
+done
+
 mkdir -p "$WORK" "$SOCKET"
 cleanup() {
   "$PGBIN/pg_ctl" -D "$WORK/data" stop -m fast >/dev/null 2>&1 || true
@@ -65,7 +73,8 @@ create table storage.buckets (
 );
 create table storage.objects (
   id uuid primary key default gen_random_uuid(), bucket_id text not null references storage.buckets(id),
-  name text not null, owner_id text, created_at timestamptz not null default now(),
+  name text not null, owner_id text, metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
   unique(bucket_id, name)
 );
 alter table storage.objects enable row level security;

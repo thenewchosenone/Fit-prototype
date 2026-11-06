@@ -17,6 +17,9 @@
 		100000000000000000000008 /* ViewModels/AppViewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000008 /* ViewModels/AppViewModels.swift */; };
 		100000000000000000000009 /* Core/Media/MediaComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000009 /* Core/Media/MediaComponents.swift */; };
 		100000000000000000000010 /* Views/MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000010 /* Views/MainTabView.swift */; };
+		100000000000000000000353 /* Features/Training/ActiveWorkout/WorkoutSessionSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000353 /* Features/Training/ActiveWorkout/WorkoutSessionSheets.swift */; };
+		100000000000000000000352 /* Features/Profile/MeHubViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000352 /* Features/Profile/MeHubViews.swift */; };
+		100000000000000000000350 /* App/Session/AuthenticationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000350 /* App/Session/AuthenticationViews.swift */; };
 		100000000000000000000011 /* Views/OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000011 /* Views/OnboardingView.swift */; };
 		100000000000000000000012 /* Views/HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000012 /* Views/HomeView.swift */; };
 		100000000000000000000013 /* Views/SubmitLiftView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000013 /* Views/SubmitLiftView.swift */; };
@@ -56,6 +59,7 @@
 		100000000000000000000050 /* Domain/Workouts/WorkoutPRDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000053 /* Domain/Workouts/WorkoutPRDetector.swift */; };
 		100000000000000000000051 /* Features/Training/Plans/ProgramStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000054 /* Features/Training/Plans/ProgramStore.swift */; };
 		100000000000000000000052 /* Features/Training/Progress/TrainingProgressStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000055 /* Features/Training/Progress/TrainingProgressStore.swift */; };
+		100000000000000000000354 /* Features/Training/Progress/TrainingProgressModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000354 /* Features/Training/Progress/TrainingProgressModels.swift */; };
 		100000000000000000000053 /* Features/Training/Library/ExerciseLibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000056 /* Features/Training/Library/ExerciseLibraryStore.swift */; };
 		100000000000000000000054 /* Data/Supabase/SupabaseProfileMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000057 /* Data/Supabase/SupabaseProfileMapper.swift */; };
 		100000000000000000000055 /* Domain/Competition/WeightClassCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000058 /* Domain/Competition/WeightClassCatalog.swift */; };
@@ -118,6 +122,10 @@
 		100000000000000000000156 /* Features/Leaderboard/LeaderboardsLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000300 /* Features/Leaderboard/LeaderboardsLogic.swift */; };
 		100000000000000000000163 /* Features/Profile/TopLiftCardDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000306 /* Features/Profile/TopLiftCardDetails.swift */; };
 		100000000000000000000161 /* Features/Community/ForumStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000304 /* Features/Community/ForumStore.swift */; };
+		100000000000000000000351 /* Features/Community/ForumViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000351 /* Features/Community/ForumViews.swift */; };
+		100000000000000000000360 /* Features/Community/ForumMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000360 /* Features/Community/ForumMedia.swift */; };
+		100000000000000000000361 /* forum-demo-photo.png in Resources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000361 /* forum-demo-photo.png */; };
+		100000000000000000000362 /* forum-demo-video.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000362 /* forum-demo-video.mp4 */; };
 		100000000000000000000162 /* Features/Community/ReportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000305 /* Features/Community/ReportViews.swift */; };
 		100000000000000000000157 /* Features/Training/Library/ExerciseCatalogIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000301 /* Features/Training/Library/ExerciseCatalogIcon.swift */; };
 		100000000000000000000158 /* Features/Training/Library/ExerciseLibraryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000302 /* Features/Training/Library/ExerciseLibraryDetailView.swift */; };
@@ -169,6 +177,9 @@
 		200000000000000000000008 /* ViewModels/AppViewModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewModels/AppViewModels.swift; sourceTree = "<group>"; };
 		200000000000000000000009 /* Core/Media/MediaComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/Media/MediaComponents.swift; sourceTree = "<group>"; };
 		200000000000000000000010 /* Views/MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/MainTabView.swift; sourceTree = "<group>"; };
+		200000000000000000000353 /* Features/Training/ActiveWorkout/WorkoutSessionSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/ActiveWorkout/WorkoutSessionSheets.swift; sourceTree = "<group>"; };
+		200000000000000000000352 /* Features/Profile/MeHubViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Profile/MeHubViews.swift; sourceTree = "<group>"; };
+		200000000000000000000350 /* App/Session/AuthenticationViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/Session/AuthenticationViews.swift; sourceTree = "<group>"; };
 		200000000000000000000011 /* Views/OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/OnboardingView.swift; sourceTree = "<group>"; };
 		200000000000000000000012 /* Views/HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/HomeView.swift; sourceTree = "<group>"; };
 		200000000000000000000013 /* Views/SubmitLiftView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/SubmitLiftView.swift; sourceTree = "<group>"; };
@@ -211,6 +222,7 @@
 		200000000000000000000053 /* Domain/Workouts/WorkoutPRDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/Workouts/WorkoutPRDetector.swift; sourceTree = "<group>"; };
 		200000000000000000000054 /* Features/Training/Plans/ProgramStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Plans/ProgramStore.swift; sourceTree = "<group>"; };
 		200000000000000000000055 /* Features/Training/Progress/TrainingProgressStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Progress/TrainingProgressStore.swift; sourceTree = "<group>"; };
+		200000000000000000000354 /* Features/Training/Progress/TrainingProgressModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Progress/TrainingProgressModels.swift; sourceTree = "<group>"; };
 		200000000000000000000056 /* Features/Training/Library/ExerciseLibraryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Library/ExerciseLibraryStore.swift; sourceTree = "<group>"; };
 		200000000000000000000057 /* Data/Supabase/SupabaseProfileMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Data/Supabase/SupabaseProfileMapper.swift; sourceTree = "<group>"; };
 		200000000000000000000058 /* Domain/Competition/WeightClassCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Domain/Competition/WeightClassCatalog.swift; sourceTree = "<group>"; };
@@ -284,6 +296,10 @@
 		200000000000000000000302 /* Features/Training/Library/ExerciseLibraryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Library/ExerciseLibraryDetailView.swift; sourceTree = "<group>"; };
 		200000000000000000000303 /* Features/Training/Library/ExerciseMuscleMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Training/Library/ExerciseMuscleMapView.swift; sourceTree = "<group>"; };
 		200000000000000000000304 /* Features/Community/ForumStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/ForumStore.swift; sourceTree = "<group>"; };
+		200000000000000000000351 /* Features/Community/ForumViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/ForumViews.swift; sourceTree = "<group>"; };
+		200000000000000000000360 /* Features/Community/ForumMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/ForumMedia.swift; sourceTree = "<group>"; };
+		200000000000000000000361 /* forum-demo-photo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = Resources/DemoMedia/forum-demo-photo.png; sourceTree = "<group>"; };
+		200000000000000000000362 /* forum-demo-video.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = Resources/DemoMedia/forum-demo-video.mp4; sourceTree = "<group>"; };
 		200000000000000000000305 /* Features/Community/ReportViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Community/ReportViews.swift; sourceTree = "<group>"; };
 		200000000000000000000306 /* Features/Profile/TopLiftCardDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Profile/TopLiftCardDetails.swift; sourceTree = "<group>"; };
 		200000000000000000000311 /* WorkoutPresentationFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPresentationFormattingTests.swift; sourceTree = "<group>"; };
@@ -364,6 +380,9 @@
 				200000000000000000000103 /* Core/Media/WorkoutVideoStore.swift */,
 				200000000000000000000025 /* Components/LeaderboardComponents.swift */,
 				200000000000000000000010 /* Views/MainTabView.swift */,
+				200000000000000000000353 /* Features/Training/ActiveWorkout/WorkoutSessionSheets.swift */,
+				200000000000000000000352 /* Features/Profile/MeHubViews.swift */,
+				200000000000000000000350 /* App/Session/AuthenticationViews.swift */,
 				200000000000000000000011 /* Views/OnboardingView.swift */,
 				200000000000000000000012 /* Views/HomeView.swift */,
 				200000000000000000000295 /* Features/Home/HomeFeatureComponents.swift */,
@@ -399,6 +418,10 @@
 				200000000000000000000302 /* Features/Training/Library/ExerciseLibraryDetailView.swift */,
 				200000000000000000000303 /* Features/Training/Library/ExerciseMuscleMapView.swift */,
 				200000000000000000000304 /* Features/Community/ForumStore.swift */,
+				200000000000000000000351 /* Features/Community/ForumViews.swift */,
+				200000000000000000000360 /* Features/Community/ForumMedia.swift */,
+				200000000000000000000361 /* forum-demo-photo.png */,
+				200000000000000000000362 /* forum-demo-video.mp4 */,
 				200000000000000000000305 /* Features/Community/ReportViews.swift */,
 				200000000000000000000045 /* Features/Training/Summary/WorkoutSummaryView.swift */,
 				200000000000000000000046 /* Features/Training/CompletedWorkout/CompletedWorkoutDetailView.swift */,
@@ -420,6 +443,7 @@
 				200000000000000000000314 /* Domain/IdentityDomainModels.swift */,
 				200000000000000000000054 /* Features/Training/Plans/ProgramStore.swift */,
 				200000000000000000000055 /* Features/Training/Progress/TrainingProgressStore.swift */,
+				200000000000000000000354 /* Features/Training/Progress/TrainingProgressModels.swift */,
 				200000000000000000000056 /* Features/Training/Library/ExerciseLibraryStore.swift */,
 				200000000000000000000057 /* Data/Supabase/SupabaseProfileMapper.swift */,
 				200000000000000000000058 /* Domain/Competition/WeightClassCatalog.swift */,
@@ -608,6 +632,8 @@
 			files = (
 				100000000000000000000031 /* Assets.xcassets in Resources */,
 				100000000000000000000032 /* PrivacyInfo.xcprivacy in Resources */,
+				100000000000000000000361 /* forum-demo-photo.png in Resources */,
+				100000000000000000000362 /* forum-demo-video.mp4 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -661,6 +687,9 @@
 				100000000000000000000147 /* Services/SupabaseServices+WorkoutSync.swift in Sources */,
 				100000000000000000000027 /* Services/AppServiceContainer.swift in Sources */,
 				100000000000000000000010 /* Views/MainTabView.swift in Sources */,
+				100000000000000000000353 /* Features/Training/ActiveWorkout/WorkoutSessionSheets.swift in Sources */,
+				100000000000000000000352 /* Features/Profile/MeHubViews.swift in Sources */,
+				100000000000000000000350 /* App/Session/AuthenticationViews.swift in Sources */,
 				100000000000000000000011 /* Views/OnboardingView.swift in Sources */,
 				100000000000000000000012 /* Views/HomeView.swift in Sources */,
 				100000000000000000000151 /* Features/Home/HomeFeatureComponents.swift in Sources */,
@@ -696,6 +725,8 @@
 				100000000000000000000158 /* Features/Training/Library/ExerciseLibraryDetailView.swift in Sources */,
 				100000000000000000000159 /* Features/Training/Library/ExerciseMuscleMapView.swift in Sources */,
 				100000000000000000000161 /* Features/Community/ForumStore.swift in Sources */,
+				100000000000000000000351 /* Features/Community/ForumViews.swift in Sources */,
+				100000000000000000000360 /* Features/Community/ForumMedia.swift in Sources */,
 				100000000000000000000162 /* Features/Community/ReportViews.swift in Sources */,
 				100000000000000000000042 /* Features/Training/Summary/WorkoutSummaryView.swift in Sources */,
 				100000000000000000000043 /* Features/Training/CompletedWorkout/CompletedWorkoutDetailView.swift in Sources */,
@@ -708,6 +739,7 @@
 				100000000000000000000050 /* Domain/Workouts/WorkoutPRDetector.swift in Sources */,
 				100000000000000000000051 /* Features/Training/Plans/ProgramStore.swift in Sources */,
 				100000000000000000000052 /* Features/Training/Progress/TrainingProgressStore.swift in Sources */,
+				100000000000000000000354 /* Features/Training/Progress/TrainingProgressModels.swift in Sources */,
 				100000000000000000000053 /* Features/Training/Library/ExerciseLibraryStore.swift in Sources */,
 				100000000000000000000054 /* Data/Supabase/SupabaseProfileMapper.swift in Sources */,
 				100000000000000000000055 /* Domain/Competition/WeightClassCatalog.swift in Sources */,
@@ -918,7 +950,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = LiftRankApp/LiftRankDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 30;
+				CURRENT_PROJECT_VERSION = 52;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 32TGWTQNP8;
 				ENABLE_PREVIEWS = YES;
@@ -951,7 +983,7 @@
 				CODE_SIGN_ENTITLEMENTS = LiftRankApp/LiftRank.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 30;
+				CURRENT_PROJECT_VERSION = 52;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 32TGWTQNP8;
 				ENABLE_CODE_COVERAGE = NO;
@@ -959,6 +991,8 @@
 				EXCLUDED_SOURCE_FILE_NAMES = (
 					MockServices.swift,
 					Previews.swift,
+					"forum-demo-photo.png",
+					"forum-demo-video.mp4",
 				);
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = LiftRankApp/Info.plist;

@@ -51,6 +51,7 @@ protocol ActiveWorkoutRepository: AnyObject {
     func rebuildWorkoutHistoryDerivedState()
     func removeExerciseFromActiveWorkout(_ exercise: WorkoutExerciseSnapshot)
     func setRestTimeForActiveWorkoutExercise(_ exerciseID: UUID, seconds: Int)
+    func setMachineLoadTypeForActiveWorkoutExercise(_ exerciseID: UUID, type: MachineLoadType)
     func setAutomaticRestTimerEnabledForActiveWorkout(_ enabled: Bool)
     func updateWorkoutSetLog(_ log: WorkoutSetLog)
 
@@ -102,6 +103,7 @@ protocol ProgramRepository: AnyObject {
     var workoutWeeks: [WorkoutWeek] { get }
     var workoutSessions: [WorkoutSession] { get }
     var workoutPrescriptions: [WorkoutExercisePrescription] { get }
+    var workoutPlanProgressionSettings: [WorkoutPlanProgressionSettings] { get set }
     var programDataRevision: Int { get }
 
     func resolvedWorkoutPrescriptions(sessionID: UUID, at date: Date) -> [WorkoutExercisePrescription]
@@ -110,23 +112,28 @@ protocol ProgramRepository: AnyObject {
     func addWorkoutPlan(_ plan: WorkoutPlan)
     func updateWorkoutPlan(_ plan: WorkoutPlan)
     @discardableResult
-    func updateWorkoutQueue(planID: UUID, enabled: Bool, sessionIDs: [UUID]) -> Bool
+    func updateWorkoutQueue(planID: UUID, enabled: Bool, sessionIDs: [UUID], allowsAnyOrder: Bool) -> Bool
     func duplicateWorkoutPlan(_ plan: WorkoutPlan) -> WorkoutPlan
     func deleteWorkoutPlan(_ plan: WorkoutPlan)
+    func addWorkoutPhase(_ phase: WorkoutPhase)
+    func updateWorkoutPhase(_ phase: WorkoutPhase)
 
     @discardableResult
     func addWorkoutWeek(planID: UUID, phaseID: UUID?, title: String?) -> WorkoutWeek
+    func updateWorkoutWeek(_ week: WorkoutWeek)
     func cloneWorkoutWeek(_ week: WorkoutWeek) -> WorkoutWeek
     func deleteWorkoutWeek(_ week: WorkoutWeek)
 
     @discardableResult
     func addWorkoutSession(weekID: UUID, day: String, name: String) -> WorkoutSession
+    func updateWorkoutSession(_ session: WorkoutSession)
     func deleteWorkoutSession(_ session: WorkoutSession)
     func cancelWorkoutSession(_ session: WorkoutSession)
     func setWorkoutSessionOutcome(_ session: WorkoutSession, outcome: WorkoutSessionOutcome?)
 
     @discardableResult
     func addWorkoutPrescription(_ prescription: WorkoutExercisePrescription) -> WorkoutExercisePrescription
+    func updateWorkoutPrescription(_ prescription: WorkoutExercisePrescription)
     func deleteWorkoutPrescription(_ prescription: WorkoutExercisePrescription)
 
     @discardableResult
@@ -220,6 +227,9 @@ protocol WorkoutRepository: ActiveWorkoutRepository, TrainingProgressRepository 
 @MainActor
 protocol WorkoutSyncRepository: AnyObject {
     var currentProfile: UserProfile { get }
+    var activeWorkout: ActiveWorkoutState? { get }
+    var workoutSetLogs: [WorkoutSetLog] { get }
+    var workoutFeedback: [WorkoutFeedback] { get }
     var pendingCompletedWorkoutUploads: [CompletedWorkoutSnapshot] { get set }
     var deletedCompletedWorkoutIDs: Set<UUID> { get set }
     var completedWorkouts: [CompletedWorkout] { get set }

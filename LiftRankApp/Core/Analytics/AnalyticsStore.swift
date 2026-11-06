@@ -2,6 +2,14 @@ import Foundation
 
 @MainActor
 final class AnalyticsStore {
+    nonisolated static func consentKey(for userID: UUID) -> String {
+        "liftrank.analytics.enabled.\(userID.uuidString)"
+    }
+
+    nonisolated static func isSharingEnabled(for userID: UUID, defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: consentKey(for: userID))
+    }
+
     private var service: any AnalyticsService
     private let makeID: () -> UUID
     private let now: () -> Date

@@ -117,74 +117,6 @@ enum LeaderboardSelector: String, Identifiable {
     }
 }
 
-struct LeaderboardMetricStrip: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    let rank: String
-    let lifters: Int
-    let ranking: String
-    var rankTitle = "Your rank"
-
-    var body: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 10) {
-                    metricRow(rankTitle, rank, tint: .liftBlue)
-                    metricRow("Lifters", "\(lifters)")
-                    metricRow("Ranking", ranking)
-                }
-                .padding(.horizontal, 14)
-            } else {
-                HStack(spacing: 0) {
-                    metric(rankTitle, rank, tint: .liftBlue)
-                    divider
-                    metric("Lifters", "\(lifters)")
-                    divider
-                    metric("Ranking", ranking)
-                }
-            }
-        }
-        .padding(.vertical, 12)
-        .liftSurface(radius: 12, raised: true)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(rankTitle) \(rank), \(lifters) lifters, ranking by \(ranking)")
-    }
-
-    private func metricRow(_ title: String, _ value: String, tint: Color = .white) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .font(.caption2)
-                .foregroundStyle(Color.liftMuted)
-            Spacer(minLength: 8)
-            Text(value)
-                .font(LiftTypography.compactEmphasis)
-                .foregroundStyle(tint)
-                .lineLimit(1)
-                .minimumScaleFactor(0.58)
-        }
-    }
-
-    private func metric(_ title: String, _ value: String, tint: Color = .white) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption2)
-                .foregroundStyle(Color.liftMuted)
-            Text(value)
-                .font(LiftTypography.compactEmphasis)
-                .foregroundStyle(tint)
-                .lineLimit(1)
-                .minimumScaleFactor(0.58)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 9)
-    }
-
-    private var divider: some View {
-        Rectangle()
-            .fill(Color.liftOverlay)
-            .frame(width: 1, height: 38)
-    }
-}
-
 struct LeaderboardTabBar: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var selection: RankingType
@@ -528,7 +460,9 @@ struct LeaderboardOptionSheet: View {
 
     private var visibleOptions: [LeaderboardOption] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard isSearchable, !query.isEmpty else { return scopedOptions }
+        guard isSearchable, !query.isEmpty else {
+            return scopedOptions.filter { $0.id == selectedID } + scopedOptions.filter { $0.id != selectedID }
+        }
         return LeaderboardOptionSearch.filter(scopedOptions, query: query)
     }
 
@@ -620,12 +554,7 @@ struct LeaderboardOptionSheet: View {
                                     }
                                 } label: {
                                     HStack(spacing: 12) {
-                                        if let exerciseCatalogID = option.exerciseCatalogID,
-                                           let exercise = MockData.trainingExerciseLibrary.first(where: { $0.id == exerciseCatalogID }) {
-                                            ExerciseCatalogIcon(exercise: exercise)
-                                                .scaleEffect(0.72)
-                                                .frame(width: 40, height: 40)
-                                        } else if let symbol = option.symbol {
+                                        if option.exerciseCatalogID == nil, let symbol = option.symbol {
                                             Image(systemName: symbol)
                                                 .foregroundStyle(Color.liftAccentText)
                                                 .frame(width: 24)
@@ -668,8 +597,8 @@ struct LeaderboardOptionSheet: View {
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Close", systemImage: "xmark") { dismiss() }.labelStyle(.iconOnly)
                 }
             }
         }

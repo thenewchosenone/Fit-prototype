@@ -3,7 +3,7 @@ import SwiftUI
 extension LeaderboardsView {
     @ViewBuilder
     var featureBody: some View {
-        if appState.router.selectedTab == .leaderboards {
+        if isActiveTab {
             leaderboardContent
         } else {
             AppBackground {
@@ -51,6 +51,14 @@ extension LeaderboardsView {
                                 .accessibilityValue(showsRankingExplanation ? "Expanded" : "Collapsed")
                             }
                             .padding(.horizontal, 16)
+
+                            if let selfReportedRankScopeMessage {
+                                Text(selfReportedRankScopeMessage)
+                                    .font(.caption)
+                                    .foregroundStyle(Color.liftMuted)
+                                    .padding(.horizontal, 16)
+                                    .padding(.bottom, 8)
+                            }
 
                             Group {
                                 if showsRankingExplanation {
@@ -214,7 +222,7 @@ extension LeaderboardsView {
                     moreFiltersControl
                     Button {
                         Haptics.light()
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                             isSearchVisible.toggle()
                             if !isSearchVisible { searchText = "" }
                         }

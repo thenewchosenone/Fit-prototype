@@ -125,7 +125,7 @@ struct ActiveWorkoutResumeCard: View {
                 HStack(spacing: 12) {
                     Image(systemName: workout.pausedAt == nil ? "waveform.path.ecg" : "pause.fill")
                         .font(LiftTypography.cardTitle)
-                        .foregroundStyle(Color.liftOnAccent)
+                        .foregroundStyle(Color.liftOnGreen)
                         .frame(width: 44, height: 44)
                         .background(Color.liftGreen)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))

@@ -126,34 +126,4 @@ enum ProfileDisplayFormatting {
         }
     }
 
-    static func representativeBirthDate(for ageGroup: String, calendar: Calendar = .current, now: Date = .now, fallback: Date = .now) -> Date {
-        let representativeAge: Int
-        switch ageGroup {
-        case "Under 18":
-            representativeAge = 16
-        case "18-24":
-            representativeAge = 21
-        case "25-29":
-            representativeAge = 27
-        case "30-34":
-            representativeAge = 32
-        case "35-39":
-            representativeAge = 37
-        case "40-44":
-            representativeAge = 42
-        case "45-49":
-            representativeAge = 47
-        case "50-54":
-            representativeAge = 52
-        case "55-59":
-            representativeAge = 57
-        case "60-64":
-            representativeAge = 62
-        case "65-69":
-            representativeAge = 67
-        default:
-            representativeAge = 72
-        }
-        return calendar.date(byAdding: .year, value: -representativeAge, to: now) ?? fallback
-    }
 }

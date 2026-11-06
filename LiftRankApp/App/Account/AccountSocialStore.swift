@@ -55,6 +55,19 @@ final class AccountSocialStore: ObservableObject {
         gymMemberships = joined
     }
 
+    func friendRequests() async throws -> [FriendRequest] {
+        let requests = try await socialService.friendRequests()
+        return requests.filter { !isBlocked($0.userID) }
+    }
+
+    func requestFriendship(userID: UUID) async throws {
+        try await socialService.requestFriendship(userID: userID)
+    }
+
+    func respondToFriendship(id: UUID, accept: Bool) async throws {
+        try await socialService.respondToFriendship(id: id, accept: accept)
+    }
+
     func refreshBlocks() async {
         let userID = repository.currentProfile.id
         resetAccountScopedCacheIfNeeded()
@@ -126,6 +139,10 @@ final class AccountSocialStore: ObservableObject {
             try await socialService.unblock(userID: userID)
         }
         guard repository.currentProfile.id == ownerID else { return }
+        blocks.removeAll { $0.blockedID == userID }
+        if blocked {
+            blocks.append(UserBlockRecord(blockerID: ownerID, blockedID: userID, createdAt: .now))
+        }
         if let refreshed = try? await socialService.blocks() {
             guard repository.currentProfile.id == ownerID else { return }
             blocks = refreshed

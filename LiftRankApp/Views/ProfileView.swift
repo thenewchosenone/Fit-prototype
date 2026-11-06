@@ -6,8 +6,10 @@ enum ProfileSurface {
 }
 
 struct ProfileView: View {
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
     @EnvironmentObject var appState: AppState
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
+    @Environment(\.dismiss) var dismiss
     private let initialProfile: UserProfile
     var profile: UserProfile {
         guard initialProfile.id == appState.currentProfile.id else { return initialProfile }
@@ -24,14 +26,19 @@ struct ProfileView: View {
     }
     let surface: ProfileSurface
     var isCurrentUser: Bool { surface == .personal }
+    var isOwnerPublicPreview: Bool { surface == .public && initialProfile.id == appState.currentProfile.id }
     /// Public-profile routes pass a non-owner identity so visibility filtering
     /// is evaluated exactly as it would be for another athlete.
     let viewerID: UUID?
+    let showsDismissButton: Bool
+    var onOpenPrivacy: (() -> Void)?
     @State var showingPhotoManager = false
-    @State var showingAthleteDetails = false
-    @State var selectedProfileSection: ProfileSection = .overview
+    @State var selectedProfileSection: ProfileSection
+    @State var showsProfileDetails = false
+    @State var profileProgressExerciseID = ""
     @State var liftPresentation = ProfileLiftPresentation.empty
     @State var profileLoadError: String?
+    @State var sharedWorkoutStats: SharedWorkoutStats?
     @State var submissionPendingDeletion: LiftSubmission?
     @State var submissionDeletionError: String?
     @State var isDeletingSubmission = false
@@ -40,17 +47,23 @@ struct ProfileView: View {
     @State var profileHistoryDateRange: ProfileHistoryDateRange = .allTime
     @State var profileHistoryType: ProfileHistoryType = .all
     @State var profileHistoryExercise = ""
+    @State var profileSubmissionDateRange: ProfileHistoryDateRange = .allTime
+    @State var profileSubmissionExercise = ""
+    @State var showsAllProfileSubmissions = false
     @State var selectedTimelineWorkout: CompletedWorkout?
     @State var selectedProfileLiftHistory: TopLiftCardDestination?
 
-    init(profile: UserProfile, surface: ProfileSurface, viewerID: UUID? = nil) {
+    init(profile: UserProfile, surface: ProfileSurface, viewerID: UUID? = nil, initialSection: ProfileSection = .overview, showsDismissButton: Bool = true, onOpenPrivacy: (() -> Void)? = nil) {
         self.initialProfile = profile
         self.surface = surface
         self.viewerID = viewerID
+        self.showsDismissButton = showsDismissButton
+        self.onOpenPrivacy = onOpenPrivacy
+        _selectedProfileSection = State(initialValue: initialSection)
     }
 
-    init(profile: UserProfile, isCurrentUser: Bool, viewerID: UUID? = nil) {
-        self.init(profile: profile, surface: isCurrentUser ? .personal : .public, viewerID: viewerID)
+    init(profile: UserProfile, isCurrentUser: Bool, viewerID: UUID? = nil, initialSection: ProfileSection = .overview) {
+        self.init(profile: profile, surface: isCurrentUser ? .personal : .public, viewerID: viewerID, initialSection: initialSection)
     }
 
     var body: some View { featureBody }

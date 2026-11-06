@@ -46,11 +46,78 @@ struct ProfilePrivacySettings: Codable, Equatable {
     var profileAudience: PrivacyAudience = .publicProfile
     var ageBandAudience: PrivacyAudience = .publicProfile
     var divisionAudience: PrivacyAudience = .publicProfile
-    var bodyweightAudience: PrivacyAudience = .privateProfile
-    var locationAudience: PrivacyAudience = .privateProfile
+    var bodyweightAudience: PrivacyAudience = .publicProfile
+    var locationAudience: PrivacyAudience = .publicProfile
     var gymAudience: PrivacyAudience = .publicProfile
     var friendListAudience: PrivacyAudience = .friends
     var showLiftVideos: Bool = true
+    var workoutStatsAudience: PrivacyAudience? = nil
+    var shareWorkoutStartsWithFriends: Bool? = nil
+    var sharePRsWithFriends: Bool? = nil
+    var gymOvertakeAlerts: Bool? = nil
+}
+
+// Only the account preferences owned by Settings; never a full profile snapshot.
+struct ProfileSettingsSnapshot: Equatable {
+    let fields: [String: String?]
+
+    init(preferredUnit: UnitSystem, trainingFocus: TrainingFocus?, privacy: ProfilePrivacySettings) {
+        fields = [
+            "preferred_unit": preferredUnit.shortLabel,
+            "training_focus": trainingFocus?.rawValue,
+            "profile_audience": privacy.profileAudience.rawValue,
+            "age_band_audience": privacy.ageBandAudience.rawValue,
+            "division_audience": privacy.divisionAudience.rawValue,
+            "bodyweight_audience": privacy.bodyweightAudience.rawValue,
+            "location_audience": privacy.locationAudience.rawValue,
+            "gym_audience": privacy.gymAudience.rawValue,
+            "friend_list_audience": privacy.friendListAudience.rawValue,
+            "show_lift_videos": String(privacy.showLiftVideos),
+            "workout_stats_audience": (privacy.workoutStatsAudience ?? .privateProfile).rawValue,
+            "share_workout_starts_with_friends": String(privacy.shareWorkoutStartsWithFriends ?? false),
+            "share_prs_with_friends": String(privacy.sharePRsWithFriends ?? false),
+            "gym_overtake_alerts": String(privacy.gymOvertakeAlerts ?? false)
+        ]
+    }
+
+    func changes(from baseline: Self) -> [String: String?] {
+        fields.filter { baseline.fields[$0.key] != .some($0.value) }
+    }
+}
+
+struct SharedWorkoutStats: Equatable {
+    let workoutCount: Int
+    let recentWorkoutCount: Int
+    let latestWorkoutAt: Date?
+}
+
+enum FriendTrainingActivityKind: String, Codable, Hashable {
+    case workoutStarted = "workout_started"
+    case topLift = "top_lift"
+}
+
+struct FriendTrainingActivity: Identifiable {
+    let id: UUID
+    let ownerID: UUID
+    let displayName: String
+    let kind: FriendTrainingActivityKind
+    let sourceID: UUID
+    let occurredAt: Date
+    var lift: LiftSubmission? = nil
+}
+
+struct FriendRequest: Identifiable {
+    let id: UUID
+    let userID: UUID
+    let displayName: String
+    let isIncoming: Bool
+    let isAccepted: Bool
+}
+
+struct PendingFriendActivityShare: Codable, Hashable {
+    let ownerID: UUID
+    let kind: FriendTrainingActivityKind
+    let sourceID: UUID
 }
 
 struct ProfileDraft: Equatable {
@@ -88,9 +155,6 @@ struct LocationCitySuggestion: Equatable, Identifiable, Hashable {
         canonicalID?.uuidString ?? "\(countryCode)|\(region)|\(city)"
     }
 
-    var displayDetail: String {
-        [region, countryName].filter { !$0.isEmpty }.joined(separator: ", ")
-    }
 }
 
 struct AuthenticatedProfile: Equatable {
@@ -164,7 +228,7 @@ enum LiftRankServiceError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .configurationMissing: "Account services are not configured on this build."
-        case .invalidCredentials: "Incorrect password. Check your password and try again."
+        case .invalidCredentials: "Email or password is incorrect. Check both and try again."
         case .sessionExpired: "Your session expired. Please sign in again."
         case .usernameUnavailable: "That username is already taken."
         case .invalidInput(let message): message

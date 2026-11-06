@@ -10,10 +10,8 @@ enum LiftRankBackendEnvironment: String, Equatable {
 struct SupabaseConfiguration: Equatable {
     static let authCallbackURL = URL(string: "liftrank://auth-callback")!
     // Native reset requests use the app callback so the iOS PKCE verifier remains available.
-    // Use the shared web reset route so a recovery started on iOS can be completed
-    // in a browser on any device. The web app consumes the PKCE callback and owns
-    // the password-update screen for both platforms.
-    static let passwordRecoveryCallbackURL = URL(string: "https://liftrivals.com/login/?mode=reset")!
+    // Preserve recovery intent when Supabase returns only a PKCE code.
+    static let passwordRecoveryCallbackURL = URL(string: "liftrank://auth-callback?type=recovery")!
     let url: URL
     let publicKey: String
     let environment: LiftRankBackendEnvironment
@@ -75,6 +73,9 @@ enum SupabaseServiceErrorMapper {
                 if ["session_not_found", "session_expired", "refresh_token_not_found", "no_authorization", "invalid_jwt"].contains(code) ||
                     apiMessage.contains("session") && (apiMessage.contains("expired") || apiMessage.contains("missing")) {
                     return .sessionExpired
+                }
+                if code == "email_not_confirmed" {
+                    return .invalidInput("Confirm your email before signing in.")
                 }
                 if code == "same_password" || apiMessage.contains("different from the old password") {
                     return .invalidInput("Choose a different password and try again.")

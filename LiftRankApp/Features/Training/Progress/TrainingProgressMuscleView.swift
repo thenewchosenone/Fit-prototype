@@ -12,8 +12,7 @@ extension TrainingTrackerView {
     var muscleProgress: some View {
         let referenceDate = selectedVolumeWeek.referenceDate
         let weeks = appState.weeklyWorkingSetsByMuscle(referenceDate: referenceDate)
-        return VStack(alignment: .leading, spacing: 14) {
-            muscleFatigueMap
+        return VStack(alignment: .leading, spacing: 18) {
             if let week = weeks.last {
                 if week.hasHistory {
                     muscleWorkloadList(week: week, weeks: weeks)
@@ -30,15 +29,15 @@ extension TrainingTrackerView {
                             if selectedVolumeWeek == .lastWeek {
                                 selectedVolumeWeek = .thisWeek
                             } else {
-                                withAnimation(.snappy) { segment = .today }
+                                withAnimation(reduceMotion ? nil : .snappy) { segment = .today }
                             }
                         }
                         .font(LiftTypography.rowEmphasis)
                         .foregroundStyle(Color.liftAccentText)
                         .frame(minHeight: LiftDesign.minimumTouchTarget)
                     }
-                    .padding(14)
-                    .liftSurface(radius: 12)
+                    .padding(18)
+                    .liftSurface(radius: 20)
                 }
             } else {
                 VStack(alignment: .leading, spacing: 6) {
@@ -48,75 +47,17 @@ extension TrainingTrackerView {
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
-                .padding(14)
-                .liftSurface(radius: 12)
+                .padding(18)
+                .liftSurface(radius: 20)
+            }
+            trainingRecencySection
+            if !appState.strainEntries.isEmpty || !appState.injuryEntries.isEmpty {
+                strainAndInjurySection
             }
         }
         .onChange(of: selectedVolumeWeek) {
             showAllMuscleSetRows = false
             showAllMuscleVolumeRows = false
-        }
-    }
-
-    @ViewBuilder
-    private var muscleFatigueMap: some View {
-        let scores = appState.trainingProgressStore.muscleFatigueScores()
-        if !scores.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("Muscle fatigue estimate")
-                        .font(LiftTypography.cardTitle)
-                    Spacer()
-                    Text("Recent work")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(Color.liftMuted)
-                }
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                    ForEach(scores, id: \.muscle) { item in
-                        Button {
-                            selectedProgressMuscleDate = .now
-                            selectedProgressMuscle = item.muscle
-                        } label: {
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack(spacing: 4) {
-                                    Text(item.muscle.displayName)
-                                        .lineLimit(1)
-                                    Spacer(minLength: 2)
-                                    Text("\(Int(item.score.rounded()))%")
-                                        .monospacedDigit()
-                                }
-                                GeometryReader { geometry in
-                                    ZStack(alignment: .leading) {
-                                        Capsule().fill(Color.liftCardRaised)
-                                        Capsule()
-                                            .fill(item.score >= 65 ? Color.orange : Color.liftAccentText)
-                                            .frame(width: geometry.size.width * min(1, item.score / 100))
-                                    }
-                                }
-                                .frame(height: 5)
-                            }
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.liftText)
-                            .padding(9)
-                            .background(Color.liftCardRaised.opacity(0.62), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("\(item.muscle.displayName), estimated recent training signal \(Int(item.score.rounded())) percent")
-                        .accessibilityHint("Opens this muscle's logged workload")
-                    }
-                }
-                DisclosureGroup("How to read this estimate") {
-                    Text("This is an estimate from completed sets, effort when logged, and time since training. It is not a measurement of recovery or readiness.")
-                        .font(.caption)
-                        .foregroundStyle(Color.liftMuted)
-                        .padding(.top, 4)
-                }
-                .font(.caption.weight(.semibold))
-                .tint(Color.liftAccentText)
-            }
-            .padding(14)
-            .liftSurface(radius: 12)
         }
     }
 
@@ -167,7 +108,7 @@ extension TrainingTrackerView {
                     Text("These are differences in logged work, not missed program targets. A lower primary-set count alone does not mean you need more training. Review your program and training priorities before changing volume.")
                         .foregroundStyle(Color.liftMuted)
                     Button("Review workout plan") {
-                        withAnimation(.snappy) { segment = .plans }
+                        withAnimation(reduceMotion ? nil : .snappy) { segment = .plans }
                     }
                     .frame(minHeight: LiftDesign.minimumTouchTarget)
                 }
@@ -211,40 +152,55 @@ extension TrainingTrackerView {
         let rowLayout = dynamicTypeSize >= .xxxLarge
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
             : AnyLayout(HStackLayout(spacing: 8))
-        return VStack(alignment: .leading, spacing: 10) {
+        return VStack(alignment: .leading, spacing: 16) {
             musclePeriodHeader
             Text("\(week.weekStart.formatted(.dateTime.month(.abbreviated).day()))–\(week.weekEnd.addingTimeInterval(-1).formatted(.dateTime.month(.abbreviated).day())) · \(selectedVolumeWeek == .thisWeek ? "In progress" : "Completed week")")
                 .font(.caption)
                 .foregroundStyle(Color.liftMuted)
-            Text("\(week.completedSetCount) working set\(week.completedSetCount == 1 ? "" : "s") · \(week.trainingDayCount) training day\(week.trainingDayCount == 1 ? "" : "s")")
-                .font(.caption)
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(week.completedSetCount.formatted())
+                    .font(.largeTitle.weight(.bold).monospacedDigit())
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("working sets")
+                        .font(.subheadline)
+                    Text("\(week.trainingDayCount) training day\(week.trainingDayCount == 1 ? "" : "s")")
+                        .font(.caption)
+                }
                 .foregroundStyle(Color.liftMuted)
+            }
+            .accessibilityElement(children: .combine)
             if !week.hasFullHistory {
                 Text("First logged week · earlier days may be untracked")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
             }
-            Text("Four-week primary sets")
-                .font(.subheadline.weight(.semibold))
-            Menu {
-                Picker("Muscle filter", selection: $muscleWorkloadFilter) {
-                    ForEach(MuscleWorkloadFilter.allCases) { filter in
-                        Text(filter == .noPrimary ? "No primary sets (\(noPrimaryCount))" : filter.rawValue).tag(filter)
+            Divider()
+            rowLayout {
+                Text("Primary sets")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Menu {
+                    Picker("Muscle filter", selection: $muscleWorkloadFilter) {
+                        ForEach(MuscleWorkloadFilter.allCases) { filter in
+                            Text(filter == .noPrimary ? "No primary sets (\(noPrimaryCount))" : filter.rawValue).tag(filter)
+                        }
                     }
+                } label: {
+                    Label(muscleWorkloadFilter == .noPrimary ? "No primary sets (\(noPrimaryCount))" : muscleWorkloadFilter.rawValue,
+                          systemImage: "chevron.up.chevron.down")
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
                 }
-            } label: {
-                Label(muscleWorkloadFilter == .noPrimary ? "No primary sets (\(noPrimaryCount))" : muscleWorkloadFilter.rawValue,
-                      systemImage: "chevron.up.chevron.down")
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(minHeight: LiftDesign.minimumTouchTarget)
+                .accessibilityLabel("Muscle filter")
+                .accessibilityIdentifier("tracker.muscle.filter")
+                .accessibilityValue(muscleWorkloadFilter.rawValue)
+                .font(.caption.weight(.semibold))
+                .tint(Color.liftAccentText)
             }
-            .accessibilityLabel("Muscle filter")
-            .accessibilityIdentifier("tracker.muscle.filter")
-            .accessibilityValue(muscleWorkloadFilter.rawValue)
 
             if dynamicTypeSize < .xxxLarge {
                 HStack(spacing: 8) {
-                    Text("MUSCLE")
+                    Text("4 weeks")
                         .frame(maxWidth: .infinity, alignment: .leading)
                     ForEach(weeks, id: \.weekStart) { comparisonWeek in
                         VStack(spacing: 1) {
@@ -275,7 +231,7 @@ extension TrainingTrackerView {
                 let primary = week.counts[muscle, default: 0]
                 let secondary = week.secondaryCounts[muscle, default: 0]
                 let days = week.trainingDays[muscle, default: 0]
-                rowLayout {
+                AnyView(rowLayout {
                     Button {
                         selectedProgressMuscleDate = week.weekStart
                         selectedProgressMuscle = muscle
@@ -291,10 +247,10 @@ extension TrainingTrackerView {
                                 if secondary > 0 {
                                     Text("\(secondary) secondary")
                                         .font(.caption2.weight(.semibold).monospacedDigit())
-                                        .foregroundStyle(Color.liftBlue)
+                                        .foregroundStyle(Color.liftAccentText)
                                         .padding(.horizontal, 6)
                                         .padding(.vertical, 3)
-                                        .background(Color.liftBlue.opacity(0.12))
+                                        .background(Color.liftAccentText.opacity(0.08))
                                         .clipShape(Capsule())
                                 }
                                 if primary == 0 && secondary == 0 {
@@ -304,7 +260,7 @@ extension TrainingTrackerView {
                                 }
                             }
                             if let change = comparison?.changes[muscle] {
-                                Text("Last completed week: \(change > 0 ? "+" : "")\(change) set\(abs(change) == 1 ? "" : "s")")
+                                Text("\(change > 0 ? "+" : "")\(change) set\(abs(change) == 1 ? "" : "s")")
                                     .font(.caption2.monospacedDigit())
                                     .foregroundStyle(Color.liftMuted)
                                     .accessibilityLabel("Change between the two latest completed weeks: \(change) primary sets")
@@ -336,7 +292,7 @@ extension TrainingTrackerView {
                     }
                 }
                 .foregroundStyle(Color.liftText)
-                .padding(.vertical, 4)
+                .padding(.vertical, 4))
                 if muscle != rows.prefix(showAllMuscleSetRows ? rows.count : 5).last {
                     Divider().overlay(Color.liftOverlay)
                         .accessibilityHidden(true)
@@ -350,21 +306,17 @@ extension TrainingTrackerView {
                 .foregroundStyle(Color.liftAccentText)
                 .frame(minHeight: LiftDesign.minimumTouchTarget)
             }
-            muscleAttention(referenceDate: selectedVolumeWeek.referenceDate)
-            Text("\(selectedVolumeWeek.rawValue) highlighted\(selectedVolumeWeek == .thisWeek ? " · still in progress" : ""). Days and secondary sets: selected week.")
-                .font(.caption2)
-                .foregroundStyle(Color.liftMuted)
-            if comparison == nil {
-                Text("Set changes appear after two full logged weeks are complete.")
-                    .font(.caption2)
-                    .foregroundStyle(Color.liftMuted)
-            }
+            AnyView(muscleAttention(referenceDate: selectedVolumeWeek.referenceDate))
             if weeks.contains(where: { !$0.hasFullHistory }) {
                 Text("— before your first log · * first logged week, partial history")
                     .font(.caption2)
                     .foregroundStyle(Color.liftMuted)
             }
             DisclosureGroup("How sets are counted") {
+                Text("\(selectedVolumeWeek.rawValue) is highlighted. Days and secondary sets refer to that week. Set changes compare the two latest full logged weeks.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+                    .padding(.top, 4)
                 Text("Each completed non-warmup set counts once for every primary muscle listed for its exercise. Secondary sets are shown separately and are not added to primary sets. Upper and lower chest work is combined under Chest. Training days count distinct dates with primary work. Logged work includes any of the four displayed weeks; No primary sets applies to the selected week. Muscle totals can exceed your workout’s set count. These are logged workloads; personal targets and muscle growth are not measured.")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
@@ -373,8 +325,8 @@ extension TrainingTrackerView {
             .font(.caption.weight(.semibold))
             .tint(Color.liftAccentText)
         }
-        .padding(14)
-        .liftSurface(radius: 12)
+        .padding(18)
+        .liftSurface(radius: 20)
         .onChange(of: muscleWorkloadFilter) { showAllMuscleSetRows = false }
     }
 
@@ -394,7 +346,7 @@ extension TrainingTrackerView {
                 RoundedRectangle(cornerRadius: 3).fill(Color.liftOverlay)
                 if week.hasHistory && count > 0 {
                     RoundedRectangle(cornerRadius: 3)
-                        .fill(isSelected ? Color.liftAccentText : Color.liftAccentText.opacity(0.45))
+                        .fill(isSelected ? Color.liftAccentText : Color.liftMuted.opacity(0.5))
                         .frame(height: 28 * Double(count) / Double(peak))
                 }
             }
@@ -476,8 +428,8 @@ extension TrainingTrackerView {
             Text("Estimated volume by muscle")
                 .font(.headline)
         }
-        .padding(14)
-        .liftSurface(radius: 12)
+        .padding(18)
+        .liftSurface(radius: 20)
     }
 }
 
@@ -525,7 +477,7 @@ struct MuscleTrainingDetailView: View {
                                     HStack {
                                         Text("Set \(set.setNumber)")
                                         Spacer()
-                                        Text(MeasurementFormatting.workoutSetText(set: set, trackingKind: contribution.trackingKind))
+                                        Text(MeasurementFormatting.workoutSetText(set: set, trackingKind: contribution.trackingKind, preferredUnit: appState.currentProfile.preferredUnit))
                                             .monospacedDigit()
                                     }
                                     .font(.caption)
@@ -580,7 +532,7 @@ struct MuscleTrainingDetailView: View {
             .navigationTitle(muscle.displayName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) { Button("Close", systemImage: "xmark") { dismiss() }.labelStyle(.iconOnly) }
             }
             .sheet(item: $selectedWorkout) { workout in
                 CompletedWorkoutDetailView(workout: workout)

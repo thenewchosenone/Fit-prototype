@@ -3,7 +3,7 @@ create schema if not exists extensions;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(12);
+select plan(15);
 select has_function(
   'public',
   'save_own_profile_web',
@@ -46,17 +46,25 @@ select ok(
   'web profile save writes gym and video privacy fields'
 );
 select ok(
-  (select column_default like '%private%' from information_schema.columns where table_schema = 'public' and table_name = 'profile_privacy' and column_name = 'profile_audience'),
-  'new profiles default to a private profile audience'
+  (select column_default like '%public%' from information_schema.columns where table_schema = 'public' and table_name = 'profile_privacy' and column_name = 'profile_audience'),
+  'new profiles default to a public profile audience'
 );
 select ok(
-  (select column_default like '%private%' from information_schema.columns where table_schema = 'public' and table_name = 'profile_privacy' and column_name = 'gym_audience'),
-  'new profiles default to a private gym audience'
+  (select column_default like '%public%' from information_schema.columns where table_schema = 'public' and table_name = 'profile_privacy' and column_name = 'gym_audience'),
+  'new profiles default to a public gym audience'
+);
+select ok(
+  (select column_default like '%public%' from information_schema.columns where table_schema = 'public' and table_name = 'profile_privacy' and column_name = 'bodyweight_audience'),
+  'new profiles default to a public bodyweight audience'
+);
+select ok(
+  (select column_default like '%public%' from information_schema.columns where table_schema = 'public' and table_name = 'profile_privacy' and column_name = 'location_audience'),
+  'new profiles default to a public location audience'
 );
 select is(
   (select column_default from information_schema.columns where table_schema = 'public' and table_name = 'profile_privacy' and column_name = 'show_lift_videos'),
-  'false',
-  'new profiles default to hidden approved videos'
+  'true',
+  'new profiles default to visible eligible videos'
 );
 
 -- A sole primary gym can be left, leaving the account with no primary gym.
@@ -70,6 +78,13 @@ values (
   '90000000-0000-0000-0000-000000000001',
   '00000000-0000-0000-0000-000000000000',
   'authenticated', 'authenticated', 'gym-leave@example.test', '', '{}', '{}', now(), now()
+);
+select ok(
+  (select profile_audience = 'public' and age_band_audience = 'public'
+    and bodyweight_audience = 'public' and location_audience = 'public'
+    and gym_audience = 'public' and show_lift_videos
+   from public.profile_privacy where user_id = '90000000-0000-0000-0000-000000000001'),
+  'signup creates public onboarding choices through the real profile trigger'
 );
 insert into public.gyms (id, name, status)
 values ('91000000-0000-0000-0000-000000000001', 'Leave Test Gym', 'active');

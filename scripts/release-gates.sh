@@ -3,9 +3,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
 run_id="${LIFTRANK_RELEASE_RUN_ID:-$(date +%Y-%m-%d_%H-%M-%S)}"
 report_dir="${LIFTRANK_RELEASE_REPORT_DIR:-$ROOT/release-evidence/$run_id}"
-mkdir -p "$report_dir"
 required_scheme_file="$ROOT/LiftRank.xcodeproj/xcshareddata/xcschemes/LiftRank.xcscheme"
 required_scheme_name="LiftRank"
 services_check_script="$ROOT/scripts/check_publish_readiness_services.sh"
@@ -18,8 +18,24 @@ source_state_file="$report_dir/source-state.txt"
 run_web_frontend="${RUN_WEB_FRONTEND_GATES:-1}"
 run_ios="${RUN_IOS_GATES:-1}"
 run_backend="${RUN_BACKEND_GATES:-1}"
-strict_mode="${RELEASE_GATES_STRICT:-0}"
 command_timeout="${LIFTRANK_RELEASE_COMMAND_TIMEOUT:-1800}"
+
+if [[ ! "$command_timeout" =~ ^[1-9][0-9]*$ ]]; then
+  printf 'LIFTRANK_RELEASE_COMMAND_TIMEOUT must be a positive integer (seconds).\n' >&2
+  exit 2
+fi
+
+if [ -e "$report_dir" ]; then
+  if [ ! -d "$report_dir" ]; then
+    printf 'Release evidence path is not a directory: %s\n' "$report_dir" >&2
+    exit 2
+  fi
+  if [ -n "$(find "$report_dir" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
+    printf 'Release evidence directory is not empty; choose a fresh RUN_ID or REPORT_DIR: %s\n' "$report_dir" >&2
+    exit 2
+  fi
+fi
+mkdir -p "$report_dir"
 
 pass_count=0
 fail_count=0
@@ -59,6 +75,9 @@ capture_status() {
   local log_name="$3"
   local step_log="$report_dir/$log_name.log"
 
+  if [ "$status" = "skip" ] && [ ! -f "$step_log" ]; then
+    printf 'Gate skipped: %s\n' "$label" > "$step_log"
+  fi
   printf '%s|%s|%s\n' "$label" "$status" "$step_log" >> "$summary_file"
 
   case "$status" in
@@ -76,37 +95,97 @@ log() {
 run_step() {
   local label="$1"
   local log_name="$2"
-  shift 2
+  local result_bundle=""
+  if [ "${3:-}" = "--result-bundle" ] && [ -n "${4:-}" ]; then
+    result_bundle="$4"
+    shift 4
+  else
+    shift 2
+  fi
 
   local status="pass"
   local step_log="$report_dir/$log_name.log"
+  local result_summary="$report_dir/$log_name-test-summary.json"
   local timestamp
   timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
   local rc=0
+  local tee_rc=0
+  local -a pipeline_status=()
 
   log "\n[$timestamp] START: $label"
 
   set +e
   if command_exists timeout; then
-    timeout "$command_timeout" "$@" 2>&1 | tee "$step_log"
+    timeout --kill-after=5s "$command_timeout" "$@" 2>&1 | tee "$step_log"
+    pipeline_status=("${PIPESTATUS[@]}")
+  elif command_exists perl; then
+    perl -e '
+      use POSIX ();
+      my $seconds = shift;
+      my $pid = fork();
+      die "Could not start timed command: $!\n" unless defined $pid;
+      if ($pid == 0) {
+        POSIX::setpgid(0, 0);
+        exec @ARGV or die "Could not start command: $!\n";
+      }
+      POSIX::setpgid($pid, $pid);
+      $SIG{ALRM} = sub {
+        kill "TERM", -$pid;
+        sleep 5;
+        kill "KILL", -$pid;
+        waitpid($pid, 0);
+        exit 124;
+      };
+      alarm($seconds);
+      waitpid($pid, 0);
+      alarm(0);
+      my $status = $?;
+      exit($status & 127 ? 128 + ($status & 127) : $status >> 8);
+    ' "$command_timeout" "$@" 2>&1 | tee "$step_log"
+    pipeline_status=("${PIPESTATUS[@]}")
   else
-    "$@" 2>&1 | tee "$step_log"
+    printf 'No timeout utility or Perl runtime is available; command was not run.\n' > "$step_log"
+    pipeline_status=(127 0)
   fi
-  rc=${PIPESTATUS[0]}
+  rc=${pipeline_status[0]}
+  tee_rc=${pipeline_status[1]:-0}
   set -e
+
+  if [ "$tee_rc" -ne 0 ]; then
+    printf 'Log capture failed with exit code %s.\n' "$tee_rc" >> "$step_log" 2>/dev/null || true
+    if [ "$rc" -eq 0 ]; then rc="$tee_rc"; fi
+  fi
+
+  if [ "$rc" -eq 0 ] && [ -n "$result_bundle" ]; then
+    if ! xcrun xcresulttool get test-results summary --path "$result_bundle" --compact > "$result_summary" 2>> "$step_log"; then
+      printf 'Could not read XCTest result summary: %s\n' "$result_bundle" >> "$step_log"
+      rc=1
+    else
+      local skipped_tests
+      if ! skipped_tests="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("skippedTests", ""))' "$result_summary")" \
+        || [[ ! "$skipped_tests" =~ ^[0-9]+$ ]]; then
+        printf 'XCTest summary has no valid skippedTests count: %s\n' "$result_summary" >> "$step_log"
+        rc=1
+      elif [ "$skipped_tests" -gt 0 ]; then
+        status="skip"
+        printf 'XCTest reported %s skipped test(s); this required suite is incomplete. Result bundle: %s\n' "$skipped_tests" "$result_bundle" >> "$step_log"
+      else
+        printf 'XCTest result bundle: %s (0 skipped tests)\n' "$result_bundle" >> "$step_log"
+      fi
+    fi
+  fi
 
   if [ "$rc" -ne 0 ]; then
     status="fail"
     log "[$timestamp] FAIL: $label (log: $step_log)"
+  elif [ "$status" = "skip" ]; then
+    log "[$timestamp] INCOMPLETE: $label (XCTest skipped one or more tests; log: $step_log)"
   else
     log "[$timestamp] PASS: $label (log: $step_log)"
   fi
 
   capture_status "$status" "$label" "$log_name"
 
-  if [ "$status" = "fail" ] && [ "$strict_mode" -eq 1 ]; then
-    log "Strict mode enabled: continuing execution and collecting evidence."
-  fi
 }
 
 run_optional() {
@@ -173,8 +252,10 @@ run_xcode_test() {
     return 0
   fi
 
-  local command=(xcodebuild -project LiftRank.xcodeproj -scheme LiftRank -configuration Debug -enableCodeCoverage NO -parallel-testing-enabled NO test -destination "$destination" "-only-testing:${target}")
-  run_step "$label" "$(printf '%s' "$label" | tr ' ' '_')" "${command[@]}"
+  local log_name="$(printf '%s' "$label" | tr ' ' '_')"
+  local result_bundle="$report_dir/$log_name.xcresult"
+  local command=(xcodebuild -project LiftRank.xcodeproj -scheme LiftRank -configuration Debug -enableCodeCoverage NO -parallel-testing-enabled NO test -destination "$destination" "-only-testing:${target}" -resultBundlePath "$result_bundle")
+  run_step "$label" "$log_name" --result-bundle "$result_bundle" "${command[@]}"
 }
 
 run_xcode_archive_smoke() {
@@ -202,6 +283,8 @@ append_summary() {
     echo "- skip: $skip_count"
     if [ "$fail_count" -gt 0 ]; then
       echo "- status: BLOCKED"
+    elif [ "$skip_count" -gt 0 ]; then
+      echo "- status: INCOMPLETE"
     else
       echo "- status: PASS"
     fi
@@ -223,7 +306,6 @@ Working directory: $ROOT
 - Web gates enabled: $run_web_frontend
 - iOS gates enabled: $run_ios
 - Backend gates enabled: $run_backend
-- Strict mode: $strict_mode
 - Timeout per step (s): $command_timeout
 
 ## Source state
@@ -236,12 +318,12 @@ EVIDENCE
 verify_baseline_scheme
 
 if [ -x "$services_check_script" ]; then
-  run_step "publish_readiness.services" "ios-services-readiness" "$services_check_script"
+  run_step "publish_readiness.services_static_preflight" "ios-services-readiness" "$services_check_script"
 elif [ -f "$services_check_script" ]; then
   log "Service check script is not executable; attempting fallback run via bash."
-  run_step "publish_readiness.services" "ios-services-readiness" bash "$services_check_script"
+  run_step "publish_readiness.services_static_preflight" "ios-services-readiness" bash "$services_check_script"
 else
-  run_step "publish_readiness.services" "ios-services-readiness" bash ./scripts/check_publish_readiness_services.sh
+  run_step "publish_readiness.services_static_preflight" "ios-services-readiness" bash ./scripts/check_publish_readiness_services.sh
 fi
 
 if [ -x "$metadata_check_script" ]; then
@@ -259,25 +341,47 @@ if [ "$run_web_frontend" -eq 1 ]; then
   run_step "web.release_smoke_routes" "web-route-smoke" pnpm test:release-routes
 else
   log "Web gates disabled via RUN_WEB_FRONTEND_GATES=0"
+  capture_status skip "web.gates_disabled" "web-gates-disabled"
 fi
 
 if [ "$run_ios" -eq 1 ]; then
-  old_destination="${IOS_OLDEST_SIMULATOR_DESTINATION:-platform=iOS Simulator,name=iPhone 17,OS=latest}"
+  old_destination="${IOS_OLDEST_SIMULATOR_DESTINATION:-}"
   new_destination="${IOS_LATEST_SIMULATOR_DESTINATION:-platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest}"
 
-  run_xcode_test "ios.unit.oldest_ios" "$old_destination" LiftRankTests
+  if [ -n "$old_destination" ]; then
+    run_xcode_test "ios.unit.oldest_ios" "$old_destination" LiftRankTests
+  else
+    log "SKIP: oldest iOS destination must be explicitly selected."
+    capture_status skip "ios.unit.oldest_ios" "ios_unit_oldest_ios"
+  fi
   run_xcode_test "ios.unit.latest_ios" "$new_destination" LiftRankTests
-  run_xcode_test "ios.ui.oldest_ios" "$old_destination" LiftRankUITests
-  run_xcode_test "ios.ui.latest_ios" "$new_destination" LiftRankUITests
-  run_xcode_archive_smoke "ios.release_signing_validation" "$new_destination"
+  if [ -n "$old_destination" ]; then
+    if [ "${IOS_UI_SIGNED_ACCOUNT_READY:-0}" = "1" ]; then
+      run_xcode_test "ios.ui.oldest_ios" "$old_destination" LiftRankUITests
+    else
+      log "SKIP: full oldest-iOS UI suite needs a signed simulator build and prepared account; follow the runbook before setting IOS_UI_SIGNED_ACCOUNT_READY=1."
+      capture_status skip "ios.ui.oldest_ios_signed_account_setup" "ios_ui_oldest_signed_account_setup"
+    fi
+  else
+    capture_status skip "ios.ui.oldest_ios" "ios_ui_oldest_ios"
+  fi
+  if [ "${IOS_UI_SIGNED_ACCOUNT_READY:-0}" = "1" ]; then
+    run_xcode_test "ios.ui.latest_ios" "$new_destination" LiftRankUITests
+  else
+    log "SKIP: full iOS UI suite needs a signed simulator build and prepared account; follow the runbook before setting IOS_UI_SIGNED_ACCOUNT_READY=1."
+    capture_status skip "ios.ui.latest_ios_signed_account_setup" "ios_ui_latest_signed_account_setup"
+  fi
+  run_xcode_archive_smoke "ios.unsigned_release_build" "$new_destination"
 else
   log "iOS gates disabled via RUN_IOS_GATES=0"
+  capture_status skip "ios.gates_disabled" "ios-gates-disabled"
 fi
 
 if [ "$run_backend" -eq 1 ]; then
   run_optional "backend.pg_tap_suite" "backend-pgtap" ./scripts/test_backend_foundation.sh
 else
   log "Backend gates disabled via RUN_BACKEND_GATES=0"
+  capture_status skip "backend.gates_disabled" "backend-gates-disabled"
 fi
 
 append_summary
@@ -285,12 +389,13 @@ log "\nGate evidence written to: $evidence_file"
 log "Machine-readable summary: $summary_file"
 
 if [ "$fail_count" -gt 0 ]; then
-  if [ "$strict_mode" -eq 1 ]; then
-    echo "FAIL: one or more required gates failed. Review $summary_file for details." | tee -a "$evidence_file"
-  else
-    echo "FAIL: one or more required gates failed in non-strict mode. Review $summary_file for details." | tee -a "$evidence_file"
-  fi
+  echo "FAIL: one or more required gates failed. Review $summary_file for details." | tee -a "$evidence_file"
   exit 1
+fi
+
+if [ "$skip_count" -gt 0 ]; then
+  echo "INCOMPLETE: one or more required gates were skipped. Review $summary_file for details." | tee -a "$evidence_file"
+  exit 2
 fi
 
 echo "PASS: all automated gates completed." | tee -a "$evidence_file"

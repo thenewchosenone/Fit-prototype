@@ -13,7 +13,6 @@ enum WorkoutHistorySyncState: Equatable {
 final class WorkoutSyncStore: ObservableObject {
     private let repository: any WorkoutSyncRepository
     private let service: any WorkoutSyncService
-    private let makeUUID: () -> UUID
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
     private var syncedUserID: UUID
@@ -25,17 +24,16 @@ final class WorkoutSyncStore: ObservableObject {
     private var planSyncRequested = false
     @Published private(set) var planSyncState: WorkoutHistorySyncState = .local
     @Published private(set) var historySyncState: WorkoutHistorySyncState = .synced
+    @Published private(set) var unreadableRemoteWorkoutCount = 0
 
     init(
         repository: any WorkoutSyncRepository,
         service: any WorkoutSyncService,
-        makeUUID: @escaping () -> UUID = UUID.init,
         encoder: JSONEncoder = JSONEncoder(),
         decoder: JSONDecoder = JSONDecoder()
     ) {
         self.repository = repository
         self.service = service
-        self.makeUUID = makeUUID
         self.encoder = encoder
         self.decoder = decoder
         self.syncedUserID = repository.currentProfile.id
@@ -45,7 +43,7 @@ final class WorkoutSyncStore: ObservableObject {
         repository.pendingCompletedWorkoutUploads
     }
 
-    func enqueueCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) {
+    func enqueueCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot, persist: Bool = true) {
         repository.deletedCompletedWorkoutIDs.remove(snapshot.id)
         if let index = repository.pendingCompletedWorkoutUploads.firstIndex(where: { $0.id == snapshot.id }) {
             repository.pendingCompletedWorkoutUploads[index] = snapshot
@@ -53,7 +51,7 @@ final class WorkoutSyncStore: ObservableObject {
             repository.pendingCompletedWorkoutUploads.append(snapshot)
         }
         historySyncState = .local
-        repository.persistWorkoutSnapshotWithoutBlockingUI()
+        if persist { repository.persistWorkoutSnapshotWithoutBlockingUI() }
     }
 
     func synchronizeCompletedWorkoutHistory(force: Bool = true) async {
@@ -113,6 +111,7 @@ final class WorkoutSyncStore: ObservableObject {
             return
         }
         guard repository.currentProfile.id == userID else { return }
+        unreadableRemoteWorkoutCount = 0
         let deletedWorkoutIDs = repository.deletedCompletedWorkoutIDs
         let pendingUploadIDs = Set(repository.pendingCompletedWorkoutUploads.map(\.id))
         var workoutIndexesByID = Dictionary(
@@ -121,7 +120,11 @@ final class WorkoutSyncStore: ObservableObject {
         for snapshot in remote where snapshot.ownerID == userID
             && !deletedWorkoutIDs.contains(snapshot.id)
             && !pendingUploadIDs.contains(snapshot.id) {
-            guard let workout = try? decoder.decode(CompletedWorkout.self, from: snapshot.payload) else { continue }
+            guard let workout = try? decoder.decode(CompletedWorkout.self, from: snapshot.payload) else {
+                unreadableRemoteWorkoutCount += 1
+                syncFailed = true
+                continue
+            }
             if let index = workoutIndexesByID[snapshot.id] {
                 repository.completedWorkouts[index] = workout
             } else {
@@ -210,84 +213,176 @@ final class WorkoutSyncStore: ObservableObject {
         guard repository.currentProfile.id == userID else { return }
         let localOnlyPlanIDs = Set([PersonalWorkoutPlanCatalog.planID])
 
-        for plan in repository.workoutPlans where !localOnlyPlanIDs.contains(plan.id) {
-            guard let payload = payload(planID: plan.id), let data = try? encoder.encode(payload) else { continue }
-            let knownRevision = repository.workoutPlanSyncRevisions[plan.id]
-            let lastPayload = repository.workoutPlanLastSyncedPayloads[plan.id]
-
-            if let remote = remoteByID[plan.id] {
-                if knownRevision == nil {
-                    if remote.payload == data {
-                        remember(remote)
-                    } else if let serverPayload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: remote.payload) {
-                        let conflict = payload.conflictCopy(documentID: makeUUID(), makeUUID: makeUUID)
-                        apply(serverPayload, replacing: plan.id)
-                        apply(conflict, replacing: nil)
-                        remember(remote)
-                        syncFailed = true
-                    }
-                    continue
+        for plan in repository.workoutPlans where !localOnlyPlanIDs.contains(plan.id)
+            && !repository.pendingRemoteWorkoutPlanDeletions.contains(plan.id) {
+            guard var payload = payload(planID: plan.id) else { continue }
+            let originalPayload = payload.canonicalized
+            if payload.plan.name.hasSuffix(" (Conflict copy)"), payload.plan.name != payload.conflictCopyName {
+                payload.plan.name = payload.conflictCopyName
+                if let index = repository.workoutPlans.firstIndex(where: { $0.id == plan.id }) {
+                    repository.workoutPlans[index].name = payload.plan.name
                 }
-
-                if data == lastPayload {
-                    if remote.payload != data,
-                       let serverPayload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: remote.payload) {
-                        apply(serverPayload, replacing: plan.id)
-                    }
+            }
+            let knownRevision = repository.workoutPlanSyncRevisions[plan.id]
+            let baseline = repository.workoutPlanLastSyncedPayloads[plan.id].flatMap {
+                try? decoder.decode(WorkoutPlanSyncPayload.self, from: $0).canonicalized
+            }
+            let local = payload.canonicalized
+            let remote = remoteByID[plan.id]
+            let expectedRevision: Int
+            if let remote {
+                guard let server = try? decoder.decode(WorkoutPlanSyncPayload.self, from: remote.payload),
+                      server.plan.id == remote.id else { syncFailed = true; continue }
+                if local == server.canonicalized {
                     remember(remote)
                     continue
                 }
-
-                let document = WorkoutPlanDocument(
-                    id: plan.id,
-                    ownerID: repository.currentProfile.id,
-                    revision: knownRevision ?? remote.revision,
-                    name: plan.name,
-                    payload: data,
-                    updatedAt: .now
-                )
-                let result = try? await service.savePlan(
-                    document,
-                    expectedRevision: knownRevision ?? remote.revision
-                )
-                guard repository.currentProfile.id == userID else { return }
-                if let result {
-                    if case .conflict = result { syncFailed = true }
-                    apply(result)
-                    if case let .saved(saved) = result { remoteByID[saved.id] = saved }
-                } else { syncFailed = true }
+                if originalPayload == server.canonicalized {
+                    expectedRevision = remote.revision
+                } else if originalPayload == baseline {
+                    apply(server, replacing: plan.id)
+                    remember(remote)
+                    if server.plan.name.hasSuffix(" (Conflict copy)"), server.plan.name != server.conflictCopyName {
+                        planSyncRequested = true
+                    }
+                    continue
+                } else {
+                    // A revision-only server change is not a competing edit.
+                    expectedRevision = server.canonicalized == baseline ? remote.revision : knownRevision ?? 0
+                }
             } else {
-                let document = WorkoutPlanDocument(
-                    id: plan.id,
-                    ownerID: repository.currentProfile.id,
-                    revision: 0,
-                    name: plan.name,
-                    payload: data,
-                    updatedAt: .now
-                )
-                let result = try? await service.savePlan(document, expectedRevision: 0)
+                // Another device may already have cleaned up this unchanged copy.
+                if knownRevision != nil, originalPayload == baseline,
+                   plan.name.hasSuffix(" (Conflict copy)"), !isLocallyUsed(payload) {
+                    removePlan(plan.id)
+                    repository.workoutPlanSyncRevisions[plan.id] = nil
+                    repository.workoutPlanLastSyncedPayloads[plan.id] = nil
+                    continue
+                }
+                expectedRevision = 0
+            }
+            guard let data = try? encoder.encode(payload) else { syncFailed = true; continue }
+            var document = remote ?? WorkoutPlanDocument(
+                id: plan.id, ownerID: userID, revision: 0, name: payload.plan.name,
+                payload: data, updatedAt: .now
+            )
+            document.name = payload.plan.name
+            document.payload = data
+            document.updatedAt = .now
+            do {
+                let result = try await service.savePlan(document, expectedRevision: expectedRevision)
                 guard repository.currentProfile.id == userID else { return }
-                if let result {
-                    if case .conflict = result { syncFailed = true }
-                    apply(result)
-                } else { syncFailed = true }
+                if !apply(result, sentPayload: payload) { syncFailed = true }
+                switch result {
+                case .saved(let saved):
+                    remoteByID[saved.id] = saved
+                case .conflict(let server, let copy):
+                    syncFailed = true
+                    remoteByID[server.id] = server
+                    remoteByID[copy.id] = copy
+                }
+            } catch {
+                syncFailed = true
+                guard repository.currentProfile.id == userID else { return }
             }
         }
 
         for document in remoteByID.values
         where !repository.pendingRemoteWorkoutPlanDeletions.contains(document.id)
             && !repository.workoutPlans.contains(where: { $0.id == document.id }) {
-            guard let payload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: document.payload) else { continue }
+            guard let payload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: document.payload),
+                  payload.plan.id == document.id else { syncFailed = true; continue }
             apply(payload, replacing: nil)
             remember(document)
+            if payload.plan.name.hasSuffix(" (Conflict copy)"), payload.plan.name != payload.conflictCopyName {
+                planSyncRequested = true
+            }
+        }
+        if !syncFailed && !planSyncRequested {
+            do { try await removeDuplicateConflictCopies(remoteByID, userID: userID) }
+            catch { syncFailed = true }
+            guard repository.currentProfile.id == userID else { return }
         }
         if repository.workoutPlans.filter(\.isActive).count > 1 { syncFailed = true }
         repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
+    private func isLocallyUsed(_ payload: WorkoutPlanSyncPayload) -> Bool {
+        let sessionIDs = Set(payload.sessions.map(\.id))
+        let prescriptionIDs = Set(payload.prescriptions.map(\.id))
+        return payload.plan.isActive
+            || repository.activeWorkout.map {
+                $0.sourcePlanID == payload.plan.id || $0.sourceSessionID.map(sessionIDs.contains) == true
+            } == true
+            || repository.completedWorkouts.contains {
+                $0.sourcePlanID == payload.plan.id || $0.sourceSessionID.map(sessionIDs.contains) == true
+            }
+            || repository.workoutSetLogs.contains { prescriptionIDs.contains($0.prescriptionID) }
+            || repository.workoutFeedback.contains { sessionIDs.contains($0.sessionID) }
+    }
+
+    private func removeDuplicateConflictCopies(_ documents: [UUID: WorkoutPlanDocument], userID: UUID) async throws {
+        var groups: [WorkoutPlanSyncPayload: [WorkoutPlanDocument]] = [:]
+        for document in documents.values {
+            guard let local = payload(planID: document.id),
+                  let remote = try? decoder.decode(WorkoutPlanSyncPayload.self, from: document.payload),
+                  local.canonicalized == remote.canonicalized,
+                  let comparison = remote.duplicateComparisonPayload else { continue }
+            groups[comparison, default: []].append(document)
+        }
+        let duplicates = groups.values.filter {
+            $0.count > 1 && $0.contains { $0.name.hasSuffix(" (Conflict copy)") }
+        }
+        guard !duplicates.isEmpty else { return }
+        let history = try await service.completedWorkouts(since: nil)
+        guard repository.currentProfile.id == userID else { return }
+        let workouts = try history.filter { $0.ownerID == userID }.map {
+            try decoder.decode(CompletedWorkout.self, from: $0.payload)
+        }
+        for group in duplicates {
+            let sorted = group.sorted { lhs, rhs in
+                let leftActive = payload(planID: lhs.id)?.plan.isActive == true
+                let rightActive = payload(planID: rhs.id)?.plan.isActive == true
+                if leftActive != rightActive { return leftActive }
+                let leftCopy = lhs.name.hasSuffix(" (Conflict copy)")
+                let rightCopy = rhs.name.hasSuffix(" (Conflict copy)")
+                if leftCopy != rightCopy { return !leftCopy }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            guard let keeper = sorted.first else { continue }
+            for duplicate in sorted.dropFirst() where duplicate.name.hasSuffix(" (Conflict copy)") {
+                guard repository.currentProfile.id == userID else { return }
+                guard let local = payload(planID: duplicate.id), !isLocallyUsed(local),
+                      local.canonicalized == (try decoder.decode(WorkoutPlanSyncPayload.self, from: duplicate.payload)).canonicalized,
+                      let kept = payload(planID: keeper.id),
+                      kept.canonicalized == (try decoder.decode(WorkoutPlanSyncPayload.self, from: keeper.payload)).canonicalized
+                else { continue }
+                let sessionIDs = Set(local.sessions.map(\.id))
+                guard !workouts.contains(where: {
+                    $0.sourcePlanID == duplicate.id || $0.sourceSessionID.map(sessionIDs.contains) == true
+                }) else { continue }
+                guard try await service.deleteDuplicatePlan(duplicate) else {
+                    throw LiftRankServiceError.server("A plan changed during cleanup. Retry sync to keep its latest version.")
+                }
+                guard repository.currentProfile.id == userID else { return }
+                // Editing or starting the copy while deletion was in flight wins:
+                // keep the local plan and upload it again on the queued sync.
+                if let latest = payload(planID: duplicate.id),
+                   latest.canonicalized != local.canonicalized || isLocallyUsed(latest) {
+                    planSyncRequested = true
+                } else {
+                    removePlan(duplicate.id)
+                }
+                repository.workoutPlanSyncRevisions[duplicate.id] = nil
+                repository.workoutPlanLastSyncedPayloads[duplicate.id] = nil
+            }
+        }
+    }
+
     private func resetAccountScopedDataIfNeeded() {
         guard syncedUserID != repository.currentProfile.id else { return }
         syncedUserID = repository.currentProfile.id
+        unreadableRemoteWorkoutCount = 0
         lastPassiveHistorySyncAt = nil
         lastPassivePlanSyncAt = nil
         repository.completedWorkouts.removeAll()
@@ -349,20 +444,33 @@ final class WorkoutSyncStore: ObservableObject {
         )
     }
 
-    private func apply(_ result: WorkoutSyncResult) {
+    private func apply(_ result: WorkoutSyncResult, sentPayload: WorkoutPlanSyncPayload) -> Bool {
+        let latest = payload(planID: sentPayload.plan.id)
+        let changedDuringSave = latest?.canonicalized != sentPayload.canonicalized
+        if changedDuringSave, latest != nil { planSyncRequested = true }
         switch result {
         case let .saved(saved):
             remember(saved)
         case let .conflict(server, localCopy):
-            if let payload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: server.payload) {
-                apply(payload, replacing: server.id)
+            guard let serverPayload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: server.payload),
+                  let copyPayload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: localCopy.payload),
+                  serverPayload.plan.id == server.id, copyPayload.plan.id == localCopy.id else { return false }
+            if !changedDuringSave {
+                apply(serverPayload, replacing: server.id)
+                remember(server)
             }
-            if let payload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: localCopy.payload) {
-                apply(payload.plan.id == localCopy.id ? payload : payload.conflictCopy(documentID: localCopy.id, makeUUID: makeUUID), replacing: nil)
+            let existingCopy = payload(planID: localCopy.id)?.canonicalized
+            let copyBaseline = repository.workoutPlanLastSyncedPayloads[localCopy.id].flatMap {
+                try? decoder.decode(WorkoutPlanSyncPayload.self, from: $0).canonicalized
             }
-            remember(server)
-            repository.workoutPlanSyncRevisions[localCopy.id] = localCopy.revision
+            if existingCopy == nil || existingCopy == copyBaseline || existingCopy == copyPayload.canonicalized {
+                apply(copyPayload, replacing: localCopy.id)
+                remember(localCopy)
+            } else {
+                planSyncRequested = true
+            }
         }
+        return true
     }
 
     private func remember(_ document: WorkoutPlanDocument) {
@@ -370,17 +478,19 @@ final class WorkoutSyncStore: ObservableObject {
         repository.workoutPlanLastSyncedPayloads[document.id] = document.payload
     }
 
+    private func removePlan(_ planID: UUID) {
+        let weekIDs = Set(repository.workoutWeeks.filter { $0.planID == planID }.map(\.id))
+        let sessionIDs = Set(repository.workoutSessions.filter { weekIDs.contains($0.weekID) }.map(\.id))
+        repository.workoutPrescriptions.removeAll { sessionIDs.contains($0.sessionID) }
+        repository.workoutSessions.removeAll { weekIDs.contains($0.weekID) }
+        repository.workoutWeeks.removeAll { $0.planID == planID }
+        repository.workoutPhases.removeAll { $0.planID == planID }
+        repository.workoutPlanProgressionSettings.removeAll { $0.planID == planID }
+        repository.workoutPlans.removeAll { $0.id == planID }
+    }
+
     private func apply(_ payload: WorkoutPlanSyncPayload, replacing planID: UUID?) {
-        if let planID {
-            let weekIDs = Set(repository.workoutWeeks.filter { $0.planID == planID }.map(\.id))
-            let sessionIDs = Set(repository.workoutSessions.filter { weekIDs.contains($0.weekID) }.map(\.id))
-            repository.workoutPrescriptions.removeAll { sessionIDs.contains($0.sessionID) }
-            repository.workoutSessions.removeAll { weekIDs.contains($0.weekID) }
-            repository.workoutWeeks.removeAll { $0.planID == planID }
-            repository.workoutPhases.removeAll { $0.planID == planID }
-            repository.workoutPlanProgressionSettings.removeAll { $0.planID == planID }
-            repository.workoutPlans.removeAll { $0.id == planID }
-        }
+        if let planID { removePlan(planID) }
         repository.workoutPlans.append(payload.plan)
         repository.workoutPhases.append(contentsOf: payload.phases)
         repository.workoutWeeks.append(contentsOf: payload.weeks)

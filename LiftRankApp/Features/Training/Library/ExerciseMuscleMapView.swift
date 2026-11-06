@@ -176,7 +176,7 @@ struct AnatomicalMuscleFigure: View {
         for muscle in mappedMuscles(for: primaryRegions) {
             figure = figure.highlight(
                 muscle,
-                linearGradient: [Color(red: 0.89, green: 1.0, blue: 0.38), Color.liftBlue],
+                linearGradient: [Color.liftLime.opacity(0.75), Color.liftBlue],
                 startPoint: .top,
                 endPoint: .bottom
             )

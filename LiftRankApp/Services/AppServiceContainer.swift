@@ -151,6 +151,9 @@ final class UnavailableLaunchService: LiftService, LeaderboardService, SocialSer
     func vote(liftID: UUID, vote: LiftVoteValue?) async throws { throw error }
     func report(liftID: UUID, reason: LiftReportReason, note: String) async throws { throw error }
     func entries(filters: LeaderboardFilters, verifiedOnly: Bool) async throws -> [LeaderboardEntry] { throw error }
+    func friendRequests() async throws -> [FriendRequest] { throw error }
+    func requestFriendship(userID: UUID) async throws { throw error }
+    func respondToFriendship(id: UUID, accept: Bool) async throws { throw error }
     func searchProfiles(query: String, limit: Int) async throws -> [PublicProfileCard] { throw error }
     func report(userID: UUID, reason: ProfileReportReason, note: String) async throws { throw error }
     func block(userID: UUID) async throws { throw error }
@@ -164,6 +167,7 @@ final class UnavailableLaunchService: LiftService, LeaderboardService, SocialSer
     func join(communityID: UUID, requestNote: String) async throws -> String { throw error }
     func leave(communityID: UUID) async throws { throw error }
     func createPost(_ draft: ForumPostDraft) async throws -> ForumPost { throw error }
+    func mediaURL(for attachment: ForumAttachment) async throws -> URL { throw error }
     func createComment(postID: UUID, body: String, parentCommentID: UUID?) async throws -> ForumComment { throw error }
     func updatePost(postID: UUID, title: String, body: String) async throws -> ForumPost { throw error }
     func updateComment(commentID: UUID, body: String) async throws -> ForumComment { throw error }
@@ -206,10 +210,17 @@ final class UnavailableAccountDataService: ProfileService, GymService, GymMember
     func currentProfile() async throws -> UserProfile { throw error }
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile { throw error }
     func authenticatedProfile() async throws -> AuthenticatedProfile { throw error }
+    func saveSettings(_ settings: ProfileSettingsSnapshot, expected: ProfileSettingsSnapshot) async throws -> AuthenticatedProfile { throw error }
     func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile { throw error }
+    func strengthGoalTargets() async throws -> [String: Double]? { throw error }
+    func saveStrengthGoalTargets(_ targets: [String: Double]) async throws { throw error }
     func saveTrainingGoals(_ goalIDs: [String]) async throws { throw error }
     func changeUsername(currentUsername: String, newUsername: String) async throws -> String { throw error }
     func profileCard(userID: UUID) async throws -> PublicProfileCard { throw error }
+    func sharedWorkoutStats(userID: UUID) async throws -> SharedWorkoutStats? { throw error }
+    func recordFriendWorkoutStart(workoutID: UUID, ownerID: UUID) async throws { throw error }
+    func recordFriendTopLift(liftID: UUID) async throws { throw error }
+    func friendTrainingActivity() async throws -> [FriendTrainingActivity] { throw error }
     func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String { throw error }
     func downloadProfileAvatar(avatarPath: String) async throws -> ProfileAvatarDownload? { throw error }
     func removeProfileAvatar(avatarPath: String?) async throws { throw error }

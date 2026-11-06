@@ -7,10 +7,6 @@ enum ActiveWorkoutFinishReadiness: Equatable {
     case incomplete(completedSets: Int, plannedSets: Int)
     case ready
 
-    var hasIncompleteSets: Bool {
-        if case .incomplete = self { return true }
-        return false
-    }
 }
 
 struct ActiveWorkoutExerciseProgress: Equatable {
@@ -64,6 +60,7 @@ private struct ActiveWorkoutSummarySignature: Equatable {
 
 private struct PreviousWorkoutSetLookupSignature: Equatable {
     let exerciseID: String
+    let machineLoadType: MachineLoadType?
     let setNumbers: [Int]
     let completedWorkoutsRevision: Int
 }
@@ -276,6 +273,17 @@ final class ActiveWorkoutStore {
         repository.updateWorkoutSetLog(log)
     }
 
+    func copyLastCompletedSetToEmptySets(in exercise: WorkoutExerciseSnapshot) {
+        let logs = setLogs(for: exercise)
+        guard let source = logs.last(where: { $0.isComplete && !$0.isWarmup }) else { return }
+        for var log in logs where !log.isComplete && !log.isWarmup && log.setNumber > source.setNumber && log.reps == nil && log.weight == nil {
+            log.reps = source.reps
+            log.weight = source.weight
+            log.recordedUnit = source.recordedUnit
+            updateSet(log)
+        }
+    }
+
     @discardableResult
     func addSet(to exercise: WorkoutExerciseSnapshot, persistImmediately: Bool = true) -> WorkoutSetLog? {
         guard let workout else { return nil }
@@ -323,10 +331,6 @@ final class ActiveWorkoutStore {
         return activeSetLogIndex(for: workoutID).allLogs.filter { $0.isComplete && !$0.isWarmup }
     }
 
-    var plannedWorkingSetCount: Int {
-        displayState.plannedWorkingSets
-    }
-
     func exerciseProgress(for exercise: WorkoutExerciseSnapshot) -> ActiveWorkoutExerciseProgress {
         let workingLogs = setLogs(for: exercise).filter { !$0.isWarmup }
         let plannedSets = workingLogs.isEmpty ? exercise.targetSets : workingLogs.count
@@ -343,6 +347,7 @@ final class ActiveWorkoutStore {
 
         let signature = PreviousWorkoutSetLookupSignature(
             exerciseID: exercise.exerciseID,
+            machineLoadType: exercise.machineLoadType,
             setNumbers: neededSetNumbers,
             completedWorkoutsRevision: repository.completedWorkoutsRevision
         )
@@ -353,7 +358,9 @@ final class ActiveWorkoutStore {
 
         let previousWorkout = repository.completedWorkouts
             .compactMap { workout -> (CompletedWorkout, WorkoutExerciseSnapshot, [WorkoutSetLog])? in
-                guard let previousExercise = workout.exercises.first(where: { $0.exerciseID == exercise.exerciseID }) else {
+                guard let previousExercise = workout.exercises.first(where: {
+                    $0.exerciseID == exercise.exerciseID && $0.machineLoadType == exercise.machineLoadType
+                }) else {
                     return nil
                 }
                 let workingLogs = workout.sets.filter {
@@ -429,6 +436,15 @@ final class ActiveWorkoutStore {
         repository.setRestTimeForActiveWorkoutExercise(exerciseID, seconds: seconds)
     }
 
+    func setMachineLoadType(for exerciseID: UUID, type: MachineLoadType) {
+        repository.setMachineLoadTypeForActiveWorkoutExercise(exerciseID, type: type)
+    }
+
+    func setAdaptiveRestTimerEnabled(_ enabled: Bool) {
+        repository.workoutPreferences.adaptiveRestTimerEnabled = enabled
+        repository.scheduleWorkoutSnapshotPersistence()
+    }
+
     func setDefaultRestTimerEnabled(_ enabled: Bool) {
         repository.workoutPreferences.defaultRestTimerEnabled = enabled
         repository.scheduleWorkoutSnapshotPersistence()
@@ -450,9 +466,12 @@ final class ActiveWorkoutStore {
         guard let completed = repository.finishActiveWorkout(effort: effort, notes: notes, at: now()) else {
             return nil
         }
-        restNotificationScheduler.cancel()
         repository.scheduleWorkoutSnapshotPersistence()
         return completed
+    }
+
+    func finishCommitted() {
+        restNotificationScheduler.cancel()
     }
 
     func summary() -> WorkoutSummary? {
@@ -533,6 +552,11 @@ final class ActiveWorkoutStore {
         updated.completionSource = isComplete ? source : nil
         updated.hasTriggeredRestTimer = isComplete
         repository.updateWorkoutSetLog(updated)
+        let progress = displayState
+        if !progress.exercises.isEmpty && progress.completedExercises == progress.exercises.count {
+            updateRestTimer(endsAt: nil, exerciseID: nil)
+            return false
+        }
         return shouldTriggerTimer
     }
 

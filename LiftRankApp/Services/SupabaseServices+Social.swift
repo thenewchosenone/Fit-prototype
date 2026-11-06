@@ -28,10 +28,47 @@ private struct ProfileReportParameters: Encodable {
     }
 }
 
+private struct FriendRelationshipDTO: Decodable {
+    let id: UUID
+    let userID: UUID
+    let displayName: String
+    let isIncoming: Bool
+    let isAccepted: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userID = "user_id", displayName = "display_name"
+        case isIncoming = "is_incoming", isAccepted = "is_accepted"
+    }
+}
+
 @MainActor
 final class SupabaseSocialService: SocialService {
     private let client: SupabaseClient
     init(client: SupabaseClient) { self.client = client }
+    func friendRequests() async throws -> [FriendRequest] {
+        do {
+            let rows: [FriendRelationshipDTO] = try await client.rpc("get_friend_relationship_cards").execute().value
+            return rows.map { FriendRequest(id: $0.id, userID: $0.userID, displayName: $0.displayName,
+                isIncoming: $0.isIncoming, isAccepted: $0.isAccepted) }
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func requestFriendship(userID: UUID) async throws {
+        do { try await client.rpc("request_friendship", params: ["target_user_id": userID]).execute() }
+        catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func respondToFriendship(id: UUID, accept: Bool) async throws {
+        struct Parameters: Encodable {
+            let relationship_id: UUID
+            let accept_request: Bool
+        }
+        do {
+            try await client.rpc("respond_to_friendship", params: Parameters(relationship_id: id, accept_request: accept)).execute()
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
     func searchProfiles(query: String, limit: Int) async throws -> [PublicProfileCard] {
         do {
             let rows: [ProfileCardDTO] = try await client.rpc(
@@ -122,9 +159,10 @@ private struct ForumPostDTO: Codable {
     let createdAt: Date
     let forumPostVotes: [ForumVoteDTO]?
     let forumComments: [ForumAggregateCountDTO]
+    let attachments: [ForumAttachment]
 
     enum CodingKeys: String, CodingKey {
-        case id, kind, title, body, tag
+        case id, kind, title, body, tag, attachments
         case communityID = "community_id"
         case gymID = "gym_id"
         case authorID = "author_id"
@@ -138,7 +176,7 @@ private struct ForumPostDTO: Codable {
 
     func model(currentUserID: UUID? = nil) -> ForumPost {
         let votes = forumPostVotes ?? []
-        return ForumPost(id: id, communityID: communityID, gymID: gymID, authorID: authorID, kind: kind, title: title, body: body, tag: tag, liftID: liftID, isPinned: isPinned, isLocked: isLocked, createdAt: createdAt, voteCount: votes.reduce(0) { $0 + $1.value }, commentCount: forumComments.first?.count ?? 0, currentUserVote: votes.first(where: { $0.userID == currentUserID })?.value)
+        return ForumPost(id: id, communityID: communityID, gymID: gymID, authorID: authorID, kind: kind, title: title, body: body, tag: tag, liftID: liftID, isPinned: isPinned, isLocked: isLocked, createdAt: createdAt, voteCount: votes.reduce(0) { $0 + $1.value }, commentCount: forumComments.first?.count ?? 0, currentUserVote: votes.first(where: { $0.userID == currentUserID })?.value, attachments: attachments)
     }
 }
 
@@ -197,9 +235,10 @@ private struct ForumPostInsert: Encodable {
     let body: String
     let tag: String?
     let liftID: UUID?
+    let attachments: [ForumAttachment]
 
     enum CodingKeys: String, CodingKey {
-        case id, kind, title, body, tag
+        case id, kind, title, body, tag, attachments
         case communityID = "community_id"
         case authorID = "author_id"
         case liftID = "lift_id"
@@ -261,7 +300,7 @@ private struct ForumCommentVoteInsert: Encodable {
     }
 }
 
-private struct ForumWatchInsert: Encodable {
+private struct ForumWatchInsert: Codable {
     let postID: UUID
     let userID: UUID
     enum CodingKeys: String, CodingKey { case postID = "post_id"; case userID = "user_id" }
@@ -360,7 +399,7 @@ final class SupabaseForumService: ForumService {
         do {
             let userID = try? await client.auth.session.user.id
             let voteSelection = userID == nil ? "" : ",forum_post_votes(user_id,value)"
-            var query = client.from("forum_posts").select("id,community_id,gym_id,author_id,kind,title,body,tag,lift_id,is_pinned,is_locked,created_at\(voteSelection),forum_comments(count)").is("removed_at", value: nil)
+            var query = client.from("forum_posts").select("id,community_id,gym_id,author_id,kind,title,body,tag,attachments,lift_id,is_pinned,is_locked,created_at\(voteSelection),forum_comments(count)").is("removed_at", value: nil)
             if let communityID { query = query.eq("community_id", value: communityID) }
             let pageSize = min(max(limit, 1), 100)
             let start = max(offset, 0)
@@ -374,9 +413,15 @@ final class SupabaseForumService: ForumService {
             let userID = try? await client.auth.session.user.id
             let voteSelection = userID == nil ? "" : ",forum_post_votes(user_id,value)"
             let commentVoteSelection = userID == nil ? "" : ",forum_comment_votes(user_id,value)"
-            let post: ForumPostDTO = try await client.from("forum_posts").select("id,community_id,gym_id,author_id,kind,title,body,tag,lift_id,is_pinned,is_locked,created_at\(voteSelection),forum_comments(count)").eq("id", value: postID).is("removed_at", value: nil).single().execute().value
+            let post: ForumPostDTO = try await client.from("forum_posts").select("id,community_id,gym_id,author_id,kind,title,body,tag,attachments,lift_id,is_pinned,is_locked,created_at\(voteSelection),forum_comments(count)").eq("id", value: postID).is("removed_at", value: nil).single().execute().value
             let comments: [ForumCommentDTO] = try await client.from("forum_comments").select("id,post_id,author_id,parent_comment_id,body,created_at\(commentVoteSelection)").eq("post_id", value: postID).is("removed_at", value: nil).order("created_at").execute().value
-            return ForumThread(post: post.model(currentUserID: userID), comments: comments.map { $0.model(currentUserID: userID) })
+            var watching = false
+            if let userID {
+                let watches: [ForumWatchInsert] = try await client.from("forum_post_watches")
+                    .select("post_id,user_id").eq("post_id", value: postID).eq("user_id", value: userID).execute().value
+                watching = !watches.isEmpty
+            }
+            return ForumThread(post: post.model(currentUserID: userID), comments: comments.map { $0.model(currentUserID: userID) }, isWatching: watching)
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
@@ -391,10 +436,41 @@ final class SupabaseForumService: ForumService {
     }
 
     func createPost(_ draft: ForumPostDraft) async throws -> ForumPost {
+        var uploadedPath: String?
         do {
             let user = try await client.auth.session.user
-            let inserted: ForumPostDTO = try await client.from("forum_posts").insert(ForumPostInsert(id: UUID(), communityID: draft.communityID, authorID: user.id, kind: draft.kind, title: String(draft.title.prefix(180)), body: String(draft.body.prefix(10000)), tag: draft.tag, liftID: draft.liftID)).select("id,community_id,gym_id,author_id,kind,title,body,tag,lift_id,is_pinned,is_locked,created_at,forum_post_votes(user_id,value),forum_comments(count)").single().execute().value
+            let selection = "id,community_id,gym_id,author_id,kind,title,body,tag,attachments,lift_id,is_pinned,is_locked,created_at,forum_post_votes(user_id,value),forum_comments(count)"
+            let existing: [ForumPostDTO] = try await client.from("forum_posts").select(selection)
+                .eq("id", value: draft.id).eq("author_id", value: user.id).execute().value
+            if let post = existing.first { return post.model(currentUserID: user.id) }
+
+            var attachments: [ForumAttachment] = []
+            if let media = draft.media {
+                let size = try media.fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+                guard size > 0, size <= (media.kind == .photo ? 10 : 50) * 1_024 * 1_024 else {
+                    throw LiftRankServiceError.invalidInput("Choose a photo under 10 MB or a video under 50 MB.")
+                }
+                let name = media.fileURL.deletingPathExtension().lastPathComponent.lowercased()
+                let path = "\(user.id.uuidString.lowercased())/\(draft.id.uuidString.lowercased())/\(name).\(media.kind == .photo ? "jpg" : "mp4")"
+                try await client.storage.from("forum-media").upload(path, fileURL: media.fileURL,
+                    options: FileOptions(cacheControl: "3600", contentType: media.contentType, upsert: true))
+                uploadedPath = path
+                attachments = [ForumAttachment(kind: media.kind, storagePath: path)]
+            }
+            let inserted: ForumPostDTO = try await client.from("forum_posts").insert(ForumPostInsert(id: draft.id, communityID: draft.communityID, authorID: user.id, kind: draft.kind, title: String(draft.title.prefix(180)), body: String(draft.body.prefix(10000)), tag: draft.tag, liftID: draft.liftID, attachments: attachments)).select(selection).single().execute().value
             return inserted.model(currentUserID: user.id)
+        } catch {
+            if let uploadedPath {
+                // RLS permits cleanup only while no post references the file.
+                _ = try? await client.storage.from("forum-media").remove(paths: [uploadedPath])
+            }
+            throw SupabaseServiceErrorMapper.map(error)
+        }
+    }
+
+    func mediaURL(for attachment: ForumAttachment) async throws -> URL {
+        do {
+            return try await client.storage.from("forum-media").createSignedURL(path: attachment.storagePath, expiresIn: 120)
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
@@ -414,7 +490,7 @@ final class SupabaseForumService: ForumService {
                 .eq("id", value: postID)
                 .eq("author_id", value: user.id)
                 .is("removed_at", value: nil)
-                .select("id,community_id,gym_id,author_id,kind,title,body,tag,lift_id,is_pinned,is_locked,created_at,forum_post_votes(user_id,value),forum_comments(count)")
+                .select("id,community_id,gym_id,author_id,kind,title,body,tag,attachments,lift_id,is_pinned,is_locked,created_at,forum_post_votes(user_id,value),forum_comments(count)")
                 .single().execute().value
             return updated.model(currentUserID: user.id)
         } catch { throw SupabaseServiceErrorMapper.map(error) }

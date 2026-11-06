@@ -1,5 +1,7 @@
 import SwiftUI
 
+import SwiftUI
+
 struct ExerciseCatalogIcon: View {
     let exercise: TrainingExerciseCatalogItem
 
@@ -99,9 +101,6 @@ struct ExerciseCatalogIcon: View {
         return .strength
     }
 }
-
-/// Resolves a persisted exercise name to the shared catalog artwork for surfaces
-/// that only have a display name (for example, historical lifts and PR cards).
 
 enum RepDBExerciseMedia {
     static let attribution = "Exercise data by RepDB (repdb.co)"

@@ -224,8 +224,6 @@ enum MockData {
         TrainingExerciseCatalogItem(id: "farmers_carry", name: "Farmer's Carry", bodyPart: "Full Body", workoutCategory: "Conditioning", defaultSets: 3, defaultReps: "30-60 sec", symbolName: "figure.strengthtraining.functional", equipment: "Dumbbell")
     ]
 
-    static let maleWeightClasses = WeightClassCatalog.male
-    static let femaleWeightClasses = WeightClassCatalog.female
     static var weightClasses: [WeightClass] { WeightClassCatalog.all }
 
     static let standardAgeGroups = [

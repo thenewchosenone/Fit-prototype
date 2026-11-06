@@ -39,8 +39,8 @@ struct TopLiftCardDetailSheet: View {
             .navigationTitle(destination.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Close", systemImage: "xmark") { dismiss() }.labelStyle(.iconOnly)
                 }
             }
         }
@@ -108,6 +108,7 @@ struct TopLiftCardDetailSheet: View {
                         return nil
                     }
                     return HistoricalLiftSet(
+                        workoutID: history.workout.id,
                         workoutName: history.workout.name,
                         exerciseName: exercise.exerciseName,
                         submissionExerciseID: submissionExerciseID,
@@ -120,9 +121,6 @@ struct TopLiftCardDetailSheet: View {
         .sorted { $0.workoutSet.performedAt > $1.workoutSet.performedAt }
 
         return VStack(alignment: .leading, spacing: 12) {
-            Text("Choose a past workout set to prefill a lift submission. Review it and add any required evidence before submitting.")
-                .font(.subheadline)
-                .foregroundStyle(Color.liftMuted)
 
             if entries.isEmpty {
                 LiftEmptyState(
@@ -131,41 +129,38 @@ struct TopLiftCardDetailSheet: View {
                     symbolName: "dumbbell"
                 )
             } else {
-                ForEach(entries) { entry in
+                let workoutIDs = entries.reduce(into: [UUID]()) { ids, entry in
+                    if !ids.contains(entry.workoutID) { ids.append(entry.workoutID) }
+                }
+                ForEach(workoutIDs, id: \.self) { workoutID in
+                    let sets = entries.filter { $0.workoutID == workoutID }.sorted { $0.workoutSet.setNumber < $1.workoutSet.setNumber }
                     LiftCard {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(alignment: .firstTextBaseline) {
-                                Text(entry.exerciseName)
-                                    .font(LiftTypography.rowEmphasis)
-                                Spacer()
-                                Text("\(entry.workoutName) · \(LiftTimeFormatter.shortDateTime(entry.workoutSet.performedAt))")
-                                    .font(.caption)
-                                    .foregroundStyle(Color.liftMuted)
+                        VStack(alignment: .leading, spacing: 12) {
+                            if let first = sets.first {
+                                Text(first.workoutName).font(.headline)
+                                Text(LiftTimeFormatter.shortDateTime(first.workoutSet.performedAt)).font(.caption).foregroundStyle(Color.liftMuted)
                             }
-                            Text(MeasurementFormatting.recordedLiftSetText(
-                                weight: entry.workoutSet.weight ?? 0,
-                                unit: entry.workoutSet.recordedUnit,
-                                repetitions: entry.workoutSet.reps ?? 0
-                            ))
-                            .font(.subheadline.weight(.semibold).monospacedDigit())
-                            if let estimated = entry.estimatedOneRepMaxKilograms {
-                                Text("\(entry.workoutSet.reps == 1 ? "1RM" : "Est. 1RM") \(MeasurementFormatting.formatDisplayedWeight(estimated, unit: appState.currentProfile.preferredUnit))")
-                                    .font(.caption)
-                                    .foregroundStyle(Color.liftMuted)
+                            ForEach(sets) { entry in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text("\(entry.exerciseName) · Set \(entry.workoutSet.setNumber)").font(.subheadline.weight(.semibold))
+                                    Text(MeasurementFormatting.normalizedLiftSetText(
+                                        weightKilograms: MeasurementFormatting.normalizeToKilograms(entry.workoutSet.weight ?? 0, unit: entry.workoutSet.recordedUnit),
+                                        preferredUnit: appState.currentProfile.preferredUnit,
+                                        repetitions: entry.workoutSet.reps ?? 0,
+                                        format: MeasurementFormatting.workoutLoadText
+                                    )).monospacedDigit()
+                                    if let estimated = entry.estimatedOneRepMaxKilograms {
+                                        Text("Est. 1RM · \(MeasurementFormatting.formatDisplayedWeight(estimated, unit: appState.currentProfile.preferredUnit))").font(.caption).foregroundStyle(Color.liftMuted)
+                                    }
+                                    DisclosureGroup("Recorded values") {
+                                        Text(MeasurementFormatting.recordedLiftSetText(weight: entry.workoutSet.weight ?? 0, unit: entry.workoutSet.recordedUnit, repetitions: entry.workoutSet.reps ?? 0, format: MeasurementFormatting.workoutLoadText))
+                                    }.font(.caption)
+                                    Button("Review submission") {
+                                        selectedPrefill = LiftSubmissionPrefill(id: entry.workoutSet.id, exerciseID: entry.submissionExerciseID, weight: entry.workoutSet.weight, unit: entry.workoutSet.recordedUnit, repetitions: entry.workoutSet.reps, performedAt: entry.workoutSet.performedAt)
+                                    }.frame(minHeight: 44)
+                                    if entry.id != sets.last?.id { Divider() }
+                                }
                             }
-                            Button("Submit this set") {
-                                selectedPrefill = LiftSubmissionPrefill(
-                                    id: entry.workoutSet.id,
-                                    exerciseID: entry.submissionExerciseID,
-                                    weight: entry.workoutSet.weight,
-                                    unit: entry.workoutSet.recordedUnit,
-                                    repetitions: entry.workoutSet.reps,
-                                    performedAt: entry.workoutSet.performedAt
-                                )
-                            }
-                            .font(LiftTypography.rowEmphasis)
-                            .foregroundStyle(Color.liftAccentText)
-                            .frame(minHeight: LiftDesign.minimumTouchTarget, alignment: .leading)
                         }
                     }
                 }
@@ -175,7 +170,8 @@ struct TopLiftCardDetailSheet: View {
                 selectedPrefill = LiftSubmissionPrefill(exerciseID: id)
             }
             .buttonStyle(.borderedProminent)
-            .tint(Color.liftBlue)
+            .tint(Color.liftLime)
+            .foregroundStyle(Color.liftOnAccent)
         }
     }
 
@@ -223,6 +219,7 @@ struct TopLiftCardDetailSheet: View {
 }
 
 private struct HistoricalLiftSet: Identifiable {
+    let workoutID: UUID
     let workoutName: String
     let exerciseName: String
     let submissionExerciseID: String

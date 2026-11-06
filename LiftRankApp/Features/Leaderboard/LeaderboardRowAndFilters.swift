@@ -1,130 +1,4 @@
-import Charts
 import SwiftUI
-
-struct LeaderboardRow: View {
-    @EnvironmentObject private var appState: AppState
-    let entry: LeaderboardEntry
-    var rankingType: RankingType = .absolute
-
-    private var rankColor: Color {
-        LeaderboardRankPresentation.color(for: entry.rank)
-    }
-
-    private var catalogExercise: TrainingExerciseCatalogItem? {
-        MockData.trainingExerciseLibrary.first {
-            $0.id == entry.lift.exerciseID || $0.rankingExerciseID == entry.lift.exerciseID
-        }
-    }
-
-    var body: some View {
-        LiftCard {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top, spacing: 12) {
-                    Text("#\(entry.rank)")
-                        .font(.headline.bold())
-                        .foregroundStyle(rankColor)
-                        .frame(width: 54, height: 42)
-                        .background(rankColor.opacity(0.14))
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    ProfileAvatar(profile: entry.profile, size: 44)
-                    VStack(alignment: .leading, spacing: 5) {
-                        HStack(spacing: 8) {
-                            Text(entry.profile.displayName)
-                                .font(.headline)
-                                .lineLimit(1)
-                            if LeaderboardIdentityPresentation.isCurrentUser(
-                                entryProfileID: entry.profile.id,
-                                activeProfileID: appState.currentProfile.id
-                            ) {
-                                Text("You")
-                                    .font(.caption2.bold())
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 4)
-                                    .background(Color.liftBlue.opacity(0.22))
-                                    .clipShape(Capsule())
-                                Text("\(appState.strengthTierSummary.overallTier.label) tier")
-                                    .font(.caption2.bold())
-                                    .foregroundStyle(Color.liftGold)
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 4)
-                                    .background(Color.liftGold.opacity(0.12))
-                                    .clipShape(Capsule())
-                                    .accessibilityIdentifier("leaderboard.currentUserRivalTier")
-                            }
-                        }
-                        Text("@\(entry.profile.username) • \(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
-                            .lineLimit(1)
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 5) {
-                        Text(RankingFormatting.leaderboardValueText(for: entry, rankingType: rankingType, preferredUnit: appState.currentProfile.preferredUnit))
-                            .font(.headline)
-                            if entry.rankMovement > 0 {
-                                Label("+\(entry.rankMovement)", systemImage: "arrow.up")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(Color.liftGreen)
-                            } else if entry.rankMovement < 0 {
-                                Label("\(entry.rankMovement)", systemImage: "arrow.down")
-                                    .font(.caption.bold())
-                                    .foregroundStyle(Color.liftRed)
-                            }
-                    }
-                }
-
-                HStack(spacing: 8) {
-                    HStack(spacing: 5) {
-                        if let catalogExercise {
-                            ExerciseCatalogIcon(exercise: catalogExercise)
-                                .scaleEffect(0.38)
-                                .frame(width: 22, height: 22)
-                        } else {
-                            ExerciseNameIcon(
-                                name: entry.lift.exerciseName,
-                                fallbackSymbol: "figure.strengthtraining.functional"
-                            )
-                            .scaleEffect(0.38)
-                            .frame(width: 22, height: 22)
-                        }
-                        Text(entry.lift.exerciseName)
-                    }
-                    Label(entry.profile.hideBodyweight ? "Bodyweight hidden" : "\(MeasurementFormatting.formatBodyweightOrDash(entry.lift.bodyweightAtLift, preferredUnit: appState.currentProfile.preferredUnit)) BW", systemImage: "scalemass.fill")
-                    Label(
-                        ProfileDisplayFormatting.location(
-                            city: entry.profile.city,
-                            region: entry.profile.state,
-                            hidden: entry.profile.hideCity
-                        ),
-                        systemImage: "mappin.and.ellipse"
-                    )
-                }
-                .font(.caption)
-                .foregroundStyle(Color.liftMuted)
-                .lineLimit(1)
-
-                HStack(spacing: 8) {
-                    Text(MeasurementFormatting.recordedLiftSetText(
-                        weight: entry.lift.weight,
-                        unit: entry.lift.unit,
-                        repetitions: entry.lift.repetitions,
-                        includeRepLabel: true
-                    ))
-                    if entry.lift.weightPerHand == true {
-                        Text("per hand")
-                    }
-                    Text("·")
-                    Text(LiftTimeFormatter.shortDateTime(entry.lift.performedAt))
-                }
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(Color.liftMuted)
-                .lineLimit(1)
-
-                VerificationBadge(evidenceStatus: entry.lift.resolvedEvidenceStatus)
-            }
-        }
-    }
-}
 
 struct LeaderboardFiltersView: View {
     @EnvironmentObject private var appState: AppState
@@ -178,7 +52,7 @@ struct LeaderboardFiltersView: View {
                         quickFilters
 
                         if !isLocationSearchActive {
-                            filterGroup("Exercise and reps", symbol: "dumbbell.fill") {
+                            filterGroup(appState.isDemoMode ? "Exercise and reps" : "Exercise", symbol: "dumbbell.fill") {
                                 optionRow("Exercise") {
                                     optionButton("All", isActive: appState.leaderboardFilters.exerciseID == nil) {
                                         appState.selectLeaderboardExercise(nil)
@@ -189,7 +63,7 @@ struct LeaderboardFiltersView: View {
                                         }
                                     }
                                 }
-                                if appState.leaderboardFilters.exerciseID != nil {
+                                if appState.isDemoMode && appState.leaderboardFilters.exerciseID != nil {
                                     optionRow("Rep count") {
                                         ForEach([nil, 1, 3, 5, 8, 10], id: \.self) { count in
                                             optionButton(count.map { "\($0) \($0 == 1 ? "rep" : "reps")" } ?? "All", isActive: appState.leaderboardFilters.repetitionCount == count) {
@@ -241,13 +115,15 @@ struct LeaderboardFiltersView: View {
                                         }
                                     }
                                 }
-                                optionRow("Experience") {
-                                    optionButton("All", isActive: appState.leaderboardFilters.experienceLevel == nil) {
-                                        appState.leaderboardFilters.experienceLevel = nil
-                                    }
-                                    ForEach(ExperienceLevel.allCases) { level in
-                                        optionButton(level.rawValue, isActive: appState.leaderboardFilters.experienceLevel == level) {
-                                            appState.leaderboardFilters.experienceLevel = level
+                                if appState.isDemoMode {
+                                    optionRow("Experience") {
+                                        optionButton("All", isActive: appState.leaderboardFilters.experienceLevel == nil) {
+                                            appState.leaderboardFilters.experienceLevel = nil
+                                        }
+                                        ForEach(ExperienceLevel.allCases) { level in
+                                            optionButton(level.rawValue, isActive: appState.leaderboardFilters.experienceLevel == level) {
+                                                appState.leaderboardFilters.experienceLevel = level
+                                            }
                                         }
                                     }
                                 }
@@ -577,9 +453,9 @@ struct LeaderboardFiltersView: View {
     private func filterGroup<Content: View>(_ title: String, symbol: String, @ViewBuilder content: @escaping () -> Content) -> some View {
         let filters = appState.leaderboardFilters
         let activeCount: Int = switch title {
-        case "Division": [filters.sexCategory != nil, filters.ageGroup != nil, filters.experienceLevel != nil, filters.weightClassID != nil].filter { $0 }.count
+        case "Division": [filters.sexCategory != nil, filters.ageGroup != nil, appState.isDemoMode && filters.experienceLevel != nil, filters.weightClassID != nil].filter { $0 }.count
         case "Location": [filters.gymID != nil, filters.city != nil || filters.state != nil || filters.country != nil].filter { $0 }.count
-        case "Exercise and reps": [filters.exerciseID != nil, filters.repetitionCount != nil].filter { $0 }.count
+        case "Exercise", "Exercise and reps": [filters.exerciseID != nil, appState.isDemoMode && filters.repetitionCount != nil].filter { $0 }.count
         default: [!appState.verifiedOnly || filters.verificationLevel != nil, filters.timeRange != "All time"].filter { $0 }.count
         }
         return LiftCard(padding: 14, radius: 16) {

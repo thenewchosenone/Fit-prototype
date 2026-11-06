@@ -68,6 +68,7 @@ extension AppState {
             historyDate: historyDate
         ) != nil
         if started {
+            if historyDate == nil { shareWorkoutStartIfEnabled() }
             if session.outcome != nil {
                 programStore.setSessionOutcome(session, outcome: nil)
                 Task { await synchronizeWorkoutPlans() }
@@ -92,6 +93,7 @@ extension AppState {
             historyDate: historyDate
         ) != nil
         if started {
+            if historyDate == nil { shareWorkoutStartIfEnabled() }
             Haptics.success()
             if isFirstWorkout { Task { await track(.firstWorkoutStarted) } }
         }
@@ -110,7 +112,10 @@ extension AppState {
             bodyweight: bodyweight,
             unit: unit
         ) != nil
-        if started { Haptics.success() }
+        if started {
+            shareWorkoutStartIfEnabled()
+            Haptics.success()
+        }
         return started
     }
 
@@ -151,6 +156,10 @@ extension AppState {
         activeWorkoutStore.updateRestTimer(endsAt: endsAt, exerciseID: exerciseID)
     }
 
+    func setActiveWorkoutMachineLoadType(for exerciseID: UUID, type: MachineLoadType) {
+        activeWorkoutStore.setMachineLoadType(for: exerciseID, type: type)
+    }
+
     var activeWorkoutCompletedWorkingSetCount: Int {
         activeWorkoutStore.displayState.completedWorkingSets
     }
@@ -169,13 +178,45 @@ extension AppState {
 
     @discardableResult
     func finishActiveWorkout(effort: Int, notes: String) -> CompletedWorkout? {
+        workoutCompletionError = nil
         let completingUserID = accountSession?.userID
+        let previousActiveWorkout = repository.activeWorkout
+        let previousSetLogs = repository.workoutSetLogs
+        let previousCompletedWorkouts = repository.completedWorkouts
+        let previousDeletedIDs = repository.deletedCompletedWorkoutIDs
+        let previousUploads = repository.pendingCompletedWorkoutUploads
+        let previousAchievements = repository.achievementUnlocks
         let completed = activeWorkoutStore.finish(effort: effort, notes: notes)
         if let completed {
-            Haptics.success()
             if isAuthenticated, !isDemoMode {
                 let ownerID = currentProfile.id
-                Task { await enqueueCompletedWorkoutAfterEncoding(completed, ownerID: ownerID) }
+                do {
+                    let payload = try JSONEncoder().encode(completed)
+                    workoutSyncStore.enqueueCompletedWorkout(CompletedWorkoutSnapshot(
+                        id: completed.id,
+                        ownerID: ownerID,
+                        payload: payload,
+                        completedAt: completed.completedAt
+                    ), persist: false)
+                } catch {
+                    workoutCompletionError = "Could not prepare this workout for sync. Your draft is still available."
+                }
+            }
+            if workoutCompletionError != nil || !repository.persistWorkoutSnapshotReportingError() {
+                repository.activeWorkout = previousActiveWorkout
+                repository.workoutSetLogs = previousSetLogs
+                repository.completedWorkouts = previousCompletedWorkouts
+                repository.deletedCompletedWorkoutIDs = previousDeletedIDs
+                repository.pendingCompletedWorkoutUploads = previousUploads
+                repository.achievementUnlocks = previousAchievements
+                workoutCompletionError = workoutCompletionError ?? repository.workoutSaveError
+                return nil
+            }
+            workoutCompletionError = nil
+            activeWorkoutStore.finishCommitted()
+            Haptics.success()
+            if isAuthenticated, !isDemoMode {
+                Task { await synchronizeCompletedWorkoutHistory() }
             }
             if let completingUserID {
                 Task {
@@ -231,8 +272,18 @@ extension AppState {
         workoutPRSubmissionStore.setAutomaticSubmissionEnabled(enabled)
     }
 
-    func setWeeklyTrainingDayGoal(_ goal: Int?) {
-        workoutPRSubmissionStore.setWeeklyTrainingDayGoal(goal)
+    func setMissedWorkoutRemindersEnabled(_ enabled: Bool) {
+        workoutPRSubmissionStore.setMissedWorkoutRemindersEnabled(enabled)
+        refreshWorkoutDayReminders()
+    }
+
+    func setWorkoutDayRemindersEnabled(_ enabled: Bool) {
+        workoutPRSubmissionStore.setWorkoutDayRemindersEnabled(enabled)
+        refreshWorkoutDayReminders()
+    }
+
+    func setAdaptiveRestTimerEnabled(_ enabled: Bool) {
+        activeWorkoutStore.setAdaptiveRestTimerEnabled(enabled)
     }
 
     func setDefaultRestTimerEnabled(_ enabled: Bool) {
@@ -319,10 +370,6 @@ extension AppState {
         activeWorkoutStore.attemptAutomaticCompletion(before: log)
     }
 
-    func markAutomaticVideoPRExplanationShown() {
-        workoutPRSubmissionStore.markAutomaticSubmissionExplanationShown()
-    }
-
     func activeWorkoutPRCandidates() -> [WorkoutPRCandidate] {
         activeWorkoutStore.prCandidates(existingLifts: currentUserLifts, liftsRevision: repository.liftsRevision)
     }
@@ -334,10 +381,21 @@ extension AppState {
             existingLifts: currentUserLifts,
             selectedSetIDs: selectedSetIDs
         )
+        for pending in workoutPRSubmissionStore.pendingSubmissions
+        where pending.candidate.completedWorkoutID == workout.id && pending.state == .submitted {
+            if let liftID = pending.submissionID {
+                shareTopLiftIfEnabled(liftID: liftID, ownerID: currentProfile.id)
+            }
+        }
     }
 
     func retryFailedWorkoutPRSubmissions() async {
         await workoutPRSubmissionStore.retryFailedSubmissions()
+        for pending in workoutPRSubmissionStore.pendingSubmissions where pending.state == .submitted {
+            if let liftID = pending.submissionID {
+                shareTopLiftIfEnabled(liftID: liftID, ownerID: currentProfile.id)
+            }
+        }
     }
 
     func persistWorkoutVideo(_ data: Data, fileExtension: String = "mov") async throws -> URL {

@@ -5,29 +5,17 @@ struct WorkoutActivityHeatmap: View {
     @Binding var period: Int
     @Binding var measure: String
     let unit: UnitSystem
+    let catalog: [TrainingExerciseCatalogItem]
 
     private var startDate: Date {
         Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: -(period - 1), to: .now) ?? .now)
     }
 
     private var dailyValues: [Date: Double] {
-        var values: [Date: Double] = [:]
-        let calendar = Calendar.current
-        for workout in workouts {
-            let day = calendar.startOfDay(for: workout.completedAt)
-            let amount: Double
-            if measure == "Time" {
-                amount = max(0, workout.duration / 60)
-            } else {
-                amount = workout.completedWorkingSets.reduce(0) { total, set in
-                    guard let weight = set.weight, let reps = set.reps else { return total }
-                    let kilograms = MeasurementFormatting.normalizeToKilograms(weight, unit: set.recordedUnit)
-                    return total + kilograms * Double(reps)
-                }
-            }
-            values[day, default: 0] += amount
-        }
-        return values
+        WorkoutHistoryCalendarData.activityValues(
+            workouts: workouts, startDate: startDate, endDate: .now,
+            measure: measure, catalog: catalog
+        )
     }
 
     private var days: [Date?] {
@@ -39,22 +27,34 @@ struct WorkoutActivityHeatmap: View {
         return cells + Array(repeating: Optional<Date>.none, count: trailing)
     }
 
+    private var weekdayLabels: [String] {
+        let symbols = Calendar.current.veryShortStandaloneWeekdaySymbols
+        let start = max(0, Calendar.current.firstWeekday - 1)
+        return Array(symbols[start...] + symbols[..<start])
+    }
+
     var body: some View {
         let values = dailyValues
         let peak = max(values.values.max() ?? 0, 1)
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("ACTIVITY")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.liftMuted)
+                Text("Training pattern")
+                    .font(LiftTypography.cardTitle)
                 Spacer()
-                Picker("Activity period", selection: $period) {
-                    Text("30D").tag(30)
-                    Text("90D").tag(90)
-                    Text("1Y").tag(365)
+                Menu {
+                    Picker("Activity period", selection: $period) {
+                        Text("30 days").tag(30)
+                        Text("90 days").tag(90)
+                        Text("1 year").tag(365)
+                    }
+                } label: {
+                    Label(period == 365 ? "1 year" : "\(period) days", systemImage: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 155)
+                .foregroundStyle(Color.liftAccentText)
+                .accessibilityLabel("Activity period")
+                .accessibilityValue(period == 365 ? "1 year" : "\(period) days")
             }
             Picker("Activity measure", selection: $measure) {
                 Text("Time").tag("Time")
@@ -62,48 +62,75 @@ struct WorkoutActivityHeatmap: View {
             }
             .pickerStyle(.segmented)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHGrid(rows: Array(repeating: GridItem(.fixed(12), spacing: 4), count: 7), spacing: 4) {
-                    ForEach(Array(days.enumerated()), id: \.offset) { _, date in
-                        if let date {
-                            let amount = values[Calendar.current.startOfDay(for: date)] ?? 0
-                            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                .fill(amount == 0 ? Color.liftCardRaised : Color.liftAccentText.opacity(0.22 + 0.78 * min(1, amount / peak)))
-                                .frame(width: 12, height: 12)
-                                .accessibilityLabel("\(date.formatted(date: .abbreviated, time: .omitted)), \(activityValue(amount))")
-                        } else {
-                            Color.clear.frame(width: 12, height: 12)
+            GeometryReader { geometry in
+                let columns = days.count / 7
+                let cellWidth = max(12, (geometry.size.width - 20 - CGFloat(max(0, columns - 1)) * 4) / CGFloat(max(1, columns)))
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 4) {
+                        VStack(spacing: 4) {
+                            Color.clear.frame(width: 16, height: 18)
+                            ForEach(Array(weekdayLabels.enumerated()), id: \.offset) { _, label in
+                                Text(label).font(.caption2).foregroundStyle(Color.liftMuted)
+                                    .frame(width: 16, height: 18)
+                            }
+                        }
+                        ForEach(0..<columns, id: \.self) { column in
+                            let columnDays = Array(days[(column * 7)..<((column + 1) * 7)])
+                            let firstDate = columnDays.compactMap { $0 }.first
+                            let previousDate = column > 0 ? days[(column - 1) * 7..<column * 7].compactMap { $0 }.first : nil
+                            let startsMonth = firstDate.map { Calendar.current.component(.month, from: $0) } != previousDate.map { Calendar.current.component(.month, from: $0) }
+                            VStack(spacing: 4) {
+                                Text(startsMonth ? firstDate?.formatted(.dateTime.month(.abbreviated)) ?? "" : "")
+                                    .font(.caption2.weight(.semibold)).foregroundStyle(Color.liftMuted)
+                                    .fixedSize().frame(width: cellWidth, height: 18, alignment: .leading)
+                                ForEach(Array(columnDays.enumerated()), id: \.offset) { _, date in
+                                    if let date {
+                                        let amount = values[Calendar.current.startOfDay(for: date)] ?? 0
+                                        let intensity = Int((amount / peak * 100).rounded())
+                                        RoundedRectangle(cornerRadius: 3)
+                                            .fill(amount == 0 ? Color.liftCardRaised : Color.liftAccentText.opacity(0.22 + 0.78 * min(1, amount / peak)))
+                                            .frame(width: cellWidth, height: 18)
+                                            .accessibilityElement(children: .ignore)
+                                            .accessibilityLabel("\(date.formatted(date: .abbreviated, time: .omitted)), \(activityValue(amount)), \(intensity) percent of highest day in this period")
+                                    } else { Color.clear.frame(width: cellWidth, height: 18) }
+                                }
+                            }
                         }
                     }
                 }
-                .padding(.vertical, 2)
             }
+            .frame(height: 174)
+
             HStack {
-                Text("\(period == 365 ? "Last year" : "Last \(period) days") · \(measure == "Time" ? "minutes trained" : "volume (\(unit.shortLabel))")")
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Spacer(minLength: 8)
+                Text("\(startDate.formatted(date: .abbreviated, time: .omitted))–\(Date.now.formatted(date: .abbreviated, time: .omitted)) · \(measure == "Time" ? "minutes trained" : "volume (\(unit.shortLabel) × reps)")")
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.caption2)
+            .foregroundStyle(Color.liftMuted)
+            Text("Based on saved workouts. An empty day means no activity was logged.")
+                .font(.caption2).foregroundStyle(Color.liftMuted)
+            HStack(spacing: 5) {
                 Text("Less")
-                HStack(spacing: 3) {
-                    ForEach(0..<4, id: \.self) { step in
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color.liftAccentText.opacity(0.22 + Double(step) * 0.26))
-                            .frame(width: 10, height: 10)
-                    }
+                ForEach([0, 25, 50, 75, 100], id: \.self) { threshold in
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(threshold == 0 ? Color.liftCardRaised : Color.liftAccentText.opacity(0.22 + 0.78 * Double(threshold) / 100))
+                        .frame(width: 12, height: 12)
                 }
                 Text("More")
             }
             .font(.caption2)
             .foregroundStyle(Color.liftMuted)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Logged activity: 0, 25, 50, 75, and 100 percent of the highest day in this period")
         }
-        .padding(14)
-        .liftSurface(radius: 12)
+        .padding(18)
+        .liftSurface(radius: 20)
     }
 
     private func activityValue(_ value: Double) -> String {
-        if measure == "Time" { return "\(Int(value.rounded())) training minutes" }
+        if measure == "Time" { return "\(Int(value.rounded())) minutes logged" }
         let displayed = MeasurementFormatting.convert(value, from: .kilograms, to: unit)
-        return "\(Int(displayed.rounded())) \(unit.shortLabel) volume"
+        return "\(Int(displayed.rounded())) \(unit.shortLabel) × reps volume"
     }
 }
 
@@ -124,6 +151,20 @@ struct WorkoutHistoryCalendarPresentation {
 }
 
 enum WorkoutHistoryCalendarData {
+    static func activityValues(
+        workouts: [CompletedWorkout], startDate: Date, endDate: Date,
+        measure: String, catalog: [TrainingExerciseCatalogItem], calendar: Calendar = .current
+    ) -> [Date: Double] {
+        var values: [Date: Double] = [:]
+        for workout in workouts where workout.completedAt >= startDate && workout.completedAt <= endDate && !workout.completedWorkingSets.isEmpty {
+            let amount = measure == "Time"
+                ? max(0, workout.duration / 60)
+                : workout.totalVolume(in: .kilograms, catalog: catalog)
+            values[calendar.startOfDay(for: workout.completedAt), default: 0] += amount
+        }
+        return values
+    }
+
     static func workoutStreaks(
         completedWorkoutDates: [Date],
         referenceDate: Date,
@@ -257,17 +298,23 @@ struct WorkoutHistoryCalendar: View {
     let onLogWorkout: (Date) -> Void
 
     private let calendar = Calendar.current
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
 
     var body: some View {
         let monthStart = WorkoutHistoryCalendarData.monthStart(for: displayedMonth, calendar: calendar)
         let weekdaySymbols = WorkoutHistoryCalendarData.weekdaySymbols(calendar: calendar)
+        let monthTitle = Text(LiftTimeFormatter.shortMonthAndYear(monthStart))
+            .font(LiftTypography.cardTitle)
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+            .minimumScaleFactor(0.7)
+            .frame(maxWidth: .infinity)
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Workout calendar")
                         .font(LiftTypography.rowEmphasis)
-                    Text("\(presentation.workoutCount) completed")
+                    Text("\(presentation.workoutCount) lifetime workouts")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
@@ -283,13 +330,18 @@ struct WorkoutHistoryCalendar: View {
                 }
             }
 
+            if dynamicTypeSize.isAccessibilitySize {
+                monthTitle
+            }
             HStack(spacing: 8) {
                 monthButton(symbol: "chevron.left", label: "Previous month", disabled: monthStart <= presentation.firstBrowsableMonth) {
                     moveMonth(by: -1)
                 }
-                Text(LiftTimeFormatter.shortMonthAndYear(monthStart))
-                    .font(LiftTypography.cardTitle)
-                    .frame(maxWidth: .infinity)
+                if dynamicTypeSize.isAccessibilitySize {
+                    Spacer()
+                } else {
+                    monthTitle
+                }
                 monthButton(symbol: "chevron.right", label: "Next month", disabled: monthStart >= presentation.lastBrowsableMonth) {
                     moveMonth(by: 1)
                 }
@@ -317,13 +369,8 @@ struct WorkoutHistoryCalendar: View {
 
             selectedDayHistory(presentation.selectedWorkouts)
         }
-        .padding(14)
-        .background(Color.liftCard)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.liftOverlay, lineWidth: 1)
-        }
+        .padding(16)
+        .liftSurface(radius: 20)
     }
 
     private func calendarDay(_ day: WorkoutHistoryCalendarDay) -> some View {
@@ -344,17 +391,17 @@ struct WorkoutHistoryCalendar: View {
                     .lineLimit(1)
                     .foregroundStyle(isSelected ? Color.liftOnAccent : day.date == nil ? Color.clear : Color.liftText)
                 Circle()
-                    .fill(day.workoutCount > 0 ? (isSelected ? Color.liftOnAccent : Color.liftBlue) : Color.clear)
+                    .fill(day.workoutCount > 0 ? (isSelected ? Color.liftOnAccent : Color.liftAccentText) : Color.clear)
                     .frame(width: 5, height: 5)
             }
             .frame(maxWidth: .infinity)
-            .frame(maxWidth: .infinity, minHeight: dynamicTypeSize.isAccessibilitySize ? 64 : 40)
-            .background(isSelected ? Color.liftBlue : Color.clear)
+            .frame(maxWidth: .infinity, minHeight: dynamicTypeSize.isAccessibilitySize ? 64 : LiftDesign.minimumTouchTarget)
+            .background(isSelected ? Color.liftLime : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             .overlay {
                 if isToday && !isSelected {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .stroke(Color.liftBlue.opacity(0.75), lineWidth: 1)
+                        .stroke(Color.liftAccentText.opacity(0.75), lineWidth: 1)
                 }
             }
         }

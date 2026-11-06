@@ -168,6 +168,10 @@ private struct PrivacyDTO: Codable {
     let gymAudience: String
     let friendListAudience: String
     let showLiftVideos: Bool?
+    let workoutStatsAudience: String?
+    let shareWorkoutStartsWithFriends: Bool?
+    let sharePRsWithFriends: Bool?
+    let gymOvertakeAlerts: Bool?
 
     enum CodingKeys: String, CodingKey {
         case userID = "user_id"
@@ -179,6 +183,39 @@ private struct PrivacyDTO: Codable {
         case gymAudience = "gym_audience"
         case friendListAudience = "friend_list_audience"
         case showLiftVideos = "show_lift_videos"
+        case workoutStatsAudience = "workout_stats_audience"
+        case shareWorkoutStartsWithFriends = "share_workout_starts_with_friends"
+        case sharePRsWithFriends = "share_prs_with_friends"
+        case gymOvertakeAlerts = "gym_overtake_alerts"
+    }
+}
+
+private struct SharedWorkoutStatsDTO: Decodable {
+    let workoutCount: Int
+    let recentWorkoutCount: Int
+    let latestWorkoutAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case workoutCount = "workout_count"
+        case recentWorkoutCount = "recent_workout_count"
+        case latestWorkoutAt = "latest_workout_at"
+    }
+}
+
+private struct FriendTrainingActivityDTO: Decodable {
+    let id: UUID
+    let ownerID: UUID
+    let displayName: String
+    let kind: String
+    let sourceID: UUID
+    let occurredAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind
+        case ownerID = "owner_id"
+        case displayName = "display_name"
+        case sourceID = "source_id"
+        case occurredAt = "occurred_at"
     }
 }
 
@@ -356,16 +393,63 @@ final class SupabaseProfileService: ProfileService {
         return userProfile(try await saveProfile(draft))
     }
 
+    func saveSettings(_ settings: ProfileSettingsSnapshot, expected: ProfileSettingsSnapshot) async throws -> AuthenticatedProfile {
+        do {
+            let changes = settings.changes(from: expected)
+            if !changes.isEmpty {
+                try await client.rpc("save_own_settings", params: [
+                    "changes": changes,
+                    "expected": expected.fields.filter { changes.keys.contains($0.key) }
+                ]).execute()
+            }
+            return try await authenticatedProfile()
+        } catch let error as PostgrestError where error.code == "40001" {
+            throw LiftRankServiceError.server("These settings changed on another device. Use Reload saved settings to review them before editing again.")
+        } catch {
+            throw SupabaseServiceErrorMapper.map(error)
+        }
+    }
+
     func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile {
         do {
             try await client.rpc("save_own_profile_mobile", params: ["profile": SaveProfileParameters(draft: draft)]).execute()
+            let saved: AuthenticatedProfile
             do {
-                return try await authenticatedProfile()
+                saved = try await authenticatedProfile()
             } catch {
                 throw LiftRankServiceError.server("Your changes were saved, but the updated profile couldn't be loaded. Retry to refresh it.")
             }
+            guard (saved.privacy.workoutStatsAudience ?? .privateProfile) == (draft.privacy.workoutStatsAudience ?? .privateProfile),
+                  (saved.privacy.shareWorkoutStartsWithFriends ?? false) == (draft.privacy.shareWorkoutStartsWithFriends ?? false),
+                  (saved.privacy.sharePRsWithFriends ?? false) == (draft.privacy.sharePRsWithFriends ?? false) else {
+                throw LiftRankServiceError.server("Training sharing choices were not saved. Update the server before sharing them.")
+            }
+            return saved
         } catch let error as LiftRankServiceError { throw error }
         catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func strengthGoalTargets() async throws -> [String: Double]? {
+        do {
+            let user = try await client.auth.user()
+            guard let value = user.userMetadata["strength_goal_targets_kg"] else { return nil }
+            let targets = try JSONDecoder().decode([String: Double].self, from: JSONEncoder().encode(value))
+            guard targets.values.allSatisfy({ $0.isFinite && $0 > 0 }) else {
+                throw LiftRankServiceError.server("The saved strength goals could not be read.")
+            }
+            return targets
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func saveStrengthGoalTargets(_ targets: [String: Double]) async throws {
+        guard targets.values.allSatisfy({ $0.isFinite && $0 > 0 }) else {
+            throw LiftRankServiceError.invalidInput("Strength targets must be greater than zero.")
+        }
+        do {
+            _ = try await client.auth.update(user: UserAttributes(data: [
+                "strength_goal_targets_kg": .object(targets.mapValues { .double($0) })
+            ]))
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
     func saveTrainingGoals(_ goalIDs: [String]) async throws {
@@ -402,6 +486,60 @@ final class SupabaseProfileService: ProfileService {
                 bodyweightLastUpdatedAt: dto.bodyweightLastUpdatedAt
             )
         } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func sharedWorkoutStats(userID: UUID) async throws -> SharedWorkoutStats? {
+        do {
+            let rows: [SharedWorkoutStatsDTO] = try await client
+                .rpc("get_shared_workout_stats", params: ["target_user_id": userID])
+                .execute()
+                .value
+            guard let row = rows.first else { return nil }
+            return SharedWorkoutStats(
+                workoutCount: row.workoutCount,
+                recentWorkoutCount: row.recentWorkoutCount,
+                latestWorkoutAt: row.latestWorkoutAt
+            )
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func recordFriendWorkoutStart(workoutID: UUID, ownerID: UUID) async throws {
+        do {
+            try await client.rpc("record_friend_workout_start", params: [
+                "workout_id": workoutID,
+                "expected_owner_id": ownerID
+            ]).execute()
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func recordFriendTopLift(liftID: UUID) async throws {
+        do {
+            try await client.rpc("record_friend_top_lift", params: ["lift_id": liftID]).execute()
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    func friendTrainingActivity() async throws -> [FriendTrainingActivity] {
+        do {
+            let rows: [FriendTrainingActivityDTO] = try await client
+                .rpc("get_friend_training_activity")
+                .execute()
+                .value
+            let liftIDs = rows.filter { $0.kind == FriendTrainingActivityKind.topLift.rawValue }.map(\.sourceID)
+            let sharedLifts = try await SupabaseLiftService(client: client).submissions(ids: liftIDs)
+            return try rows.compactMap { row in
+                guard let kind = FriendTrainingActivityKind(rawValue: row.kind) else {
+                    throw LiftRankServiceError.server("Friend activity contains an unsupported event.")
+                }
+                let lift = sharedLifts.first { $0.id == row.sourceID && $0.userID == row.ownerID }
+                // A lift can become private or disappear between the activity and detail reads.
+                if kind == .topLift && lift == nil { return nil }
+                return FriendTrainingActivity(
+                    id: row.id, ownerID: row.ownerID, displayName: row.displayName,
+                    kind: kind, sourceID: row.sourceID, occurredAt: row.occurredAt, lift: lift
+                )
+            }
+        } catch let error as LiftRankServiceError { throw error }
+        catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
     func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String {
@@ -468,7 +606,11 @@ final class SupabaseProfileService: ProfileService {
                 locationAudience: PrivacyAudience(rawValue: privacy.locationAudience) ?? .privateProfile,
                 gymAudience: PrivacyAudience(rawValue: privacy.gymAudience) ?? .publicProfile,
                 friendListAudience: PrivacyAudience(rawValue: privacy.friendListAudience) ?? .friends,
-                showLiftVideos: privacy.showLiftVideos ?? true
+                showLiftVideos: privacy.showLiftVideos ?? true,
+                workoutStatsAudience: privacy.workoutStatsAudience.flatMap(PrivacyAudience.init(rawValue:)) ?? .privateProfile,
+                shareWorkoutStartsWithFriends: privacy.shareWorkoutStartsWithFriends ?? false,
+                sharePRsWithFriends: privacy.sharePRsWithFriends ?? false,
+                gymOvertakeAlerts: privacy.gymOvertakeAlerts
             ),
             trainingFocus: details.trainingFocus
         )
@@ -525,6 +667,9 @@ struct SaveProfileParameters: Encodable {
     let completeOnboarding: Bool
     let newBodyweightAudience: String
     let newShowLiftVideos: Bool
+    let newWorkoutStatsAudience: String
+    let newShareWorkoutStartsWithFriends: Bool
+    let newSharePRsWithFriends: Bool
     let newBodyweightPounds: Double?
     let newTrainingFocus: TrainingFocus?
     let newAvatarPath: String?
@@ -542,6 +687,9 @@ struct SaveProfileParameters: Encodable {
         case newGymAudience = "new_gym_audience", newFriendListAudience = "new_friend_list_audience"
         case completeOnboarding = "complete_onboarding"
         case newBodyweightAudience = "new_bodyweight_audience", newShowLiftVideos = "new_show_lift_videos"
+        case newWorkoutStatsAudience = "new_workout_stats_audience"
+        case newShareWorkoutStartsWithFriends = "new_share_workout_starts_with_friends"
+        case newSharePRsWithFriends = "new_share_prs_with_friends"
         case newBodyweightPounds = "new_bodyweight_pounds", newTrainingFocus = "new_training_focus"
         case newAvatarPath = "new_avatar_path", updatesPrimaryGym = "updates_primary_gym", newPrimaryGymID = "new_primary_gym_id"
     }
@@ -568,6 +716,9 @@ struct SaveProfileParameters: Encodable {
         completeOnboarding = draft.completesOnboarding
         newBodyweightAudience = draft.privacy.bodyweightAudience.rawValue
         newShowLiftVideos = draft.privacy.showLiftVideos
+        newWorkoutStatsAudience = (draft.privacy.workoutStatsAudience ?? .privateProfile).rawValue
+        newShareWorkoutStartsWithFriends = draft.privacy.shareWorkoutStartsWithFriends ?? false
+        newSharePRsWithFriends = draft.privacy.sharePRsWithFriends ?? false
         newBodyweightPounds = draft.bodyweightPounds
         newTrainingFocus = draft.trainingFocus
         newAvatarPath = draft.avatarPath

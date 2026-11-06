@@ -43,8 +43,8 @@ struct ModeratorReviewView: View {
             }
             .navigationTitle("Moderator Review")
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Close", systemImage: "xmark") { dismiss() }.labelStyle(.iconOnly)
                 }
             }
         }
@@ -81,6 +81,7 @@ struct ModeratorReviewView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Color.liftGreen)
+                    .foregroundStyle(Color.liftBackground)
                     Button("Reject demo lift") {
                         Haptics.warning()
                         appState.updateVerification(lift, status: .rejected, note: selectedReason)

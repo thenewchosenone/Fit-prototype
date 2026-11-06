@@ -1,5 +1,41 @@
 import SwiftUI
 
+struct BrandLogoMark: View {
+    var body: some View {
+        BrandLogoGlyph()
+            .fill(Color.liftLime)
+            .background(Color(red: 0.005, green: 0.035, blue: 0.09))
+            .aspectRatio(1, contentMode: .fit)
+            .accessibilityLabel("Lift Rivals logo")
+    }
+}
+
+private struct BrandLogoGlyph: Shape {
+    func path(in rect: CGRect) -> Path {
+        let scale = min(rect.width, rect.height) / 1024
+        var path = Path()
+        for (x, y, width, height) in [
+            (188.0, 422.0, 47.0, 180.0), (255, 369, 59, 285),
+            (314, 489, 396, 47), (710, 369, 59, 285), (789, 422, 47, 180)
+        ] {
+            path.addRoundedRect(in: CGRect(x: rect.minX + x * scale, y: rect.minY + y * scale,
+                                           width: width * scale, height: height * scale),
+                                cornerSize: CGSize(width: 7 * scale, height: 7 * scale))
+        }
+        for points in [
+            [(363.0, 406.0), (512, 255), (661, 406), (661, 472), (613, 472), (512, 369), (412, 472), (363, 472)],
+            [(363.0, 703.0), (512, 553), (661, 703), (661, 771), (613, 771), (512, 668), (412, 771), (363, 771)]
+        ] {
+            path.move(to: CGPoint(x: rect.minX + points[0].0 * scale, y: rect.minY + points[0].1 * scale))
+            for point in points.dropFirst() {
+                path.addLine(to: CGPoint(x: rect.minX + point.0 * scale, y: rect.minY + point.1 * scale))
+            }
+            path.closeSubpath()
+        }
+        return path
+    }
+}
+
 struct AppBackground<Content: View>: View {
     let content: Content
 
@@ -49,6 +85,7 @@ struct LiftCard<Content: View>: View {
 struct ProfileAvatar: View {
     let profile: UserProfile
     var size: CGFloat = 44
+    var accent: Color? = nil
     @State private var loadedImage: UIImage?
 
     private var localImage: UIImage? {
@@ -65,11 +102,11 @@ struct ProfileAvatar: View {
                     .scaledToFill()
             } else {
                 Circle()
-                    .fill(Color.liftLime.opacity(0.16))
+                    .fill((accent ?? Color.liftLime).opacity(0.16))
                 Image(systemName: profile.profileImageName)
                     .resizable()
                     .scaledToFit()
-                    .foregroundStyle(Color.liftAccentText)
+                    .foregroundStyle(accent ?? Color.liftAccentText)
                     .padding(size * 0.18)
             }
         }
@@ -208,13 +245,13 @@ struct SectionHeader: View {
                         .foregroundStyle(Color.liftAccentText)
                 }
                 Text(title)
-                    .font(.system(size: 30, weight: .bold))
+                    .font(.largeTitle.weight(.bold))
                     .foregroundStyle(Color.liftTextPrimary)
             }
             Spacer()
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.caption.weight(.bold))
                     .foregroundStyle(Color.liftAccentText)
                     .padding(.horizontal, 12)
                     .frame(minHeight: LiftDesign.minimumTouchTarget)
@@ -237,7 +274,7 @@ struct CompactSectionHeader: View {
             VStack(alignment: .leading, spacing: 2) {
                 if let eyebrow {
                     Text(eyebrow.uppercased())
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.caption2.weight(.bold))
                         .tracking(0.8)
                         .foregroundStyle(Color.liftAccentText)
                 }
@@ -278,11 +315,12 @@ struct DashboardCard<Content: View>: View {
 }
 
 struct MetricCard: View {
+    @ScaledMetric(relativeTo: .largeTitle) private var valueFontSize = 56.0
     let title: String
     let value: String
     let subtitle: String
     var symbolName = "chart.bar.fill"
-    var tint = Color.liftLime
+    var tint = Color.liftAccentText
 
     var body: some View {
         DashboardCard {
@@ -291,13 +329,13 @@ struct MetricCard: View {
                     Image(systemName: symbolName)
                         .foregroundStyle(tint)
                     Text(title)
-                        .font(.system(size: 11, weight: .bold))
+                        .font(.caption2.weight(.bold))
                         .tracking(0.4)
                         .foregroundStyle(Color.liftTextSecondary)
                     Spacer()
                 }
                 Text(value)
-                    .font(.system(size: 56, weight: .bold))
+                    .font(.system(size: valueFontSize, weight: .bold))
                     .minimumScaleFactor(0.7)
                     .foregroundStyle(Color.liftTextPrimary)
                     .lineLimit(1)
@@ -307,33 +345,6 @@ struct MetricCard: View {
                     .lineLimit(2)
             }
         }
-    }
-}
-
-struct CompactMetric: View {
-    let title: String
-    let value: String
-    let unit: String
-    let symbolName: String
-    var tint = Color.liftLime
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Label(title, systemImage: symbolName)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(Color.liftMuted)
-                .lineLimit(1)
-            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(value)
-                    .font(LiftTypography.rowEmphasis)
-                    .minimumScaleFactor(0.65)
-                Text(unit)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(Color.liftMuted)
-            }
-            .foregroundStyle(tint)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -384,7 +395,7 @@ struct LiftEmptyState: View {
                     .multilineTextAlignment(.center)
                 if let actionTitle, let action {
                     Button(actionTitle, action: action)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.liftAccentText)
                         .frame(minHeight: LiftDesign.minimumTouchTarget)
                 }

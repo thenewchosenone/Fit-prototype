@@ -1,12 +1,12 @@
 import SwiftUI
 
-enum ProfileSection: String, CaseIterable, Identifiable {
+enum ProfileSection: String, CaseIterable, Identifiable, Hashable {
     case overview = "Overview"
     case prVideos = "PR videos"
-    case training = "Training"
-    case history = "Workout history"
+    case training = "Strength"
+    case history = "Workouts"
     case timeline = "Timeline"
-    case submissions = "Activity"
+    case submissions = "Lift submissions"
 
     var id: String {
         switch self {
@@ -21,30 +21,53 @@ enum ProfileSection: String, CaseIterable, Identifiable {
 }
 
 private struct ProfileSectionNavigation: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var selection: ProfileSection
     let sections: [ProfileSection]
     let onSelect: (ProfileSection) -> Void
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(sections, id: \.id) { section in
-                    let isSelected = selection == section
-                    Button(action: { select(section) }) {
-                        Text(section.rawValue)
+        Group {
+            if sections.count > 4 || dynamicTypeSize.isAccessibilitySize {
+                Menu {
+                    ForEach(sections, id: \.id) { section in
+                        Button { select(section) } label: {
+                            if selection == section { Label(section.rawValue, systemImage: "checkmark") }
+                            else { Text(section.rawValue) }
+                        }
                     }
-                    .font(LiftTypography.compactEmphasis)
-                    .foregroundStyle(isSelected ? Color.liftOnAccent : Color.liftMuted)
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: LiftDesign.minimumTouchTarget)
-                    .background(isSelected ? Color.liftLime : Color.liftSurfaceElevated)
-                    .clipShape(Capsule())
-                    .accessibilityIdentifier("profile.section.\(section.id)")
-                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+                } label: {
+                    Label("More · \(selection.rawValue)", systemImage: "chevron.down")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: LiftDesign.minimumTouchTarget, alignment: .leading)
+                }
+                .tint(Color.liftAccentText)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 20) {
+                        ForEach(sections, id: \.id) { section in
+                            let isSelected = selection == section
+                            Button(action: { select(section) }) {
+                                Text(section == .submissions ? "Lifts" : section == .prVideos ? "Videos" : section.rawValue)
+                                    .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                                    .foregroundStyle(isSelected ? Color.liftText : Color.liftMuted)
+                                    .fixedSize()
+                                    .frame(minWidth: LiftDesign.minimumTouchTarget, minHeight: LiftDesign.minimumTouchTarget)
+                                    .overlay(alignment: .bottom) {
+                                        Rectangle()
+                                            .fill(isSelected ? Color.liftLime : Color.clear)
+                                            .frame(height: 2)
+                                    }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("profile.section.\(section.id)")
+                            .accessibilityLabel(section.rawValue)
+                            .accessibilityAddTraits(isSelected ? .isSelected : [])
+                        }
+                    }
                 }
             }
         }
-        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("profile.sectionNavigation")
     }
 
@@ -68,7 +91,10 @@ extension ProfileView {
                     ) {
                         restrictedProfileState
                     } else {
-                        header.id("profile-content-top")
+                        Group {
+                            if !isCurrentUser || selectedProfileSection == .overview { header }
+                        }
+                        .id("profile-content-top")
                         if let profileLoadError {
                             LiftEmptyState(
                                 title: "Couldn't load training data",
@@ -79,7 +105,37 @@ extension ProfileView {
                                 compact: true
                             )
                         }
-                        if !isCurrentUser && liftPresentation.lifts.isEmpty && profileLoadError == nil {
+                        if !isCurrentUser, let sharedWorkoutStats {
+                            LiftCard {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Text("Shared training")
+                                        .font(.headline)
+                                    HStack(spacing: 18) {
+                                        VStack(alignment: .leading) {
+                                            Text(sharedWorkoutStats.workoutCount.formatted())
+                                                .font(.title2.weight(.bold))
+                                            Text("Workouts logged")
+                                                .font(.caption)
+                                        }
+                                        VStack(alignment: .leading) {
+                                            Text(sharedWorkoutStats.recentWorkoutCount.formatted())
+                                                .font(.title2.weight(.bold))
+                                            Text("Last 7 days")
+                                                .font(.caption)
+                                        }
+                                    }
+                                    if let latestWorkoutAt = sharedWorkoutStats.latestWorkoutAt {
+                                        Text("Latest workout · \(latestWorkoutAt.formatted(date: .abbreviated, time: .omitted))")
+                                            .font(.caption)
+                                    }
+                                    Text("Self-reported workout log · shared by this athlete")
+                                        .font(.caption)
+                                        .foregroundStyle(Color.liftMuted)
+                                }
+                            }
+                            .accessibilityIdentifier("profile.sharedWorkoutStats")
+                        }
+                        if !isCurrentUser && liftPresentation.lifts.isEmpty && sharedWorkoutStats == nil && profileLoadError == nil {
                             LiftEmptyState(
                                 title: "No public training data",
                                 message: "Qualifying lifts are either not shared yet or not available to visitors.",
@@ -91,10 +147,11 @@ extension ProfileView {
                         if isCurrentUser || !liftPresentation.lifts.isEmpty {
                         ProfileSectionNavigation(
                                 selection: $selectedProfileSection,
-                            sections: [.overview, .submissions, .prVideos, .training]
+                            sections: isCurrentUser
+                                ? [.overview, .submissions, .history, .prVideos, .training]
+                                : [.overview, .submissions, .prVideos, .training]
                         ) { section in
-                            if section == .training { showingAthleteDetails = true }
-                            withAnimation(.easeInOut) { proxy.scrollTo("profile-content-top", anchor: .top) }
+                            withAnimation(reduceMotion ? nil : .easeInOut) { proxy.scrollTo("profile-content-top", anchor: .top) }
                         }
                         .padding(.vertical, 2)
                         Group {
@@ -104,28 +161,31 @@ extension ProfileView {
                             case .prVideos:
                                 ProfileLiftVideosSection(profile: profile, isCurrentUser: isCurrentUser, prefilteredLifts: liftPresentation.lifts)
                             case .training:
-                                athleteDetails(presentation: liftPresentation)
                                 if isCurrentUser {
-                                    Button("Open private workout history in Track") {
-                                        appState.router.progressCategory = .consistency
+                                    Button("Open strength progress") {
+                                        appState.router.progressCategory = .strength
                                         appState.trainingTrackerStartOnProgress = true
                                         appState.requestedTrackerSegment = "Progress"
                                         appState.selectedTab = 2
                                     }
                                     .frame(minHeight: LiftDesign.minimumTouchTarget)
-                                }
+                                    DisclosureGroup("Profile strength details") { athleteDetails(presentation: liftPresentation) }
+                                } else { athleteDetails(presentation: liftPresentation) }
                             case .submissions:
                                 recentSubmissions(profileLifts: liftPresentation.lifts)
-                                if isCurrentUser { DisclosureGroup("Training milestones") { profileTimeline } }
-                            case .history, .timeline:
+
+                            case .history:
                                 if isCurrentUser { trainingHistory }
+                            case .timeline:
+                                if isCurrentUser { profileTimeline }
                             }
 
                         }
                         }
                     }
                 }
-                .padding()
+                .padding(.horizontal, LiftDesign.screenHorizontalPadding)
+                .padding(.vertical, 20)
                 .padding(.bottom, 24)
             }
             .refreshable {
@@ -153,9 +213,25 @@ extension ProfileView {
                     .environmentObject(appState)
                     .presentationDetents([.large])
             }
-            .navigationTitle(isCurrentUser ? "Personal profile" : (profile.username.isEmpty ? "Public profile" : profile.username))
+            .navigationTitle(isCurrentUser ? (selectedProfileSection == .history ? "Workout history" : selectedProfileSection.rawValue) : isOwnerPublicPreview ? "Public preview" : "Public profile")
             .navigationBarTitleDisplayMode(.inline)
+            .tint(Color.liftAccentText)
+            .navigationBarBackButtonHidden(!isCurrentUser && showsDismissButton)
             .toolbar {
+                if !isCurrentUser && showsDismissButton {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Close", systemImage: "xmark") { dismiss() }.labelStyle(.iconOnly)
+                    }
+                }
+                if isOwnerPublicPreview {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Privacy") {
+                            if let onOpenPrivacy { onOpenPrivacy() }
+                            else { appState.router.sheet = .settings(.privacy) }
+                        }
+                            .accessibilityLabel("Public profile privacy settings")
+                    }
+                }
                 if isCurrentUser {
                     ToolbarItem(placement: .topBarLeading) {
                         Button {
@@ -182,7 +258,7 @@ extension ProfileView {
                         }
                         .accessibilityLabel("Profile actions")
                     }
-                } else {
+                } else if !isOwnerPublicPreview {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             Button("Report athlete", role: .destructive) {
@@ -251,6 +327,7 @@ extension ProfileView {
 
     private func refreshProfileData(force: Bool) async {
         profileLoadError = nil
+        sharedWorkoutStats = nil
         if !isCurrentUser && appState.isAuthenticated && !appState.isDemoMode {
             do {
                 try await appState.competitionStore.refreshProfileSubmissions(for: profile.id)
@@ -259,6 +336,19 @@ extension ProfileView {
             }
         }
         await refreshVisibleProfileLifts()
+        let showsPublicStats = appState.authenticatedPrivacy.profileAudience == .publicProfile
+            && appState.authenticatedPrivacy.workoutStatsAudience == .publicProfile
+        if !isCurrentUser && (!isOwnerPublicPreview || showsPublicStats) && appState.isAuthenticated && !appState.isDemoMode {
+            let requestingUserID = appState.currentProfile.id
+            do {
+                let stats = try await appState.profileStore.sharedWorkoutStats(userID: profile.id)
+                guard appState.currentProfile.id == requestingUserID else { return }
+                sharedWorkoutStats = stats
+            } catch {
+                guard appState.currentProfile.id == requestingUserID else { return }
+                profileLoadError = appState.userMessage(error)
+            }
+        }
         if isCurrentUser {
             async let lifts: Void = appState.refreshProductionLifts(force: force)
             async let ranking: Void = appState.refreshCurrentUserTotalRanking(force: force)

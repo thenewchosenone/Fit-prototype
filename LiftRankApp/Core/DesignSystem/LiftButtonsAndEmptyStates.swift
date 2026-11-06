@@ -2,10 +2,13 @@ import SwiftUI
 
 struct LiftPrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 19, weight: .bold))
+            .font(.headline.weight(.bold))
+            .multilineTextAlignment(.center)
+            .padding(.vertical, 12)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 58)
             .padding(.horizontal, 16)
@@ -17,8 +20,8 @@ struct LiftPrimaryButtonStyle: ButtonStyle {
                     .stroke(isEnabled ? Color.clear : Color.liftSurfaceBorder, lineWidth: 1)
             }
             .contentShape(Rectangle())
-            .scaleEffect(configuration.isPressed ? 0.985 : 1)
-            .animation(LiftMotion.quick, value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
+            .animation(reduceMotion ? nil : LiftMotion.quick, value: configuration.isPressed)
     }
 }
 
@@ -27,7 +30,9 @@ struct SecondaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .semibold))
+            .font(.body.weight(.semibold))
+            .multilineTextAlignment(.center)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity)
             .frame(minHeight: LiftDesign.minimumTouchTarget)
             .padding(.horizontal, 14)
@@ -44,18 +49,21 @@ struct SecondaryButtonStyle: ButtonStyle {
 
 struct LiftCompactProminentButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .semibold))
+            .font(.body.weight(.semibold))
+            .multilineTextAlignment(.center)
             .padding(.horizontal, 18)
             .padding(.vertical, 9)
+            .frame(minWidth: LiftDesign.minimumTouchTarget, minHeight: LiftDesign.minimumTouchTarget)
             .foregroundStyle(isEnabled ? Color.liftOnAccent : Color.liftTextDisabled)
             .background(isEnabled ? Color.liftLime.opacity(configuration.isPressed ? 0.82 : 1) : Color.liftLime.opacity(0.35))
             .clipShape(Capsule())
             .contentShape(Capsule())
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .animation(LiftMotion.quick, value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
+            .animation(reduceMotion ? nil : LiftMotion.quick, value: configuration.isPressed)
     }
 }
 
@@ -85,6 +93,7 @@ struct PrimaryButton: View {
 }
 
 struct NativeIconButton: View {
+    @Environment(\.colorScheme) private var colorScheme
     let symbolName: String
     let accessibilityLabel: String
     var badge: Int? = nil
@@ -108,8 +117,8 @@ struct NativeIconButton: View {
 
                 if let badge, badge > 0 {
                     Text("\(badge)")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(Color.liftOnAccent)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(colorScheme == .dark ? Color.liftOnAccent : .white)
                         .frame(minWidth: 17, minHeight: 17)
                         .background(Color.liftRed)
                         .clipShape(Circle())
@@ -119,15 +128,18 @@ struct NativeIconButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(badge.map { $0 > 0 ? "\($0) unread" : "" } ?? "")
+        .accessibilityShowsLargeContentViewer { Label(accessibilityLabel, systemImage: symbolName) }
     }
 }
 
 struct LiftActionRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let title: String
     var subtitle: String?
     var symbolName: String
     var catalogExercise: TrainingExerciseCatalogItem? = nil
-    var tint = Color.liftLime
+    var tint = Color.liftAccentText
     var trailingText: String?
     let action: () -> Void
 
@@ -137,28 +149,23 @@ struct LiftActionRow: View {
             action()
         } label: {
             HStack(spacing: 12) {
-                Group {
-                    if let catalogExercise {
-                        ExerciseCatalogIcon(exercise: catalogExercise)
-                            .scaleEffect(0.63)
-                    } else {
-                        Image(systemName: symbolName)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(tint)
-                    }
+                if catalogExercise == nil {
+                    Image(systemName: symbolName)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(tint)
+                        .frame(width: 34, height: 34)
+                        .background(tint.opacity(0.16))
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
-                .frame(width: 34, height: 34)
-                .background(tint.opacity(0.16))
-                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(Color.liftTextPrimary)
                     if let subtitle {
                         Text(subtitle)
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.subheadline)
                             .foregroundStyle(Color.liftTextSecondary)
-                            .lineLimit(2)
+                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                     }
                 }
                 Spacer(minLength: 8)
@@ -172,6 +179,7 @@ struct LiftActionRow: View {
                     .foregroundStyle(Color.liftTextSecondary)
             }
             .padding(.horizontal, 14)
+            .padding(.vertical, 10)
             .frame(minHeight: 58)
             .contentShape(Rectangle())
         }

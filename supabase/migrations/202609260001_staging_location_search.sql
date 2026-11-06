@@ -58,7 +58,12 @@ select 'US', r.id, 'FL', city.name, city.name
 from public.location_regions r
 cross join (values ('Cutler Bay'), ('Homestead')) as city(name)
 where r.country_code = 'US' and r.code = 'FL'
-on conflict (country_code, region_code, ascii_name) do nothing;
+  and not exists (
+    select 1 from public.location_cities c
+    where c.country_code = 'US' and c.region_code = 'FL'
+      and c.ascii_name = city.name
+  )
+on conflict do nothing;
 
 create or replace function public.search_cities(
   country_code_filter text,

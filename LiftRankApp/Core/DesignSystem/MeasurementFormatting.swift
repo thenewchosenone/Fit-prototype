@@ -1,6 +1,10 @@
 import Foundation
 
 enum MeasurementFormatting {
+    static func workoutLoadText(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(0...2)).grouping(.never))
+    }
+
     static func longClockText(_ totalSeconds: Int) -> String {
         let seconds = max(0, totalSeconds)
         return String(format: "%02d:%02d:%02d", seconds / 3600, (seconds % 3600) / 60, seconds % 60)
@@ -57,7 +61,7 @@ enum MeasurementFormatting {
         preferredUnit: UnitSystem,
         format: (Double) -> String = RankingCalculator.format
     ) -> String {
-        "\(format(displayRecordedVolume(value, recordedUnit: recordedUnit, preferredUnit: preferredUnit))) \(preferredUnit.shortLabel)"
+        "\(format(displayRecordedVolume(value, recordedUnit: recordedUnit, preferredUnit: preferredUnit))) \(preferredUnit.shortLabel) × reps"
     }
 
     static func compactDisplayedWeight(_ kilograms: Double, unit: UnitSystem, format: (Double) -> String = RankingCalculator.format) -> String {
@@ -125,7 +129,7 @@ enum MeasurementFormatting {
         trackingKind: ExerciseTrackingKind,
         preferredUnit: UnitSystem? = nil,
         includeRepLabel: Bool = false,
-        format: (Double) -> String = RankingCalculator.format
+        format: (Double) -> String = MeasurementFormatting.workoutLoadText
     ) -> String {
         let reps = set.reps ?? 0
         let unit = preferredUnit ?? set.recordedUnit
@@ -174,6 +178,9 @@ enum MeasurementFormatting {
         if achievement.title == "1 Training Hours" {
             display.title = "1 Training Hour"
             display.description = "Accumulate 1 hour of training time."
+        } else if achievement.title == "1 Programs Started" {
+            display.title = "1 Program Started"
+            display.description = "Start 1 structured training program."
         } else if let liftMilestone = liftAwardMilestone(for: achievement.title) {
             let formattedWeight = formattedAwardWeight(pounds: liftMilestone.pounds, unit: unit)
             display.title = "\(formattedWeight) \(liftMilestone.exercise)"

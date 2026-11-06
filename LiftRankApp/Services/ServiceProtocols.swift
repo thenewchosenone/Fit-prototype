@@ -25,10 +25,17 @@ protocol ProfileService {
     func currentProfile() async throws -> UserProfile
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile
     func authenticatedProfile() async throws -> AuthenticatedProfile
+    func saveSettings(_ settings: ProfileSettingsSnapshot, expected: ProfileSettingsSnapshot) async throws -> AuthenticatedProfile
     func saveProfile(_ draft: ProfileDraft) async throws -> AuthenticatedProfile
+    func strengthGoalTargets() async throws -> [String: Double]?
+    func saveStrengthGoalTargets(_ targets: [String: Double]) async throws
     func saveTrainingGoals(_ goalIDs: [String]) async throws
     func changeUsername(currentUsername: String, newUsername: String) async throws -> String
     func profileCard(userID: UUID) async throws -> PublicProfileCard
+    func sharedWorkoutStats(userID: UUID) async throws -> SharedWorkoutStats?
+    func recordFriendWorkoutStart(workoutID: UUID, ownerID: UUID) async throws
+    func recordFriendTopLift(liftID: UUID) async throws
+    func friendTrainingActivity() async throws -> [FriendTrainingActivity]
     func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String
     func downloadProfileAvatar(avatarPath: String) async throws -> ProfileAvatarDownload?
     func removeProfileAvatar(avatarPath: String?) async throws
@@ -70,6 +77,9 @@ protocol GymService {
 
 @MainActor
 protocol SocialService {
+    func friendRequests() async throws -> [FriendRequest]
+    func requestFriendship(userID: UUID) async throws
+    func respondToFriendship(id: UUID, accept: Bool) async throws
     func searchProfiles(query: String, limit: Int) async throws -> [PublicProfileCard]
     func report(userID: UUID, reason: ProfileReportReason, note: String) async throws
     func block(userID: UUID) async throws
@@ -101,11 +111,12 @@ struct ForumPost: Identifiable, Codable, Equatable, Sendable {
     let isPinned: Bool
     let isLocked: Bool
     let createdAt: Date
-    let voteCount: Int
+    var voteCount: Int
     let commentCount: Int
-    let currentUserVote: Int?
+    var currentUserVote: Int?
+    let attachments: [ForumAttachment]
 
-    init(id: UUID, communityID: UUID?, gymID: UUID?, authorID: UUID, kind: String, title: String, body: String, tag: String?, liftID: UUID?, isPinned: Bool, isLocked: Bool, createdAt: Date, voteCount: Int = 0, commentCount: Int = 0, currentUserVote: Int? = nil) {
+    init(id: UUID, communityID: UUID?, gymID: UUID?, authorID: UUID, kind: String, title: String, body: String, tag: String?, liftID: UUID?, isPinned: Bool, isLocked: Bool, createdAt: Date, voteCount: Int = 0, commentCount: Int = 0, currentUserVote: Int? = nil, attachments: [ForumAttachment] = []) {
         self.id = id
         self.communityID = communityID
         self.gymID = gymID
@@ -121,6 +132,7 @@ struct ForumPost: Identifiable, Codable, Equatable, Sendable {
         self.voteCount = voteCount
         self.commentCount = commentCount
         self.currentUserVote = currentUserVote
+        self.attachments = attachments
     }
 }
 
@@ -147,17 +159,49 @@ struct ForumComment: Identifiable, Codable, Equatable, Sendable {
 }
 
 struct ForumThread: Equatable, Sendable {
-    let post: ForumPost
+    var post: ForumPost
     let comments: [ForumComment]
+    var isWatching: Bool = false
+}
+
+struct ForumAttachment: Codable, Equatable, Sendable, Identifiable {
+    enum Kind: String, Codable, Sendable { case photo, video }
+    let kind: Kind
+    let storagePath: String
+    var id: String { storagePath }
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case storagePath = "storage_path"
+    }
+}
+
+struct ForumMediaDraft: Equatable, Sendable {
+    let kind: ForumAttachment.Kind
+    let fileURL: URL
+    var contentType: String { kind == .photo ? "image/jpeg" : "video/mp4" }
 }
 
 struct ForumPostDraft: Sendable {
+    let id: UUID
     let communityID: UUID
     let kind: String
     let title: String
     let body: String
     let tag: String?
     let liftID: UUID?
+    let media: ForumMediaDraft?
+
+    init(id: UUID = UUID(), communityID: UUID, kind: String, title: String, body: String, tag: String?, liftID: UUID?, media: ForumMediaDraft? = nil) {
+        self.id = id
+        self.communityID = communityID
+        self.kind = kind
+        self.title = title
+        self.body = body
+        self.tag = tag
+        self.liftID = liftID
+        self.media = media
+    }
 }
 
 struct ForumReport: Identifiable, Codable, Equatable, Sendable {
@@ -180,6 +224,7 @@ protocol ForumService {
     func join(communityID: UUID, requestNote: String) async throws -> String
     func leave(communityID: UUID) async throws
     func createPost(_ draft: ForumPostDraft) async throws -> ForumPost
+    func mediaURL(for attachment: ForumAttachment) async throws -> URL
     func createComment(postID: UUID, body: String, parentCommentID: UUID?) async throws -> ForumComment
     func updatePost(postID: UUID, title: String, body: String) async throws -> ForumPost
     func updateComment(commentID: UUID, body: String) async throws -> ForumComment
@@ -233,6 +278,7 @@ protocol WorkoutSyncService {
     func plans() async throws -> [WorkoutPlanDocument]
     func savePlan(_ document: WorkoutPlanDocument, expectedRevision: Int) async throws -> WorkoutSyncResult
     func deletePlan(id: UUID) async throws
+    func deleteDuplicatePlan(_ document: WorkoutPlanDocument) async throws -> Bool
     func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot]
     func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws
     func deleteCompletedWorkout(id: UUID) async throws
@@ -293,5 +339,6 @@ extension NotificationService {
     func revokeDevice(deviceID: String) async throws {}
 }
 extension WorkoutSyncService {
+    func deleteDuplicatePlan(_ document: WorkoutPlanDocument) async throws -> Bool { throw LiftRankServiceError.configurationMissing }
     func deleteCompletedWorkout(id: UUID) async throws { throw LiftRankServiceError.configurationMissing }
 }

@@ -33,6 +33,8 @@ Keep this codebase lean. Solve the requested problem with the smallest clear cha
 
 ## Verification
 
+For simulator builds that will test real account sign-in, follow `docs/release-publish-runbook.md` under "Simulator sign-in and session checks" before building or installing. An unsigned build is a compile check only: its missing keychain entitlement can produce a false "session expired" result. Record the build configuration, backend, signing state, and installed artifact before diagnosing credentials or changing auth code. Do not erase simulator app data as a routine fix.
+
 Before finishing, review the diff for:
 - unnecessary new files
 - unnecessary abstractions

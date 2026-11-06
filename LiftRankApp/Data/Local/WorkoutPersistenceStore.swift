@@ -3,21 +3,23 @@ import SwiftData
 
 @MainActor
 protocol WorkoutPersistenceStore: AnyObject {
+    var loadError: String? { get }
     func loadSnapshot() -> WorkoutPersistenceSnapshot?
-    func saveSnapshot(_ snapshot: WorkoutPersistenceSnapshot)
-    func saveSnapshotWithoutBlockingUI(_ snapshot: WorkoutPersistenceSnapshot) async
+    func saveSnapshot(_ snapshot: WorkoutPersistenceSnapshot) throws
+    func saveSnapshotWithoutBlockingUI(_ snapshot: WorkoutPersistenceSnapshot) async throws
     func legacyWorkoutRecords() -> [LegacyWorkoutRecordValue]
     func reset()
 }
 
 extension WorkoutPersistenceStore {
-    func saveSnapshotWithoutBlockingUI(_ snapshot: WorkoutPersistenceSnapshot) async {
-        saveSnapshot(snapshot)
+    func saveSnapshotWithoutBlockingUI(_ snapshot: WorkoutPersistenceSnapshot) async throws {
+        try saveSnapshot(snapshot)
     }
 }
 
 @MainActor
 final class InMemoryWorkoutPersistenceStore: WorkoutPersistenceStore {
+    var loadError: String? { nil }
     private(set) var snapshot: WorkoutPersistenceSnapshot?
     private(set) var saveCount = 0
     var legacyRecords: [LegacyWorkoutRecordValue]
@@ -28,7 +30,7 @@ final class InMemoryWorkoutPersistenceStore: WorkoutPersistenceStore {
     }
 
     func loadSnapshot() -> WorkoutPersistenceSnapshot? { snapshot }
-    func saveSnapshot(_ snapshot: WorkoutPersistenceSnapshot) {
+    func saveSnapshot(_ snapshot: WorkoutPersistenceSnapshot) throws {
         saveCount += 1
         self.snapshot = snapshot
     }
@@ -49,6 +51,7 @@ final class SwiftDataWorkoutPersistenceStore: WorkoutPersistenceStore {
     private let legacyDecoder = JSONDecoder()
     private var snapshotRecord: PersistentWorkoutState?
     private var lastSavedPayload: Data?
+    private(set) var loadError: String?
 
     init(context: ModelContext) {
         self.context = context
@@ -58,30 +61,47 @@ final class SwiftDataWorkoutPersistenceStore: WorkoutPersistenceStore {
     }
 
     func loadSnapshot() -> WorkoutPersistenceSnapshot? {
-        guard let record = try? context.fetch(FetchDescriptor<PersistentWorkoutState>()).first else { return nil }
+        let record: PersistentWorkoutState
+        do {
+            guard let saved = try context.fetch(FetchDescriptor<PersistentWorkoutState>()).first else { return nil }
+            record = saved
+        } catch {
+            loadError = "Could not read workout storage: \(error.localizedDescription)"
+            return nil
+        }
         snapshotRecord = record
         lastSavedPayload = record.payload
-        return (try? decoder.decode(WorkoutPersistenceSnapshot.self, from: record.payload)) ??
-            (try? legacyDecoder.decode(WorkoutPersistenceSnapshot.self, from: record.payload))
+        if let snapshot = try? decoder.decode(WorkoutPersistenceSnapshot.self, from: record.payload) {
+            loadError = nil
+            return snapshot
+        }
+        if let snapshot = try? legacyDecoder.decode(WorkoutPersistenceSnapshot.self, from: record.payload) {
+            loadError = nil
+            return snapshot
+        }
+        loadError = "Saved workout history could not be decoded. The on-device record was kept for recovery."
+        return nil
     }
 
-    func saveSnapshot(_ snapshot: WorkoutPersistenceSnapshot) {
-        guard let payload = try? encoder.encode(snapshot), payload != lastSavedPayload else { return }
-        savePayload(payload, schemaVersion: snapshot.schemaVersion)
+    func saveSnapshot(_ snapshot: WorkoutPersistenceSnapshot) throws {
+        let payload = try encoder.encode(snapshot)
+        guard payload != lastSavedPayload else { return }
+        try savePayload(payload, schemaVersion: snapshot.schemaVersion)
     }
 
-    func saveSnapshotWithoutBlockingUI(_ snapshot: WorkoutPersistenceSnapshot) async {
-        let payload = await Task.detached(priority: .utility) {
+    func saveSnapshotWithoutBlockingUI(_ snapshot: WorkoutPersistenceSnapshot) async throws {
+        let payload = try await Task.detached(priority: .utility) {
             let encoder = PropertyListEncoder()
             encoder.outputFormat = .binary
-            return try? encoder.encode(snapshot)
+            return try encoder.encode(snapshot)
         }.value
-        guard !Task.isCancelled, let payload, payload != lastSavedPayload else { return }
-        savePayload(payload, schemaVersion: snapshot.schemaVersion)
+        try Task.checkCancellation()
+        guard payload != lastSavedPayload else { return }
+        try savePayload(payload, schemaVersion: snapshot.schemaVersion)
     }
 
-    private func savePayload(_ payload: Data, schemaVersion: Int) {
-        if let existing = snapshotRecord ?? (try? context.fetch(FetchDescriptor<PersistentWorkoutState>()).first) {
+    private func savePayload(_ payload: Data, schemaVersion: Int) throws {
+        if let existing = try snapshotRecord ?? context.fetch(FetchDescriptor<PersistentWorkoutState>()).first {
             snapshotRecord = existing
             existing.schemaVersion = schemaVersion
             existing.updatedAt = .now
@@ -91,7 +111,13 @@ final class SwiftDataWorkoutPersistenceStore: WorkoutPersistenceStore {
             context.insert(record)
             snapshotRecord = record
         }
-        guard (try? context.save()) != nil else { return }
+        do {
+            try context.save()
+        } catch {
+            context.rollback()
+            snapshotRecord = nil
+            throw error
+        }
         lastSavedPayload = payload
     }
 

@@ -5,27 +5,29 @@ extension DemoRepository {
     private static let previousDemoProgramHistoryMarker = "[demo:program-history-v1]"
 
     func seedDemoStrengthTrendsIfNeeded(referenceDate: Date = .now) {
-        let marker = "[demo:strength-trends-v1]"
+        let marker = "[demo:strength-trends-v2]"
+        let previousMarker = "[demo:strength-trends-v1]"
+        let dayOffsets = [-28, -25, -21, -17, -15, -11, -9, -7, -5, -3, -2, -1]
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: referenceDate)
-        let latestDay = calendar.date(byAdding: .day, value: -3, to: today)!
+        let latestDay = calendar.date(byAdding: .day, value: -1, to: today)!
         let existing = completedWorkouts.filter { $0.notes.contains(marker) }
-        if existing.count == 6, existing.map({ calendar.startOfDay(for: $0.completedAt) }).max() == latestDay { return }
+        if existing.count == dayOffsets.count, existing.map({ calendar.startOfDay(for: $0.completedAt) }).max() == latestDay { return }
 
-        completedWorkouts.removeAll { $0.notes.contains(marker) }
-        let samples: [(id: String, earlier: Double, recent: Double)] = [
-            ("barbell_bench_press", 80, 90),
-            ("dumbbell_bent_over_row", 40, 40),
-            ("dumbbell_romanian_deadlift", 45, 37.5),
-            ("dumbbell_hammer_curl", 12.5, 15)
+        completedWorkouts.removeAll { $0.notes.contains(marker) || $0.notes.contains(previousMarker) }
+        let samples: [(id: String, earlier: Double, recent: Double, latest: Double)] = [
+            ("barbell_bench_press", 80, 90, 92.5),
+            ("dumbbell_bent_over_row", 40, 40, 42.5),
+            ("dumbbell_romanian_deadlift", 45, 37.5, 35),
+            ("dumbbell_hammer_curl", 12.5, 15, 17.5)
         ]
-        for offset in [-25, -21, -17, -11, -7, -3] {
+        for offset in dayOffsets {
             let day = calendar.date(byAdding: .day, value: offset, to: today)!
             let completedAt = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: day)!
             let workoutID = UUID()
             var exercises: [WorkoutExerciseSnapshot] = []
             var sets: [WorkoutSetLog] = []
-            let movements = offset == -3 ? samples + [("dumbbell_front_squat", 20, 20)] : samples
+            let movements = offset == -3 ? samples + [("dumbbell_front_squat", 20, 20, 20)] : samples
             for (index, sample) in movements.enumerated() {
                 let exercise = MockData.trainingExerciseLibrary.first { $0.id == sample.id }!
                 let snapshot = WorkoutExerciseSnapshot(
@@ -39,7 +41,7 @@ extension DemoRepository {
                 for number in 1...3 {
                     sets.append(WorkoutSetLog(
                         id: UUID(), prescriptionID: snapshot.id, performedAt: completedAt, setNumber: number,
-                        weight: offset < -13 ? sample.earlier : sample.recent, reps: 8, rpe: 8,
+                        weight: offset == -1 ? sample.latest : offset < -13 ? sample.earlier : sample.recent, reps: 8, rpe: 8,
                         isWarmup: false, isComplete: true, workoutID: workoutID, recordedUnit: .kilograms
                     ))
                 }
@@ -55,6 +57,19 @@ extension DemoRepository {
         completedWorkouts.sort { $0.completedAt > $1.completedAt }
         refreshAchievementUnlocks()
         persistWorkoutSnapshot()
+    }
+
+    func seedDemoTrainingGoalsIfNeeded(profileID: UUID) {
+        let storageKey = "liftrank.strengthGoalTargetsKg.\(profileID.uuidString)"
+        guard UserDefaults.standard.string(forKey: storageKey) == nil,
+              let data = try? JSONEncoder().encode([
+                "barbell_bench_press": 125.0,
+                "dumbbell_bent_over_row": 70.0,
+                "dumbbell_romanian_deadlift": 65.0,
+                "dumbbell_hammer_curl": 25.0
+              ]),
+              let value = String(data: data, encoding: .utf8) else { return }
+        UserDefaults.standard.set(value, forKey: storageKey)
     }
 
     /// Seeds one complete 12-week program for simulator demonstrations. The
@@ -159,12 +174,6 @@ extension DemoRepository {
         scheduleWorkoutSnapshotPersistence()
     }
 
-    func updateWorkoutEntry(_ entry: WorkoutExerciseEntry) {
-        guard let index = workoutEntries.firstIndex(where: { $0.id == entry.id }) else { return }
-        workoutEntries[index] = entry
-        scheduleWorkoutSnapshotPersistence()
-    }
-
     func deleteWorkoutPlan(_ plan: WorkoutPlan) {
         let phaseIDs = workoutPhases.filter { $0.planID == plan.id }.map(\.id)
         let weekIDs = workoutWeeks.filter { $0.planID == plan.id || phaseIDs.contains($0.phaseID) }.map(\.id)
@@ -181,6 +190,17 @@ extension DemoRepository {
         scheduleWorkoutSnapshotPersistence()
     }
 
+    func updateWorkoutPhase(_ phase: WorkoutPhase) {
+        guard let index = workoutPhases.firstIndex(where: { $0.id == phase.id }) else { return }
+        workoutPhases[index] = phase
+        scheduleWorkoutSnapshotPersistence()
+    }
+
+    func addWorkoutPhase(_ phase: WorkoutPhase) {
+        workoutPhases.append(phase)
+        scheduleWorkoutSnapshotPersistence()
+    }
+
     func updateWorkoutPlan(_ plan: WorkoutPlan) {
         guard let index = workoutPlans.firstIndex(where: { $0.id == plan.id }) else { return }
         workoutPlans[index] = plan
@@ -188,7 +208,7 @@ extension DemoRepository {
     }
 
     @discardableResult
-    func updateWorkoutQueue(planID: UUID, enabled: Bool, sessionIDs: [UUID]) -> Bool {
+    func updateWorkoutQueue(planID: UUID, enabled: Bool, sessionIDs: [UUID], allowsAnyOrder: Bool) -> Bool {
         guard let index = workoutPlans.firstIndex(where: { $0.id == planID }) else { return false }
         let planSessionIDs = Set(workoutSessions.compactMap { session in
             let week = workoutWeeks.first { $0.id == session.weekID }
@@ -196,6 +216,7 @@ extension DemoRepository {
         })
         var updated = workoutPlans[index]
         updated.queueEnabled = enabled
+        updated.allowsAnyOrder = enabled && allowsAnyOrder
         updated.queuedSessionIDs = sessionIDs.filter { planSessionIDs.contains($0) }
         workoutPlans[index] = updated
         scheduleWorkoutSnapshotPersistence()
@@ -338,7 +359,9 @@ extension DemoRepository {
         workoutPlanProgressionSettings[settingsIndex].method = method
         workoutPlanProgressionSettings[settingsIndex].trainingMaxKilograms = trainingMaxKilograms
 
-        let recordedSessionIDs = Set(completedWorkouts.filter { $0.sourcePlanID == planID }.compactMap(\.sourceSessionID))
+        var recordedSessionIDs = Set(completedWorkouts.filter { $0.sourcePlanID == planID }.compactMap(\.sourceSessionID))
+        let loggedPrescriptionIDs = Set(workoutSetLogs.map(\.prescriptionID))
+        recordedSessionIDs.formUnion(workoutPrescriptions.filter { loggedPrescriptionIDs.contains($0.id) }.map(\.sessionID))
         let activeSessionID = activeWorkout?.sourceSessionID
         let currentNumber = currentProgramWeek(planID: planID, at: date)?.weekNumber ?? 1
         let eligibleWeeks = workoutWeeks.filter { $0.planID == planID && $0.weekNumber >= currentNumber }
@@ -447,10 +470,13 @@ extension DemoRepository {
                 restSeconds: prescription.restSeconds,
                 order: prescription.order,
                 notes: prescription.notes,
+                substitutionExerciseIDs: prescription.substitutionExerciseIDs,
                 muscleProfile: prescription.muscleProfile,
                 targetRIR: prescription.targetRIR,
                 trainingMaxPercentage: prescription.trainingMaxPercentage,
-                targetLoadKilograms: prescription.targetLoadKilograms
+                targetLoadKilograms: prescription.targetLoadKilograms,
+                supersetGroup: prescription.supersetGroup,
+                supersetRestSeconds: prescription.supersetRestSeconds
             ))
         }
 
@@ -473,6 +499,12 @@ extension DemoRepository {
         workoutWeeks.append(week)
         scheduleWorkoutSnapshotPersistence()
         return week
+    }
+
+    func updateWorkoutWeek(_ week: WorkoutWeek) {
+        guard let index = workoutWeeks.firstIndex(where: { $0.id == week.id }) else { return }
+        workoutWeeks[index] = week
+        scheduleWorkoutSnapshotPersistence()
     }
 
     @discardableResult
@@ -499,10 +531,13 @@ extension DemoRepository {
                 restSeconds: prescription.restSeconds,
                 order: prescription.order,
                 notes: prescription.notes,
+                substitutionExerciseIDs: prescription.substitutionExerciseIDs,
                 muscleProfile: prescription.muscleProfile,
                 targetRIR: prescription.targetRIR,
                 trainingMaxPercentage: prescription.trainingMaxPercentage,
-                targetLoadKilograms: prescription.targetLoadKilograms
+                targetLoadKilograms: prescription.targetLoadKilograms,
+                supersetGroup: prescription.supersetGroup,
+                supersetRestSeconds: prescription.supersetRestSeconds
             ))
         }
         scheduleWorkoutSnapshotPersistence()
@@ -527,6 +562,12 @@ extension DemoRepository {
         workoutSessions.append(session)
         scheduleWorkoutSnapshotPersistence()
         return session
+    }
+
+    func updateWorkoutSession(_ session: WorkoutSession) {
+        guard let index = workoutSessions.firstIndex(where: { $0.id == session.id }) else { return }
+        workoutSessions[index] = session
+        scheduleWorkoutSnapshotPersistence()
     }
 
     func deleteWorkoutSession(_ session: WorkoutSession) {

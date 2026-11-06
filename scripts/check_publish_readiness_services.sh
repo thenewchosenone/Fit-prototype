@@ -4,14 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENTITLEMENTS="$ROOT/LiftRankApp/LiftRank.entitlements"
 PROJECT_PLIST="$ROOT/LiftRankApp/Info.plist"
-IOS_UI="$ROOT/LiftRankApp/Views/MainTabView.swift"
-PGBUILD="$ROOT/LiftRank.xcodeproj/project.pcbproj"
-if [ ! -f "$ROOT/LiftRank.xcodeproj/project.pbxproj" ]; then
-  PGBUILD="$ROOT/LiftRank.xcodeproj/project.pbxproj"
-fi
-if [ ! -f "$PGBUILD" ]; then
-  PGBUILD="$ROOT/LiftRank.xcodeproj/project.pbxproj"
-fi
+IOS_AUTH_UI="$ROOT/LiftRankApp/App/Session/AuthenticationViews.swift"
+PGBUILD="$ROOT/LiftRank.xcodeproj/project.pbxproj"
 STRICT_MODE="${LIFTRANK_SERVICE_CHECK_STRICT:-0}"
 
 failures=0
@@ -42,27 +36,27 @@ else
   fail "Missing custom URL scheme 'liftrank' in Info.plist."
 fi
 
-if rg -q "auth-callback" \
-  "$ROOT/LiftRankApp/Services/SupabaseServiceSupport.swift" \
-  "$ROOT/LiftRankApp/Services/SupabaseServices.swift" 2>/dev/null; then
+if grep -Fq 'static let authCallbackURL = URL(string: "liftrank://auth-callback")!' \
+  "$ROOT/LiftRankApp/Services/SupabaseServiceSupport.swift"; then
   pass "Auth callback URL in client code is set to liftrank://auth-callback."
 else
   fail "Auth callback URL is missing in client authentication service."
 fi
 
-if [ -f "$IOS_UI" ]; then
-  if grep -q "SignInWithAppleButton" "$IOS_UI" && grep -q "appleNonce" "$IOS_UI"; then
+if [ -f "$IOS_AUTH_UI" ]; then
+  if grep -q "SignInWithAppleButton" "$IOS_AUTH_UI" && grep -q "appleNonce" "$IOS_AUTH_UI"; then
     pass "Authentication UI exposes Sign in with Apple with nonce wiring."
   else
-    fail "Sign in with Apple code path is incomplete in MainTabView."
+    fail "Sign in with Apple code path is incomplete in AuthenticationViews."
   fi
 else
-  fail "Could not inspect MainTabView.swift."
+  fail "Could not inspect AuthenticationViews.swift."
 fi
 
 if [ -f "$PGBUILD" ]; then
-  if grep -q "APS_ENVIRONMENT" "$PGBUILD"; then
-    pass "Xcode project build settings define APS_ENVIRONMENT (per configuration)."
+  if grep -q "APS_ENVIRONMENT = development;" "$PGBUILD" \
+     && grep -q "APS_ENVIRONMENT = production;" "$PGBUILD"; then
+    pass "Xcode project contains development and production APS_ENVIRONMENT settings."
   else
     warn "APS_ENVIRONMENT is not present in project build settings; add Debug/Release values before archive."
   fi
@@ -122,7 +116,7 @@ if (( warns > 0 )); then
     status "\nResult: WARNINGS -> strict mode enabled; treat warnings as blocking."
     exit 1
   fi
-  status "\nResult: READY to continue with manual verification items above."
+  status "\nResult: STATIC PREFLIGHT PASSED WITH WARNINGS. External provider state remains unverified; complete the manual evidence above."
 else
-  status "\nResult: READY"
+  status "\nResult: STATIC PREFLIGHT PASSED. This script does not verify live provider state; complete the manual evidence above."
 fi

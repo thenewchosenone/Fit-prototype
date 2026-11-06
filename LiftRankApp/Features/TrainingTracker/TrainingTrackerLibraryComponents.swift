@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ExerciseLibraryFilterSheet: View {
+    @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var applied: ExerciseLibraryFilterSelection
@@ -18,7 +19,7 @@ struct ExerciseLibraryFilterSheet: View {
     private var equipmentOptions: [String] { Set(exercises.map(\.equipment)).sorted() }
     private var trackingOptions: [String] { Set(exercises.map(\.trackingType)).sorted() }
     private var resultCount: Int {
-        exercises.filter { $0.matchesSearch(searchText) && draft.matches($0) }.count
+        appState.exerciseLibraryPresentation(query: searchText, filters: draft).results.count
     }
 
     var body: some View {
@@ -36,7 +37,16 @@ struct ExerciseLibraryFilterSheet: View {
                             }
                             stringSection("Equipment", options: equipmentOptions, selection: $draft.equipment)
                             bodyAreaSection
-                            muscleSection
+                            if !draft.isEmpty {
+                                Text("Selected: " + draft.activeChips.map(\.title).joined(separator: ", "))
+                                    .font(.caption)
+                                    .foregroundStyle(Color.liftText)
+                            }
+                            DisclosureGroup("Primary muscle · \(draft.primaryMuscles.count) selected") {
+                                muscleSection.padding(.top, 8)
+                            }
+                            .font(.subheadline.weight(.semibold))
+                            .tint(Color.liftAccentText)
                             DisclosureGroup("More filters") {
                                 stringSection("Tracking type", options: trackingOptions, selection: $draft.trackingTypes)
                                     .padding(.top, 12)
@@ -128,7 +138,7 @@ struct ExerciseLibraryFilterSheet: View {
                 if selected { Image(systemName: "checkmark") }
             }
             .font(LiftTypography.compactEmphasis)
-            .foregroundStyle(selected ? Color.liftOnAccent : Color.liftMuted)
+            .foregroundStyle(selected ? Color.liftOnAccent : Color.liftText)
             .padding(.horizontal, 11)
             .frame(maxWidth: .infinity, minHeight: 40)
             .background(selected ? Color.liftBlue : Color.liftCard)
@@ -217,6 +227,11 @@ struct LibraryCustomExerciseView: View {
     @State private var equipment = "Dumbbell"
     @State private var trackingType = "Weight + Reps"
 
+    @State private var confirmingDiscard = false
+    private var hasDraftChanges: Bool {
+        !name.isEmpty || muscleGroup != "Chest" || equipment != "Dumbbell" || trackingType != "Weight + Reps"
+    }
+
     private let muscleGroups = ["Chest", "Back", "Shoulders", "Arms", "Quads", "Hamstrings", "Glutes", "Core", "Full Body"]
     private let equipmentOptions = ["Barbell", "Dumbbell", "Cable", "Machine", "Bodyweight", "Kettlebell", "Band"]
     private let trackingTypes = ["Weight + Reps", "Bodyweight Reps", "Assisted Bodyweight", "Reps Only", "Time", "Weight + Time"]
@@ -254,7 +269,7 @@ struct LibraryCustomExerciseView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") { if hasDraftChanges { confirmingDiscard = true } else { dismiss() } }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
@@ -270,6 +285,11 @@ struct LibraryCustomExerciseView: View {
                     .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
+        }
+        .interactiveDismissDisabled(hasDraftChanges)
+        .alert("Discard changes?", isPresented: $confirmingDiscard) {
+            Button("Discard changes", role: .destructive) { dismiss() }
+            Button("Keep editing", role: .cancel) {}
         }
     }
 }

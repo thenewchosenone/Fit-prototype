@@ -209,6 +209,14 @@ extension DemoRepository {
         scheduleWorkoutSnapshotPersistence()
     }
 
+    func setMachineLoadTypeForActiveWorkoutExercise(_ exerciseID: UUID, type: MachineLoadType) {
+        guard var workout = activeWorkout,
+              let index = workout.exercises.firstIndex(where: { $0.id == exerciseID }) else { return }
+        workout.exercises[index].machineLoadType = type
+        activeWorkout = workout
+        scheduleWorkoutSnapshotPersistence()
+    }
+
     @discardableResult
     func reorderActiveWorkout(exerciseIDs: [UUID]) -> Bool {
         guard var workout = activeWorkout else { return false }
@@ -256,6 +264,14 @@ extension DemoRepository {
         let current = workout.exercises[index]
         let completedSets = workoutSetLogs.filter {
             $0.workoutID == workout.id && $0.prescriptionID == current.id && $0.isComplete
+        }
+        for logIndex in workoutSetLogs.indices where
+            workoutSetLogs[logIndex].workoutID == workout.id &&
+            workoutSetLogs[logIndex].prescriptionID == current.id &&
+            !workoutSetLogs[logIndex].isComplete {
+            workoutSetLogs[logIndex].weight = nil
+            workoutSetLogs[logIndex].reps = nil
+            workoutSetLogs[logIndex].rpe = nil
         }
 
         if completedSets.isEmpty {
@@ -312,7 +328,9 @@ extension DemoRepository {
                 muscleProfile: exercise.muscleProfile,
                 targetRIR: exercise.targetRIR,
                 trainingMaxPercentage: exercise.trainingMaxPercentage,
-                targetLoadKilograms: exercise.targetLoadKilograms
+                targetLoadKilograms: exercise.targetLoadKilograms,
+                supersetGroup: exercise.supersetGroup,
+                supersetRestSeconds: exercise.supersetRestSeconds
             )
         }
         scheduleWorkoutSnapshotPersistence()
@@ -469,7 +487,9 @@ extension DemoRepository {
             trainingMaxPercentage: prescription.trainingMaxPercentage,
             targetLoadKilograms: prescription.targetLoadKilograms,
             demonstrationMediaID: catalog?.demonstrationMediaID,
-            trackingType: catalog?.trackingType
+            trackingType: catalog?.trackingType,
+            supersetGroup: prescription.supersetGroup,
+            supersetRestSeconds: prescription.supersetRestSeconds
         )
     }
 
@@ -632,9 +652,6 @@ extension DemoRepository {
         substitute: TrainingExerciseCatalogItem,
         preserveID: Bool
     ) -> WorkoutExerciseSnapshot {
-        let usesAdaptiveProgression = workoutPlanProgressionSettings.contains {
-            $0.planID == activeWorkout?.sourcePlanID && ($0.method == .adaptive || $0.method == .linear)
-        }
         return WorkoutExerciseSnapshot(
             id: preserveID ? current.id : UUID(),
             sourcePrescriptionID: preserveID ? current.sourcePrescriptionID : nil,
@@ -643,7 +660,8 @@ extension DemoRepository {
             bodyPart: substitute.bodyPart,
             equipment: substitute.equipment,
             targetSets: current.targetSets,
-            targetReps: current.targetReps,
+            targetReps: ExerciseTrackingKind(current.trackingType ?? "") == ExerciseTrackingKind(substitute.trackingType)
+                ? current.targetReps : substitute.defaultReps,
             restSeconds: current.restSeconds,
             order: current.order,
             notes: current.notes,
@@ -651,12 +669,14 @@ extension DemoRepository {
             rankingExerciseID: substitute.rankingExerciseID,
             muscleProfile: substitute.resolvedMuscleProfile,
             targetRIR: current.targetRIR,
-            trainingMaxPercentage: current.trainingMaxPercentage,
-            targetLoadKilograms: usesAdaptiveProgression ? nil : current.targetLoadKilograms,
+            trainingMaxPercentage: nil,
+            targetLoadKilograms: nil,
             substitutedFromExerciseID: current.exerciseID,
             substitutedFromExerciseName: current.exerciseName,
             demonstrationMediaID: substitute.demonstrationMediaID,
-            trackingType: substitute.trackingType
+            trackingType: substitute.trackingType,
+            supersetGroup: current.supersetGroup,
+            supersetRestSeconds: current.supersetRestSeconds
         )
     }
 

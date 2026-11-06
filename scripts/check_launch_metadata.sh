@@ -12,10 +12,12 @@ pass() { printf '[PASS] %s\n' "$1"; }
 
 if [[ ! -f "$METADATA" ]]; then
   fail "App Store metadata handoff is missing."
-elif rg -q 'REQUIRED_[A-Z_]+' "$METADATA"; then
+elif grep -Eq 'REQUIRED_[A-Z_]+' "$METADATA"; then
   fail "App Store metadata still contains REQUIRED_* placeholders."
+elif grep -Eq '\*\*BLOCKED\*\*' "$METADATA"; then
+  fail "App Store metadata records an unresolved blocker."
 else
-  pass "App Store metadata contains no placeholders."
+  pass "App Store metadata contains no placeholders or recorded blockers."
 fi
 
 if [[ -f "$MIGRATION" && -f "$CONTRACT" ]]; then

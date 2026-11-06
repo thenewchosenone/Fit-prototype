@@ -4,6 +4,7 @@ struct PlateauInsightDetailView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     let insight: PlateauInsight
+    @State private var selectedWorkout: CompletedWorkout?
 
     var body: some View {
         NavigationStack {
@@ -41,6 +42,17 @@ struct PlateauInsightDetailView: View {
                                     }
                                 }
                                 .padding(14)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Working-set volume: \(MeasurementFormatting.formatDisplayedWeight(performance.volumeKilograms, unit: appState.currentProfile.preferredUnit)) × reps")
+                                        .font(.caption).foregroundStyle(Color.liftMuted)
+                                    if let workout = appState.completedWorkouts.first(where: { $0.id == performance.workoutID }) {
+                                        Button("View source workout") { selectedWorkout = workout }
+                                            .font(.caption.weight(.semibold))
+                                            .frame(minHeight: LiftDesign.minimumTouchTarget)
+                                            .foregroundStyle(Color.liftAccentText)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14)
                                 if index < insight.performances.count - 1 {
                                     Divider().overlay(Color.liftSeparator).padding(.leading, 14)
                                 }
@@ -62,11 +74,14 @@ struct PlateauInsightDetailView: View {
                     .padding(16)
                 }
             }
+            .sheet(item: $selectedWorkout) { workout in
+                CompletedWorkoutDetailView(workout: workout).environmentObject(appState)
+            }
             .navigationTitle("Plateau details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Close", systemImage: "xmark") { dismiss() }.labelStyle(.iconOnly)
                 }
             }
         }

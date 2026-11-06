@@ -41,9 +41,9 @@ extension LeaderboardsView {
         if appState.leaderboardFilters.sexCategory != nil { count += 1 }
         if appState.leaderboardFilters.ageGroup != nil { count += 1 }
         if appState.leaderboardFilters.weightClassID != nil { count += 1 }
-        if appState.leaderboardFilters.experienceLevel != nil { count += 1 }
+        if appState.isDemoMode && appState.leaderboardFilters.experienceLevel != nil { count += 1 }
         if !appState.verifiedOnly || appState.leaderboardFilters.verificationLevel != nil { count += 1 }
-        if appState.leaderboardFilters.repetitionCount != nil { count += 1 }
+        if appState.isDemoMode && appState.leaderboardFilters.repetitionCount != nil { count += 1 }
         if appState.leaderboardFilters.timeRange != "All time" { count += 1 }
         return count
     }
@@ -134,7 +134,7 @@ extension LeaderboardsView {
                  ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
                  : AnyLayout(HStackLayout(spacing: 8))) {
                     exerciseFilterControl
-                    if appState.leaderboardFilters.exerciseID != nil { repetitionsFilterControl }
+                    if appState.isDemoMode && appState.leaderboardFilters.exerciseID != nil { repetitionsFilterControl }
                 }
             }
         }
@@ -232,7 +232,7 @@ extension LeaderboardsView {
     @ViewBuilder
     var activeFilterChips: some View {
         let filters = appState.leaderboardFilters
-        if filters.sexCategory != nil || filters.ageGroup != nil || filters.weightClassID != nil || filters.experienceLevel != nil || filters.timeRange != "All time" {
+        if filters.sexCategory != nil || filters.ageGroup != nil || filters.weightClassID != nil || (appState.isDemoMode && filters.experienceLevel != nil) || filters.timeRange != "All time" {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     if let sex = filters.sexCategory {
@@ -249,7 +249,7 @@ extension LeaderboardsView {
                             .map { RankingFormatting.weightClassDisplayName($0, preferredUnit: appState.currentProfile.preferredUnit) } ?? "Weight class"
                         activeFilterChip(title) { appState.leaderboardFilters.weightClassID = nil }
                     }
-                    if let experience = filters.experienceLevel {
+                    if appState.isDemoMode, let experience = filters.experienceLevel {
                         activeFilterChip(experience.rawValue) { appState.leaderboardFilters.experienceLevel = nil }
                     }
                     if filters.timeRange != "All time" {
@@ -308,13 +308,15 @@ extension LeaderboardsView {
                 Image(systemName: "list.number")
                     .font(.largeTitle)
                     .foregroundStyle(Color.liftAccentText)
-                Text("No ranked lifters")
+                Text(selfReportedRankScopeMessage == nil ? "No ranked lifters" : "No self-reported lifts")
                     .font(.headline)
-                Text(hasSearch
+                Text(selfReportedRankScopeMessage.map { note in
+                    hasSearch ? "No match on this self-reported board. Try another search or broaden the filters. \(note)" : note
+                } ?? (hasSearch
                      ? "No ranked lifters match this search. Try another name, gym, city, or exercise."
                      : hasFilters
                         ? "No lifters match \(rankingScopeDescription) with these filters. Broaden or reset them to continue."
-                        : leaderboardEvidenceMessage ?? "No eligible lifts have reached this leaderboard yet.")
+                        : leaderboardEvidenceMessage ?? "No eligible lifts have reached this leaderboard yet."))
                     .font(.subheadline)
                     .foregroundStyle(Color.liftMuted)
                 (dynamicTypeSize.isAccessibilitySize
@@ -356,6 +358,12 @@ extension LeaderboardsView {
         return nil
     }
 
+    var selfReportedRankScopeMessage: String? {
+        guard !appState.isDemoMode,
+              appState.leaderboardFilters.verificationLevel == .selfReported else { return nil }
+        return "Ranks are calculated from eligible self-reported lifts for this metric, scope, and time range. This view shows the top 200 self-reported results."
+    }
+
     func resetFilters() {
         appState.leaderboardFilters = LeaderboardFilters(exerciseID: nil)
         appState.verifiedOnly = true
@@ -384,15 +392,6 @@ extension LeaderboardsView {
     var exerciseLabel: String {
         guard let id = appState.leaderboardFilters.exerciseID else { return "All exercises" }
         return MockData.exercises.first(where: { $0.id == id })?.name ?? "Selected"
-    }
-
-    var rankScopeTitle: String {
-        if appState.leaderboardFilters.gymID != nil { return "Your gym rank" }
-        if appState.leaderboardFilters.city != nil { return "Your city rank" }
-        if appState.leaderboardFilters.state != nil { return "Your state rank" }
-        if appState.leaderboardFilters.country != nil { return "Your country rank" }
-        if appState.leaderboardFilters.weightClassID != nil { return "Your class rank" }
-        return "Your rank"
     }
 
     var rankingScopeDescription: String { "\(scopeLabel) · \(appState.leaderboardFilters.rankingType.rawValue)" }
@@ -571,7 +570,7 @@ extension LeaderboardsView {
         // Jump to my rank also works when the athlete is outside the first page.
         leaderboardPage = max(leaderboardPage, userIndex / 100 + 1)
         DispatchQueue.main.async {
-            withAnimation(.easeInOut(duration: 0.35)) {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) {
                 proxy.scrollTo(appState.currentProfile.id, anchor: .center)
             }
         }

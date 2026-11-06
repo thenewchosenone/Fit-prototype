@@ -69,12 +69,20 @@ struct SubmitLiftView: View {
     @State private var showingResult = false
     @State private var submittedLift: LiftSubmission?
     @State private var isSubmitting = false
+    @State private var initialDraft: [String]?
+    @State private var confirmingDiscard = false
+    private var draftValues: [String] {
+        [exercise.id, String(describing: weight), unit.rawValue, String(describing: repetitions),
+         String(isActualOneRepMax), String(bodyweight), String(performedAt.timeIntervalSince1970),
+         gymID?.uuidString ?? "", equipment.rawValue, caption, visibility.rawValue,
+         String(confirmsMatchedDumbbells), selectedVideoURL?.absoluteString ?? ""]
+    }
+    private var hasDraftChanges: Bool { initialDraft.map { $0 != draftValues } ?? false }
     @State private var plateLoads: [EditablePlateLoad] = []
     @State private var barbellWeight = 45.0
     @State private var plateLoadingWasEdited = false
     @State private var isSyncingPlateLoading = false
     @State private var isPlateLoadingExpanded = false
-    @State private var isMoreDetailsExpanded = false
     @State private var activeSelector: SubmitLiftSelector?
     @State private var isRefreshingGyms = false
 
@@ -130,9 +138,10 @@ struct SubmitLiftView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         liftDetailsCard
+                        if !isActualOneRepMax { estimateCard }
                         trainingContextCard
                         videoCard
-                        moreDetailsCard
+                        plateCard
                     }
                     .padding(.horizontal, LiftDesign.screenHorizontalPadding)
                     .padding(.top, 8)
@@ -145,7 +154,8 @@ struct SubmitLiftView: View {
             .navigationTitle("Submit Lift")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    Button("Cancel") { if hasDraftChanges { confirmingDiscard = true } else { dismiss() } }
+                        .disabled(isSubmitting || isPreparingVideo)
                 }
             }
             .sheet(isPresented: $showingResult) {
@@ -196,14 +206,21 @@ struct SubmitLiftView: View {
                 Text(gymSelectionError ?? "Choose another gym.")
             }
             .onAppear {
+                guard initialDraft == nil else { return }
                 bodyweight = appState.currentProfile.bodyweightPounds
                 if prefill == nil { unit = appState.currentProfile.preferredUnit }
                 selectDefaultGymIfNeeded()
                 resetPlateLoadingFromWeight()
                 prepareVideoPickerAfterPresentation()
+                initialDraft = draftValues
             }
             .task {
                 await refreshGymOptions()
+            }
+            .interactiveDismissDisabled(hasDraftChanges || isSubmitting || isPreparingVideo)
+            .confirmationDialog("Discard lift draft?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
+                Button("Discard draft", role: .destructive) { dismiss() }
+                Button("Keep editing", role: .cancel) {}
             }
             .alert("Lift not submitted", isPresented: Binding(
                 get: { submissionError != nil },
@@ -258,8 +275,8 @@ struct SubmitLiftView: View {
                     }
                 }
                 Picker("One-rep max type", selection: $isActualOneRepMax) {
-                    Text("Actual").tag(true)
-                    Text("Estimated").tag(false)
+                    Text("Actual 1RM").tag(true)
+                    Text("Estimated 1RM").tag(false)
                 }
                 .pickerStyle(.segmented)
                 .accessibilityLabel("One-rep max type")
@@ -353,22 +370,6 @@ struct SubmitLiftView: View {
                 }
                 Spacer(minLength: 0)
             }
-        }
-    }
-
-    private var moreDetailsCard: some View {
-        LiftCard(padding: 12, radius: 16) {
-            DisclosureGroup(isExpanded: $isMoreDetailsExpanded) {
-                VStack(alignment: .leading, spacing: 12) {
-                    estimateCard
-                    plateCard
-                }
-                .padding(.top, 8)
-            } label: {
-                Label("More details", systemImage: "slider.horizontal.3")
-                    .font(LiftTypography.rowEmphasis)
-            }
-            .tint(Color.liftAccentText)
         }
     }
 
@@ -696,11 +697,11 @@ struct SubmitLiftView: View {
                                 ProgressView()
                                     .frame(maxWidth: .infinity)
                             } else {
-                                Label("Select lift video", systemImage: "video.badge.plus")
+                                Label("Add video · optional", systemImage: "video.badge.plus")
                                     .frame(maxWidth: .infinity)
                             }
                         }
-                        .buttonStyle(LiftCompactProminentButtonStyle())
+                        .buttonStyle(.bordered)
                         .disabled(isPreparingVideo)
                         .accessibilityIdentifier("lift.video.select")
                     } else {
@@ -759,6 +760,10 @@ struct SubmitLiftView: View {
 
     private var submitFooter: some View {
         VStack(spacing: 7) {
+            Button { activeSelector = .visibility } label: {
+                Label("Audience: \(visibility.rawValue)", systemImage: visibilitySymbol).font(.caption.weight(.semibold))
+                    .frame(minHeight: 44)
+            }
             if let submissionBlockReason {
                 Text(submissionBlockReason)
                     .font(.caption.weight(.semibold))
@@ -908,6 +913,7 @@ struct LiftSubmissionResultView: View {
                 Button("Done", action: done)
                     .buttonStyle(.borderedProminent)
                     .tint(Color.liftAccentText)
+                    .foregroundStyle(Color.liftBackground)
                     .frame(maxWidth: .infinity)
                     .accessibilityIdentifier("lift.submissionDone")
                 }

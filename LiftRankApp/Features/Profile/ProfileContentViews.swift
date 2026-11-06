@@ -78,22 +78,22 @@ struct ProfileLiftVideosSection: View {
                 LiftEmptyState(
                     title: "No PR videos yet",
                     message: isCurrentUser
-                        ? "Attach a video when you submit a lift and it will appear here."
+                        ? "Attach a video when you submit a lift. It will appear here when videos are public."
                         : "This athlete has not shared a PR video.",
                     symbolName: "video.badge.plus",
-                    compact: true
+                    actionTitle: isCurrentUser ? "Submit lift with video" : nil,
+                    action: isCurrentUser ? { appState.router.sheet = .submitLift } : nil,
+                    compact: false
                 )
             } else {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 3), spacing: 4) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], spacing: 10) {
                     ForEach(videoLifts) { lift in
                         Button {
                             selectedLift = lift
                         } label: {
                             ProfileVideoThumbnail(lift: lift)
-                                .aspectRatio(1, contentMode: .fit)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Play \(lift.exerciseName) lift video")
                         .accessibilityIdentifier("profile.liftVideo.\(lift.id.uuidString)")
                     }
                 }
@@ -114,10 +114,12 @@ private struct ProfileVideoThumbnail: View {
     @EnvironmentObject private var appState: AppState
     let lift: LiftSubmission
     @State private var image: UIImage?
+    @State private var isLoading = true
 
     private static let cache = NSCache<NSString, UIImage>()
 
     var body: some View {
+        VStack(spacing: 0) {
         ZStack {
             Color.liftSurfaceElevated
             if let image {
@@ -125,32 +127,46 @@ private struct ProfileVideoThumbnail: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                Image(systemName: "video.fill")
-                    .font(.title2)
-                    .foregroundStyle(Color.liftMuted)
+                VStack(spacing: 6) {
+                    Image(systemName: "video.fill")
+                        .font(.title2)
+                    Text(isLoading ? "Loading preview…" : "Preview unavailable")
+                        .font(.caption2)
+                }
+                .foregroundStyle(Color.liftMuted)
             }
-            Color.liftScrim
-            Image(systemName: "play.fill")
-                .font(LiftTypography.cardTitle)
-                .foregroundStyle(.white)
-                .shadow(radius: 3)
+            if image != nil {
+                Color.liftScrim
+                Image(systemName: "play.fill")
+                    .font(LiftTypography.cardTitle)
+                    .foregroundStyle(.white)
+                    .shadow(radius: 3)
+            }
         }
-        .overlay(alignment: .bottomLeading) {
+        .aspectRatio(4 / 3, contentMode: .fit)
+        .clipped()
             VStack(alignment: .leading, spacing: 2) {
                 Text(lift.exerciseName)
-                    .font(.caption2.weight(.bold))
+                    .font(.caption.weight(.semibold))
                     .lineLimit(2)
+                    .frame(maxWidth: .infinity, minHeight: 36, alignment: .topLeading)
                 Text(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true))
                     .font(.caption2)
                     .lineLimit(1)
+                Text(lift.performedAt.formatted(date: .abbreviated, time: .omitted))
+                    .font(.caption2).foregroundStyle(Color.liftMuted)
             }
-            .foregroundStyle(.white)
-            .padding(6)
+            .foregroundStyle(Color.liftText)
+            .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.black.opacity(0.55))
         }
-        .clipped()
+        .background(Color.liftCard)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Play \(lift.exerciseName) video, \(MeasurementFormatting.recordedLiftSetText(weight: lift.weight, unit: lift.unit, repetitions: lift.repetitions, includeRepLabel: true)), \(lift.performedAt.formatted(date: .abbreviated, time: .omitted)). \(isLoading ? "Loading preview" : image == nil ? "Preview unavailable" : "Preview available")")
         .task(id: lift.id) {
+            isLoading = true
+            defer { isLoading = false }
             if let cached = Self.cache.object(forKey: lift.id.uuidString as NSString) {
                 image = cached
                 return
@@ -161,15 +177,7 @@ private struct ProfileVideoThumbnail: View {
             generator.appliesPreferredTrackTransform = true
             generator.maximumSize = CGSize(width: 360, height: 360)
             let time = CMTime(seconds: 0, preferredTimescale: 600)
-            let thumbnail = await withTaskCancellationHandler(operation: {
-                await withCheckedContinuation { continuation in
-                    generator.generateCGImagesAsynchronously(forTimes: [NSValue(time: time)]) { _, image, _, _, _ in
-                        continuation.resume(returning: image)
-                    }
-                }
-            }, onCancel: {
-                generator.cancelAllCGImageGeneration()
-            })
+            let thumbnail = try? await generator.image(at: time).image
             guard !Task.isCancelled else { return }
             guard let thumbnail else { return }
             let image = UIImage(cgImage: thumbnail)
@@ -185,6 +193,7 @@ private struct ProfileLiftVideoDetailView: View {
     let lift: LiftSubmission
     @State private var playbackURL: URL?
     @State private var isResolvingPlayback = false
+    @State private var playbackAttempt = UUID()
 
     var body: some View {
         NavigationStack {
@@ -220,7 +229,9 @@ private struct ProfileLiftVideoDetailView: View {
                             LiftEmptyState(
                                 title: "Video unavailable",
                                 message: "This upload has a lift record, but its video file could not be opened.",
-                                symbolName: "video.slash"
+                                symbolName: "video.slash",
+                                actionTitle: "Retry",
+                                action: { playbackAttempt = UUID() }
                             )
                         }
                     }
@@ -230,12 +241,13 @@ private struct ProfileLiftVideoDetailView: View {
             .navigationTitle("Lift video")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Close", systemImage: "xmark") { dismiss() }.labelStyle(.iconOnly)
                 }
             }
-            .task(id: lift.id) {
+            .task(id: playbackAttempt) {
                 isResolvingPlayback = true
+                playbackURL = nil
                 playbackURL = await appState.competitionStore.playbackURL(for: lift)
                 isResolvingPlayback = false
             }
@@ -282,6 +294,9 @@ struct EditProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var draft = MockData.emptyProfile
+    @State private var originalDraft = MockData.emptyProfile
+    @State private var confirmingDiscard = false
+    private var hasChanges: Bool { hasLoadedDraft && (draft != originalDraft || updatesPrimaryGym) }
     @State private var showingPhotoManager = false
     @State private var activeSelector: EditProfileSelector?
     @State private var selectedGymID: UUID?
@@ -345,7 +360,7 @@ struct EditProfileView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Profile photo")
                 .font(.headline)
-            Text("Photo changes save separately from this form")
+            Text("Manage separately")
                 .font(.caption)
                 .foregroundStyle(Color.liftMuted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -407,6 +422,9 @@ struct EditProfileView: View {
                             Text("Bio")
                             TextField("Tell athletes about your training", text: bioBinding, axis: .vertical)
                                 .lineLimit(2...4)
+                            Text("Shown on your public profile.")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
                         }
                         profileField("Age group") {
                             Text(draft.ageGroup)
@@ -416,15 +434,6 @@ struct EditProfileView: View {
                                 ForEach(SexCategory.allCases) { Text($0.rawValue).tag($0) }
                             }
                             .labelsHidden()
-                        }
-                        profileField("Experience") {
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text(appState.earnedExperienceLevel.rawValue)
-                                    .foregroundStyle(Color.liftAccentText)
-                                Text(appState.earnedExperienceDescription)
-                                    .font(.caption2)
-                                    .foregroundStyle(Color.liftMuted)
-                            }
                         }
                         if dynamicTypeSize.isAccessibilitySize {
                             VStack(alignment: .leading, spacing: 8) {
@@ -440,6 +449,16 @@ struct EditProfileView: View {
                         } else {
                             Stepper("Years training: \(draft.yearsExperience)", value: $draft.yearsExperience, in: 0...100)
                         }
+                        Text("Years training is shown on your public profile.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                    }
+                    Section {
+                        DisclosureGroup("Earned status · \(appState.earnedExperienceLevel.rawValue)") {
+                            Text(appState.earnedExperienceDescription)
+                            Text("Shown as verified experience on your public profile.")
+                        }
+                        .font(.subheadline)
                     }
                     Section("Body") {
                         if dynamicTypeSize.isAccessibilitySize {
@@ -466,15 +485,18 @@ struct EditProfileView: View {
                             )
                             if dynamicTypeSize.isAccessibilitySize {
                                 VStack(alignment: .leading, spacing: 8) {
-                                    Text("Bodyweight")
+                                    Text("Log bodyweight")
                                     Text(value)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                             } else {
-                                LabeledContent("Bodyweight", value: value)
+                                LabeledContent("Log bodyweight", value: value)
                             }
                         }
                         .accessibilityIdentifier("editProfile.logBodyweight")
+                        Text("Bodyweight entries save separately.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
                     }
                     if let message = appState.accountMessage {
                         Section { Text(message).foregroundStyle(Color.liftRed) }
@@ -490,6 +512,9 @@ struct EditProfileView: View {
                             value: selectedGym?.name ?? "No primary gym",
                             symbol: "building.2.fill"
                         ) { activeSelector = .gym }
+                        Text("Location and primary gym appear publicly according to Settings → Privacy.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
                     }
                 }
                 .scrollContentBackground(.hidden)
@@ -503,6 +528,7 @@ struct EditProfileView: View {
                     profilePounds: draft.bodyweightPounds,
                     entries: appState.bodyweightEntries
                 )
+                originalDraft = draft
                 selectedGymID = appState.gyms.first(where: {
                     $0.id == draft.primaryGymID || $0.name == draft.primaryGymName
                 })?.id
@@ -536,9 +562,11 @@ struct EditProfileView: View {
             }
             .onChange(of: appState.currentProfile.bodyweightPounds) { _, weight in
                 draft.bodyweightPounds = weight
+                originalDraft.bodyweightPounds = weight
             }
             .sheet(isPresented: $showingPhotoManager, onDismiss: {
                 draft.avatarPath = appState.currentProfile.avatarPath
+                originalDraft.avatarPath = draft.avatarPath
             }) {
                 ProfilePhotoManagerView()
                 .environmentObject(appState)
@@ -553,7 +581,8 @@ struct EditProfileView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") { if hasChanges { confirmingDiscard = true } else { dismiss() } }
+                        .disabled(appState.accountOperationInProgress)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
@@ -572,6 +601,11 @@ struct EditProfileView: View {
                     .disabled(appState.accountOperationInProgress)
                 }
             }
+        }
+        .interactiveDismissDisabled(hasChanges || appState.accountOperationInProgress)
+        .confirmationDialog("Discard profile changes?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
+            Button("Discard changes", role: .destructive) { dismiss() }
+            Button("Keep editing", role: .cancel) {}
         }
     }
 
@@ -810,7 +844,7 @@ struct ProfilePhotoManagerView: View {
             .navigationTitle("Profile Photo")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
             }
@@ -1255,33 +1289,18 @@ struct GymDetailView: View {
                         .font(.largeTitle.bold())
                     Text("\(gym.city), \(gym.state)")
                         .foregroundStyle(Color.liftMuted)
-                    PrimaryButton(
-                        title: isPrimaryGym ? "Primary Gym" : (joined ? "Leave Gym" : "Join Gym"),
-                        symbolName: isPrimaryGym ? "star.fill" : (joined ? "minus.circle" : "plus.circle")
-                    ) {
-                        if isPrimaryGym {
-                            Haptics.light()
-                        } else if joined {
-                            appState.leaveGym(gym)
-                        } else if !appState.joinGym(gym) {
-                            showingMembershipLimit = true
+                    if isPrimaryGym {
+                        Label("Primary gym", systemImage: "star.fill").foregroundStyle(Color.liftAccentText)
+                    } else if joined {
+                        PrimaryButton(title: "Make primary gym", symbolName: "star") { appState.setPrimaryGym(gym) }
+                        Button("Leave gym", role: .destructive) { appState.leaveGym(gym) }.frame(minHeight: 44)
+                    } else {
+                        PrimaryButton(title: "Join gym", symbolName: "plus.circle") {
+                            if !appState.joinGym(gym) { showingMembershipLimit = true }
                         }
                     }
-                    .disabled(isPrimaryGym)
-                    if joined && !isPrimaryGym {
-                        Button {
-                            appState.setPrimaryGym(gym)
-                        } label: {
-                            Label("Make Primary Gym", systemImage: "star")
-                                .frame(maxWidth: .infinity)
-                                .frame(minHeight: 44)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(Color.liftAccentText)
-                    }
-                    Text("You can belong to up to \(AppState.maximumJoinedGyms) gyms. Your primary gym counts toward this limit.")
-                        .font(.caption)
-                        .foregroundStyle(Color.liftMuted)
+                    Text("\(appState.joinedGymCount)/\(AppState.maximumJoinedGyms) gyms joined")
+                        .font(.caption).foregroundStyle(Color.liftMuted)
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                         ForEach(["members", "verified"], id: \.self) { metric in
                             if metric == "members" {
@@ -1291,7 +1310,7 @@ struct GymDetailView: View {
                             }
                         }
                     }
-                    SectionHeader(title: "Top lifters")
+                    SectionHeader(title: "Verified three-lift total")
                     Button("View gym rankings") {
                         dismiss()
                         appState.leaderboardFilters = LeaderboardFilters(exerciseID: nil, rankingType: .total, gymID: gym.id)
@@ -1367,6 +1386,9 @@ struct RequestGymView: View {
     @State private var state = ""
     @State private var note = ""
 
+    @State private var confirmingDiscard = false
+    private var hasChanges: Bool { !name.isEmpty || !city.isEmpty || !state.isEmpty || !note.isEmpty }
+
     private var canSubmit: Bool {
         !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
@@ -1391,7 +1413,7 @@ struct RequestGymView: View {
             .navigationTitle("Request Gym")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") { if hasChanges { confirmingDiscard = true } else { dismiss() } }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Submit") {
@@ -1401,6 +1423,11 @@ struct RequestGymView: View {
                     .disabled(!canSubmit)
                 }
             }
+        }
+        .interactiveDismissDisabled(hasChanges)
+        .confirmationDialog("Discard gym request?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
+            Button("Discard request", role: .destructive) { dismiss() }
+            Button("Keep editing", role: .cancel) {}
         }
     }
 }

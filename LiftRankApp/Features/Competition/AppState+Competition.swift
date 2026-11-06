@@ -14,10 +14,6 @@ extension AppState {
         competitionStore.overallScore
     }
 
-    var currentUserTotalRankingEntry: LeaderboardEntry? {
-        competitionStore.currentUserTotalEntry
-    }
-
     var earnedExperienceLevel: ExperienceLevel {
         RankingFormatting.earnedExperienceLevel(
             relativeTotal: relativeTotal,
@@ -73,10 +69,6 @@ extension AppState {
         await competitionStore.refreshLeaderboard(force: force)
     }
 
-    func onboardingLeaderboardPreview(filters: LeaderboardFilters) async -> [LeaderboardEntry] {
-        await competitionStore.previewLeaderboardEntries(filters: filters)
-    }
-
     func refreshCurrentUserTotalRanking(force: Bool = false) async {
         guard isAuthenticated || isDemoMode else { return }
         await competitionStore.refreshCurrentUserTotalEntry(force: force)
@@ -120,6 +112,7 @@ extension AppState {
             accountMessage = "The lift could not be submitted. Check your connection, then try again."
             Haptics.warning()
         } else {
+            if let submission { shareTopLiftIfEnabled(submission) }
             if videoURL != nil, submission?.evidenceStatus != .videoBacked {
                 accountMessage = "The lift was saved as self-reported, but the video upload did not finish."
             }
