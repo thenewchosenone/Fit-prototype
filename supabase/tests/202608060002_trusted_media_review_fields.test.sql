@@ -36,14 +36,6 @@ insert into auth.users (
   '{}'::jsonb, '{}'::jsonb, now(), now()
 );
 
-insert into storage.objects(id, bucket_id, name, owner_id)
-values (
-  '93000000-0000-4000-8000-000000000002',
-  'lift-videos',
-  '93000000-0000-4000-8000-000000000001/93000000-0000-4000-8000-000000000003/93000000-0000-4000-8000-000000000004.mp4',
-  '93000000-0000-4000-8000-000000000001'
-);
-
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '93000000-0000-4000-8000-000000000001', true);
 
@@ -56,6 +48,17 @@ insert into public.lift_submissions (
   'conventional_deadlift', null, 315, 'lb', 1, 205,
   'Private', 'Self Reported', '', now(), true
 );
+
+reset role;
+insert into storage.objects(id, bucket_id, name, owner_id)
+values (
+  '93000000-0000-4000-8000-000000000002',
+  'lift-videos',
+  '93000000-0000-4000-8000-000000000001/93000000-0000-4000-8000-000000000003/93000000-0000-4000-8000-000000000004.mp4',
+  '93000000-0000-4000-8000-000000000001'
+);
+
+set local role authenticated;
 
 select lives_ok($$
   select *

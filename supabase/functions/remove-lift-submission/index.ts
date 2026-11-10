@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -44,89 +44,36 @@ Deno.serve(async (request) => {
   const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
   const submissionID = payload.submission_id;
 
-  const { data: existingRequest } = await admin.from("lift_removal_requests")
-    .select("id,status,protected_record")
-    .eq("lift_id", submissionID)
-    .eq("owner_id", user.id)
-    .maybeSingle();
-  if (existingRequest?.status === "completed") {
-    return json({ status: "completed", protected_record: existingRequest.protected_record });
-  }
-
-  const { data: submission, error: submissionError } = await admin.from("lift_submissions")
-    .select("*")
-    .eq("id", submissionID)
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (submissionError) return json({ error: "Submission lookup failed" }, 500);
-  if (!submission) {
-    return existingRequest
-      ? json({ error: "Removal is incomplete; retry after the server state is repaired" }, 409)
-      : json({ error: "Submission not found or no longer available" }, 404);
-  }
-
-  const { data: mediaAssets, error: mediaError } = await admin.from("lift_media_assets")
-    .select("storage_path")
-    .eq("lift_id", submissionID)
-    .eq("owner_id", user.id);
-  if (mediaError) return json({ error: "Submission media lookup failed" }, 500);
-
-  const candidatePaths = [...new Set([
-    ...(mediaAssets ?? []).map((asset) => asset.storage_path),
-    submission.approved_evidence_storage_path,
-    submission.pending_evidence_storage_path,
-    submission.evidence_storage_path,
-  ].filter((value): value is string => typeof value === "string" && value.length > 0))];
-
-  const mediaPaths = new Set((mediaAssets ?? []).map((asset) => asset.storage_path));
-  let storageObjects: StorageObject[] = candidatePaths
-    .filter((path) => mediaPaths.has(path))
-    .map((name) => ({ bucket_id: "lift-videos", name }));
-  const legacyEvidencePaths = candidatePaths.filter((path) => !mediaPaths.has(path));
-  if (legacyEvidencePaths.length) {
-    const { data: buckets, error: bucketError } = await admin.storage.listBuckets();
-    if (bucketError) return json({ error: "Evidence storage lookup failed" }, 500);
-    const evidenceBuckets = (buckets ?? [])
-      .map((bucket) => bucket.id)
-      .filter((id) => id.startsWith("lift-evidence"));
-    storageObjects = storageObjects.concat(
-      evidenceBuckets.flatMap((bucket_id) => legacyEvidencePaths.map((name) => ({ bucket_id, name }))),
-    );
-  }
-
-  const protectedRecord = Boolean(
-    submission.evidence_status !== "self_reported" ||
-    submission.video_asset_id ||
-    candidatePaths.length ||
-    submission.review_status === "approved" ||
-    submission.evidence_public,
-  );
-
-  const { data: reservedRequest, error: requestError } = await admin.from("lift_removal_requests").upsert({
-    lift_id: submissionID,
-    owner_id: user.id,
-    status: "processing",
-    protected_record: protectedRecord,
-    lift_snapshot: submission,
-    storage_objects: storageObjects,
-    last_error: null,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: "lift_id" }).select("id").single();
-  if (requestError || !reservedRequest) return json({ error: "Removal request could not be recorded" }, 500);
-  const requestID = reservedRequest.id;
+  const { data: reserved, error: reserveError } = await admin.rpc("reserve_lift_removal", {
+    target_lift_id: submissionID,
+    target_owner_id: user.id,
+  });
+  if (reserveError) return json({ error: reserveError.code === "P0002" ? "Submission not found or no longer available" : "Removal could not be reserved; contact support if this persists" }, reserveError.code === "P0002" ? 404 : 409);
+  if (!reserved || !isUuid(reserved.id) || !Array.isArray(reserved.storage_objects)) return json({ error: "Removal reservation could not be read" }, 500);
+  const requestID = reserved.id;
+  const protectedRecord = reserved.protected_record === true;
+  if (reserved.status === "completed") return json({ status: "completed", protected_record: protectedRecord });
+  const storageObjects: StorageObject[] = reserved.storage_objects;
+  if (reserved.status !== "processing" || storageObjects.some((object) =>
+    typeof object?.name !== "string" || !object.name.startsWith(`${user.id}/${submissionID}/`) ||
+    /(^|\/)\.\.?(\/|$)/.test(object.name) ||
+    typeof object.bucket_id !== "string" || (object.bucket_id !== "lift-videos" && !object.bucket_id.startsWith("lift-evidence"))
+  )) return json({ error: "Evidence paths require administrative repair" }, 409);
 
   for (const bucket of new Set(storageObjects.map((object) => object.bucket_id))) {
     const paths = storageObjects.filter((object) => object.bucket_id === bucket).map((object) => object.name);
-    const { error } = await admin.storage.from(bucket).remove(paths);
-    if (error) {
-      await admin.from("lift_removal_requests").update({ status: "failed", last_error: `storage_cleanup_failed:${bucket}` }).eq("id", requestID);
-      return json({ error: "Evidence cleanup did not finish; the removal can be retried safely" }, 500);
+    for (let offset = 0; offset < paths.length; offset += 100) {
+      const { error } = await admin.storage.from(bucket).remove(paths.slice(offset, offset + 100));
+      if (error) {
+        await admin.from("lift_removal_requests").update({ status: "failed", last_error: `storage_cleanup_failed:${bucket}` }).eq("id", requestID).neq("status", "completed");
+        return json({ error: "Evidence cleanup did not finish; the removal can be retried safely" }, 500);
+      }
     }
   }
 
   const { error: finalizeError } = await admin.rpc("finalize_lift_removal", { target_request_id: requestID });
   if (finalizeError) {
-    await admin.from("lift_removal_requests").update({ status: "failed", last_error: "database_finalize_failed" }).eq("id", requestID);
+    await admin.from("lift_removal_requests").update({ status: "failed", last_error: "database_finalize_failed" }).eq("id", requestID).neq("status", "completed");
     return json({ error: "Database cleanup did not finish; the removal can be retried safely" }, 500);
   }
 
