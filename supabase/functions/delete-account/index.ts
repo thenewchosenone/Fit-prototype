@@ -103,13 +103,17 @@ Deno.serve(async (request) => {
 
   const { data: profile, error: profileError } = await admin.from("profiles").select("avatar_path").eq("id", user.id).maybeSingle();
   if (profileError) return json({ error: "Profile cleanup lookup failed" }, 500, origin);
-  if (profile?.avatar_path) {
-    const { error: avatarError } = await admin.storage.from("profile-avatars").remove([
-      `${profile.avatar_path}/avatar-full.jpg`,
-      `${profile.avatar_path}/avatar-thumb.jpg`,
-    ]);
-    if (avatarError) return json({ error: "Avatar cleanup failed" }, 500, origin);
+  const ownerPrefix = `${user.id.toLowerCase()}/`;
+  const avatarPaths = new Set([`${ownerPrefix}avatar`]);
+  const storedPath = profile?.avatar_path;
+  if (typeof storedPath === "string" && storedPath.startsWith(ownerPrefix)
+    && storedPath.split("/").every((part) => /^[A-Za-z0-9_.-]+$/.test(part) && part !== "." && part !== "..")) {
+    avatarPaths.add(storedPath);
   }
+  const { error: avatarError } = await admin.storage.from("profile-avatars").remove(
+    [...avatarPaths].flatMap((path) => [`${path}/avatar-full.jpg`, `${path}/avatar-thumb.jpg`]),
+  );
+  if (avatarError) return json({ error: "Avatar cleanup failed" }, 500, origin);
   const { error: deletionError } = await admin.auth.admin.deleteUser(user.id, false);
   if (deletionError) return json({ error: "Deletion failed" }, 500, origin);
   return new Response(null, { status: 204, headers: headersFor(origin) });
