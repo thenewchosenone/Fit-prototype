@@ -28,10 +28,11 @@ select
   jsonb_build_object('display_name', 'Plan Delete ' || n), now(), now()
 from generate_series(1, 2) n;
 
-insert into public.workout_plan_documents(id, owner_id, revision, name, payload)
-values
-  ('d1200000-0000-4000-8000-000000000001', 'd1100000-0000-4000-8000-000000000001', 3, 'Plan (Conflict copy)', '{}'::jsonb),
-  ('d1200000-0000-4000-8000-000000000002', 'd1100000-0000-4000-8000-000000000002', 1, 'Other owner plan', '{}'::jsonb);
+select set_config('request.jwt.claim.sub','d1100000-0000-4000-8000-000000000001',true);
+insert into public.workout_plan_documents(id, owner_id, revision, name, payload) values ('d1200000-0000-4000-8000-000000000001', 'd1100000-0000-4000-8000-000000000001', 3, 'Plan (Conflict copy)', '"eyJwbGFuIjp7ImlkIjoiZDEyMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwMDAxIiwibmFtZSI6IlN5bnRoZXRpYyBwcm9ncmFtIiwiY3JlYXRlZEF0IjowLCJpc0FjdGl2ZSI6ZmFsc2V9LCJwaGFzZXMiOltdLCJ3ZWVrcyI6W10sInNlc3Npb25zIjpbXSwicHJlc2NyaXB0aW9ucyI6W119"');
+select set_config('request.jwt.claim.sub','d1100000-0000-4000-8000-000000000002',true);
+insert into public.workout_plan_documents(id, owner_id, revision, name, payload) values ('d1200000-0000-4000-8000-000000000002', 'd1100000-0000-4000-8000-000000000002', 1, 'Other owner plan', '"eyJwbGFuIjp7ImlkIjoiZDEyMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwMDAyIiwibmFtZSI6IlN5bnRoZXRpYyBwcm9ncmFtIiwiY3JlYXRlZEF0IjowLCJpc0FjdGl2ZSI6ZmFsc2V9LCJwaGFzZXMiOltdLCJ3ZWVrcyI6W10sInNlc3Npb25zIjpbXSwicHJlc2NyaXB0aW9ucyI6W119"');
+
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', 'd1100000-0000-4000-8000-000000000001', true);
