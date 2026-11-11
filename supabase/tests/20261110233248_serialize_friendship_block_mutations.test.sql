@@ -2,9 +2,6 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path=public,extensions;
 select no_plan();
--- The committed baseline predates hosted column-only block reads. Model that
--- existing production ACL inside this rollback-only runtime fixture.
-grant select(blocker_id,blocked_id,created_at) on public.user_blocks to authenticated;
 select ok(not has_function_privilege('anon',fn,'execute'),'anonymous cannot execute '||fn)
 from unnest(array['public.request_friendship(uuid)','public.respond_to_friendship(uuid,boolean)','public.block_user(uuid)','public.unblock_user(uuid)']) fn;
 select ok(has_function_privilege('authenticated',fn,'execute'),'authenticated may execute '||fn)
