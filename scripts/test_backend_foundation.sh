@@ -120,5 +120,5 @@ run_reset() {
 
 run_reset liftrank_foundation_1
 run_reset liftrank_foundation_2
-echo "Two clean resets passed. Expected database errors are limited to rejected competing fourth-gym joins."
+echo "Two clean resets passed. Expected SQL errors include intentionally rejected security and concurrency cases."
 grep -E 'WARNING|ERROR|FATAL' "$WORK/postgresql.log" || true
