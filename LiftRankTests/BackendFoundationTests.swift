@@ -4217,7 +4217,8 @@ final class BackendFoundationTests: XCTestCase {
         requestState.enqueueResponses([
             try makeForumPostResponse(postID: postID, authorID: authorID),
             try makeForumCommentsResponse(count: 500, postID: postID, authorID: authorID, start: 0),
-            try makeForumCommentsResponse(count: 1, postID: postID, authorID: authorID, start: 500)
+            try makeForumCommentsResponse(count: 1, postID: postID, authorID: authorID, start: 500),
+            Data("[]".utf8)
         ])
 
         let fetchedThread = try await SupabaseForumService(client: client).thread(postID: postID)

@@ -113,12 +113,6 @@ extension TrainingTrackerView {
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)
             }
-            .sheet(isPresented: $showingCreatePlanFromHistory) {
-                CreateWorkoutPlanView(workouts: freestyleWorkoutsForPlan)
-                    .environmentObject(appState)
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
-            }
             .sheet(isPresented: $showingProgramImport) {
                 ImportWorkoutPlanView()
                     .environmentObject(appState)
@@ -158,6 +152,11 @@ extension TrainingTrackerView {
                         .environmentObject(appState)
                         .presentationDetents([.large])
                 }
+            }
+            .sheet(item: $selectedPlateauInsight) { insight in
+                PlateauInsightDetailView(insight: insight)
+                    .environmentObject(appState)
+                    .presentationDetents([.medium, .large])
             }
             .sheet(item: $selectedCompletedWorkout) { workout in
                 CompletedWorkoutDetailView(workout: workout, focusedSetID: $focusedWorkoutSetID)
@@ -869,22 +868,6 @@ extension TrainingTrackerView {
                     .font(.caption).foregroundStyle(Color.liftGold)
             }
 
-            if appState.selectedWorkoutPlan != nil {
-                ProgramPlanDetailView(
-                    selectedWeekID: $selectedWeekID,
-                    detailTab: $planDetailTab,
-                    selectedSessionForAdd: $selectedSessionForAdd,
-                    selectedSessionToRun: $selectedSessionToRun,
-                    selectedProgramTemplate: $selectedProgramTemplate,
-                    renamePlanName: $renamePlanName,
-                    showingRenamePlan: $showingRenamePlan,
-                    planToDeleteID: $planToDeleteID,
-                    showingDeletePlan: $showingDeletePlan
-                )
-                .environmentObject(appState)
-            }
-
-            programLibrary
 
             if appState.workoutPlans.isEmpty {
                 LiftCard {
@@ -916,6 +899,18 @@ extension TrainingTrackerView {
                 }
             }
         }
+    }
+
+    private var visiblePlateauInsights: [PlateauInsight] {
+        let dismissed = Set(dismissedPlateauInsightIDs.split(separator: "|").map(String.init))
+        return appState.plateauInsights.filter { !dismissed.contains($0.id) }
+    }
+
+    private func dismissPlateauInsight(_ insight: PlateauInsight) {
+        var dismissed = Set(dismissedPlateauInsightIDs.split(separator: "|").map(String.init))
+        dismissed.insert(insight.id)
+        dismissedPlateauInsightIDs = dismissed.sorted().joined(separator: "|")
+        Haptics.light()
     }
 
     private var programLibrary: some View {

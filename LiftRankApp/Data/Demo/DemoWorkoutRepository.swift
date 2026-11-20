@@ -293,7 +293,7 @@ extension DemoRepository {
         workoutSetLogs.removeAll {
             $0.workoutID == workout.id && $0.prescriptionID == current.id && !$0.isComplete && !$0.isWarmup
         }
-        for setNumber in (completedSets.count + 1)...current.targetSets {
+        for setNumber in 1...remainingSets {
             workoutSetLogs.append(
                 WorkoutSetLog(
                     id: UUID(),
@@ -398,22 +398,12 @@ extension DemoRepository {
         guard let workout = activeWorkout else { return nil }
         let logs = workoutSetLogs.filter { $0.workoutID == workout.id }
         guard logs.contains(where: { $0.isComplete && !$0.isWarmup }) else { return nil }
-        let latestWorkingSetAt = logs
-            .filter { $0.isComplete && !$0.isWarmup }
-            .map(\.performedAt)
-            .max()
-        // Finishing late should not add idle time after the last recorded set to workout duration.
-        let effectiveEnd = min(completedAt, latestWorkingSetAt ?? completedAt)
-        let currentPause = workout.pausedAt.map { max(0, effectiveEnd.timeIntervalSince($0)) } ?? 0
-        let elapsedDuration = max(
-            0,
-            effectiveEnd.timeIntervalSince(workout.startedAt) - workout.accumulatedPausedTime - currentPause
-        )
+        let elapsedDuration = workout.elapsedDuration(at: completedAt)
         let historyCompletedAt: Date? = workout.historyDate.flatMap { historyDate in
             let time = Calendar.current.dateComponents([.hour, .minute, .second], from: completedAt)
             return Calendar.current.date(bySettingHour: time.hour ?? 12, minute: time.minute ?? 0, second: time.second ?? 0, of: historyDate)
         }
-        let safeCompletedAt = historyCompletedAt ?? max(effectiveEnd, workout.startedAt)
+        let safeCompletedAt = historyCompletedAt ?? max(completedAt, workout.startedAt)
         let effectiveStartedAt = historyCompletedAt.map { $0.addingTimeInterval(-elapsedDuration) } ?? workout.startedAt
         let effectiveLogs = logs.map { log -> WorkoutSetLog in
             guard historyCompletedAt != nil else { return log }

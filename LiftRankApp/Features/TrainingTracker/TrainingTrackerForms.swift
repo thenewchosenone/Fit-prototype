@@ -1,12 +1,6 @@
 import SwiftUI
 
 struct CreateWorkoutPlanView: View {
-    private let sourceWorkouts: [CompletedWorkout]?
-
-    init(workouts: [CompletedWorkout]? = nil) {
-        sourceWorkouts = workouts
-        _usesHistory = State(initialValue: workouts != nil)
-    }
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var planName = ""
@@ -25,7 +19,7 @@ struct CreateWorkoutPlanView: View {
     }
 
     private var recentWorkouts: [CompletedWorkout] {
-        (sourceWorkouts ?? appState.completedWorkouts)
+        appState.completedWorkouts
             .filter { !$0.exercises.isEmpty }
             .sorted { $0.completedAt > $1.completedAt }
     }

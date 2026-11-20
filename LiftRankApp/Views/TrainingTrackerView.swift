@@ -73,6 +73,7 @@ struct TrainingTrackerView: View {
     @State var didOpenProgress = false
     @State var selectedExerciseWeightTrendDate: Date?
     @State var selectedExerciseStrengthTrendDate: Date?
+    @State var selectedPlateauInsight: PlateauInsight?
     @State var selectedVolumeWeek: VolumeWeekSelection = .thisWeek
     @State var activityHeatmapPeriod = 90
     @State var activityHeatmapMeasure = "Time"

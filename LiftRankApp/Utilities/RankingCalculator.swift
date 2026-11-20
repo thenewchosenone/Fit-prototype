@@ -278,9 +278,7 @@ enum RankingCalculator {
         let candidates: [(lift: LiftSubmission, score: Double, breakdown: PowerliftingBreakdown?)] = grouped.compactMap { userID, userLifts -> (lift: LiftSubmission, score: Double, breakdown: PowerliftingBreakdown?)? in
             if exerciseID == nil && (rankingType == .total || rankingType == .relativeTotal) {
                 let breakdown = powerliftingBreakdown(for: userID, lifts: userLifts)
-                guard breakdown.squatKilograms != nil,
-                      breakdown.benchKilograms != nil,
-                      breakdown.deadliftKilograms != nil,
+                guard breakdown.totalKilograms > 0,
                       let representative = userLifts
                         .filter({
                             let lift = $0

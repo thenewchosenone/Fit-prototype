@@ -427,7 +427,22 @@ final class SupabaseForumService: ForumService {
             let voteSelection = userID == nil ? "" : ",forum_post_votes(user_id,value)"
             let commentVoteSelection = userID == nil ? "" : ",forum_comment_votes(user_id,value)"
             let post: ForumPostDTO = try await client.from("forum_posts").select("id,community_id,gym_id,author_id,kind,title,body,tag,attachments,lift_id,is_pinned,is_locked,created_at\(voteSelection),forum_comments(count)").eq("id", value: postID).is("removed_at", value: nil).single().execute().value
-            let comments: [ForumCommentDTO] = try await client.from("forum_comments").select("id,post_id,author_id,parent_comment_id,body,created_at\(commentVoteSelection)").eq("post_id", value: postID).is("removed_at", value: nil).order("created_at").execute().value
+            let pageSize = 500
+            var comments: [ForumCommentDTO] = []
+            var offset = 0
+            while true {
+                let page: [ForumCommentDTO] = try await client.from("forum_comments")
+                    .select("id,post_id,author_id,parent_comment_id,body,created_at\(commentVoteSelection)")
+                    .eq("post_id", value: postID)
+                    .is("removed_at", value: nil)
+                    .order("created_at")
+                    .order("id")
+                    .range(from: offset, to: offset + pageSize - 1)
+                    .execute().value
+                comments.append(contentsOf: page)
+                guard page.count == pageSize else { break }
+                offset += pageSize
+            }
             var watching = false
             if let userID {
                 let watches: [ForumWatchInsert] = try await client.from("forum_post_watches")

@@ -58,10 +58,14 @@ struct ProgramWeekPresentation {
         var completedSetNumbersByPrescriptionID: [UUID: Set<Int>] = [:]
         var attemptsBySessionID: [UUID: [String: [UUID: Set<Int>]]] = [:]
         let sessionIDByPrescriptionID = Dictionary(uniqueKeysWithValues: prescriptions.map { ($0.id, $0.sessionID) })
+        func attemptKey(for log: WorkoutSetLog) -> String {
+            if let workoutID = log.workoutID { return workoutID.uuidString }
+            return String(Calendar.current.startOfDay(for: log.performedAt).timeIntervalSince1970)
+        }
         for log in workoutSetLogs where log.isComplete && !log.isWarmup && plannedPrescriptionIDs.contains(log.prescriptionID) {
             completedSetNumbersByPrescriptionID[log.prescriptionID, default: []].insert(log.setNumber)
-            if let sessionID = sessionIDByPrescriptionID[log.prescriptionID], let workoutID = log.workoutID {
-                attemptsBySessionID[sessionID, default: [:]][workoutID.uuidString, default: [:]][log.prescriptionID, default: []].insert(log.setNumber)
+            if let sessionID = sessionIDByPrescriptionID[log.prescriptionID] {
+                attemptsBySessionID[sessionID, default: [:]][attemptKey(for: log), default: [:]][log.prescriptionID, default: []].insert(log.setNumber)
             }
         }
         for workout in completedWorkouts where workout.sourceSessionID.map(sessionIDs.contains) == true {

@@ -691,7 +691,6 @@ extension TrainingTrackerView {
                 .filter { $0.date >= start && $0.date <= now && !($0.workoutID.map { recoveryIDs.contains($0) } ?? false) }
         )
         let chartPoints = ExerciseProgressSeries.dailyHighest(from: setPoints)
-        let recordedSessionCount = Set(setPoints.compactMap(\.workoutID)).count
         let estimatedMaxPoints = ExerciseProgressSeries.dailyHighestEstimatedOneRepMax(from: setPoints)
 
         return VStack(alignment: .leading, spacing: 12) {
