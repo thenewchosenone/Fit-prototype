@@ -364,7 +364,7 @@ struct LeaderboardFiltersView: View {
                                 clearLocationFilter()
                                 appState.leaderboardFilters.gymID = appState.currentProfile.primaryGymID
                             }
-                            .disabled(appState.currentProfile.primaryGymID == nil)
+                            .disabled(!appState.joinedGyms.contains { $0.id == appState.currentProfile.primaryGymID })
                         default:
                             quickFilterButton("My weight class", symbol: "person.crop.rectangle.stack") {
                                 appState.leaderboardFilters.sexCategory = appState.currentProfile.sexCategory

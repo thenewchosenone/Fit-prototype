@@ -114,7 +114,7 @@ extension TrainingTrackerView {
                     .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showingCreatePlanFromHistory) {
-                CreateWorkoutPlanFromHistoryView(workouts: freestyleWorkoutsForPlan)
+                CreateWorkoutPlanView(workouts: freestyleWorkoutsForPlan)
                     .environmentObject(appState)
                     .presentationDetents([.large])
                     .presentationDragIndicator(.visible)

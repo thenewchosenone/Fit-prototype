@@ -1,19 +1,12 @@
 import SwiftUI
 
 struct CreateWorkoutPlanView: View {
-    @EnvironmentObject private var appState: AppState
+    private let sourceWorkouts: [CompletedWorkout]?
 
-    var body: some View {
-        CreateWorkoutPlanFromHistoryView(
-            workouts: appState.completedWorkouts.filter {
-                $0.source == .freestyle && !$0.exercisesWithCompletedWorkingSets.isEmpty
-            },
-            allowsEmptyPlan: true
-        )
+    init(workouts: [CompletedWorkout]? = nil) {
+        sourceWorkouts = workouts
+        _usesHistory = State(initialValue: workouts != nil)
     }
-}
-
-struct CreateWorkoutPlanFromHistoryView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var planName = ""
@@ -32,7 +25,7 @@ struct CreateWorkoutPlanFromHistoryView: View {
     }
 
     private var recentWorkouts: [CompletedWorkout] {
-        appState.completedWorkouts
+        (sourceWorkouts ?? appState.completedWorkouts)
             .filter { !$0.exercises.isEmpty }
             .sorted { $0.completedAt > $1.completedAt }
     }
@@ -683,8 +676,8 @@ struct BodyweightEntryEditor: View {
                 if appState.bodyweightEntries.contains(where: { $0.id == draft.id }) {
                     ToolbarItem(placement: .bottomBar) {
                         Button("Delete Entry", role: .destructive) { showingDeleteConfirmation = true }
+                            .disabled(isSaving)
                     }
-                    .disabled(isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(isSaving ? "Saving…" : "Save") {
