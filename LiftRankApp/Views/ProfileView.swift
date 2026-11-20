@@ -39,6 +39,9 @@ struct ProfileView: View {
     @State var liftPresentation = ProfileLiftPresentation.empty
     @State var profileLoadError: String?
     @State var sharedWorkoutStats: SharedWorkoutStats?
+    @State var publicWorkouts: [PublicWorkoutSummary] = []
+    @State var isLoadingPublicWorkouts = false
+    @State var publicWorkoutsError: String?
     @State var submissionPendingDeletion: LiftSubmission?
     @State var submissionDeletionError: String?
     @State var isDeletingSubmission = false

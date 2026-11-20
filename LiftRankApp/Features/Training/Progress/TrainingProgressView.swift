@@ -494,7 +494,20 @@ extension TrainingTrackerView {
                 .tint(Color.liftAccentText)
             }
         }
-        .buttonStyle(.plain)
+        .padding(14)
+        .background(Color.liftCard)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.liftOverlay, lineWidth: 1)
+        }
+    }
+
+    private func recoveryAgeText(_ hours: Int) -> String {
+        if hours < 1 { return "trained just now" }
+        if hours < 24 { return "trained \(hours)h ago" }
+        let days = hours / 24
+        return "trained \(days)d ago"
     }
 
     private func strengthGoalOverview(exercise: TrainingExerciseCatalogItem, latestEstimate: ExerciseProgressPoint?) -> some View {

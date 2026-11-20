@@ -6,7 +6,7 @@ struct WorkoutSummaryView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private let initialSummary: WorkoutSummary
-    let onComplete: (Int, String, [UUID: URL], Set<UUID>) -> Bool
+    let onComplete: (Int, String, [UUID: URL], Set<UUID>, Bool) -> Bool
     let onDone: () -> Void
     @Binding private var effort: Int
     @Binding private var notes: String
@@ -17,6 +17,7 @@ struct WorkoutSummaryView: View {
     @State private var loadingVideoSetIDs: Set<UUID> = []
     @State private var videoError: String?
     @State private var hasSavedWorkout = false
+    @State private var keepWorkoutPrivate = false
     @State private var savedSummary: WorkoutSummary?
     @State private var completionHighlights: [String] = []
     @State private var savedAchievementBadges: [Achievement] = []
@@ -36,7 +37,7 @@ struct WorkoutSummaryView: View {
         selectedVideoItems: Binding<[UUID: PhotosPickerItem]>,
         videoURLsBySetID: Binding<[UUID: URL]>,
         onDone: @escaping () -> Void,
-        onComplete: @escaping (Int, String, [UUID: URL], Set<UUID>) -> Bool
+        onComplete: @escaping (Int, String, [UUID: URL], Set<UUID>, Bool) -> Bool
     ) {
         self.initialSummary = summary
         self.onComplete = onComplete
@@ -272,11 +273,11 @@ struct WorkoutSummaryView: View {
                         .background(Color.liftCard)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                        Label(appState.isDemoMode ? "Demo mode · save to this demo profile" : "Save to your private workout history", systemImage: appState.isDemoMode ? "testtube.2" : "lock.fill")
+                        Label(appState.isDemoMode ? "Demo mode · save to this demo profile" : "Save to your workout history", systemImage: appState.isDemoMode ? "testtube.2" : "lock.fill")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(Color.liftMuted)
                         if !prCandidates.isEmpty {
-                            Text("Only the PRs you choose below are submitted publicly.")
+                            Text("Only the PRs you choose below are submitted to rankings.")
                                 .font(.caption2)
                                 .foregroundStyle(Color.liftMuted)
                         }
@@ -346,7 +347,7 @@ struct WorkoutSummaryView: View {
                             let eligibleIDs = Set(reviewedPRCandidates.map(\.setID))
                             let sharedIDs = sharePRs ? selectedPRSetIDs.intersection(eligibleIDs) : []
                             let previouslyUnlocked = Set(appState.achievementUnlocks.map(\.title))
-                            if onComplete(effort, notes, videoURLsBySetID.filter { sharedIDs.contains($0.key) }, sharedIDs) {
+                            if onComplete(effort, notes, videoURLsBySetID.filter { sharedIDs.contains($0.key) }, sharedIDs, !keepWorkoutPrivate) {
                                 let earnedNow = Set(Self.newlyUnlockedTitles(
                                     projected: appState.achievementUnlocks.map(\.title),
                                     alreadyEarned: previouslyUnlocked

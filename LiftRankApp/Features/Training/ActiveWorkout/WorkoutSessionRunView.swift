@@ -179,8 +179,8 @@ struct WorkoutSessionRunView: View {
                         selectedVideoItems: $reviewVideoItems,
                         videoURLsBySetID: $reviewVideoURLs,
                         onDone: { dismiss() }
-                    ) { effort, notes, videos, selectedSetIDs in
-                        guard let completed = appState.finishActiveWorkout(effort: effort, notes: notes) else { return false }
+                    ) { effort, notes, videos, selectedSetIDs, isPublic in
+                        guard let completed = appState.finishActiveWorkout(effort: effort, notes: notes, isPublic: isPublic) else { return false }
                         dismissAfterSummary = true
                         Task {
                             await appState.submitVideoBackedPRs(for: completed, videoURLsBySetID: videos, selectedSetIDs: selectedSetIDs)
@@ -424,17 +424,9 @@ struct WorkoutSessionRunView: View {
                 Menu {
                     Button("Move earlier") {
                         _ = appState.moveActiveWorkoutExercise(exercise, direction: -1)
-                    } label: {
-                        Image(systemName: "chevron.up")
-                            .font(LiftTypography.compactEmphasis)
-                            .frame(width: 28, height: 20)
                     }
                     Button("Move later") {
                         _ = appState.moveActiveWorkoutExercise(exercise, direction: 1)
-                    } label: {
-                        Image(systemName: "chevron.down")
-                            .font(LiftTypography.compactEmphasis)
-                            .frame(width: 28, height: 20)
                     }
                 } label: {
                     Image(systemName: "line.3.horizontal")

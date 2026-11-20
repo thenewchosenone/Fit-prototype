@@ -13,6 +13,16 @@ struct OnboardingStartingLift: Equatable {
 
 @MainActor
 extension AppState {
+    func publicWorkoutSummaries(for userID: UUID) async throws -> [PublicWorkoutSummary] {
+        if isDemoMode {
+            guard userID == currentProfile.id else { return [] }
+            return completedWorkouts.filter { $0.isPublic == true }
+                .sorted { $0.completedAt > $1.completedAt }
+                .map(PublicWorkoutSummary.init)
+        }
+        return try await serviceContainer.workoutSync.publicWorkoutSummaries(for: userID)
+    }
+
     func shareWorkoutStartIfEnabled() {
         guard isAuthenticated, !isDemoMode,
               authenticatedPrivacy.shareWorkoutStartsWithFriends == true,

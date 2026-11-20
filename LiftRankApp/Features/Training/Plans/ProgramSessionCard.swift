@@ -5,6 +5,7 @@ struct ProgramSessionCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var appState: AppState
     @State private var selectedWorkout: CompletedWorkout?
+    @State private var editingSession: WorkoutSession?
     @State private var editingPrescription: WorkoutExercisePrescription?
     @State private var focusedSetID: UUID?
     @State private var showsExercises = false
@@ -296,6 +297,10 @@ struct ProgramSessionCard: View {
             CompletedWorkoutDetailView(workout: workout, focusedSetID: $focusedSetID)
                 .environmentObject(appState)
         }
+        .sheet(item: $editingSession) { session in
+            ProgramSessionEditorView(session: session, prescriptions: prescriptions)
+                .environmentObject(appState)
+        }
         .sheet(item: $editingPrescription) { prescription in
             WorkoutPrescriptionEditorView(
                 prescription: prescription,
@@ -531,6 +536,61 @@ private struct WorkoutPrescriptionEditorView: View {
             dismiss()
         } else {
             showingNoChangesMessage = true
+        }
+    }
+}
+
+private struct ProgramSessionEditorView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    @State private var session: WorkoutSession
+    @State private var prescriptions: [WorkoutExercisePrescription]
+
+    private let days = Calendar.current.weekdaySymbols
+
+    init(session: WorkoutSession, prescriptions: [WorkoutExercisePrescription]) {
+        _session = State(initialValue: session)
+        _prescriptions = State(initialValue: prescriptions)
+    }
+
+    private var canSave: Bool {
+        !session.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            prescriptions.allSatisfy { $0.sets > 0 && $0.restSeconds >= 0 && !$0.reps.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Workout") {
+                    TextField("Workout name", text: $session.name)
+                    Picker("Day", selection: $session.day) {
+                        ForEach(days, id: \.self) { Text($0).tag($0) }
+                    }
+                }
+                Section("Exercises") {
+                    ForEach(prescriptions.indices, id: \.self) { index in
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(prescriptions[index].exerciseName).font(.headline)
+                            Stepper("\(prescriptions[index].sets) sets", value: $prescriptions[index].sets, in: 1...100)
+                            TextField("Reps or target", text: $prescriptions[index].reps)
+                            TextField("Rest (seconds)", value: $prescriptions[index].restSeconds, format: .number)
+                                .keyboardType(.numberPad)
+                        }
+                        .padding(.vertical, 5)
+                    }
+                }
+            }
+            .navigationTitle("Edit Workout")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        if appState.updateWorkoutSession(session, prescriptions: prescriptions) { dismiss() }
+                    }
+                    .disabled(!canSave || appState.activeWorkout != nil)
+                }
+            }
         }
     }
 }

@@ -3008,7 +3008,7 @@ final class RankingCalculatorTests: XCTestCase {
     }
 
     @MainActor
-    func testDatedBodyweightCreateEditDeleteKeepsLatestValueAcrossRelaunch() {
+    func testDatedBodyweightCreateEditDeleteKeepsLatestValueAcrossRelaunch() async throws {
         let persistence = InMemoryWorkoutPersistenceStore()
         let repository = DemoRepository(workoutPersistenceStore: persistence)
         repository.currentProfile.bodyweightPounds = 0
@@ -3022,14 +3022,14 @@ final class RankingCalculatorTests: XCTestCase {
         )
         let appState = AppState(repository: repository)
 
-        appState.updateBodyweight(older)
-        appState.updateBodyweight(newer)
+        try await appState.updateBodyweight(older)
+        try await appState.updateBodyweight(newer)
         XCTAssertEqual(repository.bodyweightEntries.count, 2)
         XCTAssertEqual(repository.currentProfile.bodyweightPounds, 198)
 
         var editedOlder = older
         editedOlder.actual = 203
-        appState.updateBodyweight(editedOlder)
+        try await appState.updateBodyweight(editedOlder)
 
         XCTAssertEqual(repository.currentProfile.bodyweightPounds, 198)
         XCTAssertEqual(ProfileDataAuthority.latestLoggedBodyweight(

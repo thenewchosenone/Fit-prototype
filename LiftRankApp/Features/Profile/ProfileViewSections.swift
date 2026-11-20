@@ -170,7 +170,10 @@ extension ProfileView {
                                     }
                                     .frame(minHeight: LiftDesign.minimumTouchTarget)
                                     DisclosureGroup("Profile strength details") { athleteDetails(presentation: liftPresentation) }
-                                } else { athleteDetails(presentation: liftPresentation) }
+                                } else {
+                                    athleteDetails(presentation: liftPresentation)
+                                    publicTraining
+                                }
                             case .submissions:
                                 recentSubmissions(profileLifts: liftPresentation.lifts)
 
@@ -336,6 +339,13 @@ extension ProfileView {
             }
         }
         await refreshVisibleProfileLifts()
+        if !isCurrentUser {
+            isLoadingPublicWorkouts = true
+            publicWorkoutsError = nil
+            do { publicWorkouts = try await appState.publicWorkoutSummaries(for: profile.id) }
+            catch { publicWorkoutsError = appState.userMessage(error) }
+            isLoadingPublicWorkouts = false
+        }
         let showsPublicStats = appState.authenticatedPrivacy.profileAudience == .publicProfile
             && appState.authenticatedPrivacy.workoutStatsAudience == .publicProfile
         if !isCurrentUser && (!isOwnerPublicPreview || showsPublicStats) && appState.isAuthenticated && !appState.isDemoMode {

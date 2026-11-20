@@ -194,12 +194,6 @@ struct SubmitLiftView: View {
                     showingVideoReview = false
                 }
             }
-            .confirmationDialog("Discard lift draft?", isPresented: $confirmingDiscardDraft) {
-                Button("Discard Draft", role: .destructive) { dismiss() }
-                Button("Keep Editing", role: .cancel) {}
-            } message: {
-                Text("Your lift details and selected video will be lost.")
-            }
             .onChange(of: pickerItem) { _, _ in
                 prepareSelectedVideo()
             }
@@ -217,7 +211,6 @@ struct SubmitLiftView: View {
                 if prefill == nil { unit = appState.currentProfile.preferredUnit }
                 selectDefaultGymIfNeeded()
                 resetPlateLoadingFromWeight()
-                if initialDraft == nil { initialDraft = currentDraft }
                 prepareVideoPickerAfterPresentation()
                 initialDraft = draftValues
             }
@@ -247,32 +240,6 @@ struct SubmitLiftView: View {
                 }
             }
         }
-        .interactiveDismissDisabled(isSubmitting || isPreparingVideo || hasUnsavedDraft)
-    }
-
-    private var currentDraft: LiftSubmissionDraft {
-        LiftSubmissionDraft(
-            exerciseID: exercise.id,
-            weight: weight,
-            unit: unit.rawValue,
-            repetitions: repetitions,
-            isActualOneRepMax: isActualOneRepMax,
-            bodyweight: bodyweight,
-            performedAt: performedAt,
-            gymID: gymID,
-            equipment: equipment.rawValue,
-            caption: caption,
-            visibility: visibility.rawValue,
-            requestVerification: requestVerification,
-            confirmsMatchedDumbbells: confirmsMatchedDumbbells,
-            videoPath: selectedVideoURL?.path,
-            plateLoads: plateLoads.map { "\($0.plateWeight):\($0.count)" }
-        )
-    }
-
-    private var hasUnsavedDraft: Bool {
-        guard let initialDraft else { return false }
-        return currentDraft != initialDraft
     }
 
     private var liftDetailsCard: some View {
@@ -887,24 +854,6 @@ private struct EditablePlateLoad: Identifiable, Hashable {
     var plateWeight: Double
     var label: String
     var count: Int
-}
-
-private struct LiftSubmissionDraft: Equatable {
-    let exerciseID: String
-    let weight: Double
-    let unit: String
-    let repetitions: Int
-    let isActualOneRepMax: Bool
-    let bodyweight: Double
-    let performedAt: Date
-    let gymID: UUID?
-    let equipment: String
-    let caption: String
-    let visibility: String
-    let requestVerification: Bool
-    let confirmsMatchedDumbbells: Bool
-    let videoPath: String?
-    let plateLoads: [String]
 }
 
 private struct UploadProgressView: View {

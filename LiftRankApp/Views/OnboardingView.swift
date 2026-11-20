@@ -54,7 +54,7 @@ struct OnboardingView: View {
         selectedCountry?.regions.first { $0.name == selectedRegionName }
     }
 
-    static func gymsMatchingLocation(_ gyms: [Gym], city: String, region: String) -> [Gym] {
+    static func gymsMatchingLocation(_ gyms: [Gym], city: String, region: String, countryCode: String = "US") -> [Gym] {
         gyms
             .filter {
                 $0.city.localizedCaseInsensitiveCompare(city) == .orderedSame &&
@@ -637,6 +637,7 @@ struct OnboardingView: View {
 
     private func searchCities(matching query: String) {
         citySearchTask?.cancel()
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard let selectedCountry, let selectedRegion, trimmedQuery.count >= 2 else {
             citySuggestions = trimmedQuery.isEmpty ? LaunchLocationCatalog.citySuggestions(

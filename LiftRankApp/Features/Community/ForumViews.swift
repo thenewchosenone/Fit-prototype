@@ -298,7 +298,7 @@ struct ForumView: View {
     }
 
     private var feedPosts: [ForumPost] {
-        let visiblePosts = posts.filter { !appState.isBlocked($0.authorID) }
+        let visiblePosts = posts.filter { $0.authorID.map { appState.isBlocked($0) } != true }
         switch feed {
         case .friends:
             return []
@@ -812,8 +812,8 @@ private struct ForumPostCard: View {
         .buttonStyle(.plain)
         .onChange(of: post) { _, updated in displayedPost = updated }
         .task(id: post.authorID) {
-            guard post.tag != "demo", post.authorID != appState.currentProfile.id else { return }
-            do { author = try await appState.profileStore.publicProfile(userID: post.authorID) }
+            guard post.tag != "demo", let authorID = post.authorID, authorID != appState.currentProfile.id else { return }
+            do { author = try await appState.profileStore.publicProfile(userID: authorID) }
             catch { author = nil }
         }
     }
@@ -896,7 +896,7 @@ private struct ForumPostCard: View {
         if post.authorID == appState.currentProfile.id {
             return appState.currentProfile.username.isEmpty ? "You" : "@\(appState.currentProfile.username)"
         }
-        if let profile = author ?? appState.profileStore.profile(id: post.authorID) {
+        if let profile = author ?? post.authorID.flatMap { appState.profileStore.profile(id: $0) } {
             if !profile.username.isEmpty { return "@\(profile.username)" }
             if !profile.displayName.isEmpty { return profile.displayName }
         }
@@ -1340,7 +1340,7 @@ private struct ForumThreadView: View {
 
     private var forumAvatar: some View {
         Group {
-            if let profile = authors[post.authorID] ?? appState.profileStore.profile(id: post.authorID) {
+            if let profile = post.authorID.flatMap { authors[$0] ?? appState.profileStore.profile(id: $0) } {
                 ProfileAvatar(profile: profile, size: 38)
             } else {
                 Image(systemName: "person.crop.circle.fill").font(.title).foregroundStyle(Color.liftMuted).frame(width: 38, height: 38)
@@ -1348,7 +1348,8 @@ private struct ForumThreadView: View {
         }
     }
 
-    private func authorDisplayName(for authorID: UUID, isDemo: Bool) -> String {
+    private func authorDisplayName(for authorID: UUID?, isDemo: Bool) -> String {
+        guard let authorID else { return "Deleted account" }
         if isDemo { return "lift_rank_member" }
         if authorID == appState.currentProfile.id {
             return appState.currentProfile.username.isEmpty ? "You" : "@\(appState.currentProfile.username)"
@@ -1364,7 +1365,7 @@ private struct ForumThreadView: View {
         let isCollapsed = collapsedCommentIDs.contains(comment.id)
         let indentation = CGFloat(min(depth, 3) * (dynamicTypeSize.isAccessibilitySize ? 6 : 12))
         return HStack(alignment: .top, spacing: 10) {
-            if let profile = authors[comment.authorID] ?? appState.profileStore.profile(id: comment.authorID) {
+            if let profile = comment.authorID.flatMap { authors[$0] ?? appState.profileStore.profile(id: $0) } {
                 ProfileAvatar(profile: profile, size: 30)
             } else { Image(systemName: "person.crop.circle").foregroundStyle(Color.liftMuted).frame(width: 30, height: 30) }
             VStack(alignment: .leading, spacing: 8) {
@@ -1465,7 +1466,7 @@ private struct ForumThreadView: View {
     }
 
     private func displayComments(from comments: [ForumComment]) -> [(comment: ForumComment, depth: Int)] {
-        let comments = comments.filter { !appState.isBlocked($0.authorID) }
+        let comments = comments.filter { $0.authorID.map { appState.isBlocked($0) } != true }
         var rows: [(comment: ForumComment, depth: Int)] = []
         let byParent = Dictionary(grouping: comments, by: \.parentCommentID)
         let commentIDs = Set(comments.map(\.id))
@@ -1526,7 +1527,7 @@ private struct ForumThreadView: View {
                 do { communityName = try await appState.forumStore.communities().first { $0.id == groupID }?.name }
                 catch { communityName = "Community unavailable" }
             }
-            let authorIDs = Set(([post.authorID] + (thread?.comments.map(\.authorID) ?? [])))
+            let authorIDs = Set(([post.authorID] + (thread?.comments.map(\.authorID) ?? [])).compactMap { $0 })
             for authorID in authorIDs where authors[authorID] == nil {
                 do {
                     let profile = try await appState.profileStore.publicProfile(userID: authorID)
@@ -1620,7 +1621,8 @@ private struct ForumThreadView: View {
         } catch let watchError { error = watchError.localizedDescription }
     }
 
-    private func blockAuthor(_ authorID: UUID) async {
+    private func blockAuthor(_ authorID: UUID?) async {
+        guard let authorID else { return }
         guard !isBlockingAuthor else { return }
         isBlockingAuthor = true
         defer { isBlockingAuthor = false; blockingAuthorID = nil }

@@ -22,7 +22,7 @@ extension TrainingTrackerView {
                     .presentationDetents([.large])
             }
             .sheet(item: $selectedBodyweightEntry) { entry in
-                BodyweightEntryEditor(entry: entry) { appState.updateBodyweight($0) }
+                BodyweightEntryEditor(entry: entry) { try await appState.updateBodyweight($0) }
                     onDelete: { appState.deleteBodyweight($0) }
                     .presentationDetents([.medium])
             }

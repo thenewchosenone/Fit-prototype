@@ -177,7 +177,7 @@ extension AppState {
     }
 
     @discardableResult
-    func finishActiveWorkout(effort: Int, notes: String) -> CompletedWorkout? {
+    func finishActiveWorkout(effort: Int, notes: String, isPublic: Bool = false) -> CompletedWorkout? {
         workoutCompletionError = nil
         let completingUserID = accountSession?.userID
         let previousActiveWorkout = repository.activeWorkout
@@ -186,8 +186,12 @@ extension AppState {
         let previousDeletedIDs = repository.deletedCompletedWorkoutIDs
         let previousUploads = repository.pendingCompletedWorkoutUploads
         let previousAchievements = repository.achievementUnlocks
-        let completed = activeWorkoutStore.finish(effort: effort, notes: notes)
+        var completed = activeWorkoutStore.finish(effort: effort, notes: notes)
+        completed?.isPublic = isPublic
         if let completed {
+            if let index = repository.completedWorkouts.firstIndex(where: { $0.id == completed.id }) {
+                repository.completedWorkouts[index] = completed
+            }
             if isAuthenticated, !isDemoMode {
                 let ownerID = currentProfile.id
                 do {

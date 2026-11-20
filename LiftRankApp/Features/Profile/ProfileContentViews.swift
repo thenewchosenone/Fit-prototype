@@ -216,7 +216,7 @@ private struct ProfileLiftVideoDetailView: View {
                         .liftSurface()
 
                         if let playbackURL {
-                            ManagedVideoPlayer(url: playbackURL, retryAction: retryPlayback)
+                            ManagedVideoPlayer(url: playbackURL, retryPlayback: retryPlayback)
                                 .frame(height: 320)
                                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                                 .accessibilityIdentifier("profile.liftVideoPlayer")
@@ -574,7 +574,7 @@ struct EditProfileView: View {
             }
             .sheet(item: $selectedBodyweightEntry) { entry in
                 BodyweightEntryEditor(entry: entry) { updatedEntry in
-                    appState.updateBodyweight(updatedEntry)
+                    try await appState.updateBodyweight(updatedEntry)
                 } onDelete: { entry in
                     appState.deleteBodyweight(entry)
                 }

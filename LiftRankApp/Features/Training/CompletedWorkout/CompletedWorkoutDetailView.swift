@@ -119,7 +119,7 @@ struct CompletedWorkoutDetailView: View {
                                 }
                             }
 
-                            if !visibleNotes.isEmpty {
+                            if !displayedWorkout.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text("Notes")
                                         .font(LiftTypography.cardTitle)
@@ -311,7 +311,6 @@ private struct CompletedWorkoutEditView: View {
         _draft = State(initialValue: normalizedWorkout)
         originalDraft = normalizedWorkout
         _notes = State(initialValue: workout.notes)
-        originalNotes = workout.notes
         self.onSave = onSave
     }
 

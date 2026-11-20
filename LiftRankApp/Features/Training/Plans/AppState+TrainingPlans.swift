@@ -253,6 +253,36 @@ extension AppState {
         return true
     }
 
+    @discardableResult
+    func replacePlannedExercise(
+        _ prescription: WorkoutExercisePrescription,
+        in session: WorkoutSession,
+        with exercise: TrainingExerciseCatalogItem
+    ) -> Int {
+        guard activeWorkout == nil,
+              let planWeek = weeks(for: selectedWorkoutPlanID).first(where: { $0.id == session.weekID }) else { return 0 }
+        let completedSessionIDs = Set(completedWorkouts.compactMap(\.sourceSessionID))
+        let eligibleSessionIDs = Set(weeks(for: planWeek.planID).flatMap(sessions(for:)).filter { candidate in
+            guard candidate.outcome == nil,
+                  !completedSessionIDs.contains(candidate.id),
+                  activeWorkout?.sourceSessionID != candidate.id,
+                  !isFullyCompletedPlanSession(candidate) else { return false }
+            return prescriptions(for: candidate).allSatisfy { setLogs(for: $0).isEmpty }
+        }.map(\.id))
+        guard !eligibleSessionIDs.isEmpty else { return 0 }
+        let count = programStore.replaceExercise(
+            in: planWeek.planID,
+            matching: prescription.exerciseID,
+            with: exercise,
+            eligibleSessionIDs: eligibleSessionIDs
+        )
+        if count > 0 {
+            Task { await synchronizeWorkoutPlans() }
+            Haptics.success()
+        }
+        return count
+    }
+
     func updateSetLog(_ log: WorkoutSetLog) {
         activeWorkoutStore.updateSet(log)
     }

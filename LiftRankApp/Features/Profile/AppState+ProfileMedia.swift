@@ -26,20 +26,18 @@ extension AppState {
             return
         }
         let userID = profile.id
-        Task {
-            do {
-                guard accountSession?.userID == userID,
-                      repository.currentProfile.id == userID else { return }
-                try await profileStore.saveBodyweightEntry(entry)
-                guard accountSession?.userID == userID,
-                      repository.currentProfile.id == userID else { return }
-                trainingProgressStore.updateBodyweight(entry)
-                profileStore.saveProfile(profile)
-                repository.persistWorkoutSnapshotWithoutBlockingUI()
-            } catch {
-                guard accountSession?.userID == userID else { return }
-                accountMessage = userMessage(error)
-            }
+        do {
+            guard accountSession?.userID == userID,
+                  repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
+            try await profileStore.saveBodyweightEntry(entry)
+            guard accountSession?.userID == userID,
+                  repository.currentProfile.id == userID else { throw LiftRankServiceError.sessionExpired }
+            trainingProgressStore.updateBodyweight(entry)
+            profileStore.saveProfile(profile)
+            repository.persistWorkoutSnapshotWithoutBlockingUI()
+        } catch {
+            if accountSession?.userID == userID { accountMessage = userMessage(error) }
+            throw error
         }
     }
 

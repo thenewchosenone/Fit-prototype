@@ -912,7 +912,7 @@ extension HomeView {
         }
         .sheet(item: $selectedBodyweightEntry) { entry in
             BodyweightEntryEditor(entry: entry) { updatedEntry in
-                appState.updateBodyweight(updatedEntry)
+                try await appState.updateBodyweight(updatedEntry)
             } onDelete: { entry in
                 appState.deleteBodyweight(entry)
             }

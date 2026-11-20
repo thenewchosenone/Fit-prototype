@@ -610,13 +610,15 @@ struct BodyweightEntryEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft: BodyweightEntry
     @State private var showingDeleteConfirmation = false
+    @State private var saveError: String?
+    @State private var isSaving = false
     private let original: BodyweightEntry
     @State private var confirmingDiscard = false
     private var hasDraftChanges: Bool { draft != original }
-    let onSave: (BodyweightEntry) -> Void
+    let onSave: (BodyweightEntry) async throws -> Void
     let onDelete: (BodyweightEntry) -> Void
 
-    init(entry: BodyweightEntry, onSave: @escaping (BodyweightEntry) -> Void, onDelete: @escaping (BodyweightEntry) -> Void) {
+    init(entry: BodyweightEntry, onSave: @escaping (BodyweightEntry) async throws -> Void, onDelete: @escaping (BodyweightEntry) -> Void) {
         original = entry
         _draft = State(initialValue: entry)
         self.onSave = onSave

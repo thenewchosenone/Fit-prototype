@@ -172,10 +172,10 @@ extension LeaderboardsView {
                 if activeFilterCount > 0 {
                     Text("\(activeFilterCount)")
                         .font(.caption2.weight(.bold))
-                        .foregroundStyle(Color.leaderboardFilterSelectedText)
+                        .foregroundStyle(Color.liftOnAccent)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
-                        .background(Color.leaderboardFilterSelectedFill, in: Capsule())
+                        .background(Color.liftControlTint, in: Capsule())
                         .offset(x: -2, y: 2)
                 }
             }
@@ -218,10 +218,10 @@ extension LeaderboardsView {
         } label: {
             Text(title)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(isSelected ? Color.leaderboardFilterSelectedText : Color.liftMuted)
+                .foregroundStyle(isSelected ? Color.liftOnAccent : Color.liftMuted)
                 .frame(maxWidth: .infinity, minHeight: 38)
                 .padding(.horizontal, 6)
-                .background(isSelected ? Color.leaderboardFilterSelectedFill : Color.clear, in: Capsule())
+                .background(isSelected ? Color.liftControlTint : Color.clear, in: Capsule())
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
