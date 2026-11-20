@@ -3636,6 +3636,12 @@ final class LiftRankUITests: XCTestCase {
 
     func testExerciseLibrarySupportsSearchCreationAndFocusedDetails() {
         let app = launchDemo()
+        func capture(_ name: String) {
+            let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
         let track = tab("track", in: app)
         XCTAssertTrue(track.waitForExistence(timeout: 8))
         track.tap()

@@ -6,6 +6,7 @@ struct WorkoutProgramTemplateDetailView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let sourceTemplate: WorkoutProgramTemplate
+    let editingPlanID: UUID?
     var onUsePlan: (() -> Void)?
     @State private var trainingDays: Int
     @State private var method: WorkoutProgressionMethod
@@ -28,7 +29,7 @@ struct WorkoutProgramTemplateDetailView: View {
     }
     @State private var expandedSessionIndices: Set<Int> = [0]
 
-    init(template: WorkoutProgramTemplate, onUsePlan: (() -> Void)? = nil) {
+    init(template: WorkoutProgramTemplate, editingPlanID: UUID? = nil, onUsePlan: (() -> Void)? = nil) {
         self.onUsePlan = onUsePlan
         self.sourceTemplate = template
         self.editingPlanID = editingPlanID
@@ -114,7 +115,6 @@ struct WorkoutProgramTemplateDetailView: View {
                                         originalTrainingMaxKilograms = settings.trainingMaxKilograms
                                         originalSetup = (trainingDays, method, startDate, scheduledWeekdays, trainingMaxInputs)
                                         editingExisting = true
-                                        showingSetup = true
                                     }
                                     .disabled(appState.activeWorkout != nil)
                                     Button("Set up a new cycle") { startingNewCycle = true }
@@ -144,10 +144,6 @@ struct WorkoutProgramTemplateDetailView: View {
                         }
                         if let existingPlan, !startingNewCycle, !editingExisting {
                             if existingPlan.id == appState.selectedWorkoutPlanID || appState.selectWorkoutPlan(existingPlan.id) { onUsePlan?(); dismiss() }
-                            return
-                        }
-                        if !showingSetup {
-                            showingSetup = true
                             return
                         }
                         guard !didStart else { return }

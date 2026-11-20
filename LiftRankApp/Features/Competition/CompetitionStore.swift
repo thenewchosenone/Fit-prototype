@@ -748,53 +748,6 @@ final class CompetitionStore: ObservableObject {
         return submission
     }
 
-    func retryWorkoutPRVideo(submissionID: UUID, videoURL: URL) async -> Bool {
-        let userID = repository.currentProfile.id
-        guard let mediaUploadService,
-              var submission = repository.lifts.first(where: { $0.id == submissionID && $0.userID == userID }) else {
-            return false
-        }
-
-        let uploadID = UUID()
-        activeUploadID = uploadID
-        setUploadProgress(0)
-        do {
-            let asset = try await mediaUploadService.uploadLiftVideo(
-                localURL: videoURL,
-                liftID: submissionID,
-                progress: { [weak self] value in
-                    Task { @MainActor in
-                        guard self?.activeUploadID == uploadID else { return }
-                        self?.setUploadProgress(value)
-                    }
-                }
-            )
-            guard repository.currentProfile.id == userID else {
-                if activeUploadID == uploadID { activeUploadID = nil }
-                return false
-            }
-            submission.videoAssetID = asset.id
-            submission.evidenceStatus = .videoBacked
-            submission.verificationStatus = .videoVerified
-            submission.remoteVideoURL = try? await mediaUploadService.signedPlaybackURL(assetID: asset.id)
-            upsert(submission, refreshAchievements: false)
-            scheduleAchievementRefresh()
-            let movementName = submission.competitiveMovement?.rawValue ?? "noncanonical"
-            await track(.videoBackedPRSubmitted, userID: userID, properties: ["movement": movementName])
-            if activeUploadID == uploadID {
-                activeUploadID = nil
-                setUploadProgress(1)
-            }
-            return true
-        } catch {
-            if activeUploadID == uploadID {
-                activeUploadID = nil
-                setUploadProgress(0)
-            }
-            return false
-        }
-    }
-
     func playbackURL(for lift: LiftSubmission, forceRefresh: Bool = false) async -> URL? {
         let userID = repository.currentProfile.id
         if let localURL = lift.localVideoURL {

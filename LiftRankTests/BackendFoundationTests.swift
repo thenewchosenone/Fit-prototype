@@ -1,4 +1,5 @@
 import XCTest
+import Supabase
 import SwiftData
 import UIKit
 import AVFoundation
@@ -4910,7 +4911,8 @@ final class BackendFoundationTests: XCTestCase {
         onboardingCompleted: Bool,
         hasCurrentLegalAcceptance: Bool = true,
         includesLiftService: Bool = false,
-        profileError: Error? = nil
+        profileError: Error? = nil,
+        analytics: (any AnalyticsService)? = nil
     ) -> AppState {
         let repository = DemoRepository()
         let profile = TestProfileService(profile: AuthenticatedProfile(
@@ -5106,6 +5108,7 @@ private final class CountingWorkoutPersistenceStore: WorkoutPersistenceStore {
 
 @MainActor
 private final class GatedCompletedWorkoutUploadService: WorkoutSyncService {
+    func deletedWorkoutPlanIDs() async throws -> Set<UUID> { [] }
     var requestStarted = false
     private var snapshots: [CompletedWorkoutSnapshot] = []
     private var continuation: CheckedContinuation<Void, Never>?
@@ -5134,6 +5137,7 @@ private final class GatedCompletedWorkoutUploadService: WorkoutSyncService {
 
 @MainActor
 private final class FailingCompletedWorkoutSyncService: WorkoutSyncService {
+    func deletedWorkoutPlanIDs() async throws -> Set<UUID> { [] }
     var shouldFailUploads = true
     private var snapshots: [CompletedWorkoutSnapshot] = []
 
@@ -5155,6 +5159,7 @@ private final class FailingCompletedWorkoutSyncService: WorkoutSyncService {
 
 @MainActor
 private final class GatedCompletedWorkoutSyncService: WorkoutSyncService {
+    func deletedWorkoutPlanIDs() async throws -> Set<UUID> { [] }
     var requestStarted = false
     private let snapshotsToReturn: [CompletedWorkoutSnapshot]
     private var continuation: CheckedContinuation<[CompletedWorkoutSnapshot], Never>?
@@ -5284,6 +5289,7 @@ private final class WorkoutSyncMockURLProtocol: URLProtocol, @unchecked Sendable
 
 @MainActor
 private final class GatedWorkoutPlanSyncService: WorkoutSyncService {
+    func deletedWorkoutPlanIDs() async throws -> Set<UUID> { [] }
     var requestStarted = false
     private(set) var historyRequestStarted = false
     private let documentsToReturn: [WorkoutPlanDocument]
@@ -5323,6 +5329,7 @@ private final class GatedWorkoutPlanSyncService: WorkoutSyncService {
 
 @MainActor
 private final class GatedWorkoutPlanSaveService: WorkoutSyncService {
+    func deletedWorkoutPlanIDs() async throws -> Set<UUID> { [] }
     private let service: MockWorkoutSyncService
     private var saveContinuation: CheckedContinuation<Void, Never>?
     private var didGateSave = false
@@ -5361,6 +5368,7 @@ private final class GatedWorkoutPlanSaveService: WorkoutSyncService {
 
 @MainActor
 private final class GatedWorkoutPlanCleanupService: WorkoutSyncService {
+    func deletedWorkoutPlanIDs() async throws -> Set<UUID> { [] }
     private var documents: [WorkoutPlanDocument]
     private let snapshots: [CompletedWorkoutSnapshot]
     private var historyContinuation: CheckedContinuation<[CompletedWorkoutSnapshot], Never>?
@@ -5400,6 +5408,7 @@ private final class GatedWorkoutPlanCleanupService: WorkoutSyncService {
 
 @MainActor
 private final class GatedWorkoutPlanDeletionService: WorkoutSyncService {
+    func deletedWorkoutPlanIDs() async throws -> Set<UUID> { [] }
     var requestStarted = false
     private var continuation: CheckedContinuation<Void, Never>?
 

@@ -448,6 +448,11 @@ struct CompletedWorkout: Identifiable, Codable, Hashable {
     // Older history has no sharing decision and remains private.
     var isPublic: Bool? = true
 
+    var exercisesWithCompletedWorkingSets: [WorkoutExerciseSnapshot] {
+        let completedPrescriptionIDs = Set(completedWorkingSets.map(\.prescriptionID))
+        return exercises.filter { completedPrescriptionIDs.contains($0.id) }
+    }
+
     var completedWorkingSets: [WorkoutSetLog] {
         sets.filter { $0.isComplete && !$0.isWarmup }
     }
@@ -738,6 +743,7 @@ struct WorkoutPersistenceSnapshot: Codable, Hashable {
     var pendingCompletedWorkoutUploads: [CompletedWorkoutSnapshot]? = nil
     var deletedCompletedWorkoutIDs: Set<UUID>? = nil
     var syncedCompletedWorkoutIDs: Set<UUID>? = nil
+    var syncedBodyweightEntryIDs: Set<UUID>? = nil
     var workoutPlanSyncRevisions: [UUID: Int]? = nil
     var workoutPlanLastSyncedPayloads: [UUID: Data]? = nil
     var pendingRemoteWorkoutPlanDeletions: Set<UUID>? = nil

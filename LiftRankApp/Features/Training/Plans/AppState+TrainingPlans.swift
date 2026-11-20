@@ -743,6 +743,7 @@ extension AppState {
         }
         repository.workoutPlanProgressionSettings[index].startedAt = startDate
         repository.workoutPlanProgressionSettings[index].scheduledWeekdays = scheduledWeekdays
+        _ = programStore.setQueue(planID: planID, enabled: flexibleSessionOrder)
         let weekIDs = Set(weeks(for: planID).map(\.id))
         let protectedSessionIDs = protectedWorkoutSessionIDs
         for sessionIndex in repository.workoutSessions.indices {

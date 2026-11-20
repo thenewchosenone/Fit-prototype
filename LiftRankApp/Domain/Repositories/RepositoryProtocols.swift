@@ -134,6 +134,8 @@ protocol ProgramRepository: AnyObject {
     @discardableResult
     func addWorkoutPrescription(_ prescription: WorkoutExercisePrescription) -> WorkoutExercisePrescription
     func updateWorkoutPrescription(_ prescription: WorkoutExercisePrescription)
+    @discardableResult
+    func reorderWorkoutPrescriptions(sessionID: UUID, orderedIDs: [UUID]) -> Bool
     func deleteWorkoutPrescription(_ prescription: WorkoutExercisePrescription)
 
     @discardableResult

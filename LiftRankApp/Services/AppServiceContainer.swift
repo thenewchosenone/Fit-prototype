@@ -190,6 +190,7 @@ final class UnavailableLaunchService: LiftService, LeaderboardService, SocialSer
     func registerDevice(_ registration: PushDeviceRegistration) async throws { throw error }
     func revokeDevice(deviceID: String) async throws { throw error }
     func plans() async throws -> [WorkoutPlanDocument] { throw error }
+    func deletedWorkoutPlanIDs() async throws -> Set<UUID> { throw error }
     func savePlan(_ document: WorkoutPlanDocument, expectedRevision: Int) async throws -> WorkoutSyncResult { throw error }
     func deletePlan(id: UUID) async throws { throw error }
     func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot] { throw error }

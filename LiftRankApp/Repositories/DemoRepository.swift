@@ -338,6 +338,7 @@ final class DemoRepository: ObservableObject {
             pendingCompletedWorkoutUploads: pendingCompletedWorkoutUploads,
             deletedCompletedWorkoutIDs: deletedCompletedWorkoutIDs,
             syncedCompletedWorkoutIDs: syncedCompletedWorkoutIDs,
+            syncedBodyweightEntryIDs: syncedBodyweightEntryIDs,
             workoutPlanSyncRevisions: workoutPlanSyncRevisions,
             workoutPlanLastSyncedPayloads: workoutPlanLastSyncedPayloads,
             pendingRemoteWorkoutPlanDeletions: pendingRemoteWorkoutPlanDeletions,

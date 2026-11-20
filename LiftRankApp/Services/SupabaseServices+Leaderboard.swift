@@ -14,7 +14,7 @@ struct LeaderboardParameters: Encodable {
     let sexCategory: String?
     let weightMinKG: Double?
     let weightMaxKG: Double?
-    let verifiedOnly: Bool
+    let verifiedOnly: Bool?
     let timeRange: String
     let repetitionCount: Int?
     let cityIDFilter: UUID?
@@ -61,7 +61,7 @@ struct LeaderboardParameters: Encodable {
         else { try container.encodeNil(forKey: .weightMinKG) }
         if let weightMaxKG { try container.encode(weightMaxKG, forKey: .weightMaxKG) }
         else { try container.encodeNil(forKey: .weightMaxKG) }
-        try container.encode(verifiedOnly, forKey: .verifiedOnly)
+        if let verifiedOnly { try container.encode(verifiedOnly, forKey: .verifiedOnly) }
         try container.encode(timeRange, forKey: .timeRange)
         guard verifiedOnly != nil else { return }
         if let repetitionCount { try container.encode(repetitionCount, forKey: .repetitionCount) }

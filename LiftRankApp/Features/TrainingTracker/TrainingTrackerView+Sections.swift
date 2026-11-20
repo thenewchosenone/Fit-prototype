@@ -578,6 +578,13 @@ extension TrainingTrackerView {
                 .buttonStyle(LiftSecondaryButtonStyle())
             }
 
+            if let insight = visiblePlateauInsights.first {
+                PlateauAlertCard(insight: insight) {
+                    selectedPlateauInsight = insight
+                } dismiss: {
+                    dismissPlateauInsight(insight)
+                }
+            }
         }
     }
 

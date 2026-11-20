@@ -138,16 +138,10 @@ struct LeaderboardTabBar: View {
                         ForEach(types) { type in
                             tabButton(type)
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(selection == type ? .isSelected : [])
-                        .id(type.id)
                     }
                     .padding(.horizontal, 16)
                 }
                 .padding(.horizontal, 16)
-            }
-            .overlay(alignment: .bottom) {
-                Rectangle().fill(Color.liftOverlay).frame(height: 1)
             }
         }
         .overlay(alignment: .bottom) {
@@ -509,6 +503,7 @@ struct LeaderboardOptionSheet: View {
     let onSelect: (String) -> Void
     @State private var searchText = ""
     @State private var showsAllOptions = true
+    @FocusState private var isSearchFocused: Bool
     private var scopedOptions: [LeaderboardOption] {
         guard !showsAllOptions, preferredScopeTitle != nil, !preferredOptionIDs.isEmpty else { return options }
         return options.filter { preferredOptionIDs.contains($0.id) }
@@ -540,6 +535,11 @@ struct LeaderboardOptionSheet: View {
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: searchPrompt
                 )
+                .searchFocused($isSearchFocused)
+                .task {
+                    await Task.yield()
+                    isSearchFocused = true
+                }
         } else {
             sheetContent
                 .searchable(

@@ -38,6 +38,15 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
+    func deletedWorkoutPlanIDs() async throws -> Set<UUID> {
+        do {
+            let rows: [WorkoutPlanDeletionDTO] = try await client.from("workout_plan_deletions")
+                .select("plan_id")
+                .execute().value
+            return Set(rows.map(\.planID))
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
     func savePlan(_ document: WorkoutPlanDocument, expectedRevision: Int) async throws -> WorkoutSyncResult {
         guard !document.isSeededDemoData else { throw LiftRankServiceError.invalidInput("Demo data cannot be synced.") }
         do {

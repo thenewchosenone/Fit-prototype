@@ -331,24 +331,15 @@ struct ManagedVideoPlayer: View {
             .onDisappear {
                 player?.pause()
                 player = nil
-                statusObservation = nil
             }
     }
 
     private func preparePlayer() {
         player?.pause()
-        statusObservation = nil
         playbackFailed = false
         isLoading = true
         let item = AVPlayerItem(url: url)
         player = AVPlayer(playerItem: item)
-        statusObservation = item.observe(\.status, options: [.initial, .new]) { item, _ in
-            Task { @MainActor in
-                guard item === player?.currentItem else { return }
-                isLoading = item.status == .unknown
-                playbackFailed = item.status == .failed
-            }
-        }
     }
 }
 

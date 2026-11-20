@@ -543,6 +543,29 @@ final class SupabaseProfileService: ProfileService {
         catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
+    func profileCards(userIDs: [UUID]) async throws -> [PublicProfileCard] {
+        guard !userIDs.isEmpty else { return [] }
+        do {
+            let rows: [ProfileCardDTO] = try await client.rpc(
+                "get_profile_cards",
+                params: ["target_user_ids": userIDs]
+            ).execute().value
+            return rows.map(mapProfileCard)
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
+    private func mapProfileCard(_ dto: ProfileCardDTO) -> PublicProfileCard {
+        PublicProfileCard(
+            id: dto.id, username: dto.username, displayName: dto.displayName, bio: dto.bio,
+            avatarPath: dto.avatarPath, ageBand: dto.ageBand,
+            sexCategory: sex(dto.sexCategory), city: dto.city, region: dto.region,
+            countryCode: dto.countryCode, primaryGymID: dto.primaryGymID,
+            primaryGymName: dto.primaryGymName,
+            bodyweightPounds: dto.bodyweightPounds,
+            bodyweightLastUpdatedAt: dto.bodyweightLastUpdatedAt
+        )
+    }
+
     func uploadProfileAvatar(avatarPath: String, fullImageURL: URL, thumbnailURL: URL) async throws -> String {
         do {
             let userPath = try await client.auth.session.user.id.uuidString.lowercased()

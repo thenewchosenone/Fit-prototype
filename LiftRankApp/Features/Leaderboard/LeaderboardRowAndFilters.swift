@@ -208,7 +208,7 @@ struct LeaderboardFiltersView: View {
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Color.liftAccentText)
                                 .padding(12)
-                                .background(Color.leaderboardFilterOptionFill)
+                                .background(Color.liftBlue.opacity(0.10))
                                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                             }
 
@@ -545,8 +545,8 @@ struct LeaderboardFiltersView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
                 .frame(minHeight: 44)
-                .background(isActive ? Color.leaderboardFilterSelectedFill : Color.leaderboardFilterOptionFill)
-                .foregroundStyle(isActive ? Color.leaderboardFilterSelectedText : Color.liftAccentText)
+                .background(isActive ? Color.liftControlTint : Color.liftBlue.opacity(0.10))
+                .foregroundStyle(isActive ? Color.liftOnAccent : Color.liftAccentText)
                 .clipShape(Capsule())
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -565,7 +565,7 @@ struct LeaderboardFiltersView: View {
                 .font(LiftTypography.compactEmphasis)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .fixedSize(horizontal: false, vertical: true)
-                .background(Color.leaderboardFilterOptionFill)
+                .background(Color.liftBlue.opacity(0.10))
                 .foregroundStyle(Color.liftAccentText)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }

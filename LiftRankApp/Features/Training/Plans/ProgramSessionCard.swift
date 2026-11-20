@@ -4,7 +4,6 @@ struct ProgramSessionCard: View {
     @Environment(\.accessibilityReduceMotion) var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var appState: AppState
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedWorkout: CompletedWorkout?
     @State private var editingPrescription: WorkoutExercisePrescription?
     @State private var focusedSetID: UUID?

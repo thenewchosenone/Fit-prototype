@@ -116,7 +116,7 @@ struct ForumPost: Identifiable, Codable, Equatable, Sendable {
     var currentUserVote: Int?
     let attachments: [ForumAttachment]
 
-    init(id: UUID, communityID: UUID?, gymID: UUID?, authorID: UUID, kind: String, title: String, body: String, tag: String?, liftID: UUID?, isPinned: Bool, isLocked: Bool, createdAt: Date, voteCount: Int = 0, commentCount: Int = 0, currentUserVote: Int? = nil, attachments: [ForumAttachment] = []) {
+    init(id: UUID, communityID: UUID?, gymID: UUID?, authorID: UUID?, kind: String, title: String, body: String, tag: String?, liftID: UUID?, isPinned: Bool, isLocked: Bool, createdAt: Date, voteCount: Int = 0, commentCount: Int = 0, currentUserVote: Int? = nil, attachments: [ForumAttachment] = []) {
         self.id = id
         self.communityID = communityID
         self.gymID = gymID
@@ -341,6 +341,7 @@ extension NotificationService {
     func revokeDevice(deviceID: String) async throws {}
 }
 extension WorkoutSyncService {
+    func publicWorkoutSummaries(for userID: UUID) async throws -> [PublicWorkoutSummary] { throw LiftRankServiceError.configurationMissing }
     func deleteDuplicatePlan(_ document: WorkoutPlanDocument) async throws -> Bool { throw LiftRankServiceError.configurationMissing }
     func deleteCompletedWorkout(id: UUID) async throws { throw LiftRankServiceError.configurationMissing }
 }

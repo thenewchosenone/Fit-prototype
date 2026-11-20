@@ -41,6 +41,9 @@ final class MockAuthenticationService: AuthenticationService {
     }
     func resendConfirmation(email: String) async throws {
 #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTestingConfirmationResendFailure") {
+            throw LiftRankServiceError.networkUnavailable
+        }
         if ProcessInfo.processInfo.arguments.contains("-uiTestingEmailConfirmation") {
             if !didAttemptConfirmationResend {
                 didAttemptConfirmationResend = true
@@ -52,13 +55,6 @@ final class MockAuthenticationService: AuthenticationService {
         throw LiftRankServiceError.configurationMissing
     }
     func signIn(email: String, password: String) async throws -> AccountSession { throw LiftRankServiceError.invalidCredentials }
-    func resendConfirmation(email: String) async throws {
-#if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-uiTestingConfirmationResendFailure") {
-            throw LiftRankServiceError.networkUnavailable
-        }
-#endif
-    }
     func requestPasswordReset(email: String) async throws {}
     func signInWithApple(identityToken: String, nonce: String) async throws -> AccountSession { throw LiftRankServiceError.invalidCredentials }
     func signInDemo() async throws -> UserProfile {

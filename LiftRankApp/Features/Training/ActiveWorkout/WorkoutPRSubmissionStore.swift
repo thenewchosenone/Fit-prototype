@@ -11,7 +11,6 @@ protocol WorkoutPRLiftSubmitting: AnyObject {
         videoURL: URL?,
         submissionID: UUID
     ) async -> LiftSubmission?
-    func retryWorkoutPRVideo(submissionID: UUID, videoURL: URL) async -> Bool
 }
 
 @MainActor
@@ -100,10 +99,6 @@ final class WorkoutPRSubmissionStore {
     func retryFailedSubmissions() async {
         let retryable = pendingSubmissions.filter { $0.state == .failed || $0.state == .pending }
         for pending in retryable {
-            if let submissionID = pending.submissionID, let videoURL = pending.localVideoURL {
-                await retryVideo(pending, submissionID: submissionID, videoURL: videoURL)
-                continue
-            }
             guard let workout = repository.completedWorkouts.first(where: {
                 $0.id == pending.candidate.completedWorkoutID
             }) else { continue }
@@ -219,38 +214,6 @@ final class WorkoutPRSubmissionStore {
         } else {
             pending.state = .failed
             pending.lastError = "Upload could not be completed. It will remain available to retry."
-        }
-        pending.updatedAt = now()
-        repository.upsertPendingPRSubmission(pending)
-        repository.persistWorkoutSnapshot()
-    }
-
-    private func retryVideo(
-        _ pending: PendingWorkoutPRSubmission,
-        submissionID: UUID,
-        videoURL: URL
-    ) async {
-        var pending = pending
-        let userID = repository.currentProfile.id
-        pending.state = .uploading
-        pending.attemptCount += 1
-        pending.lastError = nil
-        pending.updatedAt = now()
-        repository.upsertPendingPRSubmission(pending)
-        repository.persistWorkoutSnapshot()
-
-        let uploaded = await liftSubmitter.retryWorkoutPRVideo(submissionID: submissionID, videoURL: videoURL)
-        guard repository.currentProfile.id == userID else {
-            resetAccountScopedQueueIfNeeded()
-            return
-        }
-        if uploaded {
-            pending.state = .submitted
-            pending.lastError = nil
-            videoStore.remove(videoURL)
-        } else {
-            pending.state = .failed
-            pending.lastError = "The lift was saved, but its video could not be uploaded. The recording is available to retry."
         }
         pending.updatedAt = now()
         repository.upsertPendingPRSubmission(pending)

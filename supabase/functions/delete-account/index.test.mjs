@@ -3,6 +3,9 @@ import {stripTypeScriptTypes} from 'node:module';
 import vm from 'node:vm';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {hasRecentAuthentication} from '../_shared/recent-authentication.js';
+import {ownedLiftEvidenceCleanupPaths} from '../_shared/account-storage-paths.js';
+import {selectAllRows} from '../_shared/paginated-select.js';
 
 const source=readFileSync(process.env.LIFTRIVALS_DELETE_ACCOUNT_SOURCE || new URL('./index.ts',import.meta.url),'utf8');
 const script=stripTypeScriptTypes(source.replace(/^import .*;\n/gm,''));
@@ -11,12 +14,12 @@ const owner='a1111111-1111-4111-8111-111111111111';
 function deletion({path=null,signedIn=true,cleanupError=false,profileError=false,apple=false}={}) {
   let handler;const calls=[];
   const userClient={auth:{getUser:async()=>({data:{user:signedIn?{id:owner,identities:apple?[{provider:'apple',identity_data:{sub:'apple-owner'}}]:[]}:null},error:null})}};
-  const admin={from(table){const query={select(){return query;},eq(key,value){assert.equal(value,owner);return query;},maybeSingle:async()=>({data:{avatar_path:path},error:profileError?new Error('read failed'):null}),then(resolve,reject){return Promise.resolve({data:[],error:null}).then(resolve,reject);}};return query;},storage:{from(bucket){return{list:async()=>({data:[],error:null}),remove:async paths=>{calls.push({bucket,paths:Array.from(paths)});return{error:cleanupError?new Error('storage unavailable'):null};}};}},auth:{admin:{deleteUser:async id=>{calls.push({deleteUser:id});return{error:null};}}}};
+  const admin={from(table){const query={select(){return query;},order(){return query;},range(){return query;},eq(key,value){assert.equal(value,owner);return query;},maybeSingle:async()=>({data:{avatar_path:path},error:profileError?new Error('read failed'):null}),then(resolve,reject){return Promise.resolve({data:[],error:null}).then(resolve,reject);}};return query;},storage:{from(bucket){return{list:async()=>({data:[],error:null}),remove:async paths=>{calls.push({bucket,paths:Array.from(paths)});return{error:cleanupError?new Error('storage unavailable'):null};}};}},auth:{admin:{deleteUser:async id=>{calls.push({deleteUser:id});return{error:null};}}}};
   vm.runInNewContext(script,{
     Deno:{env:{get:key=>({SUPABASE_URL:'https://example.invalid',SUPABASE_ANON_KEY:'public-test',SUPABASE_SERVICE_ROLE_KEY:'server-test-only'})[key]},serve:fn=>{handler=fn;}},
-    createClient:(url,key)=>key==='public-test'?userClient:admin,createRemoteJWKSet:()=>({}),URL,URLSearchParams,Request,Response,atob,
+    createClient:(url,key)=>key==='public-test'?userClient:admin,createRemoteJWKSet:()=>({}),hasRecentAuthentication,ownedLiftEvidenceCleanupPaths,selectAllRows,URL,URLSearchParams,Request,Response,atob,
   });
-  const request=({method='POST',body='{}',iat=Date.now()/1000,origin='https://liftrivals.com'}={})=>new Request('https://example.invalid/delete-account',{method,headers:{Authorization:`Bearer test.${Buffer.from(JSON.stringify({iat})).toString('base64url')}.test`,Origin:origin},...(method==='POST'?{body}:{})});
+  const request=({method='POST',body='{}',iat=Date.now()/1000,origin='https://liftrivals.com'}={})=>new Request('https://example.invalid/delete-account',{method,headers:{Authorization:`Bearer test.${Buffer.from(JSON.stringify({iat,amr:[{method:"password",timestamp:iat}]})).toString('base64url')}.test`,Origin:origin},...(method==='POST'?{body}:{})});
   return{calls,run:options=>handler(request(options))};
 }
 

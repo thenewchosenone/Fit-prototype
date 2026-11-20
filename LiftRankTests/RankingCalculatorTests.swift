@@ -120,8 +120,6 @@ private final class GatedWorkoutPRLiftSubmitter: WorkoutPRLiftSubmitting {
         }
     }
 
-    func retryWorkoutPRVideo(submissionID: UUID, videoURL: URL) async -> Bool { false }
-
     func releaseSubmission(_ submission: LiftSubmission? = nil) {
         release?.resume(returning: submission)
         release = nil
@@ -168,9 +166,7 @@ private final class FlakyWorkoutPRLiftSubmitter: WorkoutPRLiftSubmitting {
         )
     }
 
-    func retryWorkoutPRVideo(submissionID: UUID, videoURL: URL) async -> Bool {
-        await delegate.retryWorkoutPRVideo(submissionID: submissionID, videoURL: videoURL)
-    }
+
 }
 
 @MainActor
@@ -421,6 +417,7 @@ private struct FailingMediaUploadService: MediaUploadService {
 
 @MainActor
 private final class WorkoutSyncServiceStub: WorkoutSyncService {
+    func deletedWorkoutPlanIDs() async throws -> Set<UUID> { [] }
     var shouldFailDeletion = false
     var completedWorkoutSnapshots: [CompletedWorkoutSnapshot] = []
     private(set) var deletedIDs: [UUID] = []

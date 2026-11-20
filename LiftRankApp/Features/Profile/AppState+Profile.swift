@@ -91,7 +91,7 @@ extension AppState {
         unit: UnitSystem,
         bodyweightPounds: Double,
         gymID: UUID?,
-        visibility: LiftVisibility = .publicLift
+        visibility: LiftVisibility = .privateLift
     ) async throws {
         guard isAuthenticated, !isDemoMode else { return }
         guard bodyweightPounds > 0 else {
