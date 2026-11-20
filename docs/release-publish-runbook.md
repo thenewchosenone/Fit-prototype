@@ -199,6 +199,9 @@ branch because `main` still contains an older web app without the Auth dependenc
 The first [GitHub Actions run](https://github.com/thenewchosenone/Fit-prototype/actions/runs/41764623275)
 also passed all 10 guard tests, 7 mocked web tests, and the live staging suite,
 including verified deletion of both disposable accounts.
+The first [GitHub Actions run](https://github.com/thenewchosenone/Fit-prototype/actions/runs/41764623275)
+also passed all 10 guard tests, 7 mocked web tests, and the live staging suite,
+including verified deletion of both disposable accounts.
 
 ## 5) Remaining/remaining blockers (to be filled before publish)
 
