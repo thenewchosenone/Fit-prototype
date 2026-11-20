@@ -39,14 +39,12 @@
 	<string>$(LIFTRANK_SUPABASE_ANON_KEY)</string>
 	<key>LIFTRANK_BACKEND_ENVIRONMENT</key>
 	<string>$(LIFTRANK_BACKEND_ENVIRONMENT)</string>
+	<key>LIFTRANK_APNS_ENVIRONMENT</key>
+	<string>$(APS_ENVIRONMENT)</string>
 	<key>LIFTRANK_SUPABASE_URL</key>
 	<string>$(LIFTRANK_SUPABASE_URL)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSCameraUsageDescription</key>
-	<string>Lift Rivals can record lift videos for verification.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Lift Rivals lets you choose lift videos for verification.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchScreen</key>

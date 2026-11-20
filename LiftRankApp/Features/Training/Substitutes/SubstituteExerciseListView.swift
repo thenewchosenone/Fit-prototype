@@ -11,11 +11,11 @@ struct SubstituteExerciseListView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Alternatives to")
-                            .font(.caption.weight(.black))
+                            .font(LiftTypography.compactEmphasis)
                             .tracking(1)
                             .foregroundStyle(Color.liftAccentText)
                         Text(sourceExercise.name)
-                            .font(.title2.weight(.black))
+                            .font(.title2.weight(.bold))
                         Text("Choose an exercise to review its muscles, technique, history, and records.")
                             .font(.subheadline)
                             .foregroundStyle(Color.liftMuted)
@@ -29,16 +29,8 @@ struct SubstituteExerciseListView: View {
                                 Group {
                                     if dynamicTypeSize.isAccessibilitySize {
                                         VStack(alignment: .leading, spacing: 8) {
-                                            HStack {
-                                                ExerciseCatalogIcon(exercise: recommendation.exercise)
-                                                    .frame(width: 48, height: 48)
-                                                Spacer()
-                                                Image(systemName: "chevron.right")
-                                                    .font(.caption.weight(.bold))
-                                                    .foregroundStyle(Color.liftMuted)
-                                            }
                                             Text(recommendation.exercise.name)
-                                                .font(.subheadline.weight(.bold))
+                                                .font(LiftTypography.rowEmphasis)
                                                 .foregroundStyle(Color.liftText)
                                                 .fixedSize(horizontal: false, vertical: true)
                                             Text(recommendation.reasons.joined(separator: " • "))
@@ -48,11 +40,9 @@ struct SubstituteExerciseListView: View {
                                         }
                                     } else {
                                         HStack(spacing: 13) {
-                                            ExerciseCatalogIcon(exercise: recommendation.exercise)
-                                                .frame(width: 48, height: 48)
                                             VStack(alignment: .leading, spacing: 4) {
                                                 Text(recommendation.exercise.name)
-                                                    .font(.subheadline.weight(.bold))
+                                                    .font(LiftTypography.rowEmphasis)
                                                     .foregroundStyle(Color.liftText)
                                                 Text(recommendation.reasons.joined(separator: " • "))
                                                     .font(.caption)
@@ -61,7 +51,7 @@ struct SubstituteExerciseListView: View {
                                             }
                                             Spacer(minLength: 8)
                                             Image(systemName: "chevron.right")
-                                                .font(.caption.weight(.bold))
+                                                .font(LiftTypography.compactEmphasis)
                                                 .foregroundStyle(Color.liftMuted)
                                         }
                                     }

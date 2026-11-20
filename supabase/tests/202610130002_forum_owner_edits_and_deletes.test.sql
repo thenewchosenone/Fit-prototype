@@ -10,8 +10,8 @@ select has_function('public', 'delete_own_forum_post', array['uuid'], 'post dele
 select has_function('public', 'delete_own_forum_comment', array['uuid'], 'comment deletion RPC exists');
 select is_definer('public', 'delete_own_forum_post', array['uuid'], 'post deletion checks ownership server-side');
 select is_definer('public', 'delete_own_forum_comment', array['uuid'], 'comment deletion checks ownership server-side');
-select ok(position('search_path=pg_catalog, public' in pg_get_functiondef('public.delete_own_forum_post(uuid)'::regprocedure)) > 0, 'post deletion has a fixed search path');
-select ok(position('search_path=pg_catalog, public' in pg_get_functiondef('public.delete_own_forum_comment(uuid)'::regprocedure)) > 0, 'comment deletion has a fixed search path');
+select ok((select proconfig @> array['search_path=pg_catalog, public']::text[] from pg_proc where oid = 'public.delete_own_forum_post(uuid)'::regprocedure), 'post deletion has a fixed search path');
+select ok((select proconfig @> array['search_path=pg_catalog, public']::text[] from pg_proc where oid = 'public.delete_own_forum_comment(uuid)'::regprocedure), 'comment deletion has a fixed search path');
 select ok(has_function_privilege('authenticated', 'public.delete_own_forum_post(uuid)', 'EXECUTE'), 'authenticated users can request own post deletion');
 select ok(not has_function_privilege('anon', 'public.delete_own_forum_post(uuid)', 'EXECUTE'), 'anonymous users cannot request post deletion');
 select ok(has_function_privilege('authenticated', 'public.delete_own_forum_comment(uuid)', 'EXECUTE'), 'authenticated users can request own comment deletion');
@@ -50,8 +50,26 @@ select lives_ok($$update public.forum_comments set body = 'Edited comment' where
 select is((select body from public.forum_comments where id = '61000000-0000-0000-0000-000000000020'), 'Edited comment', 'comment edit is persisted');
 
 select set_config('request.jwt.claim.sub', '61000000-0000-0000-0000-000000000002', true);
-select is((with changed as (update public.forum_posts set title = 'Hijacked' where id = '61000000-0000-0000-0000-000000000010' returning 1) select count(*)::integer from changed), 0, 'another member cannot edit the post');
-select is((with changed as (update public.forum_comments set body = 'Hijacked' where id = '61000000-0000-0000-0000-000000000020' returning 1) select count(*)::integer from changed), 0, 'another member cannot edit the comment');
+select lives_ok($query$
+do $body$
+declare affected integer;
+begin
+  update public.forum_posts set title = 'Hijacked' where id = '61000000-0000-0000-0000-000000000010';
+  get diagnostics affected = row_count;
+  if affected <> 0 then raise exception 'unexpectedly updated % post rows', affected; end if;
+end
+$body$;
+$query$, 'another member cannot edit the post');
+select lives_ok($query$
+do $body$
+declare affected integer;
+begin
+  update public.forum_comments set body = 'Hijacked' where id = '61000000-0000-0000-0000-000000000020';
+  get diagnostics affected = row_count;
+  if affected <> 0 then raise exception 'unexpectedly updated % comment rows', affected; end if;
+end
+$body$;
+$query$, 'another member cannot edit the comment');
 select throws_ok($$select public.delete_own_forum_post('61000000-0000-0000-0000-000000000010')$$, '42501', 'Post not found or not owned by this account', 'another member cannot delete the post');
 select throws_ok($$select public.delete_own_forum_comment('61000000-0000-0000-0000-000000000020')$$, '42501', 'Comment not found or not owned by this account', 'another member cannot delete the comment');
 select is((select removed_at is null from public.forum_posts where id = '61000000-0000-0000-0000-000000000010'), true, 'rejected post deletion leaves the post visible');

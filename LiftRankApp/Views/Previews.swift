@@ -8,14 +8,6 @@ import SwiftUI
     .preferredColorScheme(.dark)
 }
 
-#Preview("Leaderboards") {
-    NavigationStack {
-        LeaderboardsView()
-    }
-    .environmentObject(AppState())
-    .preferredColorScheme(.dark)
-}
-
 #Preview("Submit Lift") {
     SubmitLiftView()
         .environmentObject(AppState())
@@ -59,7 +51,7 @@ private struct AnatomyPreviewMatrix: View {
                         ExerciseMuscleMap(profile: profile)
                             .frame(height: 190)
                         Text(name)
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                     }
                 }
             }

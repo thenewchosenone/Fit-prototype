@@ -5,20 +5,46 @@ struct WorkoutProgramTemplateDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    let template: WorkoutProgramTemplate
+    let sourceTemplate: WorkoutProgramTemplate
+    var onUsePlan: (() -> Void)?
+    @State private var trainingDays: Int
     @State private var method: WorkoutProgressionMethod
     @State private var startDate = Date.now
     @State private var scheduledWeekdays: [Int]
     @State private var trainingMaxInputs: [String: String] = [:]
+    @State private var originalTrainingMaxInputs: [String: String] = [:]
+    @State private var originalTrainingMaxKilograms: [String: Double] = [:]
     @State private var startingNewCycle = false
     @State private var didStart = false
     @State private var editingExisting = false
+    @State private var confirmingDiscard = false
+    @State private var originalSetup: (days: Int, method: WorkoutProgressionMethod, date: Date, weekdays: [Int], inputs: [String: String])?
+    private var hasDraftChanges: Bool {
+        guard let originalSetup else { return false }
+        return trainingDays != originalSetup.days || method != originalSetup.method
+            || startDate != originalSetup.date || scheduledWeekdays != originalSetup.weekdays
+            || trainingMaxInputs != originalSetup.inputs
+    }
     @State private var expandedSessionIndices: Set<Int> = [0]
 
-    init(template: WorkoutProgramTemplate) {
-        self.template = template
+    init(template: WorkoutProgramTemplate, onUsePlan: (() -> Void)? = nil) {
+        self.onUsePlan = onUsePlan
+        self.sourceTemplate = template
+        _trainingDays = State(initialValue: template.daysPerWeek)
         _method = State(initialValue: template.defaultProgression)
         _scheduledWeekdays = State(initialValue: template.sessions.map(\.dayIndex))
+    }
+
+    private var scheduleVariants: [WorkoutProgramTemplate] {
+        WorkoutProgramCatalog.scheduleVariants(for: sourceTemplate)
+    }
+
+    private var template: WorkoutProgramTemplate {
+        scheduleVariants.first { $0.daysPerWeek == trainingDays } ?? sourceTemplate
+    }
+
+    private var progressionMethods: [WorkoutProgressionMethod] {
+        template.availableProgressionMethods
     }
 
     private var canStart: Bool {
@@ -28,7 +54,12 @@ struct WorkoutProgramTemplateDetailView: View {
 
     private var parsedTrainingMaxKilograms: [String: Double] {
         trainingMaxInputs.reduce(into: [:]) { result, pair in
-            guard let value = Double(pair.value), value > 0 else { return }
+            if editingExisting, pair.value == originalTrainingMaxInputs[pair.key],
+               let kilograms = originalTrainingMaxKilograms[pair.key] {
+                result[pair.key] = kilograms
+                return
+            }
+            guard let value = Double(pair.value), value.isFinite, value > 0 else { return }
             result[pair.key] = appState.currentProfile.preferredUnit == .pounds
                 ? RankingCalculator.poundsToKilograms(value)
                 : value
@@ -37,7 +68,9 @@ struct WorkoutProgramTemplateDetailView: View {
 
     private var existingPlan: WorkoutPlan? {
         appState.workoutPlans.filter { plan in
-            appState.workoutPlanProgressionSettings.contains { $0.planID == plan.id && $0.sourceTemplateID == template.id }
+            appState.workoutPlanProgressionSettings.contains { settings in
+                settings.planID == plan.id && scheduleVariants.contains { $0.id == settings.sourceTemplateID }
+            }
         }.max { $0.createdAt < $1.createdAt }
     }
 
@@ -55,28 +88,34 @@ struct WorkoutProgramTemplateDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         overview
+                        sessionPreview
                         if let existingPlan, !startingNewCycle, !editingExisting {
                             LiftCard {
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("You already have this program").font(.headline)
-                                    Text("Resume keeps your schedule and progress. Start a new cycle to use the setup below; your previous history stays saved.")
+                                    Text("Resume keeps your schedule and progress.")
                                         .font(.caption).foregroundStyle(Color.liftMuted)
+                                    DisclosureGroup("Other setup options") {
                                     Button("Edit existing setup") {
                                         guard let settings = appState.workoutPlanProgressionSettings.first(where: { $0.planID == existingPlan.id }) else { return }
                                         startDate = settings.startedAt
+                                        trainingDays = settings.scheduledWeekdays.count
                                         scheduledWeekdays = settings.scheduledWeekdays
                                         method = settings.method
                                         trainingMaxInputs = settings.trainingMaxKilograms.mapValues {
                                             MeasurementFormatting.convert($0, from: .kilograms, to: appState.currentProfile.preferredUnit).formatted(.number.grouping(.never).precision(.fractionLength(1)))
                                         }
+                                        originalTrainingMaxInputs = trainingMaxInputs
+                                        originalTrainingMaxKilograms = settings.trainingMaxKilograms
+                                        originalSetup = (trainingDays, method, startDate, scheduledWeekdays, trainingMaxInputs)
                                         editingExisting = true
                                     }
                                     .disabled(appState.activeWorkout != nil)
                                     Button("Set up a new cycle") { startingNewCycle = true }
                                         .disabled(appState.activeWorkout != nil)
+                                    }
                                 }
                             }
-                            Text(existingPlan.name).font(.subheadline)
                         } else {
                             setup
                         }
@@ -84,8 +123,7 @@ struct WorkoutProgramTemplateDetailView: View {
                             Text("Finish or discard your active workout before changing programs.")
                                 .font(.caption).foregroundStyle(Color.liftGold)
                         }
-                        phaseSummary
-                        sessionPreview
+                        DisclosureGroup("12-week structure") { phaseSummary }
                     }
                     .padding(16)
                     .padding(.bottom, 100)
@@ -93,13 +131,13 @@ struct WorkoutProgramTemplateDetailView: View {
                 .scrollIndicators(.hidden)
                 .accessibilityIdentifier("training.programPreview.screen")
                 .safeAreaInset(edge: .bottom) {
-                    Button(editingExisting ? "Save setup changes" : (existingPlan != nil && !startingNewCycle ? "Resume existing program" : "Start new 12-week cycle")) {
+                    Button(editingExisting ? "Save setup changes" : (existingPlan != nil && !startingNewCycle ? (existingPlan?.id == appState.selectedWorkoutPlanID ? "View current plan" : "Use plan") : "Start new 12-week cycle")) {
                         if editingExisting, let existingPlan {
                             if appState.updateWorkoutProgramSetup(planID: existingPlan.id, startDate: startDate, scheduledWeekdays: scheduledWeekdays, method: method, trainingMaxKilograms: parsedTrainingMaxKilograms) { dismiss() }
                             return
                         }
                         if let existingPlan, !startingNewCycle, !editingExisting {
-                            if appState.selectWorkoutPlan(existingPlan.id) { dismiss() }
+                            if existingPlan.id == appState.selectedWorkoutPlanID || appState.selectWorkoutPlan(existingPlan.id) { onUsePlan?(); dismiss() }
                             return
                         }
                         guard !didStart else { return }
@@ -115,30 +153,60 @@ struct WorkoutProgramTemplateDetailView: View {
                         } else { didStart = false }
                     }
                     .buttonStyle(LiftPrimaryButtonStyle())
-                    .disabled(appState.activeWorkout != nil || didStart || ((existingPlan == nil || startingNewCycle || editingExisting) && !canStart))
+                    .disabled((appState.activeWorkout != nil && (existingPlan?.id != appState.selectedWorkoutPlanID || startingNewCycle || editingExisting)) || didStart || ((existingPlan == nil || startingNewCycle || editingExisting) && !canStart))
                     .accessibilityIdentifier("training.programPreview.start")
                     .padding(16)
                     .background(.ultraThinMaterial)
                 }
             }
-            .navigationTitle("Program Preview")
+            .navigationTitle(editingExisting ? "Edit Setup" : startingNewCycle ? "New Cycle" : "Program Preview")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                if editingExisting || startingNewCycle || existingPlan == nil {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { if hasDraftChanges { confirmingDiscard = true } else { dismiss() } }
+                    }
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Close", systemImage: "xmark") {
+                            if hasDraftChanges { confirmingDiscard = true } else { dismiss() }
+                        }.labelStyle(.iconOnly)
+                    }
+                }
+                if editingExisting || startingNewCycle {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Preview") {
+                            editingExisting = false
+                            startingNewCycle = false
+                        }
+                    }
                 }
             }
-            .onAppear { seedTrainingMaxesIfNeeded() }
+            .onAppear {
+                if scheduleVariants.count > 1, let existingPlan,
+                   let settings = appState.workoutPlanProgressionSettings.first(where: { $0.planID == existingPlan.id }) {
+                    trainingDays = settings.scheduledWeekdays.count
+                    scheduledWeekdays = settings.scheduledWeekdays
+                    method = settings.method
+                }
+                seedTrainingMaxesIfNeeded()
+                if originalSetup == nil { originalSetup = (trainingDays, method, startDate, scheduledWeekdays, trainingMaxInputs) }
+            }
             .onChange(of: method) { _, value in
                 if value == .percentage { seedTrainingMaxesIfNeeded() }
             }
+        }
+        .interactiveDismissDisabled(hasDraftChanges)
+        .alert("Discard changes?", isPresented: $confirmingDiscard) {
+            Button("Discard changes", role: .destructive) { dismiss() }
+            Button("Keep editing", role: .cancel) {}
         }
     }
 
     private var overview: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(template.name)
-                .font(.title2.weight(.black))
+                .font(.title2.weight(.bold))
             Text(template.summary)
                 .font(.subheadline)
                 .foregroundStyle(Color.liftMuted)
@@ -162,6 +230,29 @@ struct WorkoutProgramTemplateDetailView: View {
         LiftCard {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Program setup").font(.headline)
+                if scheduleVariants.count > 1 {
+                    if editingExisting {
+                        Text("This cycle uses \(trainingDays) training days per week. Start a new cycle to change the number of days; you can reschedule weekdays below.")
+                            .font(.caption).foregroundStyle(Color.liftMuted)
+                    } else {
+                        Picker("Days per week", selection: Binding(
+                            get: { trainingDays },
+                            set: { days in
+                                guard let variant = scheduleVariants.first(where: { $0.daysPerWeek == days }) else { return }
+                                trainingDays = days
+                                scheduledWeekdays = variant.sessions.map(\.dayIndex)
+                                expandedSessionIndices = [0]
+                            }
+                        )) {
+                            ForEach(scheduleVariants) { variant in
+                                Text("\(variant.daysPerWeek) days").tag(variant.daysPerWeek)
+                            }
+                        }
+                        .accessibilityIdentifier("training.programPreview.daysPerWeek")
+                        Text("The split and working sets change to fit your schedule. Preview the training days below before starting.")
+                            .font(.caption).foregroundStyle(Color.liftMuted)
+                    }
+                }
                 if editingExisting {
                     if dynamicTypeSize.isAccessibilitySize {
                         VStack(alignment: .leading, spacing: 6) {
@@ -172,8 +263,10 @@ struct WorkoutProgramTemplateDetailView: View {
                     } else {
                         DatePicker("Cycle start date", selection: $startDate, displayedComponents: .date)
                     }
-                    Text("Schedule changes affect unrecorded sessions. Saved workouts keep their performed dates. Progression changes apply from the current program week onward.")
-                        .font(.caption).foregroundStyle(Color.liftMuted)
+                    DisclosureGroup("Which workouts will change?") {
+                        Text("Schedule changes affect unrecorded sessions. Saved workouts keep their performed dates. Progression changes apply from the current program week onward.")
+                            .font(.caption).foregroundStyle(Color.liftMuted)
+                    }
                 } else {
                     if dynamicTypeSize.isAccessibilitySize {
                         VStack(alignment: .leading, spacing: 6) {
@@ -185,19 +278,21 @@ struct WorkoutProgramTemplateDetailView: View {
                         DatePicker("Start date", selection: $startDate, in: Calendar.current.startOfDay(for: .now)..., displayedComponents: .date)
                     }
                 }
-                Text("Weeks advance every seven days from this date. Missed workouts stay available. Use the session queue in Plans to train in order instead.")
-                    .font(.caption).foregroundStyle(Color.liftMuted)
+                DisclosureGroup("How scheduling works") {
+                    Text("Weeks advance every seven days from this date. Missed workouts stay available. Choose session order in Plan options to train without fixed weekdays.")
+                        .font(.caption).foregroundStyle(Color.liftMuted)
+                }
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Progression").font(.caption.weight(.bold)).foregroundStyle(Color.liftMuted)
-                    ForEach(WorkoutProgressionMethod.allCases) { option in
+                    Text("Progression").font(LiftTypography.compactEmphasis).foregroundStyle(Color.liftMuted)
+                    ForEach(progressionMethods) { option in
                         ProgramChoiceRow(title: option.rawValue, isSelected: method == option) { method = option }
                     }
-                    Text("Reps in reserve (RIR) means how many more reps you could complete with good form.")
+                    Text(method.guidance)
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Training days").font(.caption.weight(.bold)).foregroundStyle(Color.liftMuted)
+                    Text("Training days").font(LiftTypography.compactEmphasis).foregroundStyle(Color.liftMuted)
                     ForEach(Array(template.sessions.enumerated()), id: \.offset) { index, session in
                         Group {
                             if dynamicTypeSize.isAccessibilitySize {
@@ -242,11 +337,15 @@ struct WorkoutProgramTemplateDetailView: View {
     private var trainingMaxFields: some View {
         VStack(alignment: .leading, spacing: 9) {
             Text("Training maxes")
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .foregroundStyle(Color.liftMuted)
             Text("A training max (TM) sets your program’s weights. Suggested values use 90% of your best recorded or estimated one-rep max (1RM). Review them before starting.")
                 .font(.caption2)
                 .foregroundStyle(Color.liftMuted)
+            Button("I don't know my max") { method = .fixed }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.liftAccentText)
+                .accessibilityHint("Uses Fixed Sets + Reps. You choose the weight when logging each set.")
             ForEach(template.requiredTrainingMaxExerciseIDs, id: \.self) { exerciseID in
                 HStack {
                     Text(exerciseName(exerciseID))
@@ -263,15 +362,23 @@ struct WorkoutProgramTemplateDetailView: View {
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
+                if let source = appState.suggestedTrainingMaxSource(for: exerciseID) {
+                    Text("Suggestion source: \(source). You can edit this value before starting.")
+                        .font(.caption2)
+                        .foregroundStyle(Color.liftMuted)
+                } else {
+                    Text("No matching history found. Enter a conservative value before starting.")
+                        .font(.caption2)
+                        .foregroundStyle(Color.liftMuted)
+                }
             }
         }
     }
 
     private var phaseSummary: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text("12-week structure").font(.headline)
             ForEach(WorkoutProgramCatalog.phaseSummary(for: template), id: \.self) { title in
-                Label(title, systemImage: "checkmark.circle.fill")
+                Text(title)
                     .font(.subheadline)
                     .foregroundStyle(Color.liftMuted)
             }
@@ -283,10 +390,19 @@ struct WorkoutProgramTemplateDetailView: View {
         let workingSetCount = template.sessions.enumerated().reduce(0) { total, item in
             total + item.element.exercises.enumerated().reduce(0) { $0 + (preview($1.element, sessionIndex: item.offset, exerciseIndex: $1.offset)?.sets ?? 0) }
         }
+        let setsByMuscle = template.sessions.enumerated().reduce(into: [String: Int]()) { totals, session in
+            for (exerciseIndex, prescription) in session.element.exercises.enumerated() {
+                let exercise = templateExercise(for: prescription)
+                let sets = preview(prescription, sessionIndex: session.offset, exerciseIndex: exerciseIndex)?.sets ?? prescription.sets
+                for muscle in exercise.resolvedMuscleProfile.primary {
+                    totals[muscle.displayName, default: 0] += sets
+                }
+            }
+        }
         let allExpanded = expandedSessionIndices.count == template.sessions.count
         let previewHeading = VStack(alignment: .leading, spacing: 3) {
-            Text("Week 1 preview")
-                .font(.title3.weight(.black))
+            Text("Template · Week 1 preview")
+                .font(LiftTypography.sectionTitle)
             Text("Tap a training day to view its exercises")
                 .font(.caption)
                 .foregroundStyle(Color.liftMuted)
@@ -294,7 +410,7 @@ struct WorkoutProgramTemplateDetailView: View {
         let expandButton = Button(allExpanded ? "Collapse" : "Expand all") {
             toggleAllSessions(expand: !allExpanded)
         }
-        .font(.caption.weight(.bold))
+        .font(LiftTypography.compactEmphasis)
         .foregroundStyle(Color.liftAccentText)
         .frame(minHeight: 44)
         .buttonStyle(.plain)
@@ -327,6 +443,20 @@ struct WorkoutProgramTemplateDetailView: View {
                 }
             }
 
+            DisclosureGroup("Weekly working sets by muscle") {
+                VStack(spacing: 8) {
+                    ForEach(setsByMuscle.keys.sorted(), id: \.self) { muscle in
+                        HStack {
+                            Text(muscle)
+                            Spacer()
+                            Text("\(setsByMuscle[muscle] ?? 0) sets").monospacedDigit()
+                        }
+                    }
+                }
+                .font(.caption)
+                .padding(.top, 8)
+            }
+
             ForEach(Array(template.sessions.enumerated()), id: \.offset) { index, session in
                 weeklySessionCard(session, index: index)
             }
@@ -336,10 +466,10 @@ struct WorkoutProgramTemplateDetailView: View {
     private func weeklyMetric(value: String, label: String) -> some View {
         VStack(spacing: 3) {
             Text(value)
-                .font(.headline.weight(.black).monospacedDigit())
+                .font(.headline.weight(.bold).monospacedDigit())
                 .foregroundStyle(Color.liftText)
             Text(label)
-                .font(dynamicTypeSize.isAccessibilitySize ? .caption.weight(.black) : .system(size: 9, weight: .black, design: .rounded))
+                .font(dynamicTypeSize.isAccessibilitySize ? .caption.weight(.bold) : .system(size: 9, weight: .bold))
                 .tracking(dynamicTypeSize.isAccessibilitySize ? 0 : 0.7)
                 .foregroundStyle(Color.liftMuted)
         }
@@ -366,16 +496,16 @@ struct WorkoutProgramTemplateDetailView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text(weekday)
-                                    .font(.subheadline.weight(.bold))
+                                    .font(LiftTypography.rowEmphasis)
                                     .foregroundStyle(Color.liftAccentText)
                                 Spacer()
                                 Image(systemName: "chevron.down")
-                                    .font(.caption.weight(.bold))
+                                    .font(LiftTypography.compactEmphasis)
                                     .foregroundStyle(isExpanded ? Color.liftAccentText : Color.liftMuted)
                                     .rotationEffect(.degrees(isExpanded ? 180 : 0))
                             }
                             Text(session.name)
-                                .font(.headline.weight(.bold))
+                                .font(LiftTypography.cardTitle)
                                 .foregroundStyle(Color.liftText)
                                 .fixedSize(horizontal: false, vertical: true)
                             Text("\(session.exercises.count) exercises · \(setCount) working sets")
@@ -386,7 +516,7 @@ struct WorkoutProgramTemplateDetailView: View {
                         HStack(spacing: 12) {
                             VStack(spacing: 1) {
                                 Text(String(weekday.prefix(3)).uppercased())
-                                    .font(.system(size: 9, weight: .black, design: .rounded))
+                                    .font(.caption2.weight(.bold))
                                     .tracking(0.4)
                             }
                             .foregroundStyle(Color.liftAccentText)
@@ -396,7 +526,7 @@ struct WorkoutProgramTemplateDetailView: View {
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(session.name)
-                                    .font(.subheadline.weight(.bold))
+                                    .font(LiftTypography.rowEmphasis)
                                     .foregroundStyle(Color.liftText)
                                 Text("\(session.exercises.count) exercises · \(setCount) working sets")
                                     .font(.caption)
@@ -406,7 +536,7 @@ struct WorkoutProgramTemplateDetailView: View {
                             Spacer(minLength: 6)
 
                             Image(systemName: "chevron.down")
-                                .font(.caption.weight(.bold))
+                                .font(LiftTypography.compactEmphasis)
                                 .foregroundStyle(isExpanded ? Color.liftAccentText : Color.liftMuted)
                                 .rotationEffect(.degrees(isExpanded ? 180 : 0))
                         }
@@ -435,7 +565,7 @@ struct WorkoutProgramTemplateDetailView: View {
                                 return "\(MeasurementFormatting.formatDisplayedWeight(load, unit: appState.currentProfile.preferredUnit)) · \(Int(((generated?.trainingMaxPercentage ?? 0) * 100).rounded()))% TM"
                             } else if let percentage = generated?.trainingMaxPercentage {
                                 return "\(Int((percentage * 100).rounded()))% TM"
-                            } else if let rir = generated?.targetRIR {
+                            } else if !ExerciseTrackingKind(exercise.trackingType).usesDuration, let rir = generated?.targetRIR {
                                 return "\(rir) reps in reserve"
                             }
                             return nil
@@ -444,7 +574,7 @@ struct WorkoutProgramTemplateDetailView: View {
                             if dynamicTypeSize.isAccessibilitySize {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text(exercise.name)
-                                        .font(.headline.weight(.bold))
+                                        .font(LiftTypography.cardTitle)
                                         .foregroundStyle(Color.liftText)
                                         .fixedSize(horizontal: false, vertical: true)
                                     Text(exercise.resolvedMuscleProfile.primaryDescription)
@@ -465,12 +595,9 @@ struct WorkoutProgramTemplateDetailView: View {
                                 }
                             } else {
                                 HStack(spacing: 12) {
-                                    ExerciseCatalogIcon(exercise: exercise)
-                                        .frame(width: 40, height: 40)
-
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(exercise.name)
-                                            .font(.caption.weight(.bold))
+                                            .font(LiftTypography.compactEmphasis)
                                             .foregroundStyle(Color.liftText)
                                             .lineLimit(1)
                                         Text(exercise.resolvedMuscleProfile.primaryDescription)
@@ -628,9 +755,10 @@ struct WorkoutProgramProgressionEditorView: View {
                         Text("Changes apply to unstarted sessions in the current and future weeks. Recorded or skipped sessions, substitutions, exercise order, and the active workout stay unchanged.")
                             .font(.subheadline)
                             .foregroundStyle(Color.liftMuted)
-                        ForEach(WorkoutProgressionMethod.allCases) { option in
+                        ForEach(template.availableProgressionMethods) { option in
                             ProgramChoiceRow(title: option.rawValue, isSelected: method == option) { method = option }
                         }
+                        Text(method.guidance).font(.caption).foregroundStyle(Color.liftMuted)
                         if method == .percentage {
                             LiftCard {
                                 VStack(alignment: .leading, spacing: 10) {

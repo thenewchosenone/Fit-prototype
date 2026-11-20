@@ -263,22 +263,62 @@ private extension UIImage {
 
 struct ManagedVideoPlayer: View {
     let url: URL
+    var playsOnOpen = false
+    var retryPlayback: (() -> Void)? = nil
+    @State private var startedPlayback = false
 
     @State private var player: AVPlayer?
+    @State private var playbackFailed = false
+    @State private var isLoading = true
+    @State private var retryID = UUID()
 
     var body: some View {
         ZStack {
             Color.black
-            if let player {
+            if playbackFailed {
+                VStack(spacing: 12) {
+                    Image(systemName: "video.slash")
+                        .font(.title2)
+                    Text("Video unavailable")
+                        .font(.headline)
+                    Text("The video file is unavailable or could not be loaded.")
+                        .font(.caption)
+                        .multilineTextAlignment(.center)
+                    Button("Retry") { if let retryPlayback { retryPlayback() } else { retryID = UUID() } }
+                        .buttonStyle(.bordered)
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
+                }
+                .foregroundStyle(.white)
+                .padding()
+            } else if let player, let item = player.currentItem {
                 VideoPlayer(player: player)
+                    .onReceive(item.publisher(for: \.status)) { status in
+                        isLoading = status == .unknown
+                        if status == .readyToPlay && playsOnOpen && !startedPlayback {
+                            startedPlayback = true
+                            player.play()
+                        }
+                        if status == .failed {
+                            player.pause()
+                            playbackFailed = true
+                        }
+                    }
+                if isLoading {
+                    ProgressView("Loading video…")
+                        .tint(.white)
+                        .foregroundStyle(.white)
+                }
             } else {
                 ProgressView()
                     .tint(.white)
             }
         }
-            .task(id: url) {
+            .task(id: "\(url.absoluteString)|\(retryID)") {
                 player?.pause()
                 player = nil
+                playbackFailed = false
+                startedPlayback = false
+                isLoading = true
                 await Task.yield()
                 guard !Task.isCancelled else { return }
                 player = AVPlayer(url: url)

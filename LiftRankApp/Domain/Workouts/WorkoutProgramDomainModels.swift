@@ -1,10 +1,26 @@
 import Foundation
+import CryptoKit
 
 struct WorkoutSetEntry: Identifiable, Codable, Hashable {
     var id: UUID
     var weight: Double?
     var reps: Int?
     var rpe: Int?
+}
+
+enum WorkoutScheduleMode: String, CaseIterable, Identifiable {
+    case weekdays = "Fixed weekdays"
+    case inOrder = "In order"
+    case flexible = "Flexible days"
+
+    var id: String { rawValue }
+    var explanation: String {
+        switch self {
+        case .weekdays: return "Assign workouts to specific days of the week."
+        case .inOrder: return "Train whenever you can, following the workout order."
+        case .flexible: return "Choose any workout when you train. No fixed days or required order."
+        }
+    }
 }
 
 struct WorkoutPlan: Identifiable, Codable, Hashable {
@@ -16,9 +32,13 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
     var isActive: Bool = true
     var queueEnabled: Bool = false
     var queuedSessionIDs: [UUID] = []
+    var allowsAnyOrder: Bool = false
+    var scheduleMode: WorkoutScheduleMode {
+        queueEnabled ? (allowsAnyOrder ? .flexible : .inOrder) : .weekdays
+    }
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, createdAt, goal, notes, isActive, queueEnabled, queuedSessionIDs
+        case id, name, createdAt, goal, notes, isActive, queueEnabled, queuedSessionIDs, allowsAnyOrder
     }
 
     init(
@@ -29,7 +49,8 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
         notes: String = "",
         isActive: Bool = true,
         queueEnabled: Bool = false,
-        queuedSessionIDs: [UUID] = []
+        queuedSessionIDs: [UUID] = [],
+        allowsAnyOrder: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -39,6 +60,7 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
         self.isActive = isActive
         self.queueEnabled = queueEnabled
         self.queuedSessionIDs = queuedSessionIDs
+        self.allowsAnyOrder = allowsAnyOrder
     }
 
     init(from decoder: Decoder) throws {
@@ -51,6 +73,7 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
         isActive = try container.decodeIfPresent(Bool.self, forKey: .isActive) ?? true
         queueEnabled = try container.decodeIfPresent(Bool.self, forKey: .queueEnabled) ?? false
         queuedSessionIDs = try container.decodeIfPresent([UUID].self, forKey: .queuedSessionIDs) ?? []
+        allowsAnyOrder = try container.decodeIfPresent(Bool.self, forKey: .allowsAnyOrder) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -63,15 +86,103 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
         try container.encode(isActive, forKey: .isActive)
         try container.encode(queueEnabled, forKey: .queueEnabled)
         try container.encode(queuedSessionIDs, forKey: .queuedSessionIDs)
+        try container.encode(allowsAnyOrder, forKey: .allowsAnyOrder)
     }
 }
 
 enum WorkoutProgressionMethod: String, CaseIterable, Codable, Hashable, Identifiable {
     case rirRepRange = "RIR + Rep Range"
+    case adaptive = "Adaptive Rep Range"
+    case linear = "Beginner Linear Progression"
     case percentage = "Percentage"
     case fixed = "Fixed Sets + Reps"
 
     var id: String { rawValue }
+
+    var guidance: String {
+        switch self {
+        case .adaptive:
+            "RIR is reps left; RPE is effort out of 10. Choose your first weight and log every working set. Matching workouts in this plan guide the next load: add 1 kg or 2.5 lb when all sets reach the top of the range at the target effort; reduce about 5% after missing minimum reps; otherwise hold. Incomplete sets or missing RPE never trigger an increase. Mixed loads and timed exercises need manual load selection."
+        case .linear:
+            "Choose a conservative first weight. Complete every working set and rep to add 2.5 kg or 5 lb at the next occurrence of that lift. After a missed rep target, repeat the weight. Three consecutive completed attempts that miss reps at the same weight trigger a reset of about 10%. Incomplete or mixed-load sessions do not trigger increases or resets. Weeks 4, 8, and 12 use lighter loads and do not count toward progression. RPE is optional."
+        case .rirRepRange:
+            "Reps in reserve (RIR) means how many more reps you could complete with good form. Choose and adjust your own working weights."
+        case .percentage:
+            "Working weights follow the weekly percentage of your training max. Update your training max manually as needed."
+        case .fixed:
+            "Follow the prescribed sets and reps, choosing your own working weights."
+        }
+    }
+}
+
+enum WorkoutAdaptiveProgression {
+    static func restSeconds(base: Int, rpe: Int?) -> Int {
+        guard base > 0, let rpe, (1...10).contains(rpe) else { return base }
+        if rpe >= 9 { return base + 30 }
+        if rpe <= 6 { return max(min(base, 30), base - 15) }
+        return base
+    }
+
+    static func loadKilograms(for exercise: WorkoutExerciseSnapshot, sets: [WorkoutSetLog], unit: UnitSystem) -> Double? {
+        let parts = exercise.targetReps.split(separator: "-", omittingEmptySubsequences: false)
+        let bounds = parts.compactMap { Int($0) }
+        guard (1...2).contains(bounds.count), bounds.count == parts.count,
+              let minimum = bounds.first, let maximum = bounds.last, minimum > 0, maximum >= minimum,
+              exercise.targetSets > 0 else { return nil }
+        guard let performance = workingPerformance(for: exercise, sets: sets) else { return nil }
+        let load = performance.loadKilograms
+        let completed = performance.sets
+        let step = unit == .kilograms ? 1.0 : RankingCalculator.poundsToKilograms(2.5)
+        if completed.contains(where: { ($0.reps ?? 0) < minimum }) {
+            return min(load, max(step, (load * 0.95 / step).rounded(.down) * step))
+        }
+        if performance.allSetsComplete, let rir = exercise.targetRIR,
+           completed.allSatisfy({ ($0.reps ?? 0) >= maximum && $0.rpe.map { (1...10).contains($0) && $0 <= 10 - rir } == true }) {
+            return load + step
+        }
+        return load
+    }
+
+    static func linearLoadKilograms(
+        history: [(exercise: WorkoutExerciseSnapshot, sets: [WorkoutSetLog])],
+        unit: UnitSystem,
+        isDeload: Bool
+    ) -> Double? {
+        guard let latest = history.first, let goal = Int(latest.exercise.targetReps), goal > 0,
+              let performance = workingPerformance(for: latest.exercise, sets: latest.sets) else { return nil }
+        let load = performance.loadKilograms
+        if isDeload { return load * 0.9 }
+        guard performance.allSetsComplete else { return load }
+        let step = unit == .kilograms ? 2.5 : RankingCalculator.poundsToKilograms(5)
+        if performance.sets.allSatisfy({ ($0.reps ?? 0) >= goal }) { return load + step }
+        var stalls = 0
+        for attempt in history.prefix(3) {
+            guard attempt.exercise.targetReps == latest.exercise.targetReps,
+                  attempt.exercise.targetSets == latest.exercise.targetSets,
+                  let prior = workingPerformance(for: attempt.exercise, sets: attempt.sets),
+                  prior.allSetsComplete, abs(prior.loadKilograms - load) < 0.01,
+                  prior.sets.contains(where: { ($0.reps ?? 0) < goal }) else { break }
+            stalls += 1
+        }
+        return stalls == 3 ? min(load, max(step, (load * 0.9 / step).rounded(.down) * step)) : load
+    }
+
+    private static func workingPerformance(
+        for exercise: WorkoutExerciseSnapshot,
+        sets: [WorkoutSetLog]
+    ) -> (loadKilograms: Double, sets: [WorkoutSetLog], allSetsComplete: Bool)? {
+        guard exercise.targetSets > 0 else { return nil }
+        let completed = sets.filter {
+            $0.prescriptionID == exercise.id && !$0.isWarmup && $0.isComplete && (1...exercise.targetSets).contains($0.setNumber)
+        }
+        let loads = completed.compactMap { log -> Double? in
+            guard let weight = log.weight, weight.isFinite, weight > 0, let reps = log.reps, reps >= 0 else { return nil }
+            return log.recordedUnit == .kilograms ? weight : RankingCalculator.poundsToKilograms(weight)
+        }
+        guard let load = loads.first, loads.count == completed.count,
+              loads.allSatisfy({ abs($0 - load) < 0.01 }) else { return nil }
+        return (load, completed, completed.count == exercise.targetSets && Set(completed.map(\.setNumber)).count == exercise.targetSets)
+    }
 }
 
 enum WorkoutProgramCategory: String, CaseIterable, Codable, Hashable, Identifiable {
@@ -119,6 +230,13 @@ struct WorkoutProgramTemplate: Identifiable, Codable, Hashable {
     var defaultProgression: WorkoutProgressionMethod
     var sessions: [WorkoutProgramSessionTemplate]
     var requiredTrainingMaxExerciseIDs: [String]
+
+    var availableProgressionMethods: [WorkoutProgressionMethod] {
+        if defaultProgression == .linear { return [.linear, .fixed] }
+        return WorkoutProgressionMethod.allCases.filter {
+            $0 != .linear && ($0 != .percentage || !requiredTrainingMaxExerciseIDs.isEmpty)
+        }
+    }
 }
 
 struct WorkoutPlanProgressionSettings: Identifiable, Codable, Hashable {
@@ -183,6 +301,16 @@ struct WorkoutExercisePrescription: Identifiable, Codable, Hashable {
     var targetRIR: Int? = nil
     var trainingMaxPercentage: Double? = nil
     var targetLoadKilograms: Double? = nil
+    var supersetGroup: String? = nil
+    var supersetRestSeconds: Int? = nil
+}
+
+enum WorkoutPrescriptionEditScope: String, CaseIterable, Hashable, Identifiable {
+    case thisWorkout = "This workout"
+    case matchingWorkouts = "All matching workouts"
+    case futureWeeks = "This and future weeks"
+
+    var id: String { rawValue }
 }
 
 enum WorkoutSource: String, Codable, Hashable {
@@ -213,6 +341,32 @@ struct WorkoutExerciseSnapshot: Identifiable, Codable, Hashable {
     var substitutedFromExerciseName: String? = nil
     var demonstrationMediaID: String? = nil
     var trackingType: String? = nil
+    var supersetGroup: String? = nil
+    var supersetRestSeconds: Int? = nil
+    var machineLoadType: MachineLoadType? = nil
+
+    var fallbackCatalogExercise: TrainingExerciseCatalogItem {
+        TrainingExerciseCatalogItem(
+            id: exerciseID,
+            name: exerciseName,
+            bodyPart: bodyPart,
+            workoutCategory: bodyPart,
+            defaultSets: targetSets,
+            defaultReps: targetReps,
+            symbolName: "figure.strengthtraining.traditional",
+            equipment: equipment,
+            muscleProfile: muscleProfile,
+            rankingExerciseID: rankingExerciseID
+        )
+    }
+}
+
+enum MachineLoadType: String, Codable, CaseIterable, Identifiable {
+    case plateLoaded = "Plate-loaded"
+    case stackLoaded = "Stack-loaded"
+    case other = "Other"
+
+    var id: String { rawValue }
 }
 
 struct ActiveWorkoutState: Identifiable, Codable, Hashable {
@@ -237,8 +391,7 @@ struct ActiveWorkoutState: Identifiable, Codable, Hashable {
 
     func elapsedDuration(at date: Date = .now) -> TimeInterval {
         let effectiveEnd = pausedAt ?? date
-        let currentPause = pausedAt.map { max(0, date.timeIntervalSince($0)) } ?? 0
-        return max(0, effectiveEnd.timeIntervalSince(startedAt) - accumulatedPausedTime - currentPause)
+        return max(0, effectiveEnd.timeIntervalSince(startedAt) - accumulatedPausedTime)
     }
 }
 
@@ -297,17 +450,17 @@ struct CompletedWorkout: Identifiable, Codable, Hashable {
         sets.filter { $0.isComplete && !$0.isWarmup }
     }
 
-    var totalVolume: Double {
+    func totalVolume(in unit: UnitSystem, catalog: [TrainingExerciseCatalogItem]) -> Double {
         completedWorkingSets.reduce(0) { total, set in
-            guard trackingKind(for: set) == .weightReps else { return total }
+            guard trackingKind(for: set, catalog: catalog) == .weightReps else { return total }
             return total + set.volume(in: unit)
         }
     }
 
-    private func trackingKind(for set: WorkoutSetLog) -> ExerciseTrackingKind {
+    private func trackingKind(for set: WorkoutSetLog, catalog: [TrainingExerciseCatalogItem]) -> ExerciseTrackingKind {
         guard let exercise = exercises.first(where: { $0.id == set.prescriptionID }) else { return .weightReps }
         let rawTrackingType = exercise.trackingType ??
-            MockData.trainingExerciseLibrary.first(where: { $0.id == exercise.exerciseID })?.trackingType
+            catalog.first(where: { $0.id == exercise.exerciseID })?.trackingType
         return ExerciseTrackingKind(rawTrackingType ?? "Weight + Reps")
     }
 }
@@ -322,6 +475,33 @@ struct WorkoutPlanDocument: Identifiable, Codable, Hashable {
     var conflictOfRevision: Int? = nil
     var isConflictCopy: Bool = false
     var isSeededDemoData: Bool = false
+
+    func conflictCopy(expectedRevision: Int) throws -> WorkoutPlanDocument {
+        let payload = try JSONDecoder().decode(WorkoutPlanSyncPayload.self, from: payload).canonicalized
+        guard Set(payload.phases.map(\.id)).count == payload.phases.count,
+              Set(payload.weeks.map(\.id)).count == payload.weeks.count,
+              Set(payload.sessions.map(\.id)).count == payload.sessions.count else {
+            throw LiftRankServiceError.invalidInput("This plan contains duplicate entries and could not be synced.")
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        var seed = Data("\(ownerID):\(id):\(expectedRevision):".utf8)
+        seed.append(try encoder.encode(payload))
+        var sequence = 0
+        func nextID() -> UUID {
+            sequence += 1
+            let bytes = Array(SHA256.hash(data: seed + Data(":\(sequence)".utf8)).prefix(16))
+            return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+                               bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
+        }
+        let copyID = nextID()
+        let copy = payload.conflictCopy(documentID: copyID, makeUUID: nextID)
+        return WorkoutPlanDocument(
+            id: copyID, ownerID: ownerID, revision: 1, name: copy.plan.name,
+            payload: try encoder.encode(copy), updatedAt: .now,
+            conflictOfRevision: expectedRevision, isConflictCopy: true
+        )
+    }
 }
 
 struct WorkoutPlanSyncPayload: Codable, Hashable {
@@ -339,6 +519,63 @@ enum WorkoutSyncResult: Codable, Hashable {
 }
 
 extension WorkoutPlanSyncPayload {
+    var canonicalized: WorkoutPlanSyncPayload {
+        var value = self
+        value.phases.sort { $0.id.uuidString < $1.id.uuidString }
+        value.weeks.sort { $0.id.uuidString < $1.id.uuidString }
+        value.sessions.sort { $0.id.uuidString < $1.id.uuidString }
+        value.prescriptions.sort { $0.id.uuidString < $1.id.uuidString }
+        return value
+    }
+
+    var conflictBaseName: String {
+        var name = plan.name
+        while name.hasSuffix(" (Conflict copy)") { name.removeLast(" (Conflict copy)".count) }
+        return name
+    }
+
+    var conflictCopyName: String {
+        String(conflictBaseName.prefix(120 - " (Conflict copy)".count)) + " (Conflict copy)"
+    }
+
+    // Ignore only the IDs and inactive flag introduced by copying. All training
+    // content, ordering, dates, queues, and progression settings must still match.
+    var duplicateComparisonPayload: WorkoutPlanSyncPayload? {
+        let phaseIDs = Set(phases.map(\.id))
+        let weekIDs = Set(weeks.map(\.id))
+        let sessionIDs = Set(sessions.map(\.id))
+        guard phaseIDs.count == phases.count, weekIDs.count == weeks.count,
+              sessionIDs.count == sessions.count, Set(prescriptions.map(\.id)).count == prescriptions.count,
+              phases.allSatisfy({ $0.planID == plan.id }),
+              weeks.allSatisfy({ $0.planID == plan.id && phaseIDs.contains($0.phaseID) }),
+              sessions.allSatisfy({ weekIDs.contains($0.weekID) }),
+              prescriptions.allSatisfy({ sessionIDs.contains($0.sessionID) }),
+              plan.queuedSessionIDs.allSatisfy({ sessionIDs.contains($0) }),
+              progression == nil || progression?.planID == plan.id,
+              Set(phases.map(\.order)).count == phases.count,
+              Set(weeks.map { "\($0.phaseID):\($0.weekNumber)" }).count == weeks.count,
+              Set(sessions.map { "\($0.weekID):\($0.order)" }).count == sessions.count,
+              Set(prescriptions.map { "\($0.sessionID):\($0.order)" }).count == prescriptions.count
+        else { return nil }
+
+        var value = self
+        value.phases.sort { $0.order < $1.order }
+        let phaseOrder = Dictionary(uniqueKeysWithValues: value.phases.enumerated().map { ($0.element.id, $0.offset) })
+        value.weeks.sort { (phaseOrder[$0.phaseID]!, $0.weekNumber) < (phaseOrder[$1.phaseID]!, $1.weekNumber) }
+        let weekOrder = Dictionary(uniqueKeysWithValues: value.weeks.enumerated().map { ($0.element.id, $0.offset) })
+        value.sessions.sort { (weekOrder[$0.weekID]!, $0.order) < (weekOrder[$1.weekID]!, $1.order) }
+        let sessionOrder = Dictionary(uniqueKeysWithValues: value.sessions.enumerated().map { ($0.element.id, $0.offset) })
+        value.prescriptions.sort { (sessionOrder[$0.sessionID]!, $0.order) < (sessionOrder[$1.sessionID]!, $1.order) }
+        var sequence: UInt64 = 0
+        func nextID() -> UUID {
+            sequence += 1
+            return UUID(uuidString: String(format: "00000000-0000-0000-0000-%012llx", sequence))!
+        }
+        var comparison = value.conflictCopy(documentID: nextID(), makeUUID: nextID)
+        comparison.plan.name = conflictBaseName
+        return comparison
+    }
+
     func conflictCopy(documentID: UUID, makeUUID: () -> UUID = UUID.init) -> WorkoutPlanSyncPayload {
         let payload = self
         let phaseIDs = Dictionary(uniqueKeysWithValues: payload.phases.map { ($0.id, makeUUID()) })
@@ -346,7 +583,7 @@ extension WorkoutPlanSyncPayload {
         let sessionIDs = Dictionary(uniqueKeysWithValues: payload.sessions.map { ($0.id, makeUUID()) })
         var plan = payload.plan
         plan.id = documentID
-        plan.name += " (Conflict copy)"
+        plan.name = conflictCopyName
         plan.isActive = false
         plan.queuedSessionIDs = plan.queuedSessionIDs.compactMap { sessionIDs[$0] }
         let phases = payload.phases.map { value -> WorkoutPhase in
@@ -435,12 +672,14 @@ struct WorkoutPreferences: Codable, Hashable {
     var automaticallySubmitVideoBackedPRs = false
     var didExplainAutomaticPRs = false
     var defaultRestTimerEnabled = true
-    var weeklyTrainingDayGoal: Int? = nil
+    var adaptiveRestTimerEnabled: Bool? = nil
+    var workoutDayRemindersEnabled: Bool? = nil
+    var missedWorkoutRemindersEnabled: Bool? = nil
 }
 
 struct WorkoutPersistenceSnapshot: Codable, Hashable {
     static let seedCleanupVersion = 10
-    static let currentVersion = 11
+    static let currentVersion = 12
 
     var schemaVersion: Int
     var currentProfile: UserProfile? = nil
@@ -472,4 +711,5 @@ struct WorkoutPersistenceSnapshot: Codable, Hashable {
     var workoutPlanSyncRevisions: [UUID: Int]? = nil
     var workoutPlanLastSyncedPayloads: [UUID: Data]? = nil
     var pendingRemoteWorkoutPlanDeletions: Set<UUID>? = nil
+    var pendingFriendActivityShares: [PendingFriendActivityShare]? = nil
 }

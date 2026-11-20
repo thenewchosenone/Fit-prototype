@@ -11,11 +11,58 @@ enum WorkoutProgramCatalog {
         intermediatePowerlifting,
         advancedPowerlifting,
         cablesOnlyFoundation,
-        freeWeightsOnlyFoundation
+        freeWeightsOnlyFoundation,
+        adaptiveTemplate(strength: true, days: 3),
+        adaptiveTemplate(strength: false, days: 3),
+        beginnerLinearStrength,
+        dumbbellsOnly,
+        thirtyMinuteFullBody,
+        bodybuildingBroSplit,
+        threeDayPushPullLegs,
+        powerbuildingUpperLower,
+        machinesOnly,
+        bodyweightHome
     ]
 
     static func template(id: String) -> WorkoutProgramTemplate? {
-        templates.first { $0.id == id }
+        templates.first { $0.id == id } ?? [true, false].flatMap { strength in
+            (2...6).map { adaptiveTemplate(strength: strength, days: $0) }
+        }.first { $0.id == id }
+    }
+
+    static func scheduleVariants(for template: WorkoutProgramTemplate) -> [WorkoutProgramTemplate] {
+        guard template.id.hasPrefix("adaptive_strength_") || template.id.hasPrefix("adaptive_hypertrophy_") else { return [template] }
+        return (2...6).map { adaptiveTemplate(strength: template.id.hasPrefix("adaptive_strength_"), days: $0) }
+    }
+
+    private static func adaptiveTemplate(strength: Bool, days: Int) -> WorkoutProgramTemplate {
+        var sessions: [WorkoutProgramSessionTemplate]
+        switch days {
+        case 2: sessions = Array(fullBodyFoundation.sessions.prefix(2))
+        case 3: sessions = fullBodyFoundation.sessions
+        case 4: sessions = bodybuildingUpperLower.sessions
+        case 5: sessions = bodybuildingTransformationIntermediateAdvanced.sessions
+        default: sessions = bodybuildingPushPullLegs.sessions
+        }
+        let primaryLifts: Set<String> = ["back_squat", "barbell_bench_press", "conventional_deadlift", "barbell_overhead_press", "romanian_deadlift", "incline_db_press", "leg_press", "hack_squat", "hip_thrust", "machine_chest_press", "machine_shoulder_press"]
+        for index in sessions.indices {
+            sessions[index].exercises = sessions[index].exercises.map { base in
+                var exercise = base
+                exercise.sets = min(base.sets, days >= 5 ? 2 : 3)
+                if primaryLifts.contains(base.exerciseID) {
+                    exercise.reps = strength ? "4-6" : "8-12"
+                    exercise.restSeconds = strength ? 180 : 120
+                }
+                return exercise
+            }
+        }
+        return WorkoutProgramTemplate(
+            id: "adaptive_\(strength ? "strength" : "hypertrophy")_\(days)d_12", version: 1,
+            name: strength ? "Adaptive Strength" : "Adaptive Hypertrophy",
+            summary: "Choose 2–6 training days before starting. \(strength ? "Practice heavier compound lifts with supporting accessories." : "Build muscle with compound lifts and focused accessory work.") Logged reps and effort guide your next working weights. Requires a full gym; choose initial loads manually.",
+            category: strength ? .general : .bodybuilding, level: .intermediate,
+            daysPerWeek: days, defaultProgression: .adaptive, sessions: sessions, requiredTrainingMaxExerciseIDs: []
+        )
     }
 
     static func weekTitle(_ week: Int) -> String {
@@ -95,6 +142,15 @@ enum WorkoutProgramCatalog {
 
     static func phaseSummary(for template: WorkoutProgramTemplate) -> [String] {
         switch template.id {
+        case "beginner_linear_strength_12":
+            return [
+                "Weeks 1–3 · Learn the lifts and add weight after successful workouts",
+                "Week 4 · Lighter recovery week",
+                "Weeks 5–7 · Continue linear progression; reset after three stalls",
+                "Week 8 · Lighter recovery week",
+                "Weeks 9–11 · Continue building with the same sets and reps",
+                "Week 12 · Recovery and review"
+            ]
         case "three_month_foundation_shape_12":
             return [
                 "Weeks 1–4 · Month 1 foundation",
@@ -198,6 +254,7 @@ enum WorkoutProgramCatalog {
         week: Int
     ) -> Int {
         if templateID == "three_month_foundation_shape_12" { return baseSets }
+        if templateID == "beginner_linear_strength_12", ![4, 8, 12].contains(week) { return baseSets }
         guard templateID == "bodybuilding_transformation_intermediate_advanced_12" else {
             if (9...11).contains(week) {
                 return max(1, Int((Double(baseSets) * volumeMultiplier(for: week)).rounded(.down)))
@@ -274,6 +331,189 @@ enum WorkoutProgramCatalog {
             ])
         ],
         requiredTrainingMaxExerciseIDs: []
+    )
+
+    private static let beginnerLinearStrength = WorkoutProgramTemplate(
+        id: "beginner_linear_strength_12", version: 1, name: "Beginner Linear Strength",
+        summary: "Three full-body barbell workouts each week. Add weight after completing every prescribed rep, repeat the load after a miss, and reset after three completed attempts stall at the same weight. Requires a barbell, plates, rack, and bench. Choose conservative initial loads; weeks 4, 8, and 12 are lighter recovery weeks.",
+        category: .general, level: .beginner, daysPerWeek: 3, defaultProgression: .linear,
+        sessions: [
+            .init(dayIndex: 2, name: "Squat + Bench A", exercises: [
+                exercise("back_squat", 3, "5", 180), exercise("barbell_bench_press", 3, "5", 180),
+                exercise("barbell_row", 3, "5", 120)
+            ]),
+            .init(dayIndex: 4, name: "Squat + Press B", exercises: [
+                exercise("back_squat", 3, "5", 180), exercise("barbell_overhead_press", 3, "5", 180),
+                exercise("conventional_deadlift", 1, "5", 240)
+            ]),
+            .init(dayIndex: 6, name: "Squat + Bench C", exercises: [
+                exercise("back_squat", 3, "5", 180), exercise("barbell_bench_press", 3, "5", 180),
+                exercise("barbell_row", 3, "5", 120)
+            ])
+        ], requiredTrainingMaxExerciseIDs: []
+    )
+
+    private static let dumbbellsOnly = WorkoutProgramTemplate(
+        id: "dumbbells_only_12", version: 1, name: "Dumbbells Only",
+        summary: "Three full-body workouts using a pair of dumbbells and floor space. No bench, barbell, cable station, or machines required. Choose weights that leave the prescribed reps in reserve; add reps within each range before increasing the dumbbells.",
+        category: .freeWeightsOnly, level: .beginner, daysPerWeek: 3, defaultProgression: .rirRepRange,
+        sessions: [
+            .init(dayIndex: 2, name: "Dumbbell Full Body A", exercises: [
+                exercise("dumbbell_goblet_squat", 3, "8-12", 90), exercise("dumbbell_floor_press", 3, "8-12", 90),
+                exercise("dumbbell_bent_over_row", 3, "8-12", 90), exercise("dumbbell_romanian_deadlift", 2, "8-12", 90),
+                exercise("dumbbell_hammer_curl", 2, "10-15", 60)
+            ]),
+            .init(dayIndex: 4, name: "Dumbbell Full Body B", exercises: [
+                exercise("dumbbell_reverse_lunge", 3, "8-12", 90, "Reps per leg; complete both sides before resting."),
+                exercise("db_shoulder_press", 3, "8-12", 90, "Perform standing; no bench required."),
+                exercise("dumbbell_bent_over_row", 3, "8-12", 90), exercise("dumbbell_glute_bridge", 3, "10-15", 90),
+                exercise("dumbbell_calf_raise", 2, "12-15", 60)
+            ]),
+            .init(dayIndex: 6, name: "Dumbbell Full Body C", exercises: [
+                exercise("dumbbell_front_squat", 3, "8-12", 90), exercise("dumbbell_floor_press", 3, "8-12", 90),
+                exercise("dumbbell_romanian_deadlift", 3, "8-12", 90), exercise("dumbbell_bent_over_row", 3, "8-12", 90),
+                exercise("dumbbell_rear_delt_fly", 2, "12-15", 60)
+            ])
+        ], requiredTrainingMaxExerciseIDs: []
+    )
+
+    private static let thirtyMinuteFullBody = WorkoutProgramTemplate(
+        id: "thirty_minute_full_body_12", version: 1, name: "30-Minute Full Body",
+        summary: "Three gym sessions per week with four exercises and at most eight working sets per session. Allow about 30 minutes including a brief warm-up; setup and equipment wait times can extend the session. Follow the listed rests and choose weights that leave the target reps in reserve.",
+        category: .general, level: .beginner, daysPerWeek: 3, defaultProgression: .rirRepRange,
+        sessions: [
+            .init(dayIndex: 2, name: "Express Full Body A", exercises: [
+                exercise("leg_press", 2, "8-12", 90), exercise("machine_chest_press", 2, "8-12", 75),
+                exercise("seated_cable_row", 2, "8-12", 75), exercise("dumbbell_romanian_deadlift", 2, "8-12", 90)
+            ]),
+            .init(dayIndex: 4, name: "Express Full Body B", exercises: [
+                exercise("dumbbell_goblet_squat", 2, "8-12", 90), exercise("lat_pulldown", 2, "8-12", 75),
+                exercise("dumbbell_floor_press", 2, "8-12", 75), exercise("dumbbell_glute_bridge", 2, "10-15", 75)
+            ]),
+            .init(dayIndex: 6, name: "Express Full Body C", exercises: [
+                exercise("leg_press", 2, "8-12", 90), exercise("machine_shoulder_press", 2, "8-12", 75),
+                exercise("seated_cable_row", 2, "8-12", 75), exercise("lying_leg_curl", 2, "10-15", 75)
+            ])
+        ], requiredTrainingMaxExerciseIDs: []
+    )
+
+    private static let bodybuildingBroSplit = WorkoutProgramTemplate(
+        id: "bodybuilding_bro_split_12", version: 1, name: "Bodybuilding Bro Split",
+        summary: "A traditional five-day split: chest, back, legs, shoulders, and arms. Each area has one dedicated session per week. Requires a full gym and suits lifters who prefer focused body-part days.",
+        category: .bodybuilding, level: .intermediate, daysPerWeek: 5, defaultProgression: .rirRepRange,
+        sessions: [
+            .init(dayIndex: 2, name: "Chest", exercises: [
+                exercise("barbell_bench_press", 3, "6-10", 180), exercise("incline_db_press", 3, "8-12", 120),
+                exercise("machine_chest_press", 2, "10-15", 90), exercise("cable_fly", 2, "12-15", 75)
+            ]),
+            .init(dayIndex: 3, name: "Back", exercises: [
+                exercise("lat_pulldown", 3, "8-12", 120), exercise("chest_supported_row", 3, "8-12", 120),
+                exercise("seated_cable_row", 2, "10-15", 90), exercise("cable_pullover", 2, "12-15", 75)
+            ]),
+            .init(dayIndex: 4, name: "Legs", exercises: [
+                exercise("back_squat", 3, "6-10", 180), exercise("romanian_deadlift", 3, "8-10", 150),
+                exercise("leg_extension", 2, "12-15", 75), exercise("lying_leg_curl", 2, "10-15", 90),
+                exercise("machine_standing_calf_raise", 3, "12-15", 75)
+            ]),
+            .init(dayIndex: 6, name: "Shoulders", exercises: [
+                exercise("db_shoulder_press", 3, "8-12", 120), exercise("cable_lateral_raise", 3, "12-20", 60),
+                exercise("rear_delt_fly", 3, "12-20", 60), exercise("dumbbell_shrug", 2, "10-15", 90)
+            ]),
+            .init(dayIndex: 7, name: "Arms", exercises: [
+                exercise("ez_bar_curl", 3, "8-12", 75), exercise("triceps_pressdown", 3, "10-15", 75),
+                exercise("incline_db_curl", 2, "10-15", 75), exercise("overhead_triceps_extension", 2, "10-15", 75)
+            ])
+        ], requiredTrainingMaxExerciseIDs: []
+    )
+
+    private static let threeDayPushPullLegs: WorkoutProgramTemplate = {
+        var template = bodybuildingPushPullLegs
+        template.id = "bodybuilding_push_pull_legs_3_day_12"
+        template.name = "Bodybuilding Push / Pull / Legs · 3 Days"
+        template.summary = "One push, one pull, and one leg session each week, with rest days between sessions. Each split is trained once weekly. Uses the full gym and requires fewer weekly visits than the six-day PPL plan."
+        template.daysPerWeek = 3
+        template.sessions = Array(template.sessions.prefix(3))
+        for index in template.sessions.indices {
+            template.sessions[index].dayIndex = [2, 4, 6][index]
+        }
+        return template
+    }()
+
+    private static let powerbuildingUpperLower = WorkoutProgramTemplate(
+        id: "powerbuilding_upper_lower_12", version: 1, name: "Powerbuilding Upper / Lower",
+        summary: "Four full-gym sessions combining heavy upper/lower days with higher-rep upper/lower days. Build the main lifts while keeping focused muscle-building work. Log reps and RPE for adaptive load suggestions within each session type.",
+        category: .general, level: .intermediate, daysPerWeek: 4, defaultProgression: .adaptive,
+        sessions: [
+            .init(dayIndex: 2, name: "Upper Strength", exercises: [
+                exercise("barbell_bench_press", 3, "3-5", 180), exercise("barbell_row", 3, "4-6", 150),
+                exercise("barbell_overhead_press", 2, "6-8", 150), exercise("lat_pulldown", 2, "8-10", 120)
+            ]),
+            .init(dayIndex: 3, name: "Lower Strength", exercises: [
+                exercise("back_squat", 3, "3-5", 210), exercise("romanian_deadlift", 3, "5-8", 180),
+                exercise("leg_press", 2, "8-10", 120), exercise("machine_standing_calf_raise", 2, "10-15", 75),
+                exercise("cable_crunch", 2, "10-15", 60)
+            ]),
+            .init(dayIndex: 5, name: "Upper Hypertrophy", exercises: [
+                exercise("incline_db_press", 3, "8-12", 120), exercise("seated_cable_row", 3, "8-12", 120),
+                exercise("lat_pulldown", 2, "10-15", 90), exercise("cable_lateral_raise", 2, "12-20", 60),
+                exercise("ez_bar_curl", 2, "10-15", 75), exercise("triceps_pressdown", 2, "10-15", 75)
+            ]),
+            .init(dayIndex: 6, name: "Lower Hypertrophy", exercises: [
+                exercise("leg_press", 3, "10-15", 120), exercise("hip_thrust", 3, "8-12", 120),
+                exercise("lying_leg_curl", 3, "10-15", 90), exercise("dumbbell_reverse_lunge", 2, "10-12", 90, "Reps per leg."),
+                exercise("machine_seated_calf_raise", 2, "12-15", 75)
+            ])
+        ], requiredTrainingMaxExerciseIDs: []
+    )
+
+    private static let machinesOnly = WorkoutProgramTemplate(
+        id: "machines_only_12", version: 1, name: "Machines Only",
+        summary: "Three full-body sessions using guided resistance machines. No barbells, dumbbells, or cable stations required. Your gym needs chest and shoulder presses, row and pulldown machines, leg machines, and a calf machine.",
+        category: .general, level: .beginner, daysPerWeek: 3, defaultProgression: .rirRepRange,
+        sessions: [
+            .init(dayIndex: 2, name: "Machine Full Body A", exercises: [
+                exercise("leg_press", 3, "8-12", 120), exercise("machine_chest_press", 3, "8-12", 90),
+                exercise("chest_supported_row", 3, "8-12", 90), exercise("lying_leg_curl", 2, "10-15", 90),
+                exercise("machine_standing_calf_raise", 2, "12-15", 60)
+            ]),
+            .init(dayIndex: 4, name: "Machine Full Body B", exercises: [
+                exercise("hack_squat", 3, "8-12", 120), exercise("machine_shoulder_press", 3, "8-12", 90),
+                exercise("machine_front_lat_pulldown", 3, "8-12", 90), exercise("seated_leg_curl", 3, "10-15", 90),
+                exercise("machine_abdominal_crunch", 2, "10-15", 60)
+            ]),
+            .init(dayIndex: 6, name: "Machine Full Body C", exercises: [
+                exercise("leg_press", 3, "10-15", 120), exercise("machine_chest_press", 3, "10-15", 90),
+                exercise("chest_supported_row", 3, "10-15", 90), exercise("seated_leg_curl", 3, "10-15", 90),
+                exercise("machine_seated_calf_raise", 2, "12-15", 60)
+            ])
+        ], requiredTrainingMaxExerciseIDs: []
+    )
+
+    private static let bodyweightHome = WorkoutProgramTemplate(
+        id: "bodyweight_home_12", version: 1, name: "Bodyweight / Home",
+        summary: "Three bodyweight workouts using floor space and a pull-up bar. The bar is required for pulling work; no weights or bench are needed. Build reps before choosing harder variations, and use easier variations when you cannot reach the prescribed range.",
+        category: .general, level: .beginner, daysPerWeek: 3, defaultProgression: .rirRepRange,
+        sessions: [
+            .init(dayIndex: 2, name: "Home Full Body A", exercises: [
+                exercise("bodyweight_squat", 3, "10-20", 75), exercise("bodyweight_push_up", 3, "6-12", 90, "Use kneeling push-ups if needed."),
+                exercise("bodyweight_negative_pull_up", 3, "3-5", 120, "Use a pull-up bar; lower under control."),
+                exercise("bodyweight_glute_bridge", 3, "12-20", 60), exercise("bodyweight_dead_bug", 2, "6-10", 60, "Reps per side.")
+            ]),
+            .init(dayIndex: 4, name: "Home Full Body B", exercises: [
+                exercise("bodyweight_reverse_lunge", 3, "8-12", 75, "Reps per leg."),
+                exercise("bodyweight_pike_push_up", 2, "5-10", 90, "Shorten the range of motion if needed."),
+                exercise("bodyweight_negative_pull_up", 3, "3-5", 120, "Use a pull-up bar; lower under control."),
+                exercise("bodyweight_single_leg_glute_bridge", 2, "8-12", 60, "Reps per leg."),
+                exercise("bodyweight_side_plank", 2, "20-40 sec", 60, "Time per side.")
+            ]),
+            .init(dayIndex: 6, name: "Home Full Body C", exercises: [
+                exercise("bodyweight_split_squat", 3, "8-15", 75, "Reps per leg."),
+                exercise("bodyweight_push_up", 3, "6-12", 90, "Use kneeling push-ups if needed."),
+                exercise("bodyweight_negative_pull_up", 3, "3-5", 120, "Use a pull-up bar; lower under control."),
+                exercise("bodyweight_standing_calf_raise", 3, "12-20", 60),
+                exercise("bodyweight_bird_dog", 2, "6-10", 60, "Reps per side.")
+            ])
+        ], requiredTrainingMaxExerciseIDs: []
     )
 
     private static let threeMonthFoundationShape = WorkoutProgramTemplate(

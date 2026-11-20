@@ -76,20 +76,44 @@ Deno.serve(async (request) => {
     }
   }
 
+  // Include published attachments and interrupted uploads in this user's folder.
+  const forumFolders = [user.id];
+  while (forumFolders.length) {
+    const folder = forumFolders.pop()!;
+    for (let offset = 0; ; offset += 1000) {
+      const { data: files, error: forumError } = await admin.storage.from("forum-media")
+        .list(folder, { limit: 1000, offset, sortBy: { column: "name", order: "asc" } });
+      if (forumError) return json({ error: "Forum media cleanup lookup failed" }, 500, origin);
+      for (const file of files ?? []) {
+        const path = `${folder}/${file.name}`;
+        if (file.id === null) forumFolders.push(path);
+        else addStoragePaths("forum-media", [path]);
+      }
+      if ((files ?? []).length < 1000) break;
+    }
+  }
+
   for (const [bucket, paths] of storagePaths) {
-    const { error: storageError } = await admin.storage.from(bucket).remove([...paths]);
-    if (storageError) return json({ error: "Media cleanup failed" }, 500, origin);
+    const files = [...paths];
+    for (let offset = 0; offset < files.length; offset += 1000) {
+      const { error: storageError } = await admin.storage.from(bucket).remove(files.slice(offset, offset + 1000));
+      if (storageError) return json({ error: "Media cleanup failed" }, 500, origin);
+    }
   }
 
   const { data: profile, error: profileError } = await admin.from("profiles").select("avatar_path").eq("id", user.id).maybeSingle();
   if (profileError) return json({ error: "Profile cleanup lookup failed" }, 500, origin);
-  if (profile?.avatar_path) {
-    const { error: avatarError } = await admin.storage.from("profile-avatars").remove([
-      `${profile.avatar_path}/avatar-full.jpg`,
-      `${profile.avatar_path}/avatar-thumb.jpg`,
-    ]);
-    if (avatarError) return json({ error: "Avatar cleanup failed" }, 500, origin);
+  const ownerPrefix = `${user.id.toLowerCase()}/`;
+  const avatarPaths = new Set([`${ownerPrefix}avatar`]);
+  const storedPath = profile?.avatar_path;
+  if (typeof storedPath === "string" && storedPath.startsWith(ownerPrefix)
+    && storedPath.split("/").every((part) => /^[A-Za-z0-9_.-]+$/.test(part) && part !== "." && part !== "..")) {
+    avatarPaths.add(storedPath);
   }
+  const { error: avatarError } = await admin.storage.from("profile-avatars").remove(
+    [...avatarPaths].flatMap((path) => [`${path}/avatar-full.jpg`, `${path}/avatar-thumb.jpg`]),
+  );
+  if (avatarError) return json({ error: "Avatar cleanup failed" }, 500, origin);
   const { error: deletionError } = await admin.auth.admin.deleteUser(user.id, false);
   if (deletionError) return json({ error: "Deletion failed" }, 500, origin);
   return new Response(null, { status: 204, headers: headersFor(origin) });

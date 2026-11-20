@@ -1,7 +1,9 @@
 import SwiftUI
 
 struct ExerciseLibraryFilterSheet: View {
+    @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var applied: ExerciseLibraryFilterSelection
     let exercises: [TrainingExerciseCatalogItem]
     let searchText: String
@@ -17,7 +19,7 @@ struct ExerciseLibraryFilterSheet: View {
     private var equipmentOptions: [String] { Set(exercises.map(\.equipment)).sorted() }
     private var trackingOptions: [String] { Set(exercises.map(\.trackingType)).sorted() }
     private var resultCount: Int {
-        exercises.filter { $0.matchesSearch(searchText) && draft.matches($0) }.count
+        appState.exerciseLibraryPresentation(query: searchText, filters: draft).results.count
     }
 
     var body: some View {
@@ -35,7 +37,16 @@ struct ExerciseLibraryFilterSheet: View {
                             }
                             stringSection("Equipment", options: equipmentOptions, selection: $draft.equipment)
                             bodyAreaSection
-                            muscleSection
+                            if !draft.isEmpty {
+                                Text("Selected: " + draft.activeChips.map(\.title).joined(separator: ", "))
+                                    .font(.caption)
+                                    .foregroundStyle(Color.liftText)
+                            }
+                            DisclosureGroup("Primary muscle · \(draft.primaryMuscles.count) selected") {
+                                muscleSection.padding(.top, 8)
+                            }
+                            .font(.subheadline.weight(.semibold))
+                            .tint(Color.liftAccentText)
                             DisclosureGroup("More filters") {
                                 stringSection("Tracking type", options: trackingOptions, selection: $draft.trackingTypes)
                                     .padding(.top, 12)
@@ -112,7 +123,7 @@ struct ExerciseLibraryFilterSheet: View {
     private func filterSectionTitle<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title).font(.headline)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], alignment: .leading, spacing: 8) {
+            LazyVGrid(columns: dynamicTypeSize.isAccessibilitySize ? [GridItem(.flexible())] : [GridItem(.adaptive(minimum: 104), spacing: 8)], alignment: .leading, spacing: 8) {
                 content()
             }
         }
@@ -122,12 +133,12 @@ struct ExerciseLibraryFilterSheet: View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Text(title)
-                    .lineLimit(2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                     .multilineTextAlignment(.center)
                 if selected { Image(systemName: "checkmark") }
             }
-            .font(.caption.weight(.bold))
-            .foregroundStyle(selected ? .white : Color.liftMuted)
+            .font(LiftTypography.compactEmphasis)
+            .foregroundStyle(selected ? Color.liftOnAccent : Color.liftText)
             .padding(.horizontal, 11)
             .frame(maxWidth: .infinity, minHeight: 40)
             .background(selected ? Color.liftBlue : Color.liftCard)
@@ -138,6 +149,7 @@ struct ExerciseLibraryFilterSheet: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(title)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
@@ -215,6 +227,11 @@ struct LibraryCustomExerciseView: View {
     @State private var equipment = "Dumbbell"
     @State private var trackingType = "Weight + Reps"
 
+    @State private var confirmingDiscard = false
+    private var hasDraftChanges: Bool {
+        !name.isEmpty || muscleGroup != "Chest" || equipment != "Dumbbell" || trackingType != "Weight + Reps"
+    }
+
     private let muscleGroups = ["Chest", "Back", "Shoulders", "Arms", "Quads", "Hamstrings", "Glutes", "Core", "Full Body"]
     private let equipmentOptions = ["Barbell", "Dumbbell", "Cable", "Machine", "Bodyweight", "Kettlebell", "Band"]
     private let trackingTypes = ["Weight + Reps", "Bodyweight Reps", "Assisted Bodyweight", "Reps Only", "Time", "Weight + Time"]
@@ -252,7 +269,7 @@ struct LibraryCustomExerciseView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") { if hasDraftChanges { confirmingDiscard = true } else { dismiss() } }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
@@ -269,6 +286,11 @@ struct LibraryCustomExerciseView: View {
                 }
             }
         }
+        .interactiveDismissDisabled(hasDraftChanges)
+        .alert("Discard changes?", isPresented: $confirmingDiscard) {
+            Button("Discard changes", role: .destructive) { dismiss() }
+            Button("Keep editing", role: .cancel) {}
+        }
     }
 }
 
@@ -282,21 +304,19 @@ struct AddExerciseToWorkoutView: View {
     @State private var restSeconds = 120
 
     private let repGoals = ["1-5", "6-8", "8-12", "12-15", "15-20"]
-    private let restOptions = [60, 90, 120, 180]
+    private let restOptions = [60, 90, 120, 180, 240, 300]
 
     var body: some View {
         AppBackground {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 14) {
-                        ExerciseCatalogIcon(exercise: exercise)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(exercise.name).font(.title3.bold())
-                            Text("\(exercise.bodyPart) • \(exercise.equipment)")
-                                .font(.subheadline)
-                                .foregroundStyle(Color.liftMuted)
-                        }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(exercise.name).font(.title3.bold())
+                        Text("\(exercise.bodyPart) • \(exercise.equipment)")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.liftMuted)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
                     .liftSurface()
 
@@ -307,7 +327,7 @@ struct AddExerciseToWorkoutView: View {
                         Text("Rest time").font(.headline)
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 82), spacing: 8)], spacing: 8) {
                             ForEach(restOptions, id: \.self) { seconds in
-                                ProgramChoiceChip(title: "\(seconds) sec", isSelected: restSeconds == seconds) {
+                                ProgramChoiceChip(title: restTimeLabel(seconds), isSelected: restSeconds == seconds) {
                                     restSeconds = seconds
                                 }
                             }
@@ -335,6 +355,10 @@ struct AddExerciseToWorkoutView: View {
             restSeconds = exercise.defaultRestSeconds
         }
     }
+
+    private func restTimeLabel(_ seconds: Int) -> String {
+        seconds.isMultiple(of: 60) ? "\(seconds / 60) min" : "\(seconds) sec"
+    }
 }
 
 struct ProgramChoiceRow: View {
@@ -345,7 +369,7 @@ struct ProgramChoiceRow: View {
     var body: some View {
         Button(action: action) {
             HStack {
-                Text(title).font(.headline).foregroundStyle(.white)
+                Text(title).font(.headline).foregroundStyle(Color.liftText)
                 Spacer()
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(isSelected ? Color.liftAccentText : Color.liftMuted)
@@ -383,7 +407,7 @@ struct ProgramChoiceChip: View {
         Button(action: action) {
             Text(title)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(isSelected ? .white : Color.liftMuted)
+                .foregroundStyle(isSelected ? Color.liftOnAccent : Color.liftMuted)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .padding(.horizontal, 12)
                 .background(isSelected ? Color.liftBlue : Color.liftScrim)
@@ -451,12 +475,12 @@ struct ProgramAddExercisePickerView: View {
                         LazyVStack(alignment: .leading, spacing: 9) {
                             HStack {
                                 Text("\(filteredExercises.count) exercises")
-                                    .font(.caption.weight(.bold))
+                                    .font(LiftTypography.compactEmphasis)
                                     .foregroundStyle(Color.liftMuted)
                                 Spacer()
                                 if !selectedExerciseIDs.isEmpty {
                                     Text("\(selectedExerciseIDs.count) selected")
-                                        .font(.caption.weight(.black))
+                                        .font(LiftTypography.compactEmphasis)
                                         .foregroundStyle(Color.liftAccentText)
                                 }
                             }
@@ -551,7 +575,7 @@ struct ProgramAddExercisePickerView: View {
                     }
                 } label: {
                     Label(selectedEquipment == "All" ? "Equipment" : selectedEquipment, systemImage: "slider.horizontal.3")
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 9)
                         .background(selectedEquipment == "All" ? Color.liftCard : Color.liftBlue.opacity(0.18))
@@ -565,7 +589,7 @@ struct ProgramAddExercisePickerView: View {
     private func filterChip(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
                 .background(isSelected ? Color.liftBlue : Color.liftCard)
@@ -584,11 +608,10 @@ struct ProgramAddExercisePickerView: View {
         let isSelected = selectedExerciseIDs.contains(exercise.id)
 
         return HStack(spacing: 12) {
-            ExerciseCatalogIcon(exercise: exercise)
             VStack(alignment: .leading, spacing: 4) {
                 Text(exercise.name)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.white)
+                    .font(LiftTypography.rowEmphasis)
+                    .foregroundStyle(Color.liftText)
                 if let reason = result.reasonLabel {
                     Text(reason)
                         .font(.caption2.weight(.bold))
@@ -638,33 +661,17 @@ struct ProgramAddExercisePickerView: View {
 
     private var bottomActionBar: some View {
         HStack(spacing: 10) {
-            NavigationLink {
-                CreateCustomExerciseView(session: session) {
-                    dismiss()
-                }
-                .environmentObject(appState)
-            } label: {
-                Image(systemName: "plus")
-                    .font(.headline.weight(.bold))
-                    .frame(width: 50, height: 50)
-                    .background(Color.liftCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(Color.liftAccentText)
-            .accessibilityLabel("Create custom exercise")
-
             Button {
                 appState.addExercises(selectedExercises, to: session)
                 dismiss()
             } label: {
                 HStack {
                     Text(selectedExerciseIDs.isEmpty ? "Select exercises" : "Add \(selectedExerciseIDs.count) to workout")
-                        .font(.headline.weight(.black))
+                        .font(LiftTypography.cardTitle)
                     Spacer()
                     Image(systemName: "arrow.right")
                 }
-                .foregroundStyle(selectedExerciseIDs.isEmpty ? Color.liftMuted : Color.liftBackground)
+                .foregroundStyle(selectedExerciseIDs.isEmpty ? Color.liftMuted : Color.liftOnAccent)
                 .padding(.horizontal, 17)
                 .frame(height: 50)
                 .background(selectedExerciseIDs.isEmpty ? Color.liftCard : Color.liftBlue)

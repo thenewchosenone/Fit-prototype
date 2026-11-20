@@ -4,6 +4,7 @@ import UIKit
 struct WorkoutSetLogRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @FocusState.Binding var focusedInput: WorkoutSetInputFocus?
+    @Binding var completionRequest: UUID?
     @State private var draft: WorkoutSetLog
     @State private var repsText: String
     @State private var weightText: String
@@ -14,7 +15,9 @@ struct WorkoutSetLogRow: View {
     @State private var isDeleting = false
     let log: WorkoutSetLog
     let previousLog: WorkoutSetLog?
+    let lastCompletedLog: WorkoutSetLog?
     let trackingKind: ExerciseTrackingKind
+    let showsEffortControls: Bool
     let onDelete: (WorkoutSetLog) -> Void
     let onApplyCompletion: (WorkoutSetLog, Bool) -> Bool
     let onAttemptAutomaticCompletion: (WorkoutSetLog) -> Bool
@@ -26,7 +29,10 @@ struct WorkoutSetLogRow: View {
         log: WorkoutSetLog,
         trackingKind: ExerciseTrackingKind = .weightReps,
         previousLog: WorkoutSetLog? = nil,
+        lastCompletedLog: WorkoutSetLog? = nil,
+        showsEffortControls: Bool = false,
         focusedInput: FocusState<WorkoutSetInputFocus?>.Binding,
+        completionRequest: Binding<UUID?>,
         onDelete: @escaping (WorkoutSetLog) -> Void,
         onApplyCompletion: @escaping (WorkoutSetLog, Bool) -> Bool,
         onAttemptAutomaticCompletion: @escaping (WorkoutSetLog) -> Bool,
@@ -35,13 +41,16 @@ struct WorkoutSetLogRow: View {
         onCompleted: (() -> Void)? = nil
     ) {
         _focusedInput = focusedInput
+        _completionRequest = completionRequest
         _draft = State(initialValue: log)
         _repsText = State(initialValue: log.reps.map(String.init) ?? "")
         _weightText = State(initialValue: log.weight.map(Self.formatWeight) ?? "")
         _lastPersistedDraft = State(initialValue: log)
         self.log = log
         self.previousLog = previousLog
+        self.lastCompletedLog = lastCompletedLog
         self.trackingKind = trackingKind
+        self.showsEffortControls = showsEffortControls
         self.onDelete = onDelete
         self.onApplyCompletion = onApplyCompletion
         self.onAttemptAutomaticCompletion = onAttemptAutomaticCompletion
@@ -61,13 +70,23 @@ struct WorkoutSetLogRow: View {
     }
 
     private var parsedWeight: Double? {
-        let trimmed = weightText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let value = Double(trimmed), value >= 0 else { return nil }
+        Self.parseWeight(weightText, locale: .current)
+    }
+
+    static func parseWeight(_ text: String, locale: Locale) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.isLenient = false
+        formatter.locale = locale
+        guard let value = formatter.number(from: trimmed)?.doubleValue,
+              value.isFinite, value >= 0 else { return nil }
         return value
     }
 
     private static func formatWeight(_ value: Double) -> String {
-        RankingCalculator.format(value)
+        MeasurementFormatting.workoutLoadText(value)
     }
 
     var body: some View {
@@ -75,14 +94,19 @@ struct WorkoutSetLogRow: View {
             setEntryInputs
 
             if showingDetails {
-                HStack(spacing: 10) {
+                if !draft.isComplete, let lastCompletedLog {
+                    Button("Copy last set") { useValues(from: lastCompletedLog) }
+                        .font(.caption.weight(.semibold))
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
+                }
+                (dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) : AnyLayout(HStackLayout(spacing: 10))) {
                     Button {
                         draft.isWarmup.toggle()
                         persistDraft()
                     } label: {
                         Label(draft.isWarmup ? "Warm-up set" : "Working set", systemImage: draft.isWarmup ? "flame.fill" : "dumbbell.fill")
-                            .font(.caption.weight(.bold))
-                            .frame(minHeight: 36)
+                            .font(LiftTypography.compactEmphasis)
+                            .frame(minHeight: LiftDesign.minimumTouchTarget)
                     }
                     .buttonStyle(.bordered)
                     .tint(draft.isWarmup ? Color.liftGold : Color.liftMuted)
@@ -96,17 +120,24 @@ struct WorkoutSetLogRow: View {
                         onDelete(draft)
                     } label: {
                         Label("Delete", systemImage: "trash")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
+                            .frame(minHeight: LiftDesign.minimumTouchTarget)
                     }
                 }
             }
 
-            setOptionsControls
-
-            if showingDetails && !draft.isWarmup {
-                Text("RPE rates set effort out of 10. A 10 means you could not complete another rep.")
-                    .font(.caption)
-                    .foregroundStyle(Color.liftMuted)
+            if showingDetails || (showsEffortControls && !draft.isWarmup) {
+                setOptionsControls
+            } else if dynamicTypeSize.isAccessibilitySize {
+                HStack {
+                    if let rpe = draft.rpe, !draft.isWarmup {
+                        Text("RPE \(rpe)").font(.caption).foregroundStyle(Color.liftMuted)
+                    }
+                    Spacer()
+                    setOptionsButton
+                }
+            } else if let rpe = draft.rpe, !draft.isWarmup {
+                Text("RPE \(rpe)").font(.caption).foregroundStyle(Color.liftMuted)
             }
 
             if showValidation && !hasRequiredInputs {
@@ -123,6 +154,9 @@ struct WorkoutSetLogRow: View {
                 .stroke(draft.isComplete ? Color.liftGreen.opacity(0.35) : Color.liftOverlay, lineWidth: 1)
         }
         .contextMenu {
+            if !draft.isComplete, let lastCompletedLog {
+                Button("Copy last set") { useValues(from: lastCompletedLog) }
+            }
             Button {
                 showingDetails.toggle()
             } label: {
@@ -148,12 +182,24 @@ struct WorkoutSetLogRow: View {
                 persistImmediately()
             }
         }
+        .onChange(of: completionRequest) { _, requestedID in
+            guard requestedID == draft.id else { return }
+            completionRequest = nil
+            guard hasRequiredInputs else { showValidation = true; return }
+            cancelPendingPersist()
+            persistSnapshot(draft)
+            let previousNeedsRest = onAttemptAutomaticCompletion(draft)
+            if !draft.isComplete { toggleCompletion() }
+            else if previousNeedsRest { onCompleted?() }
+            focusedInput = nil
+        }
         .onChange(of: focusedInput) { oldValue, newValue in
             guard isInputFocus(oldValue), !isInputFocus(newValue), !isDeleting else { return }
             persistImmediately()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             cancelPendingPersist()
+            guard draft != lastPersistedDraft else { return }
             persistDraft()
             onPersistImmediately()
         }
@@ -175,20 +221,24 @@ struct WorkoutSetLogRow: View {
         }
     }
 
-    private var previousSummary: String {
+    private func previousSummary(includesUnit: Bool = true) -> String {
         guard let previousLog else { return "—" }
         let reps = previousLog.reps ?? 0
+        let value = MeasurementFormatting.convert(previousLog.weight ?? 0, from: previousLog.recordedUnit, to: draft.recordedUnit)
+        let weight = includesUnit
+            ? MeasurementFormatting.formatRecordedWeight(value, unit: draft.recordedUnit, format: MeasurementFormatting.workoutLoadText)
+            : MeasurementFormatting.workoutLoadText(value)
         switch trackingKind {
         case .weightReps:
-            return "\(reps) × \(MeasurementFormatting.formatRecordedWeight(previousLog.weight ?? 0, unit: previousLog.recordedUnit))"
+            return includesUnit ? "\(weight) × \(reps)" : "\(weight)×\(reps)"
         case .bodyweightReps, .repsOnly:
             return "\(reps) reps"
         case .assistedBodyweight:
-            return "\(reps) × \(MeasurementFormatting.formatRecordedWeight(previousLog.weight ?? 0, unit: previousLog.recordedUnit)) assist"
+            return includesUnit ? "\(weight) assist × \(reps)" : "\(weight)×\(reps)"
         case .time:
             return MeasurementFormatting.shortClockText(TimeInterval(reps))
         case .weightTime:
-            return "\(MeasurementFormatting.shortClockText(TimeInterval(reps))) × \(MeasurementFormatting.formatRecordedWeight(previousLog.weight ?? 0, unit: previousLog.recordedUnit))"
+            return "\(weight) × \(MeasurementFormatting.shortClockText(TimeInterval(reps)))"
         }
     }
 
@@ -200,57 +250,68 @@ struct WorkoutSetLogRow: View {
                     setNumberBadge
                     previousValuesButton
                 }
-                HStack(spacing: 8) {
-                    repsInput
-                    if trackingKind.requiresWeight { weightInput }
-                    completionButton
+                if trackingKind.requiresWeight {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(weightPlaceholder).font(.subheadline)
+                        weightInput
+                    }
                 }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(trackingKind.usesDuration ? "Seconds" : "Reps").font(.subheadline)
+                    repsInput
+                }
+                completionButton
             }
         } else {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 setNumberBadge
                 previousValuesButton
-                repsInput
                 if trackingKind.requiresWeight { weightInput }
+                repsInput
                 completionButton
+                setOptionsButton
             }
         }
     }
 
     private var setNumberBadge: some View {
         Text("\(draft.setNumber)")
-            .font(.subheadline.weight(.black).monospacedDigit())
-            .foregroundStyle(draft.isComplete ? Color.liftOnAccent : Color.liftText)
+            .font(.subheadline.weight(.bold).monospacedDigit())
+            .foregroundStyle(draft.isComplete ? Color.liftOnGreen : Color.liftText)
             .frame(
                 width: dynamicTypeSize.isAccessibilitySize ? 56 : 34,
-                height: dynamicTypeSize.isAccessibilitySize ? 56 : 38
+                height: dynamicTypeSize.isAccessibilitySize ? 56 : LiftDesign.minimumTouchTarget
             )
             .background(draft.isComplete ? Color.liftGreen : Color.liftCardRaised)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .accessibilityLabel("Set \(draft.setNumber), \(draft.isWarmup ? "warm-up" : "working set")")
+            .accessibilityValue(draft.isComplete ? "Complete" : "Incomplete")
     }
 
     private var previousValuesButton: some View {
         Button {
             usePreviousValues()
         } label: {
-            Text(previousLog == nil ? "No previous set" : "Prev · \(previousSummary)")
+            Text(dynamicTypeSize.isAccessibilitySize
+                 ? (previousLog == nil ? "No previous set" : "Prev · \(previousSummary())")
+                 : (previousLog == nil ? "—" : previousSummary(includesUnit: false)))
                 .font(.caption.weight(.bold).monospacedDigit())
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.8)
                 .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(previousLog == nil ? Color.liftMuted : Color.liftAccentText)
-                .frame(maxWidth: .infinity, minHeight: dynamicTypeSize.isAccessibilitySize ? 56 : 38)
-                .background(Color.liftScrim)
+                .frame(maxWidth: .infinity, minHeight: dynamicTypeSize.isAccessibilitySize ? 56 : LiftDesign.minimumTouchTarget)
+                .background(previousLog == nil ? Color.liftCard : Color.liftCardRaised)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(previousLog == nil)
         .accessibilityIdentifier("workout.set.\(draft.setNumber).previousValues")
-        .accessibilityLabel(previousLog == nil ? "No previous set values" : "Use previous workout values: \(previousSummary)")
+        .accessibilityLabel(previousLog == nil ? "No previous set values" : "Use previous workout values: \(previousSummary())")
     }
 
     private var repsInput: some View {
-        compactField(trackingKind.usesDuration ? "Sec" : "Reps", text: $repsText, width: 64, field: .reps)
+        compactField(trackingKind.usesDuration ? "Sec" : "Reps", text: $repsText, width: 56, field: .reps)
             .keyboardType(.numberPad)
             .onChange(of: repsText) { _, _ in
                 draft.reps = parsedReps
@@ -260,9 +321,11 @@ struct WorkoutSetLogRow: View {
     }
 
     private var weightInput: some View {
-        compactField(weightPlaceholder, text: $weightText, width: 72, field: .weight)
+        compactField(weightPlaceholder, text: $weightText, width: 64, field: .weight)
             .keyboardType(.decimalPad)
             .onChange(of: weightText) { _, _ in
+                // Formatting a restored or copied load must not round its stored value.
+                if let weight = draft.weight, weightText == Self.formatWeight(weight) { return }
                 draft.weight = parsedWeight
                 invalidateCompletedSetWithoutRequiredInputs()
                 schedulePersistIfIdle()
@@ -274,11 +337,11 @@ struct WorkoutSetLogRow: View {
             toggleCompletion()
         } label: {
             Image(systemName: draft.isComplete ? "checkmark" : "circle")
-                .font(.subheadline.weight(.black))
-                .foregroundStyle(draft.isComplete ? Color.liftOnAccent : Color.liftAccentText)
+                .font(LiftTypography.rowEmphasis)
+                .foregroundStyle(draft.isComplete ? Color.liftOnGreen : Color.liftAccentText)
                 .frame(
-                    width: dynamicTypeSize.isAccessibilitySize ? 56 : 38,
-                    height: dynamicTypeSize.isAccessibilitySize ? 56 : 38
+                    width: dynamicTypeSize.isAccessibilitySize ? 56 : LiftDesign.minimumTouchTarget,
+                    height: dynamicTypeSize.isAccessibilitySize ? 56 : LiftDesign.minimumTouchTarget
                 )
                 .background(draft.isComplete ? Color.liftGreen : Color.liftBlue.opacity(0.12))
                 .clipShape(Circle())
@@ -286,6 +349,8 @@ struct WorkoutSetLogRow: View {
         .buttonStyle(.plain)
         .opacity(!draft.isComplete && !hasRequiredInputs ? 0.55 : 1)
         .accessibilityLabel(draft.isComplete ? "Mark set incomplete" : "Complete set")
+        .accessibilityValue("Set \(draft.setNumber), \(draft.isComplete ? "complete" : "incomplete")")
+        .accessibilityIdentifier("workout.set.\(draft.setNumber).completion")
     }
 
     @ViewBuilder
@@ -293,8 +358,8 @@ struct WorkoutSetLogRow: View {
         if dynamicTypeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: 8) {
                 if !draft.isWarmup {
-                    Text("RPE")
-                        .font(.caption.weight(.black))
+                    Text("Effort (RPE)")
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftMuted)
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 8) {
                         rpeButtons
@@ -306,14 +371,13 @@ struct WorkoutSetLogRow: View {
         } else {
             HStack(spacing: 6) {
                 if !draft.isWarmup {
-                    Text("RPE")
-                        .font(.caption2.weight(.black))
+                    Text("Effort")
+                        .font(.caption2.weight(.bold))
                         .foregroundStyle(Color.liftMuted)
-                        .frame(width: 34, alignment: .leading)
+                        .frame(width: 40, alignment: .leading)
                     rpeButtons
                 }
                 Spacer(minLength: 0)
-                setOptionsButton
             }
             .padding(.top, 1)
         }
@@ -329,11 +393,11 @@ struct WorkoutSetLogRow: View {
                 Haptics.light()
             } label: {
                 Text("\(value)")
-                    .font(.caption.weight(.black).monospacedDigit())
+                    .font(.caption.weight(.bold).monospacedDigit())
                     .foregroundStyle(draft.rpe == value ? Color.liftOnAccent : Color.liftText)
                     .frame(
-                        maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : 30,
-                        minHeight: dynamicTypeSize.isAccessibilitySize ? 48 : 28
+                        maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : LiftDesign.minimumTouchTarget,
+                        minHeight: dynamicTypeSize.isAccessibilitySize ? 48 : LiftDesign.minimumTouchTarget
                     )
                     .background(draft.rpe == value ? rpeTint(value) : rpeTint(value).opacity(0.12))
                     .clipShape(Circle())
@@ -348,10 +412,13 @@ struct WorkoutSetLogRow: View {
         Button {
             showingDetails.toggle()
         } label: {
-            Label(showingDetails ? "Done" : "Set options", systemImage: showingDetails ? "checkmark" : "ellipsis.circle")
+            Image(systemName: showingDetails ? "checkmark" : "ellipsis")
+                .frame(width: LiftDesign.minimumTouchTarget)
                 .font(.caption.weight(.semibold))
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 .foregroundStyle(Color.liftMuted)
-                .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 48 : 0)
+                .frame(minHeight: LiftDesign.minimumTouchTarget)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(showingDetails ? "Hide set options" : "Show set options")
@@ -362,27 +429,40 @@ struct WorkoutSetLogRow: View {
     }
 
     private func compactField(_ placeholder: String, text: Binding<String>, width: CGFloat, field: WorkoutSetInputField) -> some View {
-        TextField(placeholder, text: text)
+        let fieldLabel: String = switch field {
+        case .weight:
+            "\(trackingKind == .assistedBodyweight ? "assistance" : "weight"), \(draft.recordedUnit == .pounds ? "pounds" : "kilograms")"
+        case .reps:
+            trackingKind.usesDuration ? "duration, seconds" : "repetitions"
+        }
+        return TextField(placeholder, text: text)
             .font(.subheadline.weight(.bold).monospacedDigit())
             .multilineTextAlignment(.center)
             .textFieldStyle(.plain)
             .accessibilityIdentifier("workout.set.\(draft.setNumber).\(field.rawValue)")
+            .accessibilityLabel("Set \(draft.setNumber) \(fieldLabel)")
             .focused($focusedInput, equals: WorkoutSetInputFocus(logID: draft.id, field: field))
+            .id(WorkoutSetInputFocus(logID: draft.id, field: field))
             .frame(
                 maxWidth: dynamicTypeSize.isAccessibilitySize ? .infinity : width,
-                minHeight: dynamicTypeSize.isAccessibilitySize ? 56 : 38
+                minHeight: dynamicTypeSize.isAccessibilitySize ? 56 : LiftDesign.minimumTouchTarget
             )
-            .background(Color.liftScrim)
+            .foregroundStyle(Color.liftText)
+            .background(Color.liftBackground)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color.liftOverlay, lineWidth: 1)
+                    .stroke(focusedInput == WorkoutSetInputFocus(logID: draft.id, field: field) ? Color.liftAccentText : Color.liftMuted.opacity(0.45), lineWidth: 1)
             }
     }
 
     private func usePreviousValues() {
-        cancelPendingPersist()
         guard let previousLog else { return }
+        useValues(from: previousLog)
+    }
+
+    private func useValues(from previousLog: WorkoutSetLog) {
+        cancelPendingPersist()
         if let reps = previousLog.reps {
             repsText = String(reps)
             draft.reps = reps
@@ -393,7 +473,7 @@ struct WorkoutSetLogRow: View {
                 from: previousLog.recordedUnit,
                 to: draft.recordedUnit
             )
-            weightText = MeasurementFormatting.formatWeight(currentUnitWeight)
+            weightText = Self.formatWeight(currentUnitWeight)
             draft.weight = currentUnitWeight
         }
         persistDraft()
@@ -414,6 +494,8 @@ struct WorkoutSetLogRow: View {
         draft.completionSource = completing ? .manual : nil
         lastPersistedDraft = draft
         if completing {
+            focusedInput = nil
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             Haptics.success()
             if triggerTimer { onCompleted?() }
         }

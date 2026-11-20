@@ -13,6 +13,79 @@ struct OnboardingStartingLift: Equatable {
 
 @MainActor
 extension AppState {
+    func shareWorkoutStartIfEnabled() {
+        guard isAuthenticated, !isDemoMode,
+              authenticatedPrivacy.shareWorkoutStartsWithFriends == true,
+              let workoutID = activeWorkout?.id else { return }
+        queueFriendActivity(.init(ownerID: currentProfile.id, kind: .workoutStarted, sourceID: workoutID))
+    }
+
+    func shareTopLiftIfEnabled(_ lift: LiftSubmission) {
+        shareTopLiftIfEnabled(liftID: lift.id, ownerID: lift.userID)
+    }
+
+    func shareTopLiftIfEnabled(liftID: UUID, ownerID: UUID) {
+        guard isAuthenticated, !isDemoMode,
+              authenticatedPrivacy.sharePRsWithFriends == true,
+              ownerID == currentProfile.id else { return }
+        queueFriendActivity(.init(ownerID: ownerID, kind: .topLift, sourceID: liftID))
+    }
+
+    func retryFriendActivityShares() async {
+        guard isAuthenticated, !isDemoMode else { return }
+        let ownerID = currentProfile.id
+        guard !repository.pendingFriendActivityShares.isEmpty else {
+            friendActivityShareError = nil
+            return
+        }
+        guard repository.persistWorkoutSnapshotReportingError() else {
+            friendActivityShareError = "Friend activity could not be saved on this device. Retry when storage is available."
+            return
+        }
+        for pending in repository.pendingFriendActivityShares where pending.ownerID == ownerID {
+            await publishFriendActivity(pending)
+        }
+    }
+
+    private func queueFriendActivity(_ pending: PendingFriendActivityShare) {
+        guard currentProfile.id == pending.ownerID else { return }
+        if !repository.pendingFriendActivityShares.contains(pending) {
+            repository.pendingFriendActivityShares.append(pending)
+        }
+        guard repository.persistWorkoutSnapshotReportingError() else {
+            friendActivityShareError = "Friend activity could not be saved on this device. Retry when storage is available."
+            return
+        }
+        Task { await publishFriendActivity(pending) }
+    }
+
+    private func publishFriendActivity(_ pending: PendingFriendActivityShare) async {
+        guard currentProfile.id == pending.ownerID,
+              repository.pendingFriendActivityShares.contains(pending) else { return }
+        do {
+            switch pending.kind {
+            case .workoutStarted:
+                try await profileStore.recordFriendWorkoutStart(workoutID: pending.sourceID, ownerID: pending.ownerID)
+            case .topLift:
+                try await profileStore.recordFriendTopLift(liftID: pending.sourceID)
+            }
+            guard currentProfile.id == pending.ownerID,
+                  repository.pendingFriendActivityShares.contains(pending) else { return }
+            let previous = repository.pendingFriendActivityShares
+            repository.pendingFriendActivityShares.removeAll { $0 == pending }
+            if repository.persistWorkoutSnapshotReportingError() {
+                if repository.pendingFriendActivityShares.isEmpty { friendActivityShareError = nil }
+            } else {
+                repository.pendingFriendActivityShares = previous
+                friendActivityShareError = "Friend activity was shared, but its local queue could not be updated. Retry when storage is available."
+            }
+        } catch {
+            guard currentProfile.id == pending.ownerID,
+                  repository.pendingFriendActivityShares.contains(pending) else { return }
+            friendActivityShareError = "Friend activity could not be shared. Check your connection, then retry."
+        }
+    }
+
     func saveOnboardingStartingLifts(
         _ startingLifts: [OnboardingStartingLift],
         unit: UnitSystem,
@@ -65,16 +138,6 @@ extension AppState {
         )
     }
 
-    func connectOnboardingPrimaryGym(_ gym: Gym) async throws {
-        guard isAuthenticated, !isDemoMode else { return }
-        guard try await accountSocialStore.ensureGymJoined(
-            gym,
-            maximumMemberships: Self.maximumJoinedGyms,
-            authenticated: true
-        ) else { throw LiftRankServiceError.gymLimitReached }
-        try await accountSocialStore.setPrimaryGym(gym, authenticated: true)
-    }
-
     func updateProfile(_ profile: UserProfile) {
         Task {
             do {
@@ -83,6 +146,42 @@ extension AppState {
             } catch {
                 accountMessage = userMessage(error)
             }
+        }
+    }
+
+    func reloadAccountSettings() async -> Bool {
+        guard beginAccountMutation() else { return false }
+        defer { endAccountMutation() }
+        let userID = currentProfile.id
+        do {
+            let remote = try await profileStore.fetchAuthenticatedProfile()
+            guard currentProfile.id == userID, remote.id == userID else {
+                throw LiftRankServiceError.sessionExpired
+            }
+            profileStore.applyAuthenticatedProfile(remote, retainingDemoProfiles: false)
+            setAuthenticatedPrivacy(remote.privacy)
+            accountMessage = nil
+            return true
+        } catch {
+            accountMessage = userMessage(error)
+            return false
+        }
+    }
+
+    func saveAccountSettings(_ settings: ProfileSettingsSnapshot, expected: ProfileSettingsSnapshot) async -> Bool {
+        guard beginAccountMutation() else { return false }
+        defer { endAccountMutation() }
+        do {
+            let remote = try await profileStore.saveSettings(settings, expected: expected)
+            setAuthenticatedPrivacy(remote.privacy)
+            repository.persistWorkoutSnapshotWithoutBlockingUI()
+            await refreshRemoteSocialState()
+            Haptics.success()
+            return true
+        } catch {
+            accountMessage = userMessage(error)
+            Haptics.warning()
+            return false
         }
     }
 

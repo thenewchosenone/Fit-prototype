@@ -6,7 +6,7 @@ struct ActiveWorkoutAddExercisePickerView: View {
     @State private var searchText = ""
     @State private var selectedBodyPart = "All"
     @State private var selectedEquipment = "All"
-    @State private var selectedIDs: Set<String> = []
+    @State private var selectedIDs: [String] = []
     @State private var descriptionExercise: TrainingExerciseCatalogItem?
     @State private var showingCreateExercise = false
 
@@ -48,10 +48,9 @@ struct ActiveWorkoutAddExercisePickerView: View {
                                 let isExisting = existingIDs.contains(exercise.id)
                                 let isSelected = selectedIDs.contains(exercise.id)
                                 HStack(spacing: 12) {
-                                    ExerciseCatalogIcon(exercise: exercise)
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(exercise.name)
-                                            .font(.subheadline.weight(.bold))
+                                            .font(LiftTypography.rowEmphasis)
                                             .foregroundStyle(Color.liftText)
                                         if let reason = result.reasonLabel {
                                             Text(reason)
@@ -64,15 +63,15 @@ struct ActiveWorkoutAddExercisePickerView: View {
                                     }
                                     Spacer()
                                     Image(systemName: isExisting || isSelected ? "checkmark.circle.fill" : "circle")
-                                        .font(.title3.weight(.bold))
+                                        .font(LiftTypography.sectionTitle)
                                         .foregroundStyle(isExisting ? Color.liftGreen : isSelected ? Color.liftAccentText : Color.liftMuted)
                                 }
                                 .padding(.vertical, 10)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     guard !isExisting else { return }
-                                    if isSelected { selectedIDs.remove(exercise.id) }
-                                    else { selectedIDs.insert(exercise.id) }
+                                    if isSelected { selectedIDs.removeAll { $0 == exercise.id } }
+                                    else { selectedIDs.append(exercise.id) }
                                 }
                                 .onLongPressGesture(minimumDuration: 0.45) {
                                     descriptionExercise = exercise
@@ -99,7 +98,7 @@ struct ActiveWorkoutAddExercisePickerView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(selectedIDs.isEmpty ? "Add" : "Add \(selectedIDs.count)") {
-                        let selected = appState.trainingExerciseLibrary.filter { selectedIDs.contains($0.id) }
+                        let selected = selectedIDs.compactMap { id in appState.trainingExerciseLibrary.first { $0.id == id } }
                         appState.addExercisesToActiveWorkout(selected)
                         dismiss()
                     }
@@ -132,15 +131,15 @@ struct ActiveWorkoutAddExercisePickerView: View {
                 Image(systemName: "plus.circle.fill")
                     .font(.headline)
                 Text("Create custom exercise")
-                    .font(.subheadline.weight(.bold))
+                    .font(.subheadline)
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
+                    .font(LiftTypography.compactEmphasis)
             }
-            .foregroundStyle(Color.liftAccentText)
+            .foregroundStyle(Color.liftMuted)
             .padding(.horizontal, 13)
             .frame(maxWidth: .infinity, minHeight: 44)
-            .background(Color.liftBlue.opacity(0.12))
+            .background(Color.liftCard)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -195,7 +194,7 @@ struct ActiveWorkoutAddExercisePickerView: View {
                     }
                 } label: {
                     Label(selectedEquipment == "All" ? "Equipment" : selectedEquipment, systemImage: "slider.horizontal.3")
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 9)
                         .background(selectedEquipment == "All" ? Color.liftCard : Color.liftBlue.opacity(0.18))
@@ -209,7 +208,7 @@ struct ActiveWorkoutAddExercisePickerView: View {
     private func filterChip(_ title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.caption.weight(.bold))
+                .font(LiftTypography.compactEmphasis)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
                 .background(isSelected ? Color.liftBlue : Color.liftCard)

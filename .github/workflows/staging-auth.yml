@@ -1,0 +1,46 @@
+name: Disposable staging auth tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, codex/staging-auth]
+    paths:
+      - 'src/auth.tsx'
+      - 'src/AuthPages.tsx'
+      - 'tests/authRecovery.test.tsx'
+      - 'scripts/test-staging-auth*'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/staging-auth.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-auth
+  cancel-in-progress: false
+
+jobs:
+  auth:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/staging-auth'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: staging-auth
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:staging-auth:guards
+      - run: pnpm exec vitest run tests/authRecovery.test.tsx
+      - name: Run isolated staging recovery and clean disposable accounts
+        run: pnpm test:staging-auth
+        env:
+          STAGING_AUTH_URL: https://dfpvamnucwyafxklnjwt.supabase.co
+          STAGING_AUTH_PUBLIC_KEY: ${{ secrets.STAGING_AUTH_PUBLIC_KEY }}
+          STAGING_AUTH_SERVER_KEY: ${{ secrets.STAGING_AUTH_SERVER_KEY }}

@@ -3,7 +3,7 @@ begin;
 create schema if not exists extensions;
 create extension if not exists pgtap with schema extensions;
 
-select plan(13);
+select plan(18);
 
 select has_table('public', 'location_countries', 'canonical countries exist');
 select has_table('public', 'location_regions', 'canonical regions exist');
@@ -11,6 +11,12 @@ select has_table('public', 'location_cities', 'canonical cities exist');
 select has_table('public', 'location_city_aliases', 'canonical city aliases exist');
 select has_column('public', 'profile_private_details', 'city_id', 'private details can store canonical city id');
 select has_function('public', 'search_cities', array['text', 'text', 'text', 'integer'], 'city search rpc exists');
+select ok((select p.prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and p.proname = 'search_cities'), 'city search rpc runs as security definer');
+select ok((select 'search_path=pg_catalog' = any(p.proconfig) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and p.proname = 'search_cities'), 'city search rpc pins its search path');
+select ok(has_function_privilege('anon', 'public.search_cities(text,text,text,integer)', 'EXECUTE'), 'anonymous can execute city search rpc');
+select ok(has_function_privilege('authenticated', 'public.search_cities(text,text,text,integer)', 'EXECUTE'), 'authenticated can execute city search rpc');
 
 insert into public.location_countries(code, name, geoname_id)
 values ('US', 'United States', 6252001)
@@ -22,18 +28,26 @@ on conflict do nothing;
 
 insert into public.location_cities(id, country_code, region_id, region_code, name, ascii_name, latitude, longitude, population, geoname_id, timezone)
 values
-  ('30000000-0000-0000-0000-000000000101', 'US', '30000000-0000-0000-0000-000000000001', 'FL', 'Miami', 'Miami', 25.7743, -80.1937, 442241, 4164138, 'America/New_York'),
-  ('30000000-0000-0000-0000-000000000102', 'US', '30000000-0000-0000-0000-000000000001', 'FL', 'Miami Beach', 'Miami Beach', 25.7907, -80.1300, 82890, 4164143, 'America/New_York')
+  ('30000000-0000-0000-0000-000000000101', 'US', (select id from public.location_regions where country_code = 'US' and code = 'FL'), 'FL', 'Miami', 'Miami', 25.7743, -80.1937, 442241, 4164138, 'America/New_York'),
+  ('30000000-0000-0000-0000-000000000102', 'US', (select id from public.location_regions where country_code = 'US' and code = 'FL'), 'FL', 'Miami Beach', 'Miami Beach', 25.7907, -80.1300, 82890, 4164143, 'America/New_York')
 on conflict do nothing;
 
 insert into public.location_city_aliases(city_id, alias)
-values ('30000000-0000-0000-0000-000000000101', 'MIA')
+values
+  ('30000000-0000-0000-0000-000000000101', 'MIA'),
+  ('30000000-0000-0000-0000-000000000101', 'Magic City')
 on conflict do nothing;
 
 select is(
-  (select count(*)::integer from public.search_cities('US', 'Florida', 'mia', 8)),
+  (select count(*)::integer from public.search_cities('US', 'Florida', 'mia', 8) where city = 'Miami'),
   1,
   'alias search returns canonical Miami once'
+);
+
+select is(
+  (select count(*)::integer from public.search_cities('US', 'Florida', 'magic', 8) where city = 'Miami'),
+  1,
+  'non-prefix alias search returns its canonical city once'
 );
 
 select is(
@@ -44,7 +58,7 @@ select is(
 
 set local role anon;
 select is(
-  (select count(*)::integer from public.search_cities('US', 'Florida', 'mia', 8)),
+  (select count(*)::integer from public.search_cities('US', 'Florida', 'mia', 8) where city = 'Miami'),
   1,
   'anon can search public canonical cities'
 );

@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct LeaderboardsView: View {
+    var isActiveTab = true
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
     @EnvironmentObject var appState: AppState
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
     @State var searchText = ""

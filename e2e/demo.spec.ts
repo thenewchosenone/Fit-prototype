@@ -48,7 +48,8 @@ test("serves public information, feedback, and share metadata", async ({ page })
   await page.getByRole("button", { name: "Start exploring" }).click();
   await expect(page.getByRole("heading", { name: "Privacy notice" })).toBeVisible();
   await page.goto("/#/terms");
-  await expect(page.getByRole("heading", { name: "Demo terms" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Terms of use" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "14. Changes and contact" })).toBeVisible();
   await page.goto("/#/contact");
   const feedback = page.getByRole("link", { name: /Open GitHub feedback/ });
   await expect(feedback).toHaveAttribute("href", "https://github.com/thenewchosenone/Fit-prototype/issues/new");

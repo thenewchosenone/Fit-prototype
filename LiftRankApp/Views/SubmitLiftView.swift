@@ -47,9 +47,9 @@ struct SubmitLiftView: View {
     @Environment(\.dismiss) private var dismiss
     private let prefill: LiftSubmissionPrefill?
     @State private var exercise: Exercise
-    @State private var weight: Double
+    @State private var weight: Double?
     @State private var unit: UnitSystem
-    @State private var repetitions: Int
+    @State private var repetitions: Int?
     @State private var isActualOneRepMax: Bool
     @State private var bodyweight = 0.0
     @State private var performedAt: Date
@@ -57,7 +57,6 @@ struct SubmitLiftView: View {
     @State private var equipment = EquipmentType.raw
     @State private var caption = ""
     @State private var visibility = LiftVisibility.publicLift
-    @State private var requestVerification = true
     @State private var confirmsMatchedDumbbells = true
     @State private var pickerItem: PhotosPickerItem?
     @State private var selectedVideoURL: URL?
@@ -70,13 +69,20 @@ struct SubmitLiftView: View {
     @State private var showingResult = false
     @State private var submittedLift: LiftSubmission?
     @State private var isSubmitting = false
+    @State private var initialDraft: [String]?
+    @State private var confirmingDiscard = false
+    private var draftValues: [String] {
+        [exercise.id, String(describing: weight), unit.rawValue, String(describing: repetitions),
+         String(isActualOneRepMax), String(bodyweight), String(performedAt.timeIntervalSince1970),
+         gymID?.uuidString ?? "", equipment.rawValue, caption, visibility.rawValue,
+         String(confirmsMatchedDumbbells), selectedVideoURL?.absoluteString ?? ""]
+    }
+    private var hasDraftChanges: Bool { initialDraft.map { $0 != draftValues } ?? false }
     @State private var plateLoads: [EditablePlateLoad] = []
     @State private var barbellWeight = 45.0
     @State private var plateLoadingWasEdited = false
     @State private var isSyncingPlateLoading = false
     @State private var isPlateLoadingExpanded = false
-    @State private var isEstimateExpanded = false
-    @State private var isMoreDetailsExpanded = false
     @State private var activeSelector: SubmitLiftSelector?
     @State private var isRefreshingGyms = false
 
@@ -86,15 +92,16 @@ struct SubmitLiftView: View {
             MockData.exercises.first { $0.id == prefill.exerciseID }
         } ?? MockData.exercises[2]
         _exercise = State(initialValue: selectedExercise)
-        _weight = State(initialValue: prefill?.weight ?? 315)
+        _weight = State(initialValue: prefill?.weight)
         _unit = State(initialValue: prefill?.unit ?? .pounds)
-        _repetitions = State(initialValue: prefill?.repetitions ?? 1)
+        _repetitions = State(initialValue: prefill?.repetitions)
         _isActualOneRepMax = State(initialValue: prefill.map { $0.repetitions == 1 } ?? true)
         _performedAt = State(initialValue: prefill?.performedAt ?? .now)
     }
 
-    private var estimate: Double {
-        isActualOneRepMax ? weight : RankingCalculator.epleyOneRepMax(weight: weight, repetitions: repetitions)
+    private var estimate: Double? {
+        guard let weight, weight > 0, let repetitions, repetitions > 0 else { return nil }
+        return isActualOneRepMax ? weight : RankingCalculator.epleyOneRepMax(weight: weight, repetitions: repetitions)
     }
 
     private var bodyweightDisplayValue: Binding<Double> {
@@ -131,9 +138,10 @@ struct SubmitLiftView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         liftDetailsCard
+                        if !isActualOneRepMax { estimateCard }
                         trainingContextCard
                         videoCard
-                        moreDetailsCard
+                        plateCard
                     }
                     .padding(.horizontal, LiftDesign.screenHorizontalPadding)
                     .padding(.top, 8)
@@ -146,7 +154,8 @@ struct SubmitLiftView: View {
             .navigationTitle("Submit Lift")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    Button("Cancel") { if hasDraftChanges { confirmingDiscard = true } else { dismiss() } }
+                        .disabled(isSubmitting || isPreparingVideo)
                 }
             }
             .sheet(isPresented: $showingResult) {
@@ -197,14 +206,21 @@ struct SubmitLiftView: View {
                 Text(gymSelectionError ?? "Choose another gym.")
             }
             .onAppear {
+                guard initialDraft == nil else { return }
                 bodyweight = appState.currentProfile.bodyweightPounds
                 if prefill == nil { unit = appState.currentProfile.preferredUnit }
                 selectDefaultGymIfNeeded()
                 resetPlateLoadingFromWeight()
                 prepareVideoPickerAfterPresentation()
+                initialDraft = draftValues
             }
             .task {
                 await refreshGymOptions()
+            }
+            .interactiveDismissDisabled(hasDraftChanges || isSubmitting || isPreparingVideo)
+            .confirmationDialog("Discard lift draft?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
+                Button("Discard draft", role: .destructive) { dismiss() }
+                Button("Keep editing", role: .cancel) {}
             }
             .alert("Lift not submitted", isPresented: Binding(
                 get: { submissionError != nil },
@@ -215,7 +231,7 @@ struct SubmitLiftView: View {
                 Text(submissionError ?? "Try again.")
             }
             .onChange(of: unit) { oldUnit, newUnit in
-                weight = MeasurementFormatting.convert(weight, from: oldUnit, to: newUnit)
+                if let weight { self.weight = MeasurementFormatting.convert(weight, from: oldUnit, to: newUnit) }
                 resetPlateLoadingFromWeight()
             }
             .onChange(of: weight) { _, _ in
@@ -250,28 +266,28 @@ struct SubmitLiftView: View {
                 .accessibilityLabel("Weight unit")
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .top, spacing: 12) {
-                        NumericInputField(title: selectedMovement == .dumbbellBenchPress ? "Weight per hand" : "Weight", value: $weight, unit: unit.shortLabel, precision: 0...2, presentation: .inset)
-                        IntegerInputField(title: "Reps", value: $repetitions, presentation: .inset)
+                        liftWeightInput
+                        repetitionsInput
                     }
                     VStack(alignment: .leading, spacing: 12) {
-                        NumericInputField(title: selectedMovement == .dumbbellBenchPress ? "Weight per hand" : "Weight", value: $weight, unit: unit.shortLabel, precision: 0...2, presentation: .inset)
-                        IntegerInputField(title: "Reps", value: $repetitions, presentation: .inset)
+                        liftWeightInput
+                        repetitionsInput
                     }
                 }
                 Picker("One-rep max type", selection: $isActualOneRepMax) {
-                    Text("Actual").tag(true)
-                    Text("Estimated").tag(false)
+                    Text("Actual 1RM").tag(true)
+                    Text("Estimated 1RM").tag(false)
                 }
                 .pickerStyle(.segmented)
                 .accessibilityLabel("One-rep max type")
                 if selectedMovement == .dumbbellBenchPress {
                     Toggle("Matched dumbbell pair", isOn: $confirmsMatchedDumbbells)
                         .tint(Color.liftAccentText)
-                    Text("Enter the weight of one dumbbell. Both dumbbells must match for ranking eligibility.")
+                    Text("Enter the weight of one dumbbell. Both dumbbells must match.")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
-                if isActualOneRepMax && repetitions != 1 {
+                if isActualOneRepMax, let repetitions, repetitions != 1 {
                     Label("An actual 1RM must be exactly one repetition. This set will stay in history but will not rank.", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(Color.liftGold)
@@ -280,22 +296,42 @@ struct SubmitLiftView: View {
         }
     }
 
+    private var liftWeightInput: some View {
+        OptionalNumericInputField(
+            title: selectedMovement == .dumbbellBenchPress ? "Weight per hand" : "Weight",
+            value: $weight,
+            unit: unit.shortLabel,
+            placeholder: "Required",
+            presentation: .inset
+        )
+    }
+
+    private var repetitionsInput: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Reps")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.liftMuted)
+            TextField("Required", text: Binding(
+                get: { repetitions.map(String.init) ?? "" },
+                set: { repetitions = Int($0) }
+            ))
+            .keyboardType(.numberPad)
+            .textFieldStyle(.plain)
+            .padding(12)
+            .background(Color.liftField)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
     private var trainingContextCard: some View {
         LiftCard(padding: 14, radius: 16) {
             VStack(alignment: .leading, spacing: 10) {
                 CompactSectionHeader(title: "Training context")
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .bottom, spacing: 12) {
-                        bodyweightInput
-                        DatePicker("Date", selection: $performedAt, displayedComponents: .date)
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity, minHeight: LiftDesign.minimumTouchTarget)
-                    }
-                    VStack(alignment: .leading, spacing: 10) {
-                        bodyweightInput
-                        DatePicker("Date performed", selection: $performedAt, displayedComponents: .date)
-                            .frame(minHeight: LiftDesign.minimumTouchTarget)
-                    }
+                VStack(alignment: .leading, spacing: 12) {
+                    bodyweightInput
+                    DatePicker("Date performed", selection: $performedAt, in: ...Date.now, displayedComponents: .date)
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
                 }
                 Divider().overlay(Color.liftSeparator)
                 LiftActionRow(title: "Gym", subtitle: selectedGym?.name ?? "No gym", symbolName: "building.2") {
@@ -312,49 +348,28 @@ struct SubmitLiftView: View {
 
     private var estimateCard: some View {
         LiftCard(padding: 12, radius: 16) {
-            DisclosureGroup(isExpanded: $isEstimateExpanded) {
-                HStack(spacing: 12) {
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(Color.liftGreen)
-                        .frame(width: 34, height: 34)
-                        .background(Color.liftGreen.opacity(0.14))
-                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Estimated one-rep max")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(Color.liftTextSecondary)
-                        Text("\(RankingCalculator.format(estimate)) \(unit.shortLabel)")
-                            .font(.system(.title3, design: .rounded).weight(.black))
+            HStack(spacing: 12) {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .font(LiftTypography.sectionTitle)
+                    .foregroundStyle(Color.liftGreen)
+                    .frame(width: 34, height: 34)
+                    .background(Color.liftGreen.opacity(0.14))
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Estimated one-rep max")
+                        .font(LiftTypography.compactEmphasis)
+                        .foregroundStyle(Color.liftTextSecondary)
+                    Text(estimate.map { "\(RankingCalculator.format($0)) \(unit.shortLabel)" } ?? "Enter weight and reps to calculate")
+                        .font(.system(.title3).weight(.bold))
+                    if let weight, let repetitions {
                         Text("Based on \(MeasurementFormatting.recordedLiftSetTextWithX(weight: weight, unit: unit, repetitions: repetitions, includeRepLabel: true))")
                             .font(.caption2)
                             .foregroundStyle(Color.liftTextSecondary)
                             .lineLimit(1)
                     }
-                    Spacer(minLength: 0)
                 }
-                .padding(.top, 10)
-            } label: {
-                Label("Estimated one-rep max", systemImage: "chart.line.uptrend.xyaxis")
-                    .font(.subheadline.weight(.bold))
+                Spacer(minLength: 0)
             }
-            .tint(Color.liftAccentText)
-        }
-    }
-
-    private var moreDetailsCard: some View {
-        LiftCard(padding: 12, radius: 16) {
-            DisclosureGroup(isExpanded: $isMoreDetailsExpanded) {
-                VStack(alignment: .leading, spacing: 12) {
-                    estimateCard
-                    plateCard
-                }
-                .padding(.top, 8)
-            } label: {
-                Label("More details", systemImage: "slider.horizontal.3")
-                    .font(.subheadline.weight(.bold))
-            }
-            .tint(Color.liftAccentText)
         }
     }
 
@@ -382,7 +397,7 @@ struct SubmitLiftView: View {
                             plateLoadingWasEdited = false
                             resetPlateLoadingFromWeight()
                         }
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftAccentText)
                     }
 
@@ -423,7 +438,7 @@ struct SubmitLiftView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Plate loading")
                         .font(.headline)
-                    Text("Loaded total: \(RankingCalculator.format(weight)) \(unit.shortLabel)")
+                    Text(weight.map { "Loaded total: \(RankingCalculator.format($0)) \(unit.shortLabel)" } ?? "Enter a weight to calculate plate loading")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
@@ -450,11 +465,11 @@ struct SubmitLiftView: View {
     private var submissionConsequence: String {
         switch visibility {
         case .publicLift:
-            return "Public lifts appear on your profile. Eligible public lifts can appear on leaderboards."
+            return "Public lifts appear on your profile."
         case .friendsLift:
-            return "Friends-only lifts are visible to accepted friends and stay out of public leaderboards."
+            return "Friends-only lifts are visible to accepted friends."
         case .privateLift:
-            return "Private lifts stay on your profile and are excluded from public leaderboards."
+            return "Private lifts are visible only to you."
         }
     }
 
@@ -505,7 +520,7 @@ struct SubmitLiftView: View {
 
     private func visibilitySubtitle(_ option: LiftVisibility) -> String {
         switch option {
-        case .publicLift: return "Eligible public rankings"
+        case .publicLift: return "Visible on your profile"
         case .friendsLift: return "Visible to accepted friends"
         case .privateLift: return "Visible only to you"
         }
@@ -625,6 +640,10 @@ struct SubmitLiftView: View {
         isSyncingPlateLoading = true
         defer { isSyncingPlateLoading = false }
         barbellWeight = unit == .pounds ? 45 : 20
+        guard let weight else {
+            plateLoads = plateOptions.map { EditablePlateLoad(plateWeight: $0, label: "\(RankingCalculator.format($0)) \(unit.shortLabel)", count: 0) }
+            return
+        }
         var sideWeight = max(0, (weight - barbellWeight) / 2)
         plateLoads = plateOptions.map { plateWeight in
             let count = Int(sideWeight / plateWeight)
@@ -678,16 +697,16 @@ struct SubmitLiftView: View {
                                 ProgressView()
                                     .frame(maxWidth: .infinity)
                             } else {
-                                Label("Select lift video", systemImage: "video.badge.plus")
+                                Label("Add video · optional", systemImage: "video.badge.plus")
                                     .frame(maxWidth: .infinity)
                             }
                         }
-                        .buttonStyle(LiftCompactProminentButtonStyle())
+                        .buttonStyle(.bordered)
                         .disabled(isPreparingVideo)
                         .accessibilityIdentifier("lift.video.select")
                     } else {
                         Label("Video optional", systemImage: "video")
-                            .font(.subheadline.weight(.bold))
+                            .font(LiftTypography.rowEmphasis)
                             .foregroundStyle(Color.liftMuted)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
@@ -696,27 +715,22 @@ struct SubmitLiftView: View {
                     }
                 }
 
-                Toggle("Require lift video", isOn: $requestVerification)
-                    .tint(Color.liftAccentText)
-                    .frame(minHeight: LiftDesign.minimumTouchTarget)
                 Text("Video-backed means a video is attached. It does not mean the lift has been reviewed.")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
 
-                if requestVerification {
-                    DisclosureGroup("Recording guidance") {
-                        VStack(alignment: .leading, spacing: 7) {
-                            ForEach(["Keep the lifter and plates visible", "Show the complete repetition", "Avoid edited videos", "Show the full range of motion"], id: \.self) { item in
-                                Label(item, systemImage: "checkmark.circle")
-                                    .font(.caption)
-                                    .foregroundStyle(Color.liftMuted)
-                            }
+                DisclosureGroup("Recording guidance") {
+                    VStack(alignment: .leading, spacing: 7) {
+                        ForEach(["Keep the lifter and plates visible", "Show the complete repetition", "Avoid edited videos", "Show the full range of motion"], id: \.self) { item in
+                            Label(item, systemImage: "checkmark.circle")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
                         }
-                        .padding(.top, 8)
                     }
-                    .font(.subheadline.weight(.semibold))
-                    .tint(Color.liftAccentText)
+                    .padding(.top, 8)
                 }
+                .font(.subheadline.weight(.semibold))
+                .tint(Color.liftAccentText)
 
                 Divider().overlay(Color.liftSeparator)
 
@@ -746,6 +760,10 @@ struct SubmitLiftView: View {
 
     private var submitFooter: some View {
         VStack(spacing: 7) {
+            Button { activeSelector = .visibility } label: {
+                Label("Audience: \(visibility.rawValue)", systemImage: visibilitySymbol).font(.caption.weight(.semibold))
+                    .frame(minHeight: 44)
+            }
             if let submissionBlockReason {
                 Text(submissionBlockReason)
                     .font(.caption.weight(.semibold))
@@ -779,14 +797,14 @@ struct SubmitLiftView: View {
     private var submissionBlockReason: String? {
         if isSubmitting { return "Submitting your lift..." }
         if isPreparingVideo { return "Preparing the selected video..." }
+        guard let weight, weight > 0, let repetitions, repetitions > 0 else { return "Enter the weight and reps for this lift." }
         if let gymID, !appState.isGymJoined(gymID) { return "Choose a joined gym or clear the selection." }
-        if requestVerification && selectedVideoURL == nil { return "Add a video or turn off “Require lift video”." }
         if selectedMovement == .dumbbellBenchPress && !confirmsMatchedDumbbells { return "Confirm that both dumbbells match." }
         return nil
     }
 
     private func submitLift() {
-        guard !submitDisabled else { return }
+        guard !submitDisabled, let weight, let repetitions else { return }
         isSubmitting = true
         Task {
             submittedLift = await appState.submitLift(
@@ -802,7 +820,7 @@ struct SubmitLiftView: View {
                 visibility: visibility,
                 videoURL: selectedVideoURL,
                 caption: caption,
-                requestVerification: requestVerification
+                requestVerification: selectedVideoURL != nil
             )
             isSubmitting = false
             if submittedLift != nil {
@@ -863,9 +881,6 @@ struct LiftSubmissionResultView: View {
     let lift: LiftSubmission
     let done: () -> Void
 
-    @State private var placementText = "Calculating..."
-    @State private var placementSubtitle = "Checking the live leaderboard"
-
     var body: some View {
         AppBackground {
             ScrollView {
@@ -873,7 +888,7 @@ struct LiftSubmissionResultView: View {
                 Text("Lift submitted")
                     .font(.title.bold())
                     .accessibilityIdentifier("lift.submissionResult")
-                Text("Your lift is saved. Leaderboard placement depends on eligibility and the selected filters.")
+                Text("Your lift is saved to your submission history.")
                     .font(.subheadline)
                     .foregroundStyle(Color.liftMuted)
 
@@ -895,80 +910,16 @@ struct LiftSubmissionResultView: View {
                 )
                 .accessibilityIdentifier("lift.submissionEvidence")
 
-                SubmissionSummaryRow(
-                    title: "Current leaderboard placement",
-                    value: placementText,
-                    subtitle: placementSubtitle,
-                    symbolName: "list.number",
-                    tint: .liftBlue
-                )
-                .accessibilityIdentifier("lift.submissionPlacement")
-
                 Button("Done", action: done)
                     .buttonStyle(.borderedProminent)
                     .tint(Color.liftAccentText)
+                    .foregroundStyle(Color.liftBackground)
                     .frame(maxWidth: .infinity)
                     .accessibilityIdentifier("lift.submissionDone")
                 }
                 .padding()
             }
         }
-        .task {
-            await updatePlacement()
-        }
-        .onChange(of: appState.competitionStore.isLeaderboardLoading) { _, isLoading in
-            if !isLoading {
-                applyPlacement(from: appState.leaderboardEntries())
-            }
-        }
-    }
-
-    private func updatePlacement() async {
-        await appState.refreshLeaderboard()
-        applyPlacement(from: appState.leaderboardEntries())
-    }
-
-    private func applyPlacement(from entries: [LeaderboardEntry]) {
-        if appState.competitionStore.isLeaderboardLoading {
-            placementText = "Checking ranking…"
-            placementSubtitle = "The selected leaderboard is still loading. Your lift is saved."
-            return
-        }
-        if let error = appState.competitionStore.leaderboardError {
-            placementText = "Ranking unavailable"
-            placementSubtitle = "Your lift is saved, but the leaderboard could not be refreshed. \(error)"
-            return
-        }
-        guard let entry = entries.first(where: { $0.lift.id == lift.id }) else {
-            if lift.visibility != .publicLift {
-                placementText = "Not public"
-                placementSubtitle = lift.visibility == .friendsLift
-                    ? "Friends-only lifts stay out of public leaderboards."
-                    : "Private lifts stay out of public leaderboards."
-            } else if !lift.isActualOneRepMax || lift.repetitions != 1 {
-                placementText = "One-rep max required"
-                placementSubtitle = "Leaderboards require an actual one-rep max. This set stays in your submission history."
-            } else if lift.resolvedModerationStatus != .clear {
-                placementText = lift.resolvedModerationStatus.displayName
-                placementSubtitle = "This lift has a review restriction and cannot rank while it is in this state."
-            } else if appState.verifiedOnly && lift.resolvedEvidenceStatus != .videoBacked {
-                placementText = "Video filter active"
-                placementSubtitle = "This lift is self-reported. Choose All lifts or Self-reported in the leaderboard’s Evidence filter to include lifts without video."
-            } else if appState.leaderboardFilters.verificationLevel == .selfReported && lift.resolvedEvidenceStatus == .videoBacked {
-                placementText = "Self-reported filter active"
-                placementSubtitle = "This lift has video evidence. Choose All lifts or Video-backed in the leaderboard’s Evidence filter."
-            } else if entries.contains(where: { $0.profile.id == lift.userID }) {
-                placementText = "Another result shown"
-                placementSubtitle = "Your leaderboard entry is represented by another lift. Open Leaderboards to see your current result."
-            } else {
-                placementText = "Not in current results"
-                placementSubtitle = "No entry for this lift was returned for the selected ranking and filters. Open Leaderboards to review the selection; a specific eligibility reason is not available."
-            }
-            return
-        }
-
-        placementText = "#\(entry.rank) of \(entries.count)"
-        placementSubtitle = "Live \(appState.leaderboardFilters.rankingType.rawValue.lowercased()) ranking; other lifts can change this position."
     }
 }
 
@@ -982,7 +933,7 @@ private struct SubmissionSummaryRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: symbolName)
-                .font(.headline.weight(.bold))
+                .font(LiftTypography.cardTitle)
                 .foregroundStyle(tint)
                 .frame(width: 24)
 
@@ -991,7 +942,7 @@ private struct SubmissionSummaryRow: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.liftMuted)
                 Text(value)
-                    .font(.title3.weight(.bold))
+                    .font(LiftTypography.sectionTitle)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                 Text(subtitle)

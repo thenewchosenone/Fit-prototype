@@ -11,6 +11,8 @@
     "preview": "vite preview",
     "test": "vitest run tests && node --test scripts/gym-sources/*.test.mjs",
     "test:watch": "vitest",
+    "test:staging-auth": "node --env-file-if-exists=.env.staging-auth scripts/test-staging-auth.mjs",
+    "test:staging-auth:guards": "node --test scripts/test-staging-auth.test.mjs",
     "test:e2e": "playwright test",
     "test:demo": "pnpm build:demo && playwright test --config=playwright.demo.config.ts",
     "perf": "VITE_PUBLIC_DEMO=true VITE_AUTH_DEMO_MODE=true VITE_ENABLE_DEFERRED_FEATURES=true pnpm build && playwright test --config=playwright.performance.config.ts",

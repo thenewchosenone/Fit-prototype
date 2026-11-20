@@ -111,7 +111,3 @@ export const workoutProgramTemplates: readonly WorkoutProgramTemplate[] = [
     ]
   }
 ] as const;
-
-export function workoutProgramTemplate(id: string): WorkoutProgramTemplate | undefined {
-  return workoutProgramTemplates.find((template) => template.id === id);
-}

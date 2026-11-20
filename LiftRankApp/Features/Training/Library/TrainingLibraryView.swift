@@ -5,23 +5,24 @@ extension TrainingTrackerView {
         scrollProxy: ScrollViewProxy,
         sections: [ExerciseLibrarySection]
     ) -> some View {
-        VStack(spacing: 1) {
+        Menu {
             ForEach(sections.map(\.letter), id: \.self) { letter in
                 Button(letter) {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                         scrollProxy.scrollTo("library-letter-\(letter)", anchor: .top)
                     }
                 }
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(Color.liftAccentText)
-                .frame(width: 28, height: 24)
-                .buttonStyle(.plain)
-                .accessibilityLabel("Jump to exercises beginning with \(letter)")
             }
+        } label: {
+            Text("A–Z")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.liftAccentText)
+                .frame(width: 44, height: 44)
+                .background(Color.liftCard)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.liftSurfaceBorder, lineWidth: 1))
         }
-        .padding(.vertical, 6)
-        .background(Color.liftBackground.opacity(0.9))
-        .clipShape(Capsule())
+        .accessibilityLabel("Jump to exercise letter")
     }
 
     private func libraryRow(_ result: ExerciseSearchResult) -> some View {
@@ -30,8 +31,6 @@ extension TrainingTrackerView {
             selectedLibraryExercise = exercise
         } label: {
             HStack(spacing: 12) {
-                ExerciseCatalogIcon(exercise: exercise)
-                    .frame(width: 44, height: 44)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(exercise.name)
                         .font(.subheadline.weight(.semibold))
@@ -48,11 +47,12 @@ extension TrainingTrackerView {
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
+                    .font(LiftTypography.compactEmphasis)
                     .foregroundStyle(Color.liftMuted)
             }
             .padding(.horizontal, 12)
-            .frame(minHeight: 64)
+            .padding(.vertical, 10)
+            .frame(minHeight: 56)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -90,7 +90,7 @@ extension TrainingTrackerView {
                                     Text(chip.title)
                                     Image(systemName: "xmark")
                                 }
-                                .font(.caption.weight(.bold))
+                                .font(LiftTypography.compactEmphasis)
                                 .foregroundStyle(Color.liftAccentText)
                                 .padding(.horizontal, 11)
                                 .frame(minHeight: 36)
@@ -104,7 +104,7 @@ extension TrainingTrackerView {
                         Button("Clear all") {
                             libraryFilters = ExerciseLibraryFilterSelection()
                         }
-                        .font(.caption.weight(.bold))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftMuted)
                         .frame(minHeight: 36)
                     }
@@ -118,35 +118,40 @@ extension TrainingTrackerView {
             if results.isEmpty {
                 LiftEmptyState(
                     title: "No exercises found",
-                    message: "Try another search or clear the active filters.",
+                    message: libraryFilters.isEmpty ? "Try another exercise name or clear your search." : "Try another search or clear the active filters.",
                     symbolName: "magnifyingglass"
                 )
-                Button("Clear filters") {
-                    libraryFilters = ExerciseLibraryFilterSelection()
+                if !librarySearch.isEmpty {
+                    Button("Clear search") { librarySearch = "" }
+                        .buttonStyle(LiftSecondaryButtonStyle())
                 }
-                .buttonStyle(LiftSecondaryButtonStyle())
+                if !libraryFilters.isEmpty {
+                    Button("Clear filters") { libraryFilters = ExerciseLibraryFilterSelection() }
+                        .buttonStyle(LiftSecondaryButtonStyle())
+                }
             } else {
 
                 LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(sections) { section in
                         LazyVStack(alignment: .leading, spacing: 0) {
                             Text(section.letter)
-                                .font(.caption.weight(.black))
+                                .font(LiftTypography.compactEmphasis)
                                 .foregroundStyle(Color.liftAccentText)
                                 .padding(.horizontal, 12)
                                 .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
                                 .background(Color.liftCardRaised.opacity(0.7))
-                                .id("library-letter-\(section.letter)")
+                                .accessibilityAddTraits(.isHeader)
 
                             ForEach(Array(section.results.enumerated()), id: \.element.id) { index, result in
                                 libraryRow(result)
                                 if index < section.results.count - 1 {
                                     Divider()
                                         .overlay(Color.liftOverlay)
-                                        .padding(.leading, 68)
+                                        .padding(.leading, 12)
                                 }
                             }
                         }
+                        .id("library-letter-\(section.letter)")
                         .background(Color.liftCard)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay {
@@ -155,7 +160,7 @@ extension TrainingTrackerView {
                         }
                     }
                 }
-                .padding(.trailing, librarySearch.isEmpty ? 16 : 0)
+                .padding(.trailing, librarySearch.isEmpty && !dynamicTypeSize.isAccessibilitySize ? 32 : 0)
             }
         }
     }
@@ -204,8 +209,8 @@ extension TrainingTrackerView {
                             .frame(width: 44, height: 44)
                         if libraryFilters.activeCategoryCount > 0 {
                             Text("\(libraryFilters.activeCategoryCount)")
-                                .font(.system(size: 9, weight: .black))
-                                .foregroundStyle(.white)
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(Color.liftOnAccent)
                                 .frame(minWidth: 16, minHeight: 16)
                                 .background(Color.liftBlue)
                                 .clipShape(Circle())

@@ -42,6 +42,8 @@ final class CompetitionStore: ObservableObject {
     private var loadingLeaderboardVerifiedOnly: Bool?
     private var loadedLeaderboardFilters: LeaderboardFilters?
     private var loadedLeaderboardVerifiedOnly: Bool?
+    private var lastLeaderboardRefreshAt: Date?
+    private var loadedLeaderboardUserID: UUID?
     private var activeUploadID: UUID?
     private var achievementRefreshTask: Task<Void, Never>?
     private var cachedLeaderboardEntries: [LeaderboardEntry]?
@@ -132,7 +134,7 @@ final class CompetitionStore: ObservableObject {
         if !force,
            hasLoadedProductionData,
            let lastProductionRefreshAt,
-           now().timeIntervalSince(lastProductionRefreshAt) < 30 {
+           now().timeIntervalSince(lastProductionRefreshAt) < 300 {
             return
         }
         guard loadingProductionUserID != userID else { return }
@@ -156,18 +158,39 @@ final class CompetitionStore: ObservableObject {
         }
         hasLoadedProductionData = true
         lastProductionRefreshAt = now()
-        await refreshLeaderboard()
     }
 
-    func refreshLeaderboard() async {
+    func gymLeaderboardEntries(gymID: UUID) async throws -> [LeaderboardEntry] {
+        guard let leaderboardService else { throw LiftRankServiceError.configurationMissing }
+        let userID = repository.currentProfile.id
+        let entries = try await leaderboardService.entries(
+            filters: LeaderboardFilters(exerciseID: nil, rankingType: .total, gymID: gymID),
+            verifiedOnly: true
+        )
+        guard repository.currentProfile.id == userID, !Task.isCancelled else {
+            throw LiftRankServiceError.sessionExpired
+        }
+        return Array(entries.prefix(5))
+    }
+
+    func refreshLeaderboard(force: Bool = false) async {
         guard let leaderboardService else { return }
         let userID = repository.currentProfile.id
         let requestFilters = filters
         let requestVerifiedOnly = verifiedOnly
+        if !force,
+           loadedLeaderboardUserID == userID,
+           loadedLeaderboardFilters == requestFilters,
+           loadedLeaderboardVerifiedOnly == requestVerifiedOnly,
+           let lastLeaderboardRefreshAt,
+           now().timeIntervalSince(lastLeaderboardRefreshAt) < 300 {
+            return
+        }
         guard !isLeaderboardLoading ||
                 loadingLeaderboardUserID != userID ||
                 loadingLeaderboardFilters != requestFilters ||
                 loadingLeaderboardVerifiedOnly != requestVerifiedOnly else { return }
+        lastLeaderboardRefreshAt = nil
         let requestID = makeID()
         leaderboardRequestID = requestID
         loadingLeaderboardUserID = userID
@@ -183,6 +206,8 @@ final class CompetitionStore: ObservableObject {
             guard leaderboardRequestID == requestID else { return }
             loadedLeaderboardFilters = requestFilters
             loadedLeaderboardVerifiedOnly = requestVerifiedOnly
+            lastLeaderboardRefreshAt = now()
+            loadedLeaderboardUserID = userID
             if remoteLeaderboardEntries != entries {
                 remoteLeaderboardEntries = entries
             }
@@ -209,21 +234,6 @@ final class CompetitionStore: ObservableObject {
         }
     }
 
-    func previewLeaderboardEntries(filters: LeaderboardFilters) async -> [LeaderboardEntry] {
-        if let leaderboardService {
-            return (try? await leaderboardService.entries(filters: filters, verifiedOnly: false)) ?? []
-        }
-
-        let previousFilters = self.filters
-        let previousVerifiedOnly = verifiedOnly
-        self.filters = filters
-        verifiedOnly = false
-        let entries = leaderboardEntries(referenceDate: now())
-        self.filters = previousFilters
-        verifiedOnly = previousVerifiedOnly
-        return entries
-    }
-
     func refreshCurrentUserTotalEntry(force: Bool = false) async {
         guard let leaderboardService else {
             currentUserTotalEntry = nil
@@ -232,7 +242,7 @@ final class CompetitionStore: ObservableObject {
         let userID = repository.currentProfile.id
         if !force,
            let lastCurrentUserTotalRefreshAt,
-           now().timeIntervalSince(lastCurrentUserTotalRefreshAt) < 30 {
+           now().timeIntervalSince(lastCurrentUserTotalRefreshAt) < 300 {
             return
         }
         guard loadingCurrentUserTotalUserID != userID else { return }
@@ -455,24 +465,8 @@ final class CompetitionStore: ObservableObject {
 
         let entries: [LeaderboardEntry]
         if let remoteLeaderboardEntries {
-            let filtered = remoteLeaderboardEntries.filter {
-                remoteLeaderboardEntryMatches($0, filters: filters, verifiedOnly: verifiedOnly)
-            }
-            var previousScore: Double?
-            var currentRank = 0
-            entries = filtered.enumerated().map { index, entry in
-                if previousScore == nil || entry.score != previousScore {
-                    currentRank = index + 1
-                }
-                previousScore = entry.score
-                return LeaderboardEntry(
-                    rank: currentRank,
-                    profile: entry.profile,
-                    lift: entry.lift,
-                    rankMovement: entry.rankMovement,
-                    score: entry.score,
-                    powerliftingBreakdown: entry.powerliftingBreakdown
-                )
+            entries = remoteLeaderboardEntries.filter {
+                remoteLeaderboardEntryMatches($0, verificationLevel: filters.verificationLevel)
             }
         } else {
             var filtered = repository.lifts.filter {
@@ -868,7 +862,9 @@ final class CompetitionStore: ObservableObject {
         leaderboardRequestID = nil
         loadedLeaderboardFilters = nil
         loadedLeaderboardVerifiedOnly = nil
+        lastLeaderboardRefreshAt = nil
         isLeaderboardLoading = false
+        loadedLeaderboardUserID = nil
         activeUploadID = nil
         achievementRefreshTask?.cancel()
         achievementRefreshTask = nil
@@ -911,38 +907,11 @@ final class CompetitionStore: ObservableObject {
 
     private func remoteLeaderboardEntryMatches(
         _ entry: LeaderboardEntry,
-        filters: LeaderboardFilters,
-        verifiedOnly: Bool
+        verificationLevel: VerificationStatus?
     ) -> Bool {
-        let lift = entry.lift
-        let profile = entry.profile
-        guard !verifiedOnly || lift.resolvedEvidenceStatus == .videoBacked else { return false }
-        if let exerciseID = filters.exerciseID,
-           !RankingCalculator.matchesExerciseID(lift, exerciseID: exerciseID) { return false }
-        if let repetitionCount = filters.repetitionCount, lift.repetitions != repetitionCount { return false }
-        if let status = filters.verificationLevel {
-            let evidenceStatus: LiftEvidenceStatus = status == .selfReported ? .selfReported : .videoBacked
-            if lift.resolvedEvidenceStatus != evidenceStatus { return false }
-        }
-        if let gymID = filters.gymID, lift.gymID != gymID { return false }
-        if let cityID = filters.cityID, profile.cityID != cityID { return false }
-        if let city = filters.city, !city.isEmpty,
-           profile.city.caseInsensitiveCompare(city) != .orderedSame { return false }
-        if let state = filters.state, !state.isEmpty,
-           profile.state.caseInsensitiveCompare(state) != .orderedSame { return false }
-        if let country = filters.country, !country.isEmpty,
-           profile.countryCode?.caseInsensitiveCompare(country) != .orderedSame { return false }
-        if let sexCategory = filters.sexCategory, profile.sexCategory != sexCategory { return false }
-        if let ageGroup = filters.ageGroup, !ageGroup.isEmpty, profile.ageGroup != ageGroup { return false }
-        if let experienceLevel = filters.experienceLevel, profile.experienceLevel != experienceLevel { return false }
-        if let weightClassID = filters.weightClassID {
-            guard RankingCalculator.weightClass(
-                for: lift.bodyweightAtLift,
-                sexCategory: profile.sexCategory,
-                classes: weightClasses
-            )?.id == weightClassID else { return false }
-        }
-        return isLift(lift, inTimeRange: filters.timeRange)
+        guard let verificationLevel else { return true }
+        let evidenceStatus: LiftEvidenceStatus = verificationLevel == .selfReported ? .selfReported : .videoBacked
+        return entry.lift.resolvedEvidenceStatus == evidenceStatus
     }
 
     private func leaderboardEligibleLiftCount(at referenceDate: Date) -> Int {
@@ -1011,6 +980,24 @@ private struct OverallScoreSignature: Equatable {
 }
 
 extension CompetitionStore: WorkoutPRLiftSubmitting {
+    func retryWorkoutPRVideo(submissionID: UUID, videoURL: URL) async throws {
+        guard let mediaUploadService else { throw LiftRankServiceError.configurationMissing }
+        let ownerID = repository.currentProfile.id
+        let asset = try await mediaUploadService.uploadLiftVideo(
+            localURL: videoURL, liftID: submissionID, progress: { _ in }
+        )
+        guard repository.currentProfile.id == ownerID else { throw LiftRankServiceError.sessionExpired }
+        if var lift = repository.lifts.first(where: { $0.id == submissionID && $0.userID == ownerID }) {
+            lift.videoAssetID = asset.id
+            lift.evidenceStatus = .videoBacked
+            lift.verificationStatus = .videoVerified
+            lift.localVideoURL = nil
+            lift.remoteVideoURL = nil
+            upsert(lift, refreshAchievements: false)
+            scheduleAchievementRefresh()
+        }
+    }
+
     func submitWorkoutPR(
         candidate: WorkoutPRCandidate,
         exercise: Exercise,

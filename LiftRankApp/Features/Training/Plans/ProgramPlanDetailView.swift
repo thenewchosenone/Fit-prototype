@@ -2,10 +2,12 @@ import SwiftUI
 
 struct ProgramPlanDetailView: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var selectedWeekID: UUID?
     @Binding var detailTab: String
     @Binding var selectedSessionForAdd: WorkoutSession?
     @Binding var selectedSessionToRun: WorkoutSession?
+    let onResume: () -> Void
     @State private var weekToDelete: WorkoutWeek?
     @State private var sessionToDelete: WorkoutSession?
     @State private var showingDeleteConfirmation = false
@@ -14,6 +16,8 @@ struct ProgramPlanDetailView: View {
     @State private var newSessionDay = "Monday"
     @State private var showingPlanNotesEditor = false
     @State private var planNotesDraft = ""
+    @State private var originalPlanNotes = ""
+    @State private var confirmingNotesDiscard = false
 
     private let days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -33,33 +37,17 @@ struct ProgramPlanDetailView: View {
             return text.contains("deload") || text.contains("rest") || text.contains("recovery")
         } ?? false
         return VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
+            (dynamicTypeSize.isAccessibilitySize
+             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+             : AnyLayout(HStackLayout(alignment: .center, spacing: 12))) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Program details")
-                        .font(.headline.weight(.bold))
-                        .lineLimit(1)
-                    Text("\(weeks.count) scheduled weeks")
+                    Text("\(appState.selectedProgramStatus) · \(appState.selectedPlanScheduleMode.rawValue)")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if appState.activeWorkout == nil {
                 Menu {
-                    Button {
-                        detailTab = "Weeks"
-                    } label: {
-                        Label("Workouts", systemImage: "calendar")
-                    }
-                    Button {
-                        detailTab = "Overview"
-                    } label: {
-                        Label("Plan Overview", systemImage: "chart.bar")
-                    }
-                    Button {
-                        detailTab = "Notes"
-                    } label: {
-                        Label("Plan Notes", systemImage: "note.text")
-                    }
-                    Divider()
                     Button {
                         let week = appState.addWeekToSelectedPlan()
                         selectedWeekID = week.id
@@ -85,39 +73,34 @@ struct ProgramPlanDetailView: View {
                         }
                         .disabled(appState.activeWorkout != nil)
                     }
-                    Divider()
-                    Button {
-                        _ = appState.setSelectedPlanQueueEnabled(!appState.selectedPlanQueueEnabled)
-                    } label: {
-                        Label(
-                            appState.selectedPlanQueueEnabled ? "Disable session queue" : "Use session queue",
-                            systemImage: appState.selectedPlanQueueEnabled ? "list.number" : "play.list"
-                        )
-                    }
-                    .disabled(appState.activeWorkout != nil)
                 } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(Color.liftMuted)
-                        .frame(width: 44, height: 44)
-                        .background(Color.liftCard)
-                        .clipShape(Circle())
+                    Label("Edit weeks", systemImage: "ellipsis")
+                        .font(.caption.weight(.semibold))
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
                 }
-                .accessibilityLabel("Plan detail options")
+                .accessibilityLabel("Add or edit the viewed week")
+                }
             }
+            Picker("Plan view", selection: $detailTab) {
+                Text("Workouts").tag("Weeks")
+                Text("Overview").tag("Overview")
+                Text("Notes").tag("Notes")
+            }
+            .pickerStyle(.segmented)
 
-            if let selectedWeek {
+            if detailTab == "Overview", let selectedWeek {
+                DisclosureGroup("Phase details") {
                 LiftCard {
                     HStack(alignment: .top, spacing: 12) {
                         Image(systemName: isRecoveryWeek ? "figure.mind.and.body" : "arrow.up.right")
-                            .font(.headline.weight(.bold))
+                            .font(LiftTypography.cardTitle)
                             .foregroundStyle(isRecoveryWeek ? Color.liftGold : Color.liftAccentText)
                             .frame(width: 38, height: 38)
                             .background((isRecoveryWeek ? Color.liftGold : Color.liftBlue).opacity(0.14))
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         VStack(alignment: .leading, spacing: 4) {
                             Text(selectedPhase?.name ?? "Base Phase")
-                                .font(.subheadline.weight(.bold))
+                                .font(LiftTypography.rowEmphasis)
                             Text(isRecoveryWeek ? "Recovery week within this phase" : (selectedPhase?.goal ?? "Build consistent training momentum."))
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
@@ -129,6 +112,7 @@ struct ProgramPlanDetailView: View {
                         Spacer(minLength: 0)
                     }
                 }
+            }
             }
 
             if detailTab == "Weeks" {
@@ -174,7 +158,7 @@ struct ProgramPlanDetailView: View {
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") { showingPlanNotesEditor = false }
+                            Button("Cancel") { if planNotesDraft != originalPlanNotes { confirmingNotesDiscard = true } else { showingPlanNotesEditor = false } }
                         }
                         ToolbarItem(placement: .confirmationAction) {
                             Button("Save") {
@@ -184,6 +168,12 @@ struct ProgramPlanDetailView: View {
                         }
                     }
             }
+            .onAppear { originalPlanNotes = planNotesDraft }
+            .interactiveDismissDisabled(planNotesDraft != originalPlanNotes)
+            .alert("Discard changes?", isPresented: $confirmingNotesDiscard) {
+                Button("Discard changes", role: .destructive) { showingPlanNotesEditor = false }
+                Button("Keep editing", role: .cancel) {}
+            }
             .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showingAddSession) {
@@ -191,23 +181,26 @@ struct ProgramPlanDetailView: View {
                 AppBackground {
                     LiftCard {
                         VStack(alignment: .leading, spacing: 14) {
-                            Text("Add Workout Day")
+                            Text(appState.selectedPlanIsFlexible ? "Add workout" : "Add Workout Day")
                                 .font(.title2.bold())
                             TextField("Workout name", text: $newSessionName)
                                 .textFieldStyle(.plain)
                                 .padding(12)
                                 .background(Color.liftScrim)
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
-                            Picker("Day", selection: $newSessionDay) {
-                                ForEach(days, id: \.self) { day in
-                                    Text(day).tag(day)
+                            if !appState.selectedPlanIsFlexible {
+                                Picker("Day", selection: $newSessionDay) {
+                                    ForEach(days, id: \.self) { day in Text(day).tag(day) }
                                 }
+                            } else {
+                                Text("You can do this workout on any day.")
+                                    .font(.subheadline).foregroundStyle(Color.liftMuted)
                             }
                         }
                     }
                     .padding()
                 }
-                .navigationTitle("Workout Day")
+                .navigationTitle(appState.selectedPlanIsFlexible ? "New workout" : "Workout Day")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") { showingAddSession = false }
@@ -215,10 +208,14 @@ struct ProgramPlanDetailView: View {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Add") {
                             if let week = selectedWeek {
-                                _ = appState.addSession(to: week, day: newSessionDay, name: newSessionName)
+                                let slot = appState.selectedPlanIsFlexible
+                                    ? days.first { day in !appState.sessions(for: week).contains { $0.day == day } } ?? "Workout \(appState.sessions(for: week).count + 1)"
+                                    : newSessionDay
+                                _ = appState.addSession(to: week, day: slot, name: newSessionName.trimmingCharacters(in: .whitespacesAndNewlines))
                             }
                             showingAddSession = false
                         }
+                        .disabled(newSessionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || appState.activeWorkout != nil)
                     }
                 }
             }
@@ -230,6 +227,18 @@ struct ProgramPlanDetailView: View {
         selectedWeek: WorkoutWeek?,
         selectedWeekPosition: Int?
     ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+        if let selectedWeek, let dates = appState.scheduledDates(for: selectedWeek) {
+            Text("Scheduled sessions · \(dates.lowerBound.formatted(date: .abbreviated, time: .omitted)) – \(dates.upperBound.formatted(date: .abbreviated, time: .omitted))")
+                .font(.caption)
+                .foregroundStyle(Color.liftMuted)
+        }
+        if let nextWeek = weeks.first(where: { week in appState.sessions(for: week).contains { !appState.isCompletedPlanSession($0) && !appState.prescriptions(for: $0).isEmpty } }), nextWeek.id != selectedWeek?.id {
+            Button("Next unrecorded workout · Week \(nextWeek.weekNumber)") { selectedWeekID = nextWeek.id }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.liftAccentText)
+                .frame(minHeight: LiftDesign.minimumTouchTarget)
+        }
         HStack(spacing: 8) {
             Button {
                 selectAdjacentWeek(offset: -1, weeks: weeks, selectedWeekPosition: selectedWeekPosition)
@@ -257,7 +266,7 @@ struct ProgramPlanDetailView: View {
             } label: {
                 VStack(spacing: 1) {
                     Text(selectedWeek?.title ?? "Select week")
-                        .font(.subheadline.weight(.bold))
+                        .font(LiftTypography.rowEmphasis)
                         .foregroundStyle(Color.liftText)
                         .lineLimit(2)
                         .multilineTextAlignment(.center)
@@ -290,6 +299,7 @@ struct ProgramPlanDetailView: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.liftOverlay, lineWidth: 1)
         }
+        }
     }
 
     private func selectAdjacentWeek(offset: Int, weeks: [WorkoutWeek], selectedWeekPosition: Int?) {
@@ -304,14 +314,14 @@ struct ProgramPlanDetailView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
                     Image(systemName: "calendar.badge.plus")
-                        .font(.headline.weight(.bold))
+                        .font(LiftTypography.cardTitle)
                         .foregroundStyle(Color.liftAccentText)
                         .frame(width: 38, height: 38)
                         .background(Color.liftBlue.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Build your first week")
-                            .font(.headline.weight(.bold))
+                            .font(LiftTypography.cardTitle)
                         Text("Add a week, then create workout days for it.")
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -335,13 +345,13 @@ struct ProgramPlanDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             if let selectedWeek {
                 let presentation = appState.programWeekPresentation(for: selectedWeek)
-                let sessions = presentation.sessions
+                let sessions = appState.sessionsInScheduleOrder(for: selectedWeek)
                 if sessions.isEmpty {
                     LiftCard {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("No workout days yet")
-                                .font(.headline.weight(.bold))
-                            Text("Add workout days like Monday Push, Tuesday Pull, or Friday Legs.")
+                                .font(LiftTypography.cardTitle)
+                            Text(appState.selectedPlanIsFlexible ? "Add workouts like Push, Pull, or Legs, then choose any one when you train." : "Add workout days like Monday Push, Tuesday Pull, or Friday Legs.")
                                 .font(.caption)
                                 .foregroundStyle(Color.liftMuted)
                         }
@@ -350,6 +360,7 @@ struct ProgramPlanDetailView: View {
                     ForEach(sessions) { session in
                         let prescriptions = presentation.prescriptionsBySessionID[session.id] ?? []
                         ProgramSessionCard(
+                            selectedWeekID: $selectedWeekID,
                             session: session,
                             prescriptions: prescriptions,
                             completedPrescriptionCount: prescriptions.lazy.filter {
@@ -358,7 +369,7 @@ struct ProgramPlanDetailView: View {
                             catalogByID: presentation.catalogByID,
                             onStart: {
                             selectedSessionToRun = session
-                        }, onAddExercise: {
+                        }, onResume: onResume, onAddExercise: {
                             selectedSessionForAdd = session
                         }, onDelete: {
                             sessionToDelete = session
@@ -369,7 +380,7 @@ struct ProgramPlanDetailView: View {
                 Button {
                     showingAddSession = true
                 } label: {
-                    Label("Add Workout Day", systemImage: "plus.circle.fill")
+                    Label(appState.selectedPlanIsFlexible ? "Add workout" : "Add Workout Day", systemImage: "plus.circle.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(LiftCompactProminentButtonStyle())
@@ -380,12 +391,20 @@ struct ProgramPlanDetailView: View {
 
     private func overview(selectedWeek: WorkoutWeek?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let nextQueuedSession = appState.nextQueuedWorkoutSession {
+            if appState.selectedPlanIsFlexible {
+                LiftCard {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Flexible days", systemImage: "shuffle").font(LiftTypography.cardTitle)
+                        Text("Choose any workout in Workouts or Today. Week numbers group your training; they are not calendar deadlines.")
+                            .font(.subheadline).foregroundStyle(Color.liftMuted)
+                    }
+                }
+            } else if let nextQueuedSession = appState.nextQueuedWorkoutSession {
                 LiftCard {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
                             Label("Session queue", systemImage: "play.list")
-                                .font(.headline.weight(.bold))
+                                .font(LiftTypography.cardTitle)
                             Spacer()
                             Text("\(appState.selectedPlanQueuedSessions.count) sessions")
                                 .font(.caption.weight(.semibold))
@@ -397,7 +416,7 @@ struct ProgramPlanDetailView: View {
                         ForEach(Array(appState.selectedPlanQueuedSessions.enumerated()), id: \.element.id) { index, session in
                             HStack(spacing: 8) {
                                 Text("\(index + 1)")
-                                    .font(.caption.weight(.bold))
+                                    .font(LiftTypography.compactEmphasis)
                                     .foregroundStyle(Color.liftMuted)
                                     .frame(width: 20)
                                 Text(session.name)
@@ -468,8 +487,12 @@ struct ProgramPlanDetailView: View {
                 }?.method
                 LiftCard {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Current week · \(selectedWeek.title)")
-                            .font(.headline.weight(.bold))
+                        Text("Viewed week · \(selectedWeek.title)")
+                            .font(LiftTypography.cardTitle)
+                        if let dates = appState.scheduledDates(for: selectedWeek) {
+                            Text("\(dates.lowerBound.formatted(date: .abbreviated, time: .omitted)) – \(dates.upperBound.formatted(date: .abbreviated, time: .omitted))")
+                                .font(.caption).foregroundStyle(Color.liftMuted)
+                        }
                         if !plannedSessions.isEmpty {
                             Text("\(completedSessions.count) of \(plannedSessions.count) workouts have all planned sets completed")
                                 .foregroundStyle(Color.liftMuted)
@@ -481,16 +504,20 @@ struct ProgramPlanDetailView: View {
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
                         ProgressView(
-                            value: plannedSessions.isEmpty
+                            value: presentation.plannedSetCount == 0
                                 ? 0
-                                : Double(completedSessions.count) / Double(plannedSessions.count)
+                                : min(1, Double(presentation.completedSetCount) / Double(presentation.plannedSetCount))
                         )
                             .tint(Color.liftGreen)
+                        Text("Planned-set progress. Shorter saved workouts are recorded attempts; full-workout completion requires every planned set.")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
                         if let nextSession {
                             Button {
-                                selectedSessionToRun = nextSession
+                                if appState.isCompletedPlanSession(nextSession) { detailTab = "Weeks" }
+                                else { selectedSessionToRun = nextSession }
                             } label: {
-                                Label("Start next workout: \(nextSession.name)", systemImage: "play.circle.fill")
+                                Label(appState.isCompletedPlanSession(nextSession) ? "Review saved sessions & remaining sets" : "Start next workout: \(nextSession.name)", systemImage: "play.circle.fill")
                                     .font(.subheadline.weight(.semibold))
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
@@ -522,10 +549,14 @@ struct ProgramPlanDetailView: View {
                             }
                             .buttonStyle(.plain)
                             .foregroundStyle(Color.liftAccentText)
-                        } else if !plannedSessions.isEmpty {
+                        } else if !plannedSessions.isEmpty && completedSessions.count == plannedSessions.count {
                             Label("Every workout this week has all planned sets completed", systemImage: "checkmark.circle.fill")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Color.liftGreen)
+                        } else if !plannedSessions.isEmpty {
+                            Button("Choose a workout") { detailTab = "Weeks" }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.liftAccentText)
                         }
                         if let progression {
                             Label("Progression: \(progression.rawValue)", systemImage: "chart.line.uptrend.xyaxis")

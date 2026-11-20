@@ -14,7 +14,7 @@ private struct LeaderboardParameters: Encodable {
     let sexCategory: String?
     let weightMinKG: Double?
     let weightMaxKG: Double?
-    let verifiedOnly: Bool
+    let verifiedOnly: Bool?
     let timeRange: String
 
     enum CodingKeys: String, CodingKey {
@@ -53,7 +53,7 @@ private struct LeaderboardParameters: Encodable {
         else { try container.encodeNil(forKey: .weightMinKG) }
         if let weightMaxKG { try container.encode(weightMaxKG, forKey: .weightMaxKG) }
         else { try container.encodeNil(forKey: .weightMaxKG) }
-        try container.encode(verifiedOnly, forKey: .verifiedOnly)
+        if let verifiedOnly { try container.encode(verifiedOnly, forKey: .verifiedOnly) }
         try container.encode(timeRange, forKey: .timeRange)
     }
 }
@@ -84,6 +84,7 @@ final class SupabaseLeaderboardService: LeaderboardService {
     func entries(filters: LeaderboardFilters, verifiedOnly: Bool) async throws -> [LeaderboardEntry] {
         do {
             let weightClass = filters.weightClassID.flatMap { id in WeightClassCatalog.all.first { $0.id == id } }
+            let selfReportedOnly = filters.verificationLevel == .selfReported && !verifiedOnly
             let params = LeaderboardParameters(
                 exerciseID: filters.exerciseID,
                 rankingType: filters.rankingType.rawValue,
@@ -95,22 +96,41 @@ final class SupabaseLeaderboardService: LeaderboardService {
                 sexCategory: filters.sexCategory?.rawValue,
                 weightMinKG: weightClass?.minKilograms,
                 weightMaxKG: weightClass?.maxKilograms,
-                verifiedOnly: verifiedOnly,
+                verifiedOnly: selfReportedOnly ? nil : verifiedOnly,
                 timeRange: filters.timeRange
             )
 
             let rows: [RankedLiftIDDTO] = try await client
-                .rpc("get_ranked_lift_ids", params: params)
+                .rpc(selfReportedOnly ? "get_self_reported_ranked_lift_ids" : "get_ranked_lift_ids", params: params)
                 .limit(200)
                 .execute()
                 .value
             let submissions = try await SupabaseLiftService(client: client).submissions(ids: rows.map(\.liftID))
             let lifts = Dictionary(uniqueKeysWithValues: submissions.map { ($0.id, $0) })
 
+            let profileService = SupabaseProfileService(client: client)
+            var seenUsers = Set<UUID>()
+            let userIDs = rows.filter { lifts[$0.liftID] != nil }.map(\.userID).filter { seenUsers.insert($0).inserted }
+            var cardsByUserID: [UUID: PublicProfileCard] = [:]
+            for start in stride(from: 0, to: userIDs.count, by: 8) {
+                let batch = Array(userIDs[start..<min(start + 8, userIDs.count)])
+                let tasks = batch.map { userID in
+                    Task { try await profileService.profileCard(userID: userID) }
+                }
+                var firstError: Error?
+                for (userID, task) in zip(batch, tasks) {
+                    do {
+                        cardsByUserID[userID] = try await task.value
+                    } catch {
+                        firstError = firstError ?? error
+                    }
+                }
+                if let firstError { throw firstError }
+            }
+
             var entries: [LeaderboardEntry] = []
             for row in rows {
-                guard let lift = lifts[row.liftID] else { continue }
-                let card = try await SupabaseProfileService(client: client).profileCard(userID: row.userID)
+                guard let lift = lifts[row.liftID], let card = cardsByUserID[row.userID] else { continue }
                 let profile = SupabaseProfileMapper.leaderboard(
                     card: card,
                     bodyweightPounds: lift.bodyweightAtLift,
@@ -130,6 +150,7 @@ final class SupabaseLeaderboardService: LeaderboardService {
             }
             return entries
         }
+        catch let error as LiftRankServiceError { throw error }
         catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 }

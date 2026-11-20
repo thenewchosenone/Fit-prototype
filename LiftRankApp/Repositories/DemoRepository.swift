@@ -31,6 +31,7 @@ final class DemoRepository: ObservableObject {
     @Published var completedWorkouts: [CompletedWorkout] { didSet { completedWorkoutsRevision &+= 1 } }
     @Published var pendingWorkoutPRSubmissions: [PendingWorkoutPRSubmission]
     @Published var pendingCompletedWorkoutUploads: [CompletedWorkoutSnapshot]
+    @Published var pendingFriendActivityShares: [PendingFriendActivityShare]
     @Published var deletedCompletedWorkoutIDs: Set<UUID>
     @Published var workoutPlanSyncRevisions: [UUID: Int]
     @Published var workoutPlanLastSyncedPayloads: [UUID: Data]
@@ -40,14 +41,21 @@ final class DemoRepository: ObservableObject {
     @Published var gymRequests: [GymRequest]
     @Published var achievementUnlocks: [AchievementUnlock]
     @Published var rankingHistory: [RankingHistorySnapshot]
+    @Published private(set) var workoutSaveError: String?
     private let workoutPersistenceStore: WorkoutPersistenceStore
     private var persistenceCancellables = Set<AnyCancellable>()
     private var pendingPersistenceTask: Task<Void, Never>?
     private var isRestoringWorkoutSnapshot = false
+    private var workoutSnapshotRevision = 0
+    private var savedWorkoutSnapshotRevision = -1
     private var isUITesting: Bool {
+#if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
         return !arguments.contains("-uiTestingPersistWorkoutSnapshots") &&
             arguments.contains { $0.hasPrefix("-uiTesting") }
+#else
+        false
+#endif
     }
     private(set) var liftsRevision = 0
     private(set) var profilesRevision = 0
@@ -83,6 +91,7 @@ final class DemoRepository: ObservableObject {
         completedWorkouts = []
         pendingWorkoutPRSubmissions = []
         pendingCompletedWorkoutUploads = []
+        pendingFriendActivityShares = []
         deletedCompletedWorkoutIDs = []
         workoutPlanSyncRevisions = [:]
         workoutPlanLastSyncedPayloads = [:]
@@ -122,6 +131,7 @@ final class DemoRepository: ObservableObject {
         completedWorkouts = []
         pendingWorkoutPRSubmissions = []
         pendingCompletedWorkoutUploads = []
+        pendingFriendActivityShares = []
         deletedCompletedWorkoutIDs = []
         workoutPlanSyncRevisions = [:]
         workoutPlanLastSyncedPayloads = [:]
@@ -148,6 +158,7 @@ final class DemoRepository: ObservableObject {
         completedWorkouts.removeAll()
         pendingWorkoutPRSubmissions.removeAll()
         pendingCompletedWorkoutUploads.removeAll()
+        pendingFriendActivityShares.removeAll()
         deletedCompletedWorkoutIDs.removeAll()
         workoutPlanSyncRevisions.removeAll()
         workoutPlanLastSyncedPayloads.removeAll()
@@ -194,6 +205,7 @@ final class DemoRepository: ObservableObject {
             $completedWorkouts.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $pendingWorkoutPRSubmissions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $pendingCompletedWorkoutUploads.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $pendingFriendActivityShares.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $deletedCompletedWorkoutIDs.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutPlanSyncRevisions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $workoutPlanLastSyncedPayloads.dropFirst().map { _ in () }.eraseToAnyPublisher(),
@@ -209,33 +221,78 @@ final class DemoRepository: ObservableObject {
     }
 
     func scheduleWorkoutSnapshotPersistence() {
-        guard !isRestoringWorkoutSnapshot, !isUITesting else { return }
+        guard !isRestoringWorkoutSnapshot, !isUITesting, workoutPersistenceStore.loadError == nil else { return }
+        workoutSnapshotRevision &+= 1
         pendingPersistenceTask?.cancel()
         pendingPersistenceTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
             guard let self else { return }
+            let snapshotRevision = workoutSnapshotRevision
             let snapshot = makeWorkoutPersistenceSnapshot()
-            await workoutPersistenceStore.saveSnapshotWithoutBlockingUI(snapshot)
+            do {
+                try await workoutPersistenceStore.saveSnapshotWithoutBlockingUI(snapshot)
+                workoutSaveError = nil
+                if snapshotRevision == workoutSnapshotRevision {
+                    savedWorkoutSnapshotRevision = snapshotRevision
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                workoutSaveError = "Could not save workout history on this device: \(error.localizedDescription)"
+            }
             guard !Task.isCancelled else { return }
             pendingPersistenceTask = nil
         }
     }
 
     func persistWorkoutSnapshot() {
-        guard !isRestoringWorkoutSnapshot, !isUITesting else { return }
+        _ = persistWorkoutSnapshotReportingError()
+    }
+
+    func persistWorkoutSnapshotIfChanged() {
+        guard workoutSnapshotRevision != savedWorkoutSnapshotRevision || workoutSaveError != nil else { return }
+        persistWorkoutSnapshot()
+    }
+
+    @discardableResult
+    func persistWorkoutSnapshotReportingError() -> Bool {
+        guard !isRestoringWorkoutSnapshot, !isUITesting else { return true }
+        guard workoutPersistenceStore.loadError == nil else {
+            workoutSaveError = workoutPersistenceStore.loadError
+            return false
+        }
         pendingPersistenceTask?.cancel()
         pendingPersistenceTask = nil
-        workoutPersistenceStore.saveSnapshot(makeWorkoutPersistenceSnapshot())
+        do {
+            try workoutPersistenceStore.saveSnapshot(makeWorkoutPersistenceSnapshot())
+            workoutSaveError = nil
+            savedWorkoutSnapshotRevision = workoutSnapshotRevision
+            return true
+        } catch {
+            workoutSaveError = "Could not save workout history on this device: \(error.localizedDescription)"
+            return false
+        }
     }
 
     func persistWorkoutSnapshotWithoutBlockingUI() {
-        guard !isRestoringWorkoutSnapshot, !isUITesting else { return }
+        guard !isRestoringWorkoutSnapshot, !isUITesting, workoutPersistenceStore.loadError == nil else { return }
         pendingPersistenceTask?.cancel()
+        let snapshotRevision = workoutSnapshotRevision
         let snapshot = makeWorkoutPersistenceSnapshot()
         pendingPersistenceTask = Task { [weak self] in
             guard let self else { return }
-            await workoutPersistenceStore.saveSnapshotWithoutBlockingUI(snapshot)
+            do {
+                try await workoutPersistenceStore.saveSnapshotWithoutBlockingUI(snapshot)
+                workoutSaveError = nil
+                if snapshotRevision == workoutSnapshotRevision {
+                    savedWorkoutSnapshotRevision = snapshotRevision
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                workoutSaveError = "Could not save workout history on this device: \(error.localizedDescription)"
+            }
             guard !Task.isCancelled else { return }
             pendingPersistenceTask = nil
         }
@@ -272,7 +329,8 @@ final class DemoRepository: ObservableObject {
             deletedCompletedWorkoutIDs: deletedCompletedWorkoutIDs,
             workoutPlanSyncRevisions: workoutPlanSyncRevisions,
             workoutPlanLastSyncedPayloads: workoutPlanLastSyncedPayloads,
-            pendingRemoteWorkoutPlanDeletions: pendingRemoteWorkoutPlanDeletions
+            pendingRemoteWorkoutPlanDeletions: pendingRemoteWorkoutPlanDeletions,
+            pendingFriendActivityShares: pendingFriendActivityShares
         )
     }
 
@@ -309,6 +367,9 @@ final class DemoRepository: ObservableObject {
             completedWorkouts = snapshot.completedWorkouts
             pendingWorkoutPRSubmissions = snapshot.pendingPRSubmissions
             pendingCompletedWorkoutUploads = snapshot.pendingCompletedWorkoutUploads ?? []
+            pendingFriendActivityShares = (snapshot.pendingFriendActivityShares ?? []).filter {
+                $0.ownerID == currentProfile.id
+            }
             deletedCompletedWorkoutIDs = snapshot.deletedCompletedWorkoutIDs ?? []
             workoutPlanSyncRevisions = snapshot.workoutPlanSyncRevisions ?? [:]
             workoutPlanLastSyncedPayloads = snapshot.workoutPlanLastSyncedPayloads ?? [:]
@@ -334,6 +395,7 @@ final class DemoRepository: ObservableObject {
             return
         }
 
+        guard workoutPersistenceStore.loadError == nil else { return }
         completedWorkouts = []
         workoutEntries = []
         bodyweightEntries = []

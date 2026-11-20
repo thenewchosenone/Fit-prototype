@@ -1,12 +1,22 @@
 import Charts
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum TrackerProgressCategory: String, CaseIterable, Identifiable {
+    case consistency = "Consistency"
     case strength = "Strength"
     case muscle = "Muscle"
-    case consistency = "Consistency"
+    case body = "Body"
 
     var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .consistency: "Progress"
+        case .strength: "Exercise progress"
+        case .muscle: "Muscle workload"
+        case .body: "Bodyweight"
+        }
+    }
 }
 
 extension TrainingFocus {
@@ -19,153 +29,136 @@ extension TrainingFocus {
     }
 }
 
-private struct BodyweightChartPoint: Identifiable {
-    let id: UUID
-    let date: Date
-    let actual: Double
-    let average: Double
-}
-
 extension TrainingTrackerView {
     var progress: some View {
-        return LazyVStack(alignment: .leading, spacing: 14) {
+        return LazyVStack(alignment: .leading, spacing: 18) {
             progressSyncStatus
-            Picker("Progress category", selection: $selectedProgressCategory) {
-                ForEach(TrackerProgressCategory.allCases) { category in
-                    Text(category.rawValue).tag(category)
-                }
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("tracker.progress.category")
-
-            if appState.currentProfile.trainingFocus == nil && !dismissedTrainingFocusPrompt {
-                HStack(spacing: 8) {
-                    Button("Set training focus") {
-                        appState.router.sheet = .settings(.training)
-                    }
-                    .font(.caption.weight(.semibold))
-                    .frame(minHeight: LiftDesign.minimumTouchTarget)
-                    Spacer()
-                    NativeIconButton(symbolName: "xmark", accessibilityLabel: "Dismiss training focus suggestion") {
-                        dismissedTrainingFocusPrompt = true
-                    }
-                }
-            }
-
             if selectedProgressCategory == .consistency {
-                let weekCompletion = selectedWeek.map(appState.weekCompletion(for:))
-                let historyPresentation = appState.workoutHistoryPresentation(
-                    displayedMonth: workoutHistoryMonth,
-                    selectedDate: selectedWorkoutHistoryDate
-                )
-                progressOverviewCard
-                WeeklyTrainingDayGoalCard(summary: appState.homeWeeklySummary())
-                programConsistencySection(weekCompletion: weekCompletion)
-                recoveryInsightSection
-
-                if !appState.strainEntries.isEmpty || !appState.injuryEntries.isEmpty {
-                    strainAndInjurySection
+                recentTrainingSummary
+                recentExerciseProgress
+                progressDestination(.muscle, subtitle: "Weekly working sets and when you last trained each muscle", symbol: "figure.strengthtraining.traditional")
+                progressDestination(.body, subtitle: bodyweightOverviewText, symbol: "scalemass")
+                NavigationLink {
+                    AppBackground {
+                        ScrollView {
+                            workoutHistorySection(presentation: appState.workoutHistoryPresentation(
+                                displayedMonth: workoutHistoryMonth, selectedDate: selectedWorkoutHistoryDate
+                            ))
+                            .padding(16)
+                        }
+                    }
+                    .navigationTitle("Workout history")
+                    .toolbar(.visible, for: .navigationBar)
+                } label: {
+                    Label("Workout history", systemImage: "calendar")
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 }
-
-                workoutHistorySection(presentation: historyPresentation)
+                .accessibilityIdentifier("tracker.progress.history")
+                NavigationLink {
+                    AppBackground {
+                        ScrollView { activityHeatmapSection.padding(16) }
+                    }
+                    .navigationTitle("Training pattern")
+                    .toolbar(.visible, for: .navigationBar)
+                } label: {
+                    Label("Long-term training pattern", systemImage: "square.grid.3x3")
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                }
+                .accessibilityIdentifier("tracker.progress.pattern")
             }
 
             if selectedProgressCategory == .strength {
-                let exerciseOptions = appState.progressExerciseOptions()
-                let bodyweightEntries = selectedBodyweightEntries
-                let bodyweightReadings = bodyweightEntries
-                    .compactMap { entry in entry.actual.map { (date: entry.targetDate, pounds: $0) } }
-                    .sorted { $0.date < $1.date }
-                strengthProgressSection
-
-                if !exerciseOptions.isEmpty {
-                    exerciseProgressSection(options: exerciseOptions)
-                }
-
-                trainingAttentionSection
-
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack(alignment: .center) {
-                        Text("Bodyweight")
-                            .font(.title3.weight(.black))
-                        Spacer()
-                        Picker("Bodyweight range", selection: $selectedProgressRange) {
-                            ForEach(ProgressTimeRange.allCases) { range in
-                                Text(range.rawValue).tag(range)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .font(.caption.weight(.semibold))
-                        .accessibilityLabel("Bodyweight chart range")
-                        Button {
-                            logBodyweightEntry()
-                        } label: {
-                            Label("Log", systemImage: "plus")
-                                .font(.caption.weight(.black))
-                                .foregroundStyle(Color.liftOnAccent)
-                                .padding(.horizontal, 12)
-                                .frame(height: 32)
-                                .background(Color.liftBlue)
-                                .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Log bodyweight")
-                    }
-
-                    if let latest = bodyweightReadings.last {
-                        HStack(spacing: 6) {
-                            Text("Latest · \(MeasurementFormatting.formatBodyweight(latest.pounds, preferredUnit: appState.currentProfile.preferredUnit)) · \(latest.date.formatted(date: .abbreviated, time: .omitted))")
-                                .font(.caption.weight(.semibold))
-                            if bodyweightReadings.count > 1, let previous = bodyweightReadings.dropLast().last {
-                                let delta = latest.pounds - previous.pounds
-                                let sign = delta > 0 ? "+" : (delta < 0 ? "−" : "")
-                                Text("· \(sign)\(MeasurementFormatting.formatBodyweight(abs(delta), preferredUnit: appState.currentProfile.preferredUnit)) since \(previous.date.formatted(date: .abbreviated, time: .omitted))")
-                                    .font(.caption)
-                                    .foregroundStyle(Color.liftMuted)
-                            }
-                        }
-                    }
-
-                    bodyweightChart(entries: bodyweightEntries)
-                        .padding(12)
-                        .background(Color.liftCard)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(Color.liftOverlay, lineWidth: 1)
-                        }
-
-                    bodyweightTable(entries: bodyweightEntries)
-                }
+                exerciseProgressSection(options: exerciseTrendOptions)
+                    .id("tracker-strength-exercise")
             }
 
             if selectedProgressCategory == .muscle {
                 muscleProgress
             }
+
+            if selectedProgressCategory == .body {
+                bodyProgressSection
+            }
+        }
+        .sheet(isPresented: $showingTrainingRecap) {
+            TrainingRecapView().environmentObject(appState)
+        }
+        .sheet(isPresented: $showingStrengthGoalEditor) { strengthGoalEditor }
+        .alert("About exercise progress", isPresented: $showingProgressExplanation) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Charts cover the last 30 days. Change compares the first and latest eligible training days in that period. Latest and Previous show the actual sets behind the two most recent points. Weighted exercises use estimated one-rep max from working sets of 1–10 reps; this is an estimate, not a lifted weight. Bodyweight exercises use best reps. Warmups and recovery/deload workouts are excluded.")
         }
         .onAppear {
-            if !didLoadTrainingFocus {
-                loadTrainingFocus()
-                didLoadTrainingFocus = true
+            if !didOpenProgress {
+                selectedProgressCategory = .consistency
+                didOpenProgress = true
+            }
+            if let category = appState.router.progressCategory {
+                selectedProgressCategory = category
+                appState.router.progressCategory = nil
             }
             if selectedProgressCategory == .strength { syncProgressExerciseSelection() }
             if selectedProgressCategory == .consistency { syncWorkoutHistorySelection() }
-            Task { await appState.synchronizeCompletedWorkoutHistory(force: false) }
+            Task {
+                await appState.synchronizeCompletedWorkoutHistory(force: false)
+                await refreshStrengthGoalTargets()
+            }
         }
         .onChange(of: appState.completedWorkoutsRevision) {
             if selectedProgressCategory == .strength { syncProgressExerciseSelection() }
             if selectedProgressCategory == .consistency { syncWorkoutHistorySelection() }
+        }
+        .onChange(of: appState.router.progressCategory) { _, requested in
+            if let requested {
+                selectedProgressCategory = requested
+                appState.router.progressCategory = nil
+            }
         }
         .onChange(of: selectedProgressCategory) { _, category in
             if category == .strength { syncProgressExerciseSelection() }
             if category == .consistency { syncWorkoutHistorySelection() }
         }
         .onChange(of: appState.currentProfile.id) {
-            loadTrainingFocus()
+            selectedProgressCategory = .consistency
         }
-        .onChange(of: appState.currentProfile.trainingFocus) {
-            loadTrainingFocus()
+        .onChange(of: selectedProgressExerciseID) { _, exerciseID in
+            storedProgressExerciseID = exerciseID ?? ""
+        }
+    }
+
+    private var recentTrainingSummary: some View {
+        let end = Calendar.current.dateInterval(of: .day, for: .now)!.end
+        let start = Calendar.current.date(byAdding: .day, value: -30, to: end) ?? end
+        let previousStart = Calendar.current.date(byAdding: .day, value: -30, to: start) ?? start
+        let current = appState.trainingProgressStore.trainingRecap(in: DateInterval(start: start, end: end))
+        let previous = appState.trainingProgressStore.trainingRecap(in: DateInterval(start: previousStart, end: start))
+        return LiftCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Last 30 days").font(LiftTypography.cardTitle)
+                    .accessibilityIdentifier("tracker.progress.trainingSummary")
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), alignment: .leading, spacing: 10) {
+                    ForEach([("Workouts", current.workoutCount), ("Days trained", current.trainingDayCount), ("Working sets", current.workingSetCount), ("Exercises", current.exerciseCount)], id: \.0) { metric in
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(metric.1.formatted()).font(.headline.monospacedDigit())
+                            Text(metric.0).font(.caption).foregroundStyle(Color.liftMuted)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+                if previous.workoutCount > 0 {
+                    let workoutChange = current.workoutCount - previous.workoutCount
+                    let setChange = current.workingSetCount - previous.workingSetCount
+                    Text("Vs prior 30 days: \(workoutChange.formatted(.number.sign(strategy: .always()))) workouts, \(setChange.formatted(.number.sign(strategy: .always()))) working sets.")
+                        .font(.caption).foregroundStyle(Color.liftMuted)
+                } else {
+                    Text(current.workoutCount == 0 ? "Save a workout to start seeing your training history here." : "A comparison will appear once you have history in the previous 30 days.")
+                        .font(.caption).foregroundStyle(Color.liftMuted)
+                }
+                Button("View training recap") { showingTrainingRecap = true }
+                    .font(.subheadline.weight(.semibold)).frame(minHeight: 44)
+                    .accessibilityIdentifier("tracker.progress.recaps")
+            }
         }
     }
 
@@ -183,7 +176,9 @@ extension TrainingTrackerView {
                 case .stale:
                     ("Progress may be out of date", "Refresh to update your Progress stats.", "clock.arrow.circlepath", .orange)
                 case .needsAttention:
-                    ("Progress may be incomplete", "Workout history could not refresh. Retry to update Progress.", "exclamationmark.triangle.fill", .orange)
+                    ("Progress may be incomplete", appState.workoutSyncStore.unreadableRemoteWorkoutCount > 0
+                     ? "\(appState.workoutSyncStore.unreadableRemoteWorkoutCount) saved workout\(appState.workoutSyncStore.unreadableRemoteWorkoutCount == 1 ? "" : "s") could not load. Retry to update Progress."
+                     : "Workout history could not refresh. Retry to update Progress.", "exclamationmark.triangle.fill", .orange)
                 case .synced:
                     ("", "", "", .clear)
                 }
@@ -193,7 +188,7 @@ extension TrainingTrackerView {
                         .foregroundStyle(copy.3)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(copy.0)
-                            .font(.subheadline.weight(.bold))
+                            .font(LiftTypography.rowEmphasis)
                         Text(copy.1)
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -201,7 +196,7 @@ extension TrainingTrackerView {
                     Spacer(minLength: 4)
                     if canRetry {
                         Text("Retry")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                             .foregroundStyle(Color.liftAccentText)
                     }
                 }
@@ -239,400 +234,206 @@ extension TrainingTrackerView {
         }
     }
 
-    private var progressOverviewCard: some View {
-        let summary = appState.homeWeeklySummary()
-        let priorWeeks = (1...4).map { offset in
-            appState.homeWeeklySummary(
-                referenceDate: Calendar.current.date(byAdding: .day, value: -7 * offset, to: .now) ?? .now
-            )
+    private func progressDestination(_ category: TrackerProgressCategory, subtitle: String, symbol: String) -> some View {
+        Button { selectedProgressCategory = category } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(category.title, systemImage: symbol).font(LiftTypography.cardTitle)
+                    Text(subtitle).font(.subheadline).foregroundStyle(Color.liftMuted)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").foregroundStyle(Color.liftAccentText)
+            }
+            .foregroundStyle(Color.liftText)
+            .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+            .padding(18)
+            .liftSurface(radius: 20)
         }
-        let baselineVolume = appState.trainingProgressStore.hasFourFullWeeksOfHistory()
-            ? priorWeeks.map(\.volume).reduce(0, +) / Double(priorWeeks.count)
-            : 0
-        let recovery = appState.recoverySummaries().filter { $0.hoursSinceTraining < 48 }.count
-        let trend = priorWeeks.reversed().map(\.volume) + [summary.volume]
-        let peakVolume = max(1, trend.max() ?? 1)
-        return VStack(alignment: .leading, spacing: 16) {
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("tracker.progress.category.\(category.rawValue.lowercased())")
+    }
+
+    private var bodyweightOverviewText: String {
+        guard let entry = appState.bodyweightEntries.filter({ ($0.actual ?? 0) > 0 && $0.targetDate <= .now }).max(by: { $0.targetDate < $1.targetDate }), let value = entry.actual else {
+            return "Log a measurement to start your trend"
+        }
+        return "\(MeasurementFormatting.formatBodyweight(value, preferredUnit: appState.currentProfile.preferredUnit)) · \(entry.targetDate.formatted(date: .abbreviated, time: .omitted))"
+    }
+
+    private var recentExerciseProgress: some View {
+        let recentIDs = appState.trainingProgressStore.recentExerciseIDs(limit: 20)
+        let options = Dictionary(uniqueKeysWithValues: exerciseTrendOptions.map { ($0.id, $0) })
+        let ids = recentIDs.reduce(into: [String]()) { result, id in
+            if options[id] != nil && !result.contains(id) && result.count < 3 { result.append(id) }
+        }
+        return VStack(alignment: .leading, spacing: 12) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("THIS WEEK")
-                        .font(.caption2.weight(.black))
-                        .tracking(1.2)
-                        .foregroundStyle(Color.liftAccentText)
-                    Text(summary.completedWorkoutCount == 0
-                         ? "Log a workout to start your weekly snapshot."
-                         : "Your training at a glance")
+                Text("Exercise progress").font(LiftTypography.cardTitle)
+                    .accessibilityIdentifier("tracker.progress.summary")
+                Button { showingProgressExplanation = true } label: {
+                    Image(systemName: "info.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.liftMuted)
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("About exercise progress")
+                Spacer(minLength: 0)
+                Button("View all") { selectedProgressCategory = .strength }
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("tracker.progress.category.strength")
+            }
+            if ids.isEmpty {
+                Text("Your recent exercises will appear here after you save working sets.")
+                    .font(.subheadline).foregroundStyle(Color.liftMuted)
+            }
+            Text("Last 30 days · best eligible set per training day")
+                .font(.caption).foregroundStyle(Color.liftMuted)
+            ForEach(ids, id: \.self) { id in
+                if let exercise = options[id] {
+                    Button {
+                        selectedProgressExerciseID = id
+                        selectedExerciseStrengthTrendDate = nil
+                        selectedExerciseWeightTrendDate = nil
+                        selectedProgressCategory = .strength
+                    } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                Text(exercise.name).font(.subheadline.weight(.medium))
+                                Spacer(minLength: 0)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                            ExerciseProgressComparison(exercise: exercise, points: appState.trainingProgressStore.recentExerciseTrend(for: exercise.id, days: 30))
+                        }
+                        .padding(.vertical, 14)
+                        .foregroundStyle(Color.liftText)
+                        .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("tracker.progress.recentExercise.\(id)")
+                    if id != ids.last { Divider().overlay(Color.liftOverlay) }
+                }
+            }
+        }
+        .padding(.horizontal, 2)
+    }
+
+    private var activityHeatmapSection: some View {
+        WorkoutActivityHeatmap(
+            workouts: appState.completedWorkouts,
+            period: $activityHeatmapPeriod,
+            measure: $activityHeatmapMeasure,
+            unit: appState.currentProfile.preferredUnit,
+            catalog: appState.trainingExerciseLibrary
+        )
+    }
+
+    private var bodyProgressSection: some View {
+        let entries = appState.bodyweightEntries
+            .filter { ($0.actual ?? 0) > 0 && $0.targetDate <= .now }
+            .sorted { $0.targetDate < $1.targetDate }
+        let dayLimit = ["1M": 30, "3M": 90, "1Y": 365][selectedBodyProgressPeriod]
+        let cutoff = dayLimit.flatMap { Calendar.current.date(byAdding: .day, value: -$0, to: .now) } ?? .distantPast
+        let history = entries.filter { $0.targetDate >= cutoff }
+        let unit = appState.currentProfile.preferredUnit
+        return VStack(alignment: .leading, spacing: 18) {
+            (dynamicTypeSize.isAccessibilitySize
+             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+             : AnyLayout(HStackLayout(spacing: 12))) {
+                Text("Bodyweight trend")
+                    .font(LiftTypography.cardTitle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button {
+                    selectedBodyweightEntry = BodyweightEntry.draftForToday(
+                        entries: appState.bodyweightEntries,
+                        currentBodyweightPounds: appState.currentProfile.bodyweightPounds
+                    )
+                } label: {
+                    Label("Log", systemImage: "plus")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
+                }
+                .foregroundStyle(Color.liftAccentText)
+                .accessibilityLabel("Log bodyweight")
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                if let latest = history.last, let value = latest.actual {
+                    Text(MeasurementFormatting.formatBodyweight(value, preferredUnit: unit))
+                        .font(.largeTitle.weight(.bold).monospacedDigit())
+                    Text("Latest · \(latest.targetDate.formatted(date: .abbreviated, time: .omitted))")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                } else {
+                    Text(entries.isEmpty
+                         ? "Log your first dated measurement to start your trend."
+                         : "No measurements in this period. Choose a wider range or log a measurement.")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                 }
-                Spacer(minLength: 8)
-                if recovery > 0 {
-                    Label("\(recovery) recently trained", systemImage: "clock")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(Color.liftGold)
-                }
             }
-
-            HStack(alignment: .bottom, spacing: 16) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("\(summary.completedWorkoutCount)")
-                        .font(.system(size: 48, weight: .black, design: .rounded).monospacedDigit())
+            Picker("Bodyweight period", selection: $selectedBodyProgressPeriod) {
+                Text("1M").tag("1M")
+                Text("3M").tag("3M")
+                Text("1Y").tag("1Y")
+                Text("All").tag("All")
+            }
+            .pickerStyle(.segmented)
+            if history.count > 1 {
+                Chart(history, id: \.id) { entry in
+                    if let value = entry.actual {
+                        LineMark(
+                            x: .value("Date", entry.targetDate),
+                            y: .value("Bodyweight", MeasurementFormatting.convert(value, from: .pounds, to: unit))
+                        )
                         .foregroundStyle(Color.liftAccentText)
-                    Text("workout\(summary.completedWorkoutCount == 1 ? "" : "s") completed")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.liftMuted)
+                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                        PointMark(
+                            x: .value("Date", entry.targetDate),
+                            y: .value("Bodyweight", MeasurementFormatting.convert(value, from: .pounds, to: unit))
+                        )
+                        .foregroundStyle(Color.liftAccentText)
+                        .symbolSize(24)
+                    }
                 }
-                Spacer(minLength: 0)
-                VStack(alignment: .trailing, spacing: 5) {
-                    HStack(alignment: .bottom, spacing: 5) {
-                        ForEach(Array(trend.enumerated()), id: \.offset) { index, value in
-                            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                .fill(index == trend.count - 1 ? Color.liftAccentText : Color.liftAccentText.opacity(0.3))
-                                .frame(width: 12, height: max(4, CGFloat(value / peakVolume) * 42))
+                .chartYAxisLabel(unit.shortLabel, position: .trailing)
+                .chartYScale(domain: .automatic(includesZero: false))
+                .chartYAxis {
+                    AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) {
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 4]))
+                            .foregroundStyle(Color.liftMuted.opacity(0.25))
+                        AxisValueLabel().foregroundStyle(Color.liftMuted)
+                    }
+                }
+                .chartXAxis { AxisMarks(values: .automatic(desiredCount: 4)) { _ in AxisValueLabel().foregroundStyle(Color.liftMuted) } }
+                .accessibilityRepresentation {
+                    VStack(alignment: .leading) {
+                        ForEach(history, id: \.id) { entry in
+                            if let value = entry.actual {
+                                Text("\(entry.targetDate.formatted(date: .abbreviated, time: .omitted)), bodyweight \(MeasurementFormatting.formatBodyweight(value, preferredUnit: unit))")
+                            }
                         }
                     }
-                    .frame(height: 42, alignment: .bottom)
-                    Text("5-WEEK VOLUME")
-                        .font(.system(size: 9, weight: .bold, design: .rounded))
-                        .tracking(0.6)
-                        .foregroundStyle(Color.liftMuted)
                 }
-            }
-            HStack(spacing: 10) {
-                progressOverviewMetric("WORKING SETS", value: "\(summary.completedSetCount)", symbol: "checkmark.circle.fill")
-                progressOverviewMetric(
-                    "VOLUME LOAD",
-                    value: MeasurementFormatting.formatRecordedWeight(
-                        summary.volume,
-                        unit: appState.currentProfile.preferredUnit,
-                        format: { Int($0.rounded()).formatted() }
-                    ),
-                    symbol: "scalemass.fill"
-                )
-            }
-            if summary.completedWorkoutCount > 0 || baselineVolume > 0 {
-                Text(progressBaselineText(summary: summary, baselineVolume: baselineVolume))
-                    .font(.caption.weight(.semibold))
+                .frame(height: 200)
+            } else if let onlyEntry = history.first {
+                Text("One measurement in this period (\(onlyEntry.targetDate.formatted(date: .abbreviated, time: .omitted))). Add another to see a trend.")
+                    .font(.caption)
                     .foregroundStyle(Color.liftMuted)
             }
         }
         .padding(18)
-        .background(Color.liftCard)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.liftOverlay, lineWidth: 1)
-        }
-        .accessibilityElement(children: .contain)
+        .liftSurface(radius: 20)
     }
 
-    private func progressBaselineText(summary: HomeWeeklySummary, baselineVolume: Double) -> String {
-        guard appState.trainingProgressStore.hasFourFullWeeksOfHistory() else {
-            return "Building your baseline. Comparisons begin after four full weeks of logging."
-        }
-        if summary.completedWorkoutCount == 0 {
-            guard baselineVolume > 0 else { return "Log a workout to start your weekly snapshot." }
-            return "No completed workouts this week. Log one to compare against your prior four-week average."
-        }
-        guard baselineVolume > 0 else { return "No volume load logged in the prior four weeks to compare." }
-        let difference = summary.volume - baselineVolume
-        let percentage = Int((abs(difference) / baselineVolume * 100).rounded())
-        if percentage == 0 { return "Volume is in line with your prior four-week average." }
-        return "Volume is \(percentage)% \(difference > 0 ? "above" : "below") your prior four-week average."
-    }
-
-    private func progressOverviewMetric(_ title: String, value: String, symbol: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label(title, systemImage: symbol)
-                .font(.system(size: 9, weight: .black, design: .rounded))
-                .tracking(0.5)
-                .foregroundStyle(Color.liftMuted)
-            Text(value)
-                .font(.headline.weight(.black).monospacedDigit())
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color.liftCardRaised.opacity(0.62))
-        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-    }
-
-    @ViewBuilder
-    private var trainingAttentionSection: some View {
-        let insights = appState.strengthAttentionInsights
-        let nextWorkout = appState.scheduledPlanSessions(on: .now).first
-            ?? appState.nextScheduledWorkout().map { (week: $0.week, session: $0.session) }
-        if !insights.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) {
-                    Image(systemName: "scope")
-                        .foregroundStyle(Color.liftAccentText)
-                    Text("What needs attention")
-                        .font(.headline.weight(.bold))
-                }
-                Text("Signals from your logged lifts, with a step to consider next.")
-                    .font(.caption)
-                    .foregroundStyle(Color.liftMuted)
-
-                ForEach(insights) { insight in
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text(insight.title)
-                            .font(.subheadline.weight(.bold))
-                        Text(insight.evidence)
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
-                        Label(insight.nextStep, systemImage: "arrow.turn.down.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.liftAccentText)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(Color.liftCardRaised.opacity(0.62))
-                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-                }
-
-                Button {
-                    if let nextWorkout { selectedWeekID = nextWorkout.week.id }
-                    withAnimation(.snappy) { segment = .plans }
-                } label: {
-                    HStack {
-                        Text(nextWorkout.map { "Next planned: \($0.session.name)" } ?? "Review your workout plan")
-                            .lineLimit(1)
-                        Spacer(minLength: 8)
-                        Image(systemName: "arrow.right")
-                    }
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.liftAccentText)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(16)
-            .background(Color.liftCard)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.liftOverlay, lineWidth: 1)
-            }
-        }
-    }
-
-    private func programConsistencySection(weekCompletion: Double?) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if let week = selectedWeek {
-                let completion = weekCompletion ?? 0
-                let presentation = appState.programWeekPresentation(for: week)
-                HStack(alignment: .center) {
-                    ZStack {
-                        Circle()
-                            .stroke(Color.liftOverlay, lineWidth: 8)
-                        Circle()
-                            .trim(from: 0, to: min(max(completion, 0), 1))
-                            .stroke(Color.liftGreen, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                            .rotationEffect(.degrees(-90))
-                        Text("\(Int(completion * 100))%")
-                            .font(.system(size: 17, weight: .black, design: .rounded))
-                            .monospacedDigit()
-                    }
-                    .frame(width: 72, height: 72)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Program consistency")
-                            .font(.subheadline.weight(.bold))
-                        Text("Week \(week.weekNumber) · \(week.title)")
-                            .font(.caption)
-                            .foregroundStyle(Color.liftMuted)
-                    }
-                    Spacer()
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Program consistency, \(Int(completion * 100)) percent complete")
-
-                HStack(spacing: 0) {
-                    consistencyMetric(
-                        "Sessions",
-                        value: "\(presentation.completedSessionCount)/\(presentation.sessions.count)",
-                        symbol: "calendar"
-                    )
-                    consistencyMetricDivider
-                    consistencyMetric(
-                        "Exercises",
-                        value: "\(presentation.completedPrescriptionCount)/\(presentation.plannedPrescriptionCount)",
-                        symbol: "list.bullet"
-                    )
-                    consistencyMetricDivider
-                    consistencyMetric(
-                        "Sets",
-                        value: "\(presentation.completedSetCount)/\(presentation.plannedSetCount)",
-                        symbol: "checkmark.circle"
-                    )
-                }
-
-                let statusCounts = programSessionStatusCounts(week: week, presentation: presentation)
-                let visibleStatuses = statusCounts.filter { $0.count > 0 }
-                if !visibleStatuses.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
-                            ForEach(visibleStatuses, id: \.label) { status in
-                                Label("\(status.count) \(status.label)", systemImage: status.symbol)
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(status.color)
-                                    .padding(.horizontal, 8)
-                                    .frame(height: 28)
-                                    .background(status.color.opacity(0.12))
-                                    .clipShape(Capsule())
-                            }
-                        }
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(visibleStatuses.map { "\($0.label) \($0.count)" }.joined(separator: ", "))
-                }
-
-                if let rir = presentation.rirSummary {
-                    Label(
-                        "Target RIR \(RankingCalculator.format(rir.target)) · estimated RIR \(RankingCalculator.format(rir.estimated)) · \(rir.setCount) sets",
-                        systemImage: "scope"
-                    )
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(Color.liftMuted)
-                }
-            } else {
-                Text("Program consistency")
-                    .font(.subheadline.weight(.bold))
-                Text("Choose a workout program to compare planned and completed sessions.")
-                    .font(.caption)
-                    .foregroundStyle(Color.liftMuted)
-                Button("Browse workout programs") {
-                    isProgramLibraryExpanded = true
-                    withAnimation(.snappy) { segment = .plans }
-                }
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.liftGreen)
-            }
-        }
-        .padding(14)
-        .background(Color.liftCard)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.liftOverlay, lineWidth: 1)
-        }
-    }
-
-    private func programSessionStatusCounts(week: WorkoutWeek, presentation: ProgramWeekPresentation) -> [(label: String, count: Int, symbol: String, color: Color)] {
-        var completed = 0
-        var backfilled = 0
-        var shortened = 0
-        var inProgress = 0
-        var missed = 0
-        var skipped = 0
-        var rest = 0
-        var upcoming = 0
-
-        for session in presentation.sessions {
-            let prescriptions = presentation.prescriptionsBySessionID[session.id] ?? []
-            guard !prescriptions.isEmpty else { continue }
-            if session.outcome == .skipped {
-                skipped += 1
-                continue
-            }
-            if session.outcome == .rest {
-                rest += 1
-                continue
-            }
-            let completedCount = prescriptions.filter { presentation.completedPrescriptionIDs.contains($0.id) }.count
-            let savedWorkout = appState.completedWorkouts.first { workout in
-                workout.sourceSessionID == session.id && workout.sourcePlanID == appState.selectedWorkoutPlanID
-            }
-            if completedCount == prescriptions.count {
-                let scheduled = scheduledDate(for: week, session: session)
-                if let scheduled, let savedWorkout,
-                   !Calendar.current.isDate(savedWorkout.completedAt, inSameDayAs: scheduled) {
-                    backfilled += 1
-                } else {
-                    completed += 1
-                }
-            } else if let savedWorkout, !savedWorkout.completedWorkingSets.isEmpty {
-                shortened += 1
-            } else if completedCount > 0 {
-                inProgress += 1
-            } else if let date = scheduledDate(for: week, session: session), date < Calendar.current.startOfDay(for: .now) {
-                missed += 1
-            } else {
-                upcoming += 1
-            }
-        }
-
-        return [
-            ("Completed", completed, "checkmark.circle.fill", Color.liftGreen),
-            ("Different day", backfilled, "arrow.uturn.backward.circle.fill", Color.liftBlue),
-            ("Shortened", shortened, "minus.circle.fill", Color.liftGold),
-            ("In progress", inProgress, "circle.lefthalf.filled", Color.liftBlue),
-            ("Missed", missed, "exclamationmark.circle.fill", Color.liftGold),
-            ("Skipped", skipped, "forward.end.circle.fill", Color.liftGold),
-            ("Rest", rest, "bed.double.fill", Color.liftBlue),
-            ("Upcoming", upcoming, "clock.fill", Color.liftMuted)
-        ]
-    }
-
-    private func scheduledDate(for week: WorkoutWeek, session: WorkoutSession) -> Date? {
-        let calendar = Calendar.current
-        let cycleStart: Date
-        if let settings = selectedProgramSettings {
-            guard let start = calendar.date(
-                byAdding: .weekOfYear,
-                value: week.weekNumber - 1,
-                to: calendar.startOfDay(for: settings.startedAt)
-            ) else { return nil }
-            cycleStart = start
-        } else {
-            guard week.id == appState.currentSelectedProgramWeek?.id,
-                  let start = calendar.dateInterval(of: .weekOfYear, for: .now)?.start else { return nil }
-            cycleStart = start
-        }
-
-        guard let weekdayIndex = calendar.weekdaySymbols.firstIndex(where: {
-            $0.caseInsensitiveCompare(session.day) == .orderedSame
-        }) else { return nil }
-        let targetWeekday = weekdayIndex + 1
-        let cycleWeekday = calendar.component(.weekday, from: cycleStart)
-        let dayOffset = (targetWeekday - cycleWeekday + 7) % 7
-        return calendar.date(byAdding: .day, value: dayOffset, to: cycleStart)
-    }
-
-    private func consistencyMetric(_ title: String, value: String, symbol: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Image(systemName: symbol)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.liftAccentText)
-            Text(value)
-                .font(.subheadline.weight(.black).monospacedDigit())
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            Text(title)
-                .font(.system(size: 9, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.liftMuted)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
-        .padding(.horizontal, 9)
-        .background(Color.liftCardRaised.opacity(0.62))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .accessibilityElement(children: .combine)
-    }
-
-    private var consistencyMetricDivider: some View {
-        Rectangle()
-            .fill(Color.liftSeparator)
-            .frame(width: 1, height: 28)
-    }
-
-    private var recoveryInsightSection: some View {
+    var trainingRecencySection: some View {
         let summaries = Array(appState.recoverySummaries().prefix(4))
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Recently trained muscles")
-                    .font(.headline.weight(.bold))
+                    .font(LiftTypography.cardTitle)
                 Spacer()
                 Text("last 7 days")
                     .font(.caption2.weight(.semibold))
@@ -645,10 +446,10 @@ extension TrainingTrackerView {
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                     Button {
-                        withAnimation(.snappy) { segment = .today }
+                        withAnimation(reduceMotion ? nil : .snappy) { segment = .today }
                     } label: {
                         Label("Start a workout", systemImage: "play.fill")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                             .foregroundStyle(Color.liftAccentText)
                     }
                     .buttonStyle(.plain)
@@ -661,11 +462,11 @@ extension TrainingTrackerView {
                     } label: {
                         HStack(spacing: 10) {
                             Image(systemName: "clock")
-                                .foregroundStyle(summary.hoursSinceTraining < 48 ? Color.liftGold : Color.liftMuted)
+                                .foregroundStyle(Color.liftMuted)
                                 .frame(width: 24)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(summary.muscle.displayName)
-                                    .font(.caption.weight(.bold))
+                                    .font(LiftTypography.compactEmphasis)
                                 Text("\(summary.setCount) working sets · \(recoveryAgeText(summary.hoursSinceTraining))")
                                     .font(.caption2)
                                     .foregroundStyle(Color.liftMuted)
@@ -684,7 +485,7 @@ extension TrainingTrackerView {
                     .accessibilityHint("Opens the most recent workout for this muscle")
                 }
                 DisclosureGroup("How to read training recency") {
-                    Text("Gold means under 48 hours since logged primary work; gray means 48 hours or more. Time alone does not confirm recovery. Soreness, sleep, stress, and readiness are not measured.")
+                    Text("Dates describe logged primary work. Time since a workout does not measure recovery or readiness.")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                         .padding(.top, 4)
@@ -709,200 +510,45 @@ extension TrainingTrackerView {
         return "trained \(days)d ago"
     }
 
-    private var strengthProgressSection: some View {
-        let summary = appState.strengthTierSummary
-        let keyLifts = ["bench", "squat", "deadlift"].compactMap { exerciseID in
-            summary.liftProgress.first { $0.exerciseID == exerciseID }
-        }
-        let completeMaxes = keyLifts.compactMap(\.estimatedOneRepMaxKilograms)
-        let highestMax = max(1, completeMaxes.max() ?? 1)
-        let threeLiftTotal = completeMaxes.count == 3 ? completeMaxes.reduce(0, +) : nil
-        let latestBodyweight = recentBodyweightEntries.last?.actual ?? appState.currentProfile.bodyweightPounds
-        let bodyweightKilograms = MeasurementFormatting.normalizeToKilograms(latestBodyweight, unit: .pounds)
-        let relativeTotal = threeLiftTotal.flatMap { bodyweightKilograms > 0 ? $0 / bodyweightKilograms : nil }
-        let supplementalLifts = progressExerciseOptions
-            .filter { !["bench", "squat", "deadlift"].contains($0.rankingExerciseID ?? $0.id) }
-            .filter { appState.exerciseRecords(for: $0.id).bestEstimatedOneRepMaxKilograms != nil }
-            .sorted {
-                (appState.exerciseRecords(for: $0.id).bestEstimatedOneRepMaxKilograms ?? 0)
-                    > (appState.exerciseRecords(for: $1.id).bestEstimatedOneRepMaxKilograms ?? 0)
+    private func strengthGoalOverview(exercise: TrainingExerciseCatalogItem, latestEstimate: ExerciseProgressPoint?) -> some View {
+        let target = strengthGoalTargetsKilograms[exercise.id]
+        let unit = appState.currentProfile.preferredUnit
+        let latest = latestEstimate.map(ExerciseProgressSeries.estimatedOneRepMax)
+        return VStack(alignment: .leading, spacing: 10) {
+            Divider()
+            HStack {
+                Text("Estimated 1RM goal").font(LiftTypography.rowEmphasis)
+                Spacer()
+                Button(target == nil ? "Add goal" : "Edit goal") {
+                    strengthGoalExerciseID = exercise.id
+                    loadStrengthGoalTargetDraft()
+                    showingStrengthGoalEditor = true
+                }
+                .font(.subheadline.weight(.semibold))
+                .frame(minHeight: 44)
             }
-            .prefix(3)
-
-        return VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Strength")
-                    .font(.headline.weight(.bold))
-                Text("Estimated one-rep max, calculated from completed working sets of up to 10 reps.")
-                    .font(.caption)
-                    .foregroundStyle(Color.liftMuted)
-                Text("Bars compare your three lifts with your strongest; tiers use bodyweight-based standards.")
-                    .font(.caption2)
-                    .foregroundStyle(Color.liftMuted)
+            if let strengthGoalError {
+                Text(strengthGoalError).foregroundStyle(Color.liftRed)
+                Button("Retry goal sync") { Task { await refreshStrengthGoalTargets() } }
+                    .frame(minHeight: 44)
             }
-
-            if keyLifts.isEmpty {
-                LiftEmptyState(
-                    title: "No strength data yet",
-                    message: "Complete a working set for bench press, squat, or deadlift to start your strength profile.",
-                    symbolName: "figure.strengthtraining.traditional",
-                    actionTitle: "Start a workout",
-                    action: { withAnimation(.snappy) { segment = .today } },
-                    compact: true
-                )
+            if let target {
+                Text("Target \(MeasurementFormatting.formatDisplayedWeight(target, unit: unit))")
+                    .font(.headline.monospacedDigit())
+                if let latest, let latestEstimate {
+                    Text("Latest in this period: \(MeasurementFormatting.formatDisplayedWeight(latest, unit: unit)) · \(latestEstimate.date.formatted(date: .abbreviated, time: .omitted))")
+                        .font(.caption).foregroundStyle(Color.liftMuted)
+                    ProgressView(value: min(1, max(0, latest / target)))
+                        .tint(Color.liftAccentText)
+                        .accessibilityLabel("Estimated 1RM goal progress")
+                } else {
+                    Text("No eligible estimate in this period.").font(.caption).foregroundStyle(Color.liftMuted)
+                }
             } else {
-                strengthLiftCards(keyLifts, highestMax: highestMax)
-                strengthSummaryMetrics(threeLiftTotal: threeLiftTotal, relativeTotal: relativeTotal)
-
-                if !supplementalLifts.isEmpty {
-                    Text("Other tracked lifts")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftMuted)
-                    supplementalLiftCards(Array(supplementalLifts))
-                    .accessibilityElement(children: .contain)
-                }
-
-                if appState.currentProfile.primaryGymID != UUID(uuidString: "00000000-0000-0000-0000-000000000000")!,
-                   !appState.currentProfile.primaryGymName.isEmpty {
-                    let gymID = appState.currentProfile.primaryGymID
-                    Button {
-                        appState.leaderboardFilters = LeaderboardFilters(
-                            exerciseID: nil,
-                            rankingType: .total,
-                            gymID: gymID
-                        )
-                        appState.verifiedOnly = true
-                        appState.leaderboardFocusRequestID = UUID()
-                        appState.selectedTab = 1
-                    } label: {
-                        Label("Compare 3-lift total at \(appState.currentProfile.primaryGymName)", systemImage: "trophy")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(Color.liftAccentText)
-                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.75)
-                            .frame(maxWidth: .infinity, minHeight: LiftDesign.minimumTouchTarget)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("tracker.progress.compareAtGym")
-                }
+                Text("Set a personal target for \(exercise.name).")
+                    .font(.caption).foregroundStyle(Color.liftMuted)
             }
         }
-        .padding(14)
-        .background(Color.liftCard)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.liftOverlay, lineWidth: 1)
-        }
-    }
-
-    @ViewBuilder
-    private func strengthLiftCards(_ lifts: [LiftTierProgress], highestMax: Double) -> some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            VStack(spacing: 8) {
-                ForEach(lifts, id: \.exerciseID) { lift in strengthLiftCard(lift, highestMax: highestMax) }
-            }
-        } else {
-            HStack(spacing: 8) {
-                ForEach(lifts, id: \.exerciseID) { lift in strengthLiftCard(lift, highestMax: highestMax) }
-            }
-        }
-    }
-
-    private func strengthLiftCard(_ lift: LiftTierProgress, highestMax: Double) -> some View {
-        let liftMax = lift.estimatedOneRepMaxKilograms ?? 0
-        let tierLabel = lift.estimatedOneRepMaxKilograms == nil ? "No data" : lift.currentTier.label
-        return VStack(alignment: .leading, spacing: 8) {
-            Text(lift.exerciseName.uppercased())
-                .font(.caption.weight(.black))
-                .tracking(0.4)
-                .foregroundStyle(Color.liftMuted)
-                .lineLimit(1)
-            Text(lift.estimatedOneRepMaxKilograms.map {
-                MeasurementFormatting.formatDisplayedWeight($0, unit: appState.currentProfile.preferredUnit)
-            } ?? "—")
-                .font(.headline.weight(.black).monospacedDigit())
-                .lineLimit(1)
-                .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.75)
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.liftOverlay)
-                    Capsule().fill(Color.liftAccentText)
-                        .frame(width: geometry.size.width * CGFloat(liftMax / highestMax))
-                }
-            }
-            .frame(height: 5)
-            Text(tierLabel)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(Color.liftMuted)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
-        .padding(10)
-        .background(Color.liftCardRaised.opacity(0.62))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
-
-    @ViewBuilder
-    private func strengthSummaryMetrics(threeLiftTotal: Double?, relativeTotal: Double?) -> some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            VStack(spacing: 8) { strengthSummaryCards(threeLiftTotal: threeLiftTotal, relativeTotal: relativeTotal) }
-        } else {
-            HStack(spacing: 10) { strengthSummaryCards(threeLiftTotal: threeLiftTotal, relativeTotal: relativeTotal) }
-        }
-    }
-
-    @ViewBuilder
-    private func strengthSummaryCards(threeLiftTotal: Double?, relativeTotal: Double?) -> some View {
-        volumeSummary(
-            title: "THREE-LIFT TOTAL",
-            value: threeLiftTotal.map {
-                MeasurementFormatting.formatDisplayedWeight($0, unit: appState.currentProfile.preferredUnit)
-            } ?? "—",
-            detail: threeLiftTotal == nil ? "Log all three lifts" : "Squat + bench press + deadlift",
-            symbol: "sum"
-        )
-        volumeSummary(
-            title: "RELATIVE TOTAL",
-            value: relativeTotal.map { String(format: "%.2f×", $0) } ?? "—",
-            detail: relativeTotal == nil ? "Needs total and bodyweight" : "of bodyweight",
-            symbol: "scalemass"
-        )
-    }
-
-    @ViewBuilder
-    private func supplementalLiftCards(_ lifts: [TrainingExerciseCatalogItem]) -> some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            VStack(spacing: 8) {
-                ForEach(lifts, id: \.id) { lift in supplementalLiftCard(lift) }
-            }
-        } else {
-            HStack(spacing: 8) {
-                ForEach(lifts, id: \.id) { lift in supplementalLiftCard(lift) }
-            }
-        }
-    }
-
-    private func supplementalLiftCard(_ lift: TrainingExerciseCatalogItem) -> some View {
-        let record = appState.exerciseRecords(for: lift.id)
-        return VStack(alignment: .leading, spacing: 4) {
-            Text(lift.name)
-                .font(.caption.weight(.black))
-                .foregroundStyle(Color.liftMuted)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-            Text(record.bestEstimatedOneRepMaxKilograms.map {
-                MeasurementFormatting.formatDisplayedWeight($0, unit: appState.currentProfile.preferredUnit)
-            } ?? "—")
-                .font(.subheadline.weight(.black).monospacedDigit())
-                .lineLimit(1)
-                .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.7)
-        }
-        .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-        .padding(.horizontal, 9)
-        .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 8 : 0)
-        .background(Color.liftCardRaised.opacity(0.62))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func mostRecentWorkout(for muscle: ExerciseMuscleRegion) -> CompletedWorkout? {
@@ -920,46 +566,6 @@ extension TrainingTrackerView {
         }.max { $0.completedAt < $1.completedAt }
     }
 
-    private func volumeSummary(
-        title: String,
-        value: String,
-        detail: String,
-        symbol: String
-    ) -> some View {
-        HStack(spacing: 9) {
-            Image(systemName: symbol)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.liftAccentText)
-                .frame(width: 30, height: 30)
-                .background(Color.liftBlue.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.caption2.weight(.black))
-                    .tracking(0.5)
-                    .foregroundStyle(Color.liftMuted)
-                Text(value)
-                    .font(.subheadline.weight(.black).monospacedDigit())
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                Text(detail)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(Color.liftMuted)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
-        .background(Color.liftCardRaised.opacity(0.62))
-        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .stroke(Color.liftOverlay.opacity(0.75), lineWidth: 1)
-        }
-    }
     private func workoutHistorySection(presentation: WorkoutHistoryCalendarPresentation) -> some View {
         WorkoutHistoryCalendar(
             presentation: presentation,
@@ -974,341 +580,258 @@ extension TrainingTrackerView {
         }
     }
 
+    private var strengthGoalEditor: some View {
+        NavigationStack {
+            if let exercise = progressExerciseOptions.first(where: { $0.id == strengthGoalExerciseID }) {
+                let estimate = ExerciseProgressSeries.dailyHighestEstimatedOneRepMax(
+                    from: appState.exerciseProgressPoints(for: exercise.id)
+                ).last.map(ExerciseProgressSeries.estimatedOneRepMax)
+                ScrollViewReader { goalScroll in
+                    Form {
+                        Section("Exercise") {
+                            Text(exercise.name)
+                                .font(.headline)
+                            if let estimate {
+                                LabeledContent("Latest estimated 1RM", value: MeasurementFormatting.formatDisplayedWeight(estimate, unit: appState.currentProfile.preferredUnit))
+                            } else {
+                                Text("No logged estimate yet")
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                        }
+                        .listRowBackground(Color.liftCard)
+                        Section {
+                            VStack(alignment: .leading, spacing: 10) {
+                                if let strengthGoalError {
+                                    Text(strengthGoalError)
+                                        .font(.caption)
+                                        .foregroundStyle(Color.liftRed)
+                                } else if !strengthGoalTargetDraft.isEmpty && strengthGoalDraftKilograms == nil {
+                                    Text("Enter a target greater than zero.")
+                                        .font(.caption)
+                                        .foregroundStyle(Color.liftRed)
+                                }
+                                HStack(spacing: 12) {
+                                    TextField("Target weight", text: $strengthGoalTargetDraft)
+                                        .font(.title2.monospacedDigit())
+                                        .keyboardType(.decimalPad)
+                                        .disabled(savingStrengthGoal)
+                                        .accessibilityLabel("Target weight")
+                                    Text(appState.currentProfile.preferredUnit.shortLabel)
+                                        .foregroundStyle(Color.liftMuted)
+                                }
+                                .frame(minHeight: LiftDesign.minimumTouchTarget)
+                            }
+                            .id("strength.goal.target")
+                        } header: {
+                            Text("Target estimated 1RM")
+                        } footer: {
+                            Text("The weight you aim to lift for one repetition.")
+                        }
+                        .listRowBackground(Color.liftCard)
+                        if strengthGoalTargetsKilograms[exercise.id] != nil {
+                            Section {
+                                Button("Remove goal", role: .destructive) {
+                                    var targets = strengthGoalTargetsKilograms
+                                    targets.removeValue(forKey: exercise.id)
+                                    saveStrengthGoalTargets(targets)
+                                }
+                                .disabled(savingStrengthGoal)
+                            }
+                            .listRowBackground(Color.liftCard)
+                        }
+                    }
+                    .onChange(of: strengthGoalTargetDraft) {
+                        DispatchQueue.main.async { goalScroll.scrollTo("strength.goal.target", anchor: .bottom) }
+                    }
+                    .onChange(of: strengthGoalError) {
+                        DispatchQueue.main.async { goalScroll.scrollTo("strength.goal.target", anchor: .bottom) }
+                    }
+                }
+                .foregroundStyle(Color.liftText)
+                .scrollContentBackground(.hidden)
+                .background(Color.liftBackground)
+                .interactiveDismissDisabled(savingStrengthGoal)
+                .navigationTitle("Strength goal")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { showingStrengthGoalEditor = false }.disabled(savingStrengthGoal)
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(savingStrengthGoal ? "Saving…" : "Save") {
+                            guard let target = strengthGoalDraftKilograms else { return }
+                            var targets = strengthGoalTargetsKilograms
+                            targets[exercise.id] = target
+                            saveStrengthGoalTargets(targets)
+                        }
+                        .disabled(savingStrengthGoal || strengthGoalDraftKilograms == nil)
+                    }
+                }
+                .tint(Color.liftAccentText)
+            }
+        }
+    }
+
     private func exerciseProgressSection(
         options: [TrainingExerciseCatalogItem]
     ) -> some View {
         let exerciseID = selectedProgressExerciseID ?? options.first?.id
         let exercise = options.first { $0.id == exerciseID }
-        let setPoints = exercise.map { appState.exerciseProgressPoints(for: $0.id) } ?? []
+        let now = Date.now
+        let periodDays = ["1M": 30, "3M": 90, "1Y": 365][selectedStrengthTrendPeriod]
+        let start = periodDays.flatMap { Calendar.current.date(byAdding: .day, value: -$0 + 1, to: Calendar.current.startOfDay(for: now)) } ?? .distantPast
+        let recoveryIDs = Set(appState.trainingProgressStore.completedWorkouts
+            .filter { $0.completedAt >= start && $0.completedAt <= now && appState.trainingProgressStore.isRecoveryWorkout($0) }
+            .map(\.id))
+        let setPoints = (exercise.map { appState.exerciseProgressPoints(for: $0.id) } ?? [])
+            .filter { $0.date >= start && $0.date <= now && !($0.workoutID.map { recoveryIDs.contains($0) } ?? false) }
+        let usesRepetitions = exercise.map { [.bodyweightReps, .repsOnly].contains(ExerciseTrackingKind($0.trackingType)) } ?? false
+        let repetitionPoints = ExerciseProgressSeries.dailyHighestRepetitions(from:
+            (exercise.map { appState.trainingProgressStore.repetitionProgressPoints(for: $0.id) } ?? [])
+                .filter { $0.date >= start && $0.date <= now && !($0.workoutID.map { recoveryIDs.contains($0) } ?? false) }
+        )
         let chartPoints = ExerciseProgressSeries.dailyHighest(from: setPoints)
         let estimatedMaxPoints = ExerciseProgressSeries.dailyHighestEstimatedOneRepMax(from: setPoints)
-        let repRangeProgressions = ExerciseProgressSeries.repRangeProgressions(from: setPoints)
-        let selectedStrengthTrendPoint = selectedExerciseStrengthTrendDate.flatMap { selection in
-            estimatedMaxPoints.min {
-                abs($0.date.timeIntervalSince(selection)) < abs($1.date.timeIntervalSince(selection))
-            }
-        }
-        let selectedWeightTrendPoint = selectedExerciseWeightTrendDate.flatMap { selection in
-            chartPoints.min {
-                abs($0.date.timeIntervalSince(selection)) < abs($1.date.timeIntervalSince(selection))
-            }
-        }
-        let prs = MeasurementFormatting.bestPRsByReps(from: setPoints)
-        let records = exercise.map { appState.exerciseRecords(for: $0.id) }
-        let startingEstimatedMax = estimatedMaxPoints.first.map(ExerciseProgressSeries.estimatedOneRepMax)
-        let bestEstimatedMax = estimatedMaxPoints.map(ExerciseProgressSeries.estimatedOneRepMax).max()
-        let strengthIncrease = startingEstimatedMax.flatMap { start in
-            bestEstimatedMax.map { $0 - start }
-        }
 
         return VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                if let exercise {
-                    ExerciseCatalogIcon(exercise: exercise)
-                        .frame(width: 42, height: 42)
-                }
-            Text("Exercise progress")
-                .font(.subheadline.weight(.bold))
-                Spacer()
+            AnyView(VStack(alignment: .leading, spacing: 4) {
                 Button {
                     showingProgressExercisePicker = true
                 } label: {
-                    Label(exercise?.name ?? "Exercise", systemImage: "chevron.down")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftAccentText)
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(exercise?.name ?? "Exercise")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.liftAccentText)
+                    }
+                        .font(LiftTypography.sectionTitle)
+                        .foregroundStyle(Color.liftText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(minHeight: LiftDesign.minimumTouchTarget, alignment: .leading)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .accessibilityIdentifier("tracker.progress.exercisePicker")
                 .sheet(isPresented: $showingProgressExercisePicker) {
-                    ProgressExercisePickerSheet(options: options, selectedID: selectedProgressExerciseID) { exerciseID in
+                    ProgressExercisePickerSheet(options: options, selectedID: selectedProgressExerciseID, title: "Choose exercise", preferredIDs: Set(appState.trainingProgressStore.recentExerciseIDs(limit: 20)), goalIDs: Set(strengthGoalTargetsKilograms.keys)) { exerciseID in
                         selectedProgressExerciseID = exerciseID
                         selectedExerciseWeightTrendDate = nil
                         selectedExerciseStrengthTrendDate = nil
                     }
                 }
+            })
+            Picker("Exercise progress period", selection: $selectedStrengthTrendPeriod) {
+                Text("1M").tag("1M")
+                Text("3M").tag("3M")
+                Text("1Y").tag("1Y")
+                Text("All").tag("All")
             }
+            .pickerStyle(.segmented)
 
-            if chartPoints.isEmpty {
+            if usesRepetitions {
+                if let best = repetitionPoints.map(\.reps).max() {
+                    Text("Best set · \(best) reps")
+                        .font(LiftTypography.sectionTitle)
+                    Chart(repetitionPoints) { point in
+                        BarMark(x: .value("Day", point.date, unit: .day), y: .value("Reps", point.reps))
+                            .foregroundStyle(Color.liftAccentText)
+                            .accessibilityLabel(point.date.formatted(date: .abbreviated, time: .omitted))
+                            .accessibilityValue("\(point.reps) reps")
+                    }
+                    .frame(height: 180)
+                    Text("Best completed working set each day. Warm-ups and recovery workouts are excluded. The record and chart use the same selected date range.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                    ForEach(repetitionPoints.suffix(5).reversed()) { point in
+                        Button {
+                            selectedCompletedWorkout = appState.trainingProgressStore.completedWorkouts.first { $0.id == point.workoutID }
+                            focusedWorkoutSetID = point.id
+                        } label: {
+                            HStack {
+                                Text(point.date, format: .dateTime.month(.abbreviated).day())
+                                Spacer()
+                                Text("\(point.reps) reps")
+                                Image(systemName: "chevron.right")
+                            }
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } else {
+                    Text("Complete a working set to see your rep record and daily trend.")
+                        .foregroundStyle(Color.liftMuted)
+                }
+            } else if chartPoints.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Complete sets for this exercise to build its trend.")
                         .font(.caption)
                         .foregroundStyle(Color.liftMuted)
                     Button {
-                        withAnimation(.snappy) { segment = .today }
+                        withAnimation(reduceMotion ? nil : .snappy) { segment = .today }
                     } label: {
                         Label("Log this exercise", systemImage: "play.fill")
-                            .font(.caption.weight(.bold))
+                            .font(LiftTypography.compactEmphasis)
                             .foregroundStyle(Color.liftAccentText)
                     }
                     .buttonStyle(.plain)
                 }
             } else {
-                if estimatedMaxPoints.count == 1,
-                   let currentEstimatedMax = estimatedMaxPoints.first.map(ExerciseProgressSeries.estimatedOneRepMax) {
-                    progressMetric(
-                        title: "CURRENT EST. 1RM",
-                        value: MeasurementFormatting.formatDisplayedWeight(currentEstimatedMax, unit: appState.currentProfile.preferredUnit),
-                        symbol: "scalemass.fill"
+                StrengthExerciseCharts(
+                    chartPoints: chartPoints,
+                    estimatedMaxPoints: estimatedMaxPoints,
+                    preferredUnit: appState.currentProfile.preferredUnit,
+                    selectedExerciseStrengthTrendDate: $selectedExerciseStrengthTrendDate,
+                    selectedExerciseWeightTrendDate: $selectedExerciseWeightTrendDate
+                )
+                StrengthSelectedPerformance(
+                    chartPoints: chartPoints,
+                    estimatedMaxPoints: estimatedMaxPoints,
+                    selectedExerciseStrengthTrendDate: selectedExerciseStrengthTrendDate,
+                    selectedExerciseWeightTrendDate: selectedExerciseWeightTrendDate,
+                    selectedCompletedWorkout: $selectedCompletedWorkout,
+                    focusedWorkoutSetID: $focusedWorkoutSetID
+                )
+                DisclosureGroup {
+                    StrengthExerciseRecords(
+                    exerciseID: exerciseID,
+                    setPoints: setPoints,
+                    periodTitle: selectedStrengthTrendPeriod == "All" ? "all time" : "last \(selectedStrengthTrendPeriod)",
+                    selectedCompletedWorkout: $selectedCompletedWorkout,
+                    focusedWorkoutSetID: $focusedWorkoutSetID
                     )
-                    Text("Log this exercise in another workout to see an estimated 1RM trend.")
-                        .font(.caption2)
-                        .foregroundStyle(Color.liftMuted)
-                } else if let startingEstimatedMax, let bestEstimatedMax, let strengthIncrease {
-                    HStack(spacing: 10) {
-                        progressMetric(
-                            title: "STARTING EST. 1RM",
-                            value: MeasurementFormatting.formatDisplayedWeight(startingEstimatedMax, unit: appState.currentProfile.preferredUnit),
-                            symbol: "flag.fill"
-                        )
-                        progressMetric(
-                            title: "BEST EST. 1RM",
-                            value: MeasurementFormatting.formatDisplayedWeight(bestEstimatedMax, unit: appState.currentProfile.preferredUnit),
-                            symbol: "arrow.up.right"
-                        )
-                        progressMetric(
-                            title: "INCREASE",
-                            value: (strengthIncrease >= 0 ? "+" : "") + MeasurementFormatting.formatDisplayedWeight(strengthIncrease, unit: appState.currentProfile.preferredUnit),
-                            symbol: "chart.line.uptrend.xyaxis"
-                        )
-                    }
-
-                    Text("Estimated 1RM trend")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftMuted)
-                        .padding(.top, 2)
-
-                    Chart(estimatedMaxPoints) { point in
-                        LineMark(
-                            x: .value("Date", point.date),
-                            y: .value("Estimated 1RM", ExerciseProgressSeries.estimatedOneRepMax(point))
-                        )
-                        .foregroundStyle(Color.liftAccentText)
-                        PointMark(
-                            x: .value("Date", point.date),
-                            y: .value("Estimated 1RM", ExerciseProgressSeries.estimatedOneRepMax(point))
-                        )
-                        .foregroundStyle(Color.liftGreen)
-                    }
-                    .frame(height: 150)
-                    .chartYAxis { AxisMarks(position: .trailing) }
-                    .chartXSelection(value: $selectedExerciseStrengthTrendDate)
-                    .onChange(of: selectedExerciseStrengthTrendDate) { _, selection in
-                        if selection != nil { selectedExerciseWeightTrendDate = nil }
-                    }
+                } label: {
+                    Text("Records and source workouts")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
                 }
-
-                Text("Weight trend")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.liftMuted)
-                    .padding(.top, 2)
-                Text(chartPoints.count == 1
-                    ? "One workout logged; record this exercise again to compare sessions."
-                    : "Tap a chart point to open its workout.")
-                    .font(.caption2)
-                    .foregroundStyle(Color.liftMuted)
-
-                Chart(chartPoints) { point in
-                    LineMark(
-                        x: .value("Date", point.date),
-                        y: .value("Weight", point.weight)
-                    )
-                    .foregroundStyle(Color.liftAccentText)
-                    PointMark(
-                        x: .value("Date", point.date),
-                        y: .value("Weight", point.weight)
-                    )
-                    .foregroundStyle(Color.liftGreen)
-                }
-                .frame(height: 150)
-                .chartYAxis { AxisMarks(position: .trailing) }
-                .chartXSelection(value: $selectedExerciseWeightTrendDate)
-                .onChange(of: selectedExerciseWeightTrendDate) { _, selection in
-                    if selection != nil { selectedExerciseStrengthTrendDate = nil }
-                }
-
-                if let selectedPoint = selectedWeightTrendPoint ?? selectedStrengthTrendPoint,
-                   let workoutID = selectedPoint.workoutID,
-                   let workout = appState.trainingHistoryWorkouts.first(where: { $0.id == workoutID }) {
-                    if let set = workout.sets.first(where: { $0.id == selectedPoint.id }) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Selected performance")
-                                .font(.caption.weight(.bold))
-                            Text(LiftTimeFormatter.shortDateNoTime(workout.completedAt))
-                                .font(.caption2)
-                                .foregroundStyle(Color.liftMuted)
-                            HStack(spacing: 10) {
-                                if let weight = set.weight {
-                                    Text(MeasurementFormatting.formatRecordedWeight(weight, unit: set.recordedUnit))
-                                        .font(.caption.weight(.black).monospacedDigit())
-                                }
-                                if let reps = set.reps {
-                                    Text("× \(reps) reps")
-                                        .font(.caption.weight(.semibold).monospacedDigit())
-                                }
-                                if let weight = set.weight, let reps = set.reps {
-                                    Text("· \(MeasurementFormatting.formatRecordedVolume(weight * Double(reps), recordedUnit: set.recordedUnit, preferredUnit: appState.currentProfile.preferredUnit)) volume")
-                                        .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(Color.liftMuted)
-                                }
-                            }
-                        }
-                        .padding(10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.liftScrim)
-                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                        .accessibilityElement(children: .combine)
-                    }
-
-                    Button {
-                        selectedCompletedWorkout = workout
-                        focusedWorkoutSetID = selectedPoint.id
-                    } label: {
-                        Label(
-                            "View workout · \(LiftTimeFormatter.shortDateNoTime(workout.completedAt))",
-                            systemImage: "arrow.up.right.square"
-                        )
-                        .font(.caption.weight(.bold))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.liftAccentText)
-                    .accessibilityHint("Opens the workout containing this exercise performance")
-                }
-
-                if !prs.isEmpty {
-                    Text("Personal records by rep range")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftMuted)
-                        .padding(.top, 2)
-                    HStack(spacing: 8) {
-                        ForEach(prs.prefix(4), id: \.reps) { pr in
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("\(pr.reps)-rep PR")
-                                    .font(.caption2)
-                                    .foregroundStyle(Color.liftMuted)
-                                Text("\(RankingCalculator.format(pr.weight)) \(pr.unit.shortLabel)")
-                                    .font(.caption.weight(.black).monospacedDigit())
-                                    .foregroundStyle(Color.liftText)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(9)
-                            .background(Color.liftScrim)
-                            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                        }
-                    }
-                }
-
-                if let records,
-                   let bestSetVolume = records.bestSetVolumeKilograms,
-                   let bestSessionVolume = records.bestSessionVolumeKilograms {
-                    HStack(spacing: 8) {
-                        progressMetric(
-                            title: "BEST SET VOLUME",
-                            value: MeasurementFormatting.formatDisplayedWeight(bestSetVolume, unit: appState.currentProfile.preferredUnit),
-                            symbol: "square.stack.3d.up.fill"
-                        )
-                        progressMetric(
-                            title: "BEST SESSION VOLUME",
-                            value: MeasurementFormatting.formatDisplayedWeight(bestSessionVolume, unit: appState.currentProfile.preferredUnit),
-                            symbol: "chart.bar.fill"
-                        )
-                    }
-                    .accessibilityElement(children: .contain)
-                }
-
-                if !repRangeProgressions.isEmpty {
-                    Text("Rep-range progression")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.liftMuted)
-                        .padding(.top, 2)
-                    ForEach(repRangeProgressions.suffix(4).reversed()) { progression in
-                        let workout = appState.trainingHistoryWorkouts.first { $0.id == progression.workoutID }
-                        Button {
-                            if let workout {
-                                focusedWorkoutSetID = nil
-                                selectedCompletedWorkout = workout
-                            }
-                        } label: {
-                            HStack(alignment: .center, spacing: 12) {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(LiftTimeFormatter.shortDateNoTime(progression.date))
-                                        .font(.caption.weight(.bold))
-                                        .foregroundStyle(Color.liftText)
-                                    Text("Target \(progression.targetReps) reps")
-                                        .font(.caption2)
-                                        .foregroundStyle(Color.liftMuted)
-                                }
-                                Spacer(minLength: 4)
-                                VStack(alignment: .trailing, spacing: 3) {
-                                    Text("\(progression.inRangeSetCount)/\(progression.totalSetCount) sets in range")
-                                        .font(.caption2.weight(.semibold).monospacedDigit())
-                                        .foregroundStyle(Color.liftMuted)
-                                    if let bestWeight = progression.bestInRangeWeight {
-                                        Text("Best \(RankingCalculator.format(bestWeight)) \(appState.currentProfile.preferredUnit.shortLabel)")
-                                            .font(.caption.weight(.black).monospacedDigit())
-                                            .foregroundStyle(Color.liftText)
-                                    }
-                                }
-                                Image(systemName: "chevron.right")
-                                    .font(.caption2.weight(.bold))
-                                    .foregroundStyle(Color.liftMuted)
-                            }
-                            .padding(9)
-                            .background(Color.liftScrim)
-                            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(workout == nil)
-                        .accessibilityLabel("View workout from \(LiftTimeFormatter.shortDateNoTime(progression.date)), target \(progression.targetReps) reps, \(progression.inRangeSetCount) of \(progression.totalSetCount) sets in range")
-                        .accessibilityHint("Opens the workout and its logged sets")
-                    }
-                }
+                .tint(Color.liftAccentText)
+            }
+            if let exercise, ExerciseTrackingKind(exercise.trackingType) == .weightReps {
+                strengthGoalOverview(exercise: exercise, latestEstimate: estimatedMaxPoints.last)
             }
         }
-        .padding(14)
-        .background(Color.liftCard)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.liftOverlay, lineWidth: 1)
-        }
+        .padding(18)
+        .liftSurface(radius: 20)
     }
 
-    private func progressMetric(title: String, value: String, symbol: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Image(systemName: symbol)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Color.liftAccentText)
-            Text(title)
-                .font(.system(size: 8, weight: .black, design: .rounded))
-                .tracking(0.3)
-                .foregroundStyle(Color.liftMuted)
-                .lineLimit(2)
-            Text(value)
-                .font(.caption.weight(.black).monospacedDigit())
-                .minimumScaleFactor(0.7)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
-        .padding(9)
-        .background(Color.liftCardRaised.opacity(0.62))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
-
-    private var strainAndInjurySection: some View {
+    var strainAndInjurySection: some View {
         VStack(alignment: .leading, spacing: 11) {
             Text("Strain & injuries")
-                .font(.headline.weight(.bold))
+                .font(LiftTypography.cardTitle)
 
             if let latestStrain = appState.latestStrainEntry {
                 HStack(spacing: 10) {
                     Image(systemName: "heart.text.square.fill")
-                        .font(.caption.weight(.black))
+                        .font(LiftTypography.compactEmphasis)
                         .foregroundStyle(Color.liftAccentText)
                         .frame(width: 30, height: 30)
                         .background(Color.liftBlue.opacity(0.12))
                         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Latest strain: \(latestStrain.strain)/10")
-                            .font(.subheadline.weight(.bold))
+                            .font(LiftTypography.rowEmphasis)
                             .foregroundStyle(Color.liftText)
                         if !latestStrain.notes.isEmpty {
                             Text(latestStrain.notes)
@@ -1340,7 +863,7 @@ extension TrainingTrackerView {
                                 .foregroundStyle(Color.liftText)
                             Spacer()
                             Text("\(entry.strain)/10")
-                                .font(.caption.weight(.black).monospacedDigit())
+                                .font(.caption.weight(.bold).monospacedDigit())
                                 .foregroundStyle(Color.liftAccentText)
                         }
                         .padding(.horizontal, 10)
@@ -1378,7 +901,7 @@ extension TrainingTrackerView {
                             }
                             Spacer()
                             Text(injury.status == .resolved ? "Resolved" : "Active")
-                                .font(.caption.weight(.bold))
+                                .font(LiftTypography.compactEmphasis)
                                 .foregroundStyle(injury.status == .resolved ? Color.liftGreen : Color.liftGold)
                         }
                     }
@@ -1398,6 +921,87 @@ extension TrainingTrackerView {
         appState.trainingHistoryWorkouts
     }
 
+    private var strengthGoalTargetsKilograms: [String: Double] {
+        _ = strengthGoalsRevision
+        guard let value = UserDefaults.standard.string(forKey: strengthGoalStorageKey),
+              let data = value.data(using: .utf8) else { return [:] }
+        return (try? JSONDecoder().decode([String: Double].self, from: data)) ?? [:]
+    }
+
+    private var strengthGoalStorageKey: String {
+        "liftrank.strengthGoalTargetsKg.\(appState.currentProfile.id.uuidString)"
+    }
+
+    private func cacheStrengthGoalTargets(_ targets: [String: Double]) throws {
+        let data = try JSONEncoder().encode(targets)
+        UserDefaults.standard.set(String(decoding: data, as: UTF8.self), forKey: strengthGoalStorageKey)
+        strengthGoalsRevision += 1
+    }
+
+    private func refreshStrengthGoalTargets() async {
+        guard appState.isAuthenticated && !appState.isDemoMode, !savingStrengthGoal else { return }
+        let userID = appState.currentProfile.id
+        let revision = strengthGoalsRevision
+        do {
+            let remote = try await appState.fetchStrengthGoalTargets()
+            guard appState.currentProfile.id == userID, !savingStrengthGoal, strengthGoalsRevision == revision else { return }
+            if let remote {
+                try cacheStrengthGoalTargets(remote)
+            } else if !strengthGoalTargetsKilograms.isEmpty {
+                try await appState.saveStrengthGoalTargets(strengthGoalTargetsKilograms)
+            }
+            strengthGoalError = nil
+        } catch {
+            guard appState.currentProfile.id == userID else { return }
+            strengthGoalError = "Goals couldn’t sync. Your saved goals are still on this device. Try again when connected."
+        }
+    }
+
+    private func saveStrengthGoalTargets(_ targets: [String: Double]) {
+        guard !savingStrengthGoal else { return }
+        savingStrengthGoal = true
+        strengthGoalError = nil
+        let userID = appState.currentProfile.id
+        Task {
+            defer { savingStrengthGoal = false }
+            do {
+                if appState.isAuthenticated && !appState.isDemoMode {
+                    try await appState.saveStrengthGoalTargets(targets)
+                }
+                guard appState.currentProfile.id == userID else { return }
+                try cacheStrengthGoalTargets(targets)
+                showingStrengthGoalEditor = false
+            } catch {
+                guard appState.currentProfile.id == userID else { return }
+                strengthGoalError = "Goal couldn’t be saved. Your entry is still here. Check your connection and try again."
+            }
+        }
+    }
+
+    private func loadStrengthGoalTargetDraft() {
+        strengthGoalError = nil
+        guard let exerciseID = strengthGoalExerciseID,
+              let target = strengthGoalTargetsKilograms[exerciseID] else {
+            strengthGoalTargetDraft = ""
+            return
+        }
+        strengthGoalTargetDraft = MeasurementFormatting.convert(target, from: .kilograms, to: appState.currentProfile.preferredUnit)
+            .formatted(.number.grouping(.never).precision(.fractionLength(0...1)))
+    }
+
+    private var strengthGoalDraftKilograms: Double? {
+        let normalized = strengthGoalTargetDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: ",", with: ".")
+        guard let value = Double(normalized), value.isFinite, value > 0 else { return nil }
+        return MeasurementFormatting.normalizeToKilograms(value, unit: appState.currentProfile.preferredUnit)
+    }
+
+    private var exerciseTrendOptions: [TrainingExerciseCatalogItem] {
+        appState.trainingExerciseLibrary.filter {
+            [.weightReps, .bodyweightReps, .repsOnly].contains(ExerciseTrackingKind($0.trackingType))
+        }.sorted { $0.name < $1.name }
+    }
+
     private var progressExerciseOptions: [TrainingExerciseCatalogItem] {
         appState.progressExerciseOptions()
     }
@@ -1415,256 +1019,19 @@ extension TrainingTrackerView {
     }
 
     private func syncProgressExerciseSelection() {
-        let options = progressExerciseOptions
+        let options = exerciseTrendOptions
         let optionIDs = Set(options.map(\.id))
-        guard let selectedProgressExerciseID else {
-            self.selectedProgressExerciseID = options.first?.id
+        if let selectedProgressExerciseID, optionIDs.contains(selectedProgressExerciseID) {
             return
         }
-        if !optionIDs.contains(selectedProgressExerciseID) {
-            self.selectedProgressExerciseID = options.first?.id
+        if selectedProgressExerciseID == nil, optionIDs.contains(storedProgressExerciseID) {
+            selectedProgressExerciseID = storedProgressExerciseID
+            return
         }
-    }
-
-    private func bodyweightChart(entries: [BodyweightEntry]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            let actualEntries = entries
-                .filter { $0.actual != nil }
-                .sorted { $0.targetDate < $1.targetDate }
-            let chartPoints = actualEntries
-                .enumerated()
-                .map { index, entry in
-                    let actual = entry.actual ?? 0
-                    let start = max(0, index - 2)
-                    let window = actualEntries[start...index].compactMap(\.actual)
-                    return BodyweightChartPoint(
-                        id: entry.id,
-                        date: entry.targetDate,
-                        actual: actual,
-                        average: window.reduce(0, +) / Double(window.count)
-                    )
-                }
-            if !chartPoints.isEmpty {
-                let values = chartPoints.flatMap { [$0.actual, $0.average] }
-                let minimum = values.min() ?? 0
-                let maximum = values.max() ?? minimum
-                let padding = max(5, (maximum - minimum) * 0.15)
-                Chart(chartPoints) { point in
-                    let actual = MeasurementFormatting.displayBodyweightValue(
-                        point.actual,
-                        preferredUnit: appState.currentProfile.preferredUnit
-                    )
-                    let average = MeasurementFormatting.displayBodyweightValue(
-                        point.average,
-                        preferredUnit: appState.currentProfile.preferredUnit
-                    )
-                    LineMark(x: .value("Date", point.date), y: .value("Bodyweight", actual))
-                        .foregroundStyle(Color.liftAccentText)
-                    PointMark(x: .value("Date", point.date), y: .value("Bodyweight", actual))
-                        .foregroundStyle(Color.liftGreen)
-                    LineMark(x: .value("Date", point.date), y: .value("3-entry average", average))
-                        .foregroundStyle(Color.liftMuted)
-                        .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 4]))
-                }
-                .frame(height: 150)
-                .chartYScale(domain: max(0, minimum - padding)...(maximum + padding))
-                .chartYAxisLabel(appState.currentProfile.preferredUnit.shortLabel, position: .trailing)
-                .chartYAxis {
-                    AxisMarks(position: .trailing) {
-                        AxisGridLine().foregroundStyle(Color.liftSeparator)
-                        AxisValueLabel().foregroundStyle(Color.liftMuted)
-                    }
-                }
-                .chartXAxis {
-                    AxisMarks {
-                        AxisValueLabel().foregroundStyle(Color.liftMuted)
-                    }
-                }
-                if chartPoints.count == 1 {
-                    Text("One entry logged; add another bodyweight check-in to compare your trend.")
-                        .font(.caption2)
-                        .foregroundStyle(Color.liftMuted)
-                }
-                HStack(spacing: 14) {
-                    Label("Logged", systemImage: "circle.fill")
-                        .foregroundStyle(Color.liftAccentText)
-                    Label("3-entry average", systemImage: "minus")
-                        .foregroundStyle(Color.liftMuted)
-                }
-                .font(.caption2.weight(.semibold))
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    Image(systemName: "scalemass.fill")
-                        .font(.title2.weight(.black))
-                        .foregroundStyle(Color.liftAccentText)
-                    Text("No bodyweight logged yet")
-                        .font(.headline.weight(.bold))
-                    Text("Add today’s bodyweight to start seeing your trend here.")
-                        .font(.caption)
-                        .foregroundStyle(Color.liftMuted)
-                    Button {
-                        logBodyweightEntry()
-                    } label: {
-                        Text("Log bodyweight")
-                            .font(.subheadline.weight(.black))
-                            .foregroundStyle(Color.liftOnAccent)
-                            .padding(.horizontal, 16)
-                            .frame(height: 40)
-                            .background(Color.liftBlue)
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.top, 4)
-                }
-                .frame(maxWidth: .infinity, minHeight: 150, alignment: .leading)
-            }
-        }
-    }
-
-    private func bodyweightTable(entries: [BodyweightEntry]) -> some View {
-        return VStack(spacing: 0) {
-            if dynamicTypeSize.isAccessibilitySize {
-                Text("Bodyweight history")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.liftMuted)
-                    .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .background(Color.liftCardRaised.opacity(0.7))
-            } else {
-                HStack {
-                    Text("Week").frame(width: 48, alignment: .leading)
-                    Text("Date").frame(maxWidth: .infinity, alignment: .leading)
-                    Text("Weight").frame(width: 76, alignment: .trailing)
-                    Text("").frame(width: 28)
-                }
-                .font(.caption2.weight(.semibold))
-                .textCase(.uppercase)
-                .foregroundStyle(Color.liftMuted)
-                .padding(.horizontal, 12)
-                .frame(height: 34)
-                .background(Color.liftCardRaised.opacity(0.7))
-            }
-
-            if entries.isEmpty {
-                Group {
-                    if dynamicTypeSize.isAccessibilitySize {
-                        Text("Log bodyweight to fill this table")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        HStack(spacing: 8) {
-                            Text("--").frame(width: 48, alignment: .leading)
-                            Text("Log bodyweight to fill this table")
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Text("--").frame(width: 76, alignment: .trailing)
-                            Image(systemName: "minus")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(Color.clear)
-                                .frame(width: 28)
-                        }
-                    }
-                }
-                .font(.subheadline)
-                .foregroundStyle(Color.liftMuted)
-                .padding(.horizontal, 12)
-                .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-            } else {
-                ForEach(Array(entries.enumerated()), id: \.offset) { index, row in
-                    let formattedBodyweight = MeasurementFormatting.formatBodyweightOrDash(
-                        row.actual,
-                        preferredUnit: appState.currentProfile.preferredUnit
-                    )
-
-                    Button {
-                        selectedBodyweightEntry = row
-                    } label: {
-                        Group {
-                            if dynamicTypeSize.isAccessibilitySize {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    HStack {
-                                        Text("Week \(row.week)")
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(Color.liftMuted)
-                                        Spacer()
-                                        Text(formattedBodyweight)
-                                            .font(.subheadline.weight(.semibold).monospacedDigit())
-                                        Image(systemName: "chevron.right")
-                                            .font(.caption.weight(.bold))
-                                            .foregroundStyle(Color.liftMuted)
-                                    }
-                                    Text(row.targetDate, style: .date)
-                                    if !row.notes.isEmpty {
-                                        Text("Has notes")
-                                            .font(.caption2)
-                                            .foregroundStyle(Color.liftAccentText)
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            } else {
-                                HStack(spacing: 8) {
-                                    Text("\(row.week)")
-                                        .frame(width: 48, alignment: .leading)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(row.targetDate, style: .date)
-                                            .lineLimit(1)
-                                        if !row.notes.isEmpty {
-                                            Text("Has notes")
-                                                .font(.caption2)
-                                                .foregroundStyle(Color.liftAccentText)
-                                        }
-                                    }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    Text(formattedBodyweight)
-                                        .font(.subheadline.weight(.semibold).monospacedDigit())
-                                        .frame(width: 76, alignment: .trailing)
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption.weight(.bold))
-                                        .foregroundStyle(Color.liftMuted)
-                                        .frame(width: 28)
-                                }
-                                .font(.subheadline)
-                                .foregroundStyle(Color.liftText)
-                            }
-                        }
-                        .foregroundStyle(Color.liftText)
-                        .padding(.horizontal, 12)
-                        .frame(maxWidth: .infinity, minHeight: dynamicTypeSize.isAccessibilitySize ? 88 : 56, alignment: .leading)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Week \(row.week), \(row.targetDate.formatted(date: .abbreviated, time: .omitted)), \(formattedBodyweight), edit")
-
-                    if index < entries.count - 1 {
-                        Divider()
-                            .overlay(Color.liftOverlay)
-                            .padding(.leading, 68)
-                    }
-                }
-            }
-        }
-        .background(Color.liftCard)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.liftOverlay, lineWidth: 1)
-        }
-    }
-
-    private var recentBodyweightEntries: [BodyweightEntry] {
-        return appState.bodyweightEntries
-            .sorted { $0.targetDate < $1.targetDate }
-            .map { $0 }
-    }
-
-    private var selectedBodyweightEntries: [BodyweightEntry] {
-        let startDate = selectedProgressRange.startDate()
-        return recentBodyweightEntries.filter { $0.targetDate >= startDate }
-    }
-
-    private func logBodyweightEntry() {
-        selectedBodyweightEntry = BodyweightEntry.draftForCurrentWeek(
-            entries: appState.bodyweightEntries,
-            currentBodyweightPounds: appState.currentProfile.bodyweightPounds
-        )
+        let recentExerciseIDs = appState.trainingHistoryWorkouts.flatMap { $0.exercises.map(\.exerciseID) }
+        selectedProgressExerciseID = recentExerciseIDs.first {
+            optionIDs.contains($0) && (!appState.exerciseProgressPoints(for: $0).isEmpty || !appState.trainingProgressStore.repetitionProgressPoints(for: $0).isEmpty)
+        } ?? options.first?.id
     }
 
     private var recentStrainEntries: [StrainEntry] {
@@ -1675,16 +1042,475 @@ extension TrainingTrackerView {
     }
 }
 
-private struct ProgressExercisePickerSheet: View {
+// Separate bodies prevent the combined exercise builder from exhausting the device stack.
+private struct StrengthExerciseCharts: View {
+    @State private var selectedMetric = "Estimated 1RM"
+    let chartPoints: [ExerciseProgressPoint]
+    let estimatedMaxPoints: [ExerciseProgressPoint]
+    let preferredUnit: UnitSystem
+    @Binding var selectedExerciseStrengthTrendDate: Date?
+    @Binding var selectedExerciseWeightTrendDate: Date?
+
+    var body: some View {
+        let startingEstimatedMax = estimatedMaxPoints.first.map(ExerciseProgressSeries.estimatedOneRepMax)
+        let latestEstimatedMax = estimatedMaxPoints.last.map(ExerciseProgressSeries.estimatedOneRepMax)
+        let strengthIncrease = startingEstimatedMax.flatMap { start in
+            latestEstimatedMax.map { $0 - start }
+        }
+
+        VStack(alignment: .leading, spacing: 12) {
+            Picker("Trend metric", selection: $selectedMetric) {
+                Text("Estimated 1RM").tag("Estimated 1RM")
+                Text("Logged weight").tag("Logged weight")
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("tracker.strength.trendMetric")
+            .onChange(of: selectedMetric) {
+                selectedExerciseStrengthTrendDate = nil
+                selectedExerciseWeightTrendDate = nil
+            }
+            if selectedMetric == "Estimated 1RM" {
+            if estimatedMaxPoints.isEmpty {
+                Text("Estimated strength needs a completed weighted working set of 1–10 reps. Higher-rep sets still appear in load and volume records.")
+                    .font(.caption).foregroundStyle(Color.liftMuted)
+            }
+            if estimatedMaxPoints.count == 1,
+               let currentEstimatedMax = estimatedMaxPoints.first.map(ExerciseProgressSeries.estimatedOneRepMax) {
+                ExerciseProgressMetric(
+                    title: "Current estimated 1RM",
+                    value: MeasurementFormatting.formatDisplayedWeight(currentEstimatedMax, unit: preferredUnit),
+                    symbol: "scalemass.fill"
+                )
+                Text("Log this exercise in another workout to see an estimated 1RM trend.")
+                    .font(.caption2)
+                    .foregroundStyle(Color.liftMuted)
+            } else if let latestEstimatedMax, let strengthIncrease {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Latest estimated 1RM")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.liftMuted)
+                    Text(MeasurementFormatting.formatDisplayedWeight(latestEstimatedMax, unit: preferredUnit))
+                        .font(.largeTitle.weight(.bold).monospacedDigit())
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text((strengthIncrease >= 0 ? "+" : "") + MeasurementFormatting.formatDisplayedWeight(strengthIncrease, unit: preferredUnit) + " since start")
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(strengthIncrease > 0 ? Color.liftAccentText : strengthIncrease < 0 ? Color.orange : Color.liftMuted)
+                    if let first = estimatedMaxPoints.first, let last = estimatedMaxPoints.last {
+                        Text("\(first.date.formatted(date: .abbreviated, time: .omitted)) – \(last.date.formatted(date: .abbreviated, time: .omitted))")
+                            .font(.caption)
+                            .foregroundStyle(Color.liftMuted)
+                    }
+                }
+                Text("Estimated 1RM trend")
+                    .font(LiftTypography.compactEmphasis)
+                    .foregroundStyle(Color.liftMuted)
+                    .padding(.top, 2)
+
+                Chart(estimatedMaxPoints) { point in
+                    LineMark(
+                        x: .value("Date", point.date),
+                        y: .value("Estimated 1RM", MeasurementFormatting.displayWeight(ExerciseProgressSeries.estimatedOneRepMax(point), unit: preferredUnit))
+                    )
+                    .foregroundStyle(Color.liftAccentText)
+                    .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                    PointMark(
+                        x: .value("Date", point.date),
+                        y: .value("Estimated 1RM", MeasurementFormatting.displayWeight(ExerciseProgressSeries.estimatedOneRepMax(point), unit: preferredUnit))
+                    )
+                    .foregroundStyle(Color.liftAccentText)
+                    .symbolSize(24)
+                }
+                .frame(height: 190)
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                .chartXScale(range: .plotDimension(padding: 12))
+                .chartYScale(domain: .automatic(includesZero: false))
+                .chartYAxisLabel(preferredUnit.shortLabel, position: .trailing)
+                .chartYAxis {
+                    AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) {
+                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 4]))
+                            .foregroundStyle(Color.liftMuted.opacity(0.25))
+                        AxisValueLabel().foregroundStyle(Color.liftMuted)
+                    }
+                }
+                .chartXAxis { AxisMarks(values: .automatic(desiredCount: 3)) {
+                    AxisValueLabel(format: .dateTime.month(.abbreviated).day(), collisionResolution: .greedy)
+                        .foregroundStyle(Color.liftMuted)
+                } }
+                .accessibilityRepresentation {
+                    VStack(alignment: .leading) {
+                        ForEach(estimatedMaxPoints) { point in
+                            Button {
+                                selectedExerciseStrengthTrendDate = point.date
+                            } label: {
+                                Text("\(point.date.formatted(date: .abbreviated, time: .omitted)), estimated one-rep max \(MeasurementFormatting.formatDisplayedWeight(ExerciseProgressSeries.estimatedOneRepMax(point), unit: preferredUnit))")
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .accessibilityIdentifier("tracker.strength.estimatedMaxChart")
+                .chartXSelection(value: $selectedExerciseStrengthTrendDate)
+                .chartGesture { proxy in
+                    SpatialTapGesture().onEnded { proxy.selectXValue(at: $0.location.x) }
+                }
+                .onChange(of: selectedExerciseStrengthTrendDate) { _, selection in
+                    if selection != nil { selectedExerciseWeightTrendDate = nil }
+                }
+            }
+
+            } else {
+            if let latest = chartPoints.last {
+                Text(MeasurementFormatting.formatRecordedWeight(MeasurementFormatting.convert(latest.weight, from: latest.unit, to: preferredUnit), unit: preferredUnit) + " × \(latest.reps) reps")
+                    .font(.largeTitle.weight(.bold).monospacedDigit())
+                Text("Latest logged set · \(latest.date.formatted(date: .abbreviated, time: .omitted))")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+            }
+            Text("Logged weight trend")
+                .font(LiftTypography.compactEmphasis)
+                .foregroundStyle(Color.liftMuted)
+                .padding(.top, 2)
+            Text(chartPoints.count == 1
+                ? "One workout logged; record this exercise again to compare sessions."
+                : "Tap a point to view its workout.")
+                .font(.caption2)
+                .foregroundStyle(Color.liftMuted)
+
+            Chart(chartPoints) { point in
+                LineMark(
+                    x: .value("Date", point.date),
+                    y: .value("Weight", MeasurementFormatting.convert(point.weight, from: point.unit, to: preferredUnit))
+                )
+                .foregroundStyle(Color.liftAccentText)
+                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                PointMark(
+                    x: .value("Date", point.date),
+                    y: .value("Weight", MeasurementFormatting.convert(point.weight, from: point.unit, to: preferredUnit))
+                )
+                .foregroundStyle(Color.liftAccentText)
+                .symbolSize(24)
+            }
+            .frame(height: 190)
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            .chartXScale(range: .plotDimension(padding: 12))
+            .chartYScale(domain: .automatic(includesZero: false))
+            .chartYAxisLabel(preferredUnit.shortLabel, position: .trailing)
+            .chartYAxis {
+                AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) {
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 4]))
+                        .foregroundStyle(Color.liftMuted.opacity(0.25))
+                    AxisValueLabel().foregroundStyle(Color.liftMuted)
+                }
+            }
+            .chartXAxis { AxisMarks(values: .automatic(desiredCount: 3)) {
+                AxisValueLabel(format: .dateTime.month(.abbreviated).day(), collisionResolution: .greedy)
+                    .foregroundStyle(Color.liftMuted)
+            } }
+            .accessibilityRepresentation {
+                VStack(alignment: .leading) {
+                    ForEach(chartPoints) { point in
+                        Button {
+                            selectedExerciseWeightTrendDate = point.date
+                        } label: {
+                            Text("\(point.date.formatted(date: .abbreviated, time: .omitted)), best logged set \(MeasurementFormatting.formatRecordedWeight(point.weight, unit: point.unit)) for \(point.reps) reps")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .accessibilityIdentifier("tracker.strength.weightChart")
+            .chartXSelection(value: $selectedExerciseWeightTrendDate)
+            .chartGesture { proxy in
+                SpatialTapGesture().onEnded { proxy.selectXValue(at: $0.location.x) }
+            }
+            .onChange(of: selectedExerciseWeightTrendDate) { _, selection in
+                if selection != nil { selectedExerciseStrengthTrendDate = nil }
+            }
+            }
+
+            DisclosureGroup {
+                if let startingEstimatedMax {
+                    Text("Starting estimate: \(MeasurementFormatting.formatDisplayedWeight(startingEstimatedMax, unit: preferredUnit)) · \(estimatedMaxPoints.count) logged training days")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                }
+                Text("Estimated 1RM is calculated from completed weighted working sets of 1–10 reps. Change compares the first and latest eligible training days in the selected range, using the dates shown above. Recovery/deload workouts are excluded here and remain available in Library history.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
+                    .padding(.top, 6)
+            } label: {
+                Text("About this trend")
+                    .font(.caption.weight(.semibold))
+                    .frame(minHeight: LiftDesign.minimumTouchTarget)
+            }
+            .tint(Color.liftAccentText)
+        }
+    }
+}
+
+private struct StrengthSelectedPerformance: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let chartPoints: [ExerciseProgressPoint]
+    let estimatedMaxPoints: [ExerciseProgressPoint]
+    let selectedExerciseStrengthTrendDate: Date?
+    let selectedExerciseWeightTrendDate: Date?
+    @Binding var selectedCompletedWorkout: CompletedWorkout?
+    @Binding var focusedWorkoutSetID: UUID?
+
+    var body: some View {
+        let selectedStrengthTrendPoint = selectedExerciseStrengthTrendDate.flatMap { selection in
+            estimatedMaxPoints.min {
+                abs($0.date.timeIntervalSince(selection)) < abs($1.date.timeIntervalSince(selection))
+            }
+        }
+        let selectedWeightTrendPoint = selectedExerciseWeightTrendDate.flatMap { selection in
+            chartPoints.min {
+                abs($0.date.timeIntervalSince(selection)) < abs($1.date.timeIntervalSince(selection))
+            }
+        }
+        Group {
+            if let selectedPoint = selectedWeightTrendPoint ?? selectedStrengthTrendPoint,
+               let workoutID = selectedPoint.workoutID,
+               let workout = appState.trainingHistoryWorkouts.first(where: { $0.id == workoutID }) {
+                if let set = workout.sets.first(where: { $0.id == selectedPoint.id }) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Selected performance")
+                            .font(LiftTypography.compactEmphasis)
+                        Text(LiftTimeFormatter.shortDateNoTime(workout.completedAt))
+                            .font(.caption2)
+                            .foregroundStyle(Color.liftMuted)
+                        (dynamicTypeSize.isAccessibilitySize
+                         ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                         : AnyLayout(HStackLayout(spacing: 10))) {
+                            if let weight = set.weight {
+                                Text(MeasurementFormatting.formatDisplayedWeight(
+                                    MeasurementFormatting.normalizeToKilograms(weight, unit: set.recordedUnit),
+                                    unit: appState.currentProfile.preferredUnit
+                                ))
+                                    .font(.caption.weight(.bold).monospacedDigit())
+                            }
+                            if let reps = set.reps {
+                                Text("× \(reps) reps")
+                                    .font(.caption.weight(.semibold).monospacedDigit())
+                            }
+                            if let weight = set.weight, let reps = set.reps {
+                                Text("\(MeasurementFormatting.formatRecordedVolume(weight * Double(reps), recordedUnit: set.recordedUnit, preferredUnit: appState.currentProfile.preferredUnit)) volume")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                        }
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.liftScrim)
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .accessibilityElement(children: .combine)
+                }
+
+                Button {
+                    selectedCompletedWorkout = workout
+                    focusedWorkoutSetID = selectedPoint.id
+                } label: {
+                    Label(
+                        "View workout · \(LiftTimeFormatter.shortDateNoTime(workout.completedAt))",
+                        systemImage: "arrow.up.right.square"
+                    )
+                    .font(LiftTypography.compactEmphasis)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.liftAccentText)
+                .frame(minHeight: LiftDesign.minimumTouchTarget)
+                .accessibilityHint("Opens the workout containing this exercise performance")
+            }
+        }
+    }
+}
+
+private struct StrengthExerciseRecords: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let exerciseID: String?
+    let setPoints: [ExerciseProgressPoint]
+    let periodTitle: String
+    @Binding var selectedCompletedWorkout: CompletedWorkout?
+    @Binding var focusedWorkoutSetID: UUID?
+
+    var body: some View {
+        let prs = MeasurementFormatting.bestPRsByReps(from: setPoints)
+        let records = exerciseID.map { appState.exerciseRecords(for: $0) }
+        let repRangeProgressions = ExerciseProgressSeries.repRangeProgressions(from: setPoints)
+        Group {
+            if !prs.isEmpty {
+                Text("Best sets by rep range · \(periodTitle)")
+                    .font(LiftTypography.compactEmphasis)
+                    .foregroundStyle(Color.liftMuted)
+                    .padding(.top, 2)
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 8) {
+                    ForEach(prs.prefix(4), id: \.reps) { pr in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("\(pr.reps)-rep PR")
+                                .font(.caption2)
+                                .foregroundStyle(Color.liftMuted)
+                            Text("\(RankingCalculator.format(pr.weight)) \(pr.unit.shortLabel)")
+                                .font(.caption.weight(.bold).monospacedDigit())
+                                .foregroundStyle(Color.liftText)
+                            let source = setPoints.filter { $0.reps == pr.reps }.max {
+                                MeasurementFormatting.normalizeToKilograms($0.weight, unit: $0.unit) < MeasurementFormatting.normalizeToKilograms($1.weight, unit: $1.unit)
+                            }
+                            recordSource(source?.workoutID)
+
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(9)
+                        .background(Color.liftScrim)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    }
+                }
+            }
+
+            if let records,
+               let bestSetVolume = records.bestSetVolumeKilograms,
+               let bestSessionVolume = records.bestSessionVolumeKilograms {
+                (dynamicTypeSize.isAccessibilitySize
+                 ? AnyLayout(VStackLayout(spacing: 8))
+                 : AnyLayout(HStackLayout(alignment: .top, spacing: 8))) {
+                    VStack(alignment: .leading) {
+                        ExerciseProgressMetric(
+                            title: "Best set volume · all time",
+                            value: MeasurementFormatting.formatDisplayedWeight(bestSetVolume, unit: appState.currentProfile.preferredUnit) + " × reps",
+                            symbol: "square.stack.3d.up.fill"
+                        )
+                        recordSource(records.setVolumeWorkoutID)
+                    }
+                    VStack(alignment: .leading) {
+                        ExerciseProgressMetric(
+                            title: "Best session volume · all time",
+                            value: MeasurementFormatting.formatDisplayedWeight(bestSessionVolume, unit: appState.currentProfile.preferredUnit) + " × reps",
+                            symbol: "chart.bar.fill"
+                        )
+                        recordSource(records.sessionVolumeWorkoutID)
+                    }
+                }
+                .accessibilityElement(children: .contain)
+            }
+
+            if !repRangeProgressions.isEmpty {
+                Text("Rep-range progression")
+                    .font(LiftTypography.compactEmphasis)
+                    .foregroundStyle(Color.liftMuted)
+                    .padding(.top, 2)
+                ForEach(repRangeProgressions.suffix(4).reversed()) { progression in
+                    let workout = appState.trainingHistoryWorkouts.first { $0.id == progression.workoutID }
+                    Button {
+                        if let workout {
+                            focusedWorkoutSetID = nil
+                            selectedCompletedWorkout = workout
+                        }
+                    } label: {
+                        (dynamicTypeSize.isAccessibilitySize
+                         ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                         : AnyLayout(HStackLayout(alignment: .center, spacing: 12))) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(LiftTimeFormatter.shortDateNoTime(progression.date))
+                                    .font(LiftTypography.compactEmphasis)
+                                    .foregroundStyle(Color.liftText)
+                                Text("Target \(progression.targetReps) reps")
+                                    .font(.caption2)
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 3) {
+                                Text("\(progression.inRangeSetCount)/\(progression.totalSetCount) sets in range")
+                                    .font(.caption2.weight(.semibold).monospacedDigit())
+                                    .foregroundStyle(Color.liftMuted)
+                                if let bestWeight = progression.bestInRangeWeight {
+                                    Text("Best \(RankingCalculator.format(bestWeight)) \(appState.currentProfile.preferredUnit.shortLabel)")
+                                        .font(.caption.weight(.bold).monospacedDigit())
+                                        .foregroundStyle(Color.liftText)
+                                }
+                            }
+                            if !dynamicTypeSize.isAccessibilitySize {
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(Color.liftMuted)
+                            }
+                        }
+                        .padding(9)
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
+                        .background(Color.liftScrim)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(workout == nil)
+                    .accessibilityLabel("View workout from \(LiftTimeFormatter.shortDateNoTime(progression.date)), target \(progression.targetReps) reps, \(progression.inRangeSetCount) of \(progression.totalSetCount) sets in range")
+                    .accessibilityHint("Opens the workout and its logged sets")
+                }
+            }
+        }
+    }
+    @ViewBuilder
+    private func recordSource(_ workoutID: UUID?) -> some View {
+        if let workoutID, let workout = appState.trainingHistoryWorkouts.first(where: { $0.id == workoutID }) {
+            Button {
+                focusedWorkoutSetID = nil
+                selectedCompletedWorkout = workout
+            } label: {
+                Label("\(workout.completedAt.formatted(date: .abbreviated, time: .omitted)) · View workout", systemImage: "arrow.up.right")
+                    .font(.caption2).frame(minHeight: LiftDesign.minimumTouchTarget)
+            }
+            .buttonStyle(.plain).foregroundStyle(Color.liftAccentText)
+        }
+    }
+
+}
+
+private struct ExerciseProgressMetric: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let title: String
+    let value: String
+    let symbol: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Image(systemName: symbol)
+                .font(LiftTypography.compactEmphasis)
+                .foregroundStyle(Color.liftAccentText)
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Color.liftMuted)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(value)
+                .font(.caption.weight(.bold).monospacedDigit())
+                .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.85)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+        }
+        .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
+        .padding(9)
+        .background(Color.liftCardRaised.opacity(0.62))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+struct ProgressExercisePickerSheet: View {
     @Environment(\.dismiss) private var dismiss
     let options: [TrainingExerciseCatalogItem]
     let selectedID: String?
+    var title = "Choose exercise"
+    var preferredIDs: Set<String> = []
+    var goalIDs: Set<String> = []
+    var onCancel: () -> Void = {}
     let onSelect: (String) -> Void
     @State private var searchText = ""
 
     private var filteredOptions: [TrainingExerciseCatalogItem] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return options }
+        guard !query.isEmpty else {
+            return options.sorted {
+                if preferredIDs.contains($0.id) != preferredIDs.contains($1.id) { return preferredIDs.contains($0.id) }
+                return $0.name < $1.name
+            }
+        }
         return options.filter {
             $0.name.localizedCaseInsensitiveContains(query) ||
                 $0.equipment.localizedCaseInsensitiveContains(query) ||
@@ -1700,8 +1526,6 @@ private struct ProgressExercisePickerSheet: View {
                     dismiss()
                 } label: {
                     HStack(spacing: 12) {
-                        ExerciseCatalogIcon(exercise: exercise)
-                            .frame(width: 40, height: 40)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(exercise.name).foregroundStyle(Color.liftText)
                             Text("\(exercise.equipment) · \(exercise.resolvedMuscleProfile.primaryDescription)")
@@ -1709,6 +1533,9 @@ private struct ProgressExercisePickerSheet: View {
                                 .foregroundStyle(Color.liftMuted)
                         }
                         Spacer()
+                        if goalIDs.contains(exercise.id) {
+                            Text("Goal set").font(.caption).foregroundStyle(Color.liftMuted)
+                        }
                         if exercise.id == selectedID {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(Color.liftAccentText)
@@ -1720,11 +1547,308 @@ private struct ProgressExercisePickerSheet: View {
             .scrollContentBackground(.hidden)
             .background(Color.liftBackground)
             .searchable(text: $searchText, prompt: "Search exercises")
-            .navigationTitle("Choose exercise")
+            .overlay {
+                if filteredOptions.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                }
+            }
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { onCancel(); dismiss() } }
             }
         }
+    }
+}
+
+private struct ExerciseProgressComparison: View {
+    @EnvironmentObject private var appState: AppState
+    let exercise: TrainingExerciseCatalogItem
+    let points: [ExerciseProgressPoint]
+    var periodLabel = "last 30 days"
+
+    @ViewBuilder var body: some View {
+        let usesRepetitions = [.bodyweightReps, .repsOnly].contains(ExerciseTrackingKind(exercise.trackingType))
+        let unit = appState.currentProfile.preferredUnit
+        if let latest = points.last {
+            let value = usesRepetitions ? "\(latest.reps) reps" : MeasurementFormatting.formatDisplayedWeight(ExerciseProgressSeries.estimatedOneRepMax(latest), unit: unit)
+            Text("\(usesRepetitions ? "Best reps" : "Estimated 1RM"): \(value)")
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+            if points.count > 1, let first = points.first {
+                let before = usesRepetitions ? Double(first.reps) : ExerciseProgressSeries.estimatedOneRepMax(first)
+                let after = usesRepetitions ? Double(latest.reps) : ExerciseProgressSeries.estimatedOneRepMax(latest)
+                let change = (after - before) / before * 100
+                Text("\(change == 0 ? "No change" : String(format: "%+.1f%%", change)) since \(first.date.formatted(.dateTime.month(.abbreviated).day())) · \(points.count) training days")
+                    .font(.caption).foregroundStyle(Color.liftMuted)
+                    .accessibilityIdentifier("tracker.progress.change.\(exercise.id)")
+                let values = points.map { usesRepetitions ? Double($0.reps) : MeasurementFormatting.convert(ExerciseProgressSeries.estimatedOneRepMax($0), from: .kilograms, to: unit) }
+                let low = values.min() ?? 0
+                let high = values.max() ?? 0
+                let padding = max(1, (high - low) * 0.15)
+                Chart(points) { point in
+                    let amount = usesRepetitions ? Double(point.reps) : MeasurementFormatting.convert(ExerciseProgressSeries.estimatedOneRepMax(point), from: .kilograms, to: unit)
+                    LineMark(x: .value("Date", point.date), y: .value(usesRepetitions ? "Reps" : "Estimated 1RM", amount))
+                    PointMark(x: .value("Date", point.date), y: .value(usesRepetitions ? "Reps" : "Estimated 1RM", amount))
+                        .symbolSize(18)
+                }
+                .foregroundStyle(Color.liftAccentText)
+                .chartYScale(domain: max(0, low - padding)...(high + padding))
+                .chartXAxis(.hidden)
+                .chartYAxis { AxisMarks(position: .leading, values: low == high ? [low] : [low, high]) }
+                .frame(height: 54)
+                .accessibilityLabel("\(usesRepetitions ? "Best reps" : "Estimated one-rep max in \(unit.shortLabel)") trend, \(periodLabel)")
+                HStack {
+                    Text(first.date.formatted(.dateTime.month(.abbreviated).day()))
+                    Spacer()
+                    Text(latest.date.formatted(.dateTime.month(.abbreviated).day()))
+                }
+                .font(.caption2).foregroundStyle(Color.liftMuted)
+            } else {
+                Text("First entry this period · log another session to compare")
+                    .font(.caption).foregroundStyle(Color.liftMuted)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Latest · \(latest.date.formatted(.dateTime.month(.abbreviated).day())): \(progressSetText(latest, usesRepetitions: usesRepetitions))")
+                if let previous = points.dropLast().last {
+                    Text("Previous · \(previous.date.formatted(.dateTime.month(.abbreviated).day())): \(progressSetText(previous, usesRepetitions: usesRepetitions))")
+                        .foregroundStyle(Color.liftMuted)
+                }
+            }
+            .font(.caption.monospacedDigit())
+        } else {
+            Text("No eligible sets in the \(periodLabel)")
+                .font(.subheadline.weight(.semibold))
+            Text(usesRepetitions ? "Log working sets to start your trend." : "Log a weighted set of 1–10 reps to estimate strength.")
+                .font(.caption).foregroundStyle(Color.liftMuted)
+        }
+    }
+    private func progressSetText(_ point: ExerciseProgressPoint, usesRepetitions: Bool) -> String {
+        if usesRepetitions { return "\(point.reps) reps" }
+        let unit = appState.currentProfile.preferredUnit
+        let weight = MeasurementFormatting.convert(point.weight, from: point.unit, to: unit)
+        return "\(MeasurementFormatting.formatRecordedWeight(weight, unit: unit, format: MeasurementFormatting.workoutLoadText)) × \(point.reps)"
+    }
+
+}
+
+private struct TrainingRecapView: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var period = "Month"
+    @State private var selectedDate = Date.now
+    @State private var showingExport = false
+    @State private var exportDocument = WorkoutHistoryCSVDocument(text: "")
+    @State private var exportError: String?
+
+    private var component: Calendar.Component {
+        switch period { case "Week": .weekOfYear; case "Year": .year; default: .month }
+    }
+    private var interval: DateInterval? { Calendar.current.dateInterval(of: component, for: selectedDate) }
+    private var periodTitle: String {
+        if period == "Week", let interval { return dateRange(interval) }
+        return selectedDate.formatted(period == "Year" ? .dateTime.year() : .dateTime.month(.wide).year())
+    }
+
+    var body: some View {
+        NavigationStack {
+            AppBackground {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Picker("Recap period", selection: $period) {
+                            Text("Week").tag("Week")
+                            Text("Month").tag("Month")
+                            Text("Year").tag("Year")
+                        }
+                        .pickerStyle(.segmented)
+                        HStack {
+                            Button { movePeriod(-1) } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }
+                                .accessibilityLabel("Previous period")
+                            Spacer()
+                            Text(periodTitle).font(LiftTypography.cardTitle)
+                            Spacer()
+                            Button { movePeriod(1) } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44) }
+                                .accessibilityLabel("Next period")
+                                .disabled(interval.map { $0.end > .now } ?? true)
+                        }
+                        if let interval {
+                            let recap = appState.trainingProgressStore.trainingRecap(in: interval)
+                            if recap.workoutCount == 0 {
+                                ContentUnavailableView("No workouts recorded", systemImage: "calendar", description: Text("Choose another \(period.lowercased()) to review your training."))
+                            } else {
+                                summary(recap, interval: interval)
+                                exerciseChanges(interval: interval)
+                                comparison(recap, interval: interval)
+                                mostTrained(recap)
+                            }
+                        }
+                        Button {
+                            exportDocument = WorkoutHistoryCSVDocument(text: appState.trainingProgressStore.workoutHistoryCSV())
+                            exportError = nil
+                            showingExport = true
+                        } label: {
+                            Label("Export all workout history (CSV)", systemImage: "square.and.arrow.up")
+                                .frame(minHeight: 44)
+                        }
+                        .disabled(appState.completedWorkouts.isEmpty)
+                        Text("Includes all dates and saved sets, including warm-ups and unfinished sets.")
+                            .font(.caption).foregroundStyle(Color.liftMuted)
+                        if let exportError { Text(exportError).font(.caption).foregroundStyle(Color.liftRed) }
+                    }
+                    .padding(18)
+                }
+            }
+            .navigationTitle("Training recap")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Close", systemImage: "xmark") { dismiss() }.labelStyle(.iconOnly) } }
+            .fileExporter(isPresented: $showingExport, document: exportDocument, contentType: .commaSeparatedText, defaultFilename: "Lift-Rivals-All-Workout-History") { result in
+                if case .failure(let error) = result { exportError = error.localizedDescription }
+            }
+        }
+    }
+
+    private func summary(_ recap: TrainingRecapSummary, interval: DateInterval) -> some View {
+        LiftCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(interval.end > .now ? "Training so far" : "Training summary").font(LiftTypography.cardTitle)
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 12) {
+                    ForEach([("Workouts", recap.workoutCount), ("Days trained", recap.trainingDayCount), ("Working sets", recap.workingSetCount), ("Exercises", recap.exerciseCount)], id: \.0) { metric in
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(metric.1.formatted()).font(.headline.monospacedDigit())
+                            Text(metric.0).font(.caption).foregroundStyle(Color.liftMuted)
+                        }.accessibilityElement(children: .combine)
+                    }
+                }
+                Text("Days trained counts each date once, even with multiple workouts. Warm-ups and unfinished sets are excluded.")
+                    .font(.caption).foregroundStyle(Color.liftMuted)
+                Divider()
+                let unit = appState.currentProfile.preferredUnit
+                let volume = MeasurementFormatting.convert(recap.volumeKilograms, from: .kilograms, to: unit)
+                LabeledContent("Lifting volume", value: "\(Int(volume.rounded()).formatted()) \(unit.shortLabel)")
+                    .font(.subheadline.weight(.semibold))
+                Text("Weight × reps, totaled across this period’s working sets. Excludes bodyweight, assisted, and timed exercises.")
+                    .font(.caption).foregroundStyle(Color.liftMuted)
+                DisclosureGroup("More training details") {
+                    VStack(spacing: 8) {
+                        LabeledContent("Average workout", value: MeasurementFormatting.shortDurationText(recap.averageWorkoutDuration))
+                        LabeledContent("Sets per workout", value: recap.averageSetsPerWorkout.formatted(.number.precision(.fractionLength(0...1))))
+                        LabeledContent("Training time", value: "\(Int(recap.duration / 3600))h \(Int(recap.duration / 60) % 60)m")
+                    }.font(.subheadline).padding(.top, 8)
+                }
+            }
+        }
+    }
+
+    private func exerciseChanges(interval: DateInterval) -> some View {
+        let trends = appState.trainingProgressStore.recapExerciseTrends(in: interval)
+        return LiftCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Exercise changes").font(LiftTypography.cardTitle)
+                Text("First to latest training day in this \(period.lowercased()). Estimates use working sets of 1–10 reps; bodyweight exercises use best reps. Recovery and deload workouts are excluded.")
+                    .font(.caption).foregroundStyle(Color.liftMuted)
+                if trends.isEmpty {
+                    Text("Record eligible sets on two different days for the same exercise to see changes here.")
+                        .font(.subheadline)
+                }
+                ForEach(Array(trends.prefix(3)), id: \.exercise.id) { trend in
+                    Text(trend.exercise.name).font(.subheadline.weight(.semibold))
+                    ExerciseProgressComparison(exercise: trend.exercise, points: trend.points, periodLabel: "selected \(period.lowercased())")
+                    Divider()
+                }
+                if trends.count > 3 {
+                    NavigationLink("View all \(trends.count) exercise trends") {
+                        AppBackground {
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text(periodTitle).font(LiftTypography.cardTitle)
+                                    ForEach(trends, id: \.exercise.id) { trend in
+                                        Text(trend.exercise.name).font(.headline)
+                                        ExerciseProgressComparison(exercise: trend.exercise, points: trend.points, periodLabel: "selected \(period.lowercased())")
+                                        Divider()
+                                    }
+                                }.padding(18)
+                            }
+                        }.navigationTitle("Exercise changes")
+                    }.frame(minHeight: 44)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func comparison(_ recap: TrainingRecapSummary, interval: DateInterval) -> some View {
+        if let previousStart = Calendar.current.date(byAdding: component, value: -1, to: interval.start) {
+            let elapsed = min(interval.end, Date.now).timeIntervalSince(interval.start)
+            let previousEnd = interval.end <= .now ? interval.start : min(previousStart.addingTimeInterval(max(0, elapsed)), interval.start)
+            let previousInterval = DateInterval(start: previousStart, end: previousEnd)
+            let previous = appState.trainingProgressStore.trainingRecap(in: previousInterval)
+            if previous.workoutCount > 0 {
+                LiftCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Activity comparison").font(LiftTypography.cardTitle)
+                        Text("\(dateRange(previousInterval)) → \(dateRange(DateInterval(start: interval.start, end: min(interval.end, .now))))")
+                            .font(.caption).foregroundStyle(Color.liftMuted)
+                        if interval.end > .now { Text("Same elapsed portion of each period").font(.caption).foregroundStyle(Color.liftMuted) }
+                        ForEach([("Workouts", previous.workoutCount, recap.workoutCount), ("Days trained", previous.trainingDayCount, recap.trainingDayCount), ("Working sets", previous.workingSetCount, recap.workingSetCount)], id: \.0) { metric in
+                            LabeledContent(metric.0, value: "\(metric.1) → \(metric.2) (\((metric.2 - metric.1).formatted(.number.sign(strategy: .always()))))")
+                                .font(.subheadline)
+                        }
+                    }
+                }
+            } else {
+                Text("No recorded workouts in \(dateRange(previousInterval)) to compare.")
+                    .font(.caption).foregroundStyle(Color.liftMuted)
+            }
+        }
+    }
+
+    private func mostTrained(_ recap: TrainingRecapSummary) -> some View {
+        let names = recap.exerciseSetCounts.keys.sorted {
+            let left = recap.exerciseSetCounts[$0, default: 0], right = recap.exerciseSetCounts[$1, default: 0]
+            return left == right ? $0 < $1 : left > right
+        }
+        return LiftCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Top \(min(5, names.count)) exercises by working sets").font(LiftTypography.cardTitle)
+                ForEach(Array(names.prefix(5)), id: \.self) { name in
+                    LabeledContent(name, value: "\(recap.exerciseSetCounts[name, default: 0]) sets").font(.subheadline)
+                }
+                if names.count > 5 {
+                    NavigationLink("View all \(names.count) exercises") {
+                        List(names, id: \.self) { name in
+                            LabeledContent(name, value: "\(recap.exerciseSetCounts[name, default: 0]) sets")
+                        }.navigationTitle(periodTitle)
+                    }.frame(minHeight: 44)
+                }
+            }
+        }
+    }
+
+    private func dateRange(_ interval: DateInterval) -> String {
+        let end = max(interval.start, interval.end.addingTimeInterval(-1))
+        return "\(interval.start.formatted(.dateTime.month(.abbreviated).day().year())) – \(end.formatted(.dateTime.month(.abbreviated).day().year()))"
+    }
+
+    private func movePeriod(_ amount: Int) {
+        guard let start = interval?.start, let date = Calendar.current.date(byAdding: component, value: amount, to: start) else { return }
+        selectedDate = min(date, .now)
+    }
+}
+
+private struct WorkoutHistoryCSVDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.commaSeparatedText] }
+    var text: String
+
+    init(text: String) { self.text = text }
+
+    init(configuration: ReadConfiguration) throws {
+        guard let data = configuration.file.regularFileContents,
+              let value = String(data: data, encoding: .utf8) else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        text = value
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: Data(text.utf8))
     }
 }

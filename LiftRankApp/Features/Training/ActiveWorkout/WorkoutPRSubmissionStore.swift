@@ -2,6 +2,7 @@ import Foundation
 
 @MainActor
 protocol WorkoutPRLiftSubmitting: AnyObject {
+    func retryWorkoutPRVideo(submissionID: UUID, videoURL: URL) async throws
     func submitWorkoutPR(
         candidate: WorkoutPRCandidate,
         exercise: Exercise,
@@ -55,13 +56,15 @@ final class WorkoutPRSubmissionStore {
         repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
-    func setWeeklyTrainingDayGoal(_ goal: Int?) {
-        repository.workoutPreferences.weeklyTrainingDayGoal = goal.map { min(max($0, 1), 7) }
+    func setMissedWorkoutRemindersEnabled(_ enabled: Bool) {
+        resetAccountScopedQueueIfNeeded()
+        repository.workoutPreferences.missedWorkoutRemindersEnabled = enabled
         repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
-    func markAutomaticSubmissionExplanationShown() {
-        repository.workoutPreferences.didExplainAutomaticPRs = true
+    func setWorkoutDayRemindersEnabled(_ enabled: Bool) {
+        resetAccountScopedQueueIfNeeded()
+        repository.workoutPreferences.workoutDayRemindersEnabled = enabled
         repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
@@ -144,6 +147,33 @@ final class WorkoutPRSubmissionStore {
         repository.upsertPendingPRSubmission(pending)
         repository.persistWorkoutSnapshot()
 
+        if let submissionID = pending.submissionID {
+            guard let videoURL else {
+                pending.state = .failed
+                pending.lastError = "Your lift is saved, but the local video is unavailable."
+                pending.updatedAt = now()
+                repository.upsertPendingPRSubmission(pending)
+                repository.persistWorkoutSnapshot()
+                return
+            }
+            do {
+                try await liftSubmitter.retryWorkoutPRVideo(submissionID: submissionID, videoURL: videoURL)
+                guard repository.currentProfile.id == userID else { return }
+                pending.state = .submitted
+                pending.lastError = nil
+                pending.localVideoURL = nil
+                videoStore.remove(videoURL)
+            } catch {
+                guard repository.currentProfile.id == userID else { return }
+                pending.state = .failed
+                pending.lastError = "Your lift is saved, but its video still needs to upload. Try again."
+            }
+            pending.updatedAt = now()
+            repository.upsertPendingPRSubmission(pending)
+            repository.persistWorkoutSnapshot()
+            return
+        }
+
         guard let rankingExercise = exercise(candidate.rankingExerciseID) else {
             pending.state = .failed
             pending.lastError = "The exercise is no longer eligible for ranking."
@@ -164,12 +194,16 @@ final class WorkoutPRSubmissionStore {
             return
         }
         if let submission {
-            pending.state = .submitted
             pending.submissionID = submission.id
-            pending.lastError = nil
             repository.linkSubmission(submission.id, to: workout.id)
-            if let videoURL {
-                videoStore.remove(videoURL)
+            if videoURL != nil && submission.videoAssetID == nil {
+                pending.state = .failed
+                pending.lastError = "Your lift is saved, but its video still needs to upload. Try again."
+            } else {
+                pending.state = .submitted
+                pending.lastError = nil
+                pending.localVideoURL = nil
+                if let videoURL { videoStore.remove(videoURL) }
             }
         } else {
             pending.state = .failed

@@ -224,7 +224,7 @@ enum RankingCalculator {
         return bestByExercise
     }
 
-    private static func strengthTierExerciseID(for exercise: WorkoutExerciseSnapshot) -> String? {
+    static func strengthTierExerciseID(for exercise: WorkoutExerciseSnapshot) -> String? {
         let candidates = [exercise.rankingExerciseID, exercise.exerciseID].compactMap { $0 }
         for candidate in candidates {
             if strengthTierExerciseIDs.contains(candidate) { return candidate }

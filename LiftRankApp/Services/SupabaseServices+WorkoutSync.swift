@@ -9,19 +9,24 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
         do {
             let pageSize = 100
             var rows: [WorkoutPlanDocumentDTO] = []
-            var offset = 0
+            var lastID: UUID?
             while true {
-                let page: [WorkoutPlanDocumentDTO] = try await client.from("workout_plan_documents")
-                    .select()
-                    .order("updated_at", ascending: false)
+                var query = client.from("workout_plan_documents").select()
+                if let lastID { query = query.gt("id", value: lastID) }
+                let page: [WorkoutPlanDocumentDTO] = try await query
                     .order("id")
-                    .range(from: offset, to: offset + pageSize - 1)
+                    .limit(pageSize)
                     .execute().value
                 rows.append(contentsOf: page)
                 guard page.count == pageSize else { break }
-                offset += pageSize
+                lastID = page.last?.id
             }
-            return rows.compactMap(\.document)
+            return try rows.map { row in
+                guard let document = row.document else {
+                    throw LiftRankServiceError.server("A saved plan could not be read. Try syncing again.")
+                }
+                return document
+            }
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
@@ -35,7 +40,7 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
                     let saved: WorkoutPlanDocumentDTO = try await client.from("workout_plan_documents").insert(next).select().single().execute().value
                     guard let value = saved.document else { throw LiftRankServiceError.server("The saved plan could not be read.") }
                     return .saved(value)
-                } catch {
+                } catch let error as PostgrestError where error.code == "23505" {
                     return try await preserveConflict(document, expectedRevision: expectedRevision, ownerID: userID)
                 }
             }
@@ -69,6 +74,22 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
         catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
+    func deleteDuplicatePlan(_ document: WorkoutPlanDocument) async throws -> Bool {
+        do {
+            let userID = try await client.auth.session.user.id
+            let payload = try JSONDecoder().decode(WorkoutPlanSyncPayload.self, from: document.payload)
+            guard document.ownerID == userID, !payload.plan.isActive,
+                  payload.plan.name.hasSuffix(" (Conflict copy)") else {
+                throw LiftRankServiceError.invalidInput("Only an inactive conflict copy can be cleaned up.")
+            }
+            let deleted: [WorkoutPlanDocumentDTO] = try await client.from("workout_plan_documents")
+                .delete().eq("owner_id", value: userID).eq("id", value: document.id)
+                .eq("revision", value: document.revision).select().execute().value
+            return !deleted.isEmpty
+        } catch let error as LiftRankServiceError { throw error }
+        catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
     func completedWorkouts(since: Date?) async throws -> [CompletedWorkoutSnapshot] {
         do {
             let pageSize = 200
@@ -86,7 +107,12 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
                 guard page.count == pageSize else { break }
                 offset += pageSize
             }
-            return rows.compactMap(\.snapshot)
+            return try rows.map { row in
+                guard let snapshot = row.snapshot else {
+                    throw LiftRankServiceError.server("A saved workout could not be read. Try syncing again.")
+                }
+                return snapshot
+            }
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 
@@ -114,17 +140,18 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
         let serverRow: WorkoutPlanDocumentDTO = try await client.from("workout_plan_documents")
             .select().eq("owner_id", value: ownerID).eq("id", value: document.id).single().execute().value
         guard let server = serverRow.document else { throw LiftRankServiceError.server("The server plan could not be read.") }
-        var localCopy = document
-        localCopy.id = UUID()
-        localCopy.name = "\(document.name) (Conflict copy)"
-        localCopy.revision = 1
-        localCopy.conflictOfRevision = expectedRevision
-        localCopy.isConflictCopy = true
-        localCopy.updatedAt = .now
         let payload = try JSONDecoder().decode(WorkoutPlanSyncPayload.self, from: document.payload)
-        localCopy.payload = try JSONEncoder().encode(payload.conflictCopy(documentID: localCopy.id))
+        let serverPayload = try JSONDecoder().decode(WorkoutPlanSyncPayload.self, from: server.payload)
+        if payload.canonicalized == serverPayload.canonicalized { return .saved(server) }
+        let localCopy = try document.conflictCopy(expectedRevision: expectedRevision)
         let copyRow = WorkoutPlanDocumentDTO(document: localCopy, ownerID: ownerID, revision: 1)
-        let inserted: WorkoutPlanDocumentDTO = try await client.from("workout_plan_documents").insert(copyRow).select().single().execute().value
+        let inserted: WorkoutPlanDocumentDTO
+        do {
+            inserted = try await client.from("workout_plan_documents").insert(copyRow).select().single().execute().value
+        } catch let error as PostgrestError where error.code == "23505" {
+            inserted = try await client.from("workout_plan_documents").select()
+                .eq("owner_id", value: ownerID).eq("id", value: localCopy.id).single().execute().value
+        }
         guard let savedCopy = inserted.document else { throw LiftRankServiceError.server("The conflict copy could not be read.") }
         return .conflict(server: server, localCopy: savedCopy)
     }

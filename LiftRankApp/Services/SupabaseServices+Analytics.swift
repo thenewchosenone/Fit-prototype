@@ -20,6 +20,7 @@ private struct AnalyticsEventInsertDTO: Encodable {
 struct SupabaseAnalyticsService: AnalyticsService {
     let client: SupabaseClient
     func track(_ event: AnalyticsEventRecord) async {
+        guard AnalyticsStore.isSharingEnabled(for: event.userID) else { return }
         let row = AnalyticsEventInsertDTO(
             id: event.id,
             userID: event.userID,

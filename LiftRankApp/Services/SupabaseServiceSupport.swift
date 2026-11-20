@@ -10,10 +10,8 @@ enum LiftRankBackendEnvironment: String, Equatable {
 struct SupabaseConfiguration: Equatable {
     static let authCallbackURL = URL(string: "liftrank://auth-callback")!
     // Native reset requests use the app callback so the iOS PKCE verifier remains available.
-    // Use the shared web reset route so a recovery started on iOS can be completed
-    // in a browser on any device. The web app consumes the PKCE callback and owns
-    // the password-update screen for both platforms.
-    static let passwordRecoveryCallbackURL = URL(string: "https://liftrivals.com/login/?mode=reset")!
+    // Preserve recovery intent when Supabase returns only a PKCE code.
+    static let passwordRecoveryCallbackURL = URL(string: "liftrank://auth-callback?type=recovery")!
     let url: URL
     let publicKey: String
     let environment: LiftRankBackendEnvironment
@@ -76,6 +74,9 @@ enum SupabaseServiceErrorMapper {
                     apiMessage.contains("session") && (apiMessage.contains("expired") || apiMessage.contains("missing")) {
                     return .sessionExpired
                 }
+                if code == "email_not_confirmed" {
+                    return .invalidInput("Confirm your email before signing in.")
+                }
                 if code == "same_password" || apiMessage.contains("different from the old password") {
                     return .invalidInput("Choose a different password and try again.")
                 }
@@ -92,7 +93,10 @@ enum SupabaseServiceErrorMapper {
         let message = String(describing: error).lowercased()
         if message.contains("invalid login") || message.contains("invalid credentials") { return .invalidCredentials }
         if message.contains("jwt") || (message.contains("session") && message.contains("expired")) { return .sessionExpired }
-        if message.contains("profiles_username_lower_unique") || (message.contains("username") && message.contains("duplicate")) { return .usernameUnavailable }
+        if message.contains("profiles_username_lower_unique") ||
+            (message.contains("username") && ["duplicate", "already in use", "already taken"].contains(where: message.contains)) {
+            return .usernameUnavailable
+        }
         if message.contains("three active gyms") { return .gymLimitReached }
         if message.contains("choose another primary gym") { return .primaryGymRequired }
         if message.contains("permission denied") || message.contains("42501") { return .permissionDenied }

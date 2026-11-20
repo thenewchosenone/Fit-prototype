@@ -17,3 +17,9 @@ AppIconConcepts/
 AppStorePromo/FromSimulator/
 AppStorePromo/Leaderboard/
 AppStoreSubmission/
+
+# Local simulator builds, copied checkouts, and Xcode result bundles.
+/work/**/simulator-session-derived/
+/work/**/simulator-session-workaround/
+/work/**/*.xcresult/
+/work/**/*.xcarchive/
