@@ -20,9 +20,11 @@ final class WorkoutSyncStore: ObservableObject {
     private var lastPassiveHistorySyncAt: Date?
     private var lastPassivePlanSyncAt: Date?
     private var historySyncInFlight = false
+    private var historySyncWaiters: [CheckedContinuation<Void, Never>] = []
     private var planSyncInFlight = false
     private var planSyncRequested = false
     @Published private(set) var planSyncState: WorkoutHistorySyncState = .local
+    @Published private(set) var planSyncFailureReason: String?
     @Published private(set) var historySyncState: WorkoutHistorySyncState = .synced
     @Published private(set) var unreadableRemoteWorkoutCount = 0
 
@@ -70,6 +72,9 @@ final class WorkoutSyncStore: ObservableObject {
         var syncFailed = false
         defer {
             historySyncInFlight = false
+            let waiters = historySyncWaiters
+            historySyncWaiters.removeAll()
+            waiters.forEach { $0.resume() }
             if repository.currentProfile.id == userID, !force {
                 lastPassiveHistorySyncAt = .now
             }
@@ -98,6 +103,9 @@ final class WorkoutSyncStore: ObservableObject {
                    repository.pendingCompletedWorkoutUploads[index] == snapshot {
                     repository.pendingCompletedWorkoutUploads.remove(at: index)
                 }
+                if snapshot.ownerID == userID {
+                    repository.syncedCompletedWorkoutIDs.insert(snapshot.id)
+                }
             } catch {
                 syncFailed = true
                 guard repository.currentProfile.id == userID else { return }
@@ -114,6 +122,14 @@ final class WorkoutSyncStore: ObservableObject {
         unreadableRemoteWorkoutCount = 0
         let deletedWorkoutIDs = repository.deletedCompletedWorkoutIDs
         let pendingUploadIDs = Set(repository.pendingCompletedWorkoutUploads.map(\.id))
+        let remoteWorkoutIDs = Set(remote.filter { $0.ownerID == userID }.map(\.id))
+        repository.syncedCompletedWorkoutIDs.formUnion(remoteWorkoutIDs)
+        let remotelyDeletedWorkoutIDs = repository.syncedCompletedWorkoutIDs
+            .subtracting(remoteWorkoutIDs)
+            .subtracting(pendingUploadIDs)
+            .subtracting(deletedWorkoutIDs)
+        repository.completedWorkouts.removeAll { remotelyDeletedWorkoutIDs.contains($0.id) }
+        repository.syncedCompletedWorkoutIDs.subtract(remotelyDeletedWorkoutIDs)
         var workoutIndexesByID = Dictionary(
             uniqueKeysWithValues: repository.completedWorkouts.enumerated().map { ($0.element.id, $0.offset) }
         )
@@ -144,6 +160,21 @@ final class WorkoutSyncStore: ObservableObject {
         repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
+    func saveCompletedWorkoutVisibility(_ snapshot: CompletedWorkoutSnapshot) async throws {
+        // Finish any older upload before sending the new privacy decision.
+        while historySyncInFlight {
+            await withCheckedContinuation { historySyncWaiters.append($0) }
+        }
+        try Task.checkCancellation()
+        guard repository.currentProfile.id == snapshot.ownerID else { throw LiftRankServiceError.sessionExpired }
+        enqueueCompletedWorkout(snapshot)
+        await synchronizeCompletedWorkoutHistory()
+        guard repository.currentProfile.id == snapshot.ownerID else { throw LiftRankServiceError.sessionExpired }
+        guard !repository.pendingCompletedWorkoutUploads.contains(where: { $0.id == snapshot.id }) else {
+            throw LiftRankServiceError.server("Workout visibility wasn't saved. Check your connection and retry.")
+        }
+    }
+
     func synchronizeDeletedCompletedWorkout(id: UUID) async {
         resetAccountScopedDataIfNeeded()
         let userID = repository.currentProfile.id
@@ -172,43 +203,66 @@ final class WorkoutSyncStore: ObservableObject {
         }
         planSyncInFlight = true
         planSyncState = .syncing
+        planSyncFailureReason = nil
         var syncFailed = false
+        var failureReason: String?
+        func recordFailure(_ reason: String) {
+            syncFailed = true
+            failureReason = failureReason ?? reason
+        }
         defer {
             if repository.currentProfile.id == userID {
                 planSyncState = syncFailed ? .needsAttention : .synced
+                planSyncFailureReason = failureReason
             }
-            if planSyncRequested {
-                planSyncRequested = false
-                Task { await self.synchronizeWorkoutPlans() }
-            }
+            let shouldRetry = planSyncRequested
+            planSyncRequested = false
             planSyncInFlight = false
             if repository.currentProfile.id == userID, !force {
                 lastPassivePlanSyncAt = .now
             }
+            if shouldRetry { Task { await self.synchronizeWorkoutPlans() } }
         }
 
-        for planID in repository.pendingRemoteWorkoutPlanDeletions {
+        guard let remotelyDeletedPlanIDs = try? await service.deletedWorkoutPlanIDs() else {
+            recordFailure("Could not check deleted plans.")
+            return
+        }
+        guard repository.currentProfile.id == userID else { return }
+        let deletedPlanIDs = remotelyDeletedPlanIDs.union(repository.pendingRemoteWorkoutPlanDeletions)
+        repository.pendingRemoteWorkoutPlanDeletions.formUnion(remotelyDeletedPlanIDs)
+
+        for planID in deletedPlanIDs {
+            guard repository.currentProfile.id == userID else { return }
+            if let plan = repository.workoutPlans.first(where: { $0.id == planID }) {
+                repository.deleteWorkoutPlan(plan)
+                forgetPlan(planID)
+            }
+        }
+
+        for planID in Set(repository.pendingRemoteWorkoutPlanDeletions) {
             guard repository.currentProfile.id == userID else { return }
             do {
                 try await service.deletePlan(id: planID)
                 guard repository.currentProfile.id == userID else { return }
                 repository.pendingRemoteWorkoutPlanDeletions.remove(planID)
             } catch {
-                syncFailed = true
+                recordFailure("Could not delete a plan from the server.")
                 guard repository.currentProfile.id == userID else { return }
             }
         }
         guard repository.currentProfile.id == userID else { return }
-        guard var remoteByID = try? await service.plans().reduce(
-            into: [UUID: WorkoutPlanDocument](),
-            { result, document in
-                if document.ownerID == userID {
-                    result[document.id] = document
-                }
-            }
-        ) else {
-            syncFailed = true
+        let remoteDocuments: [WorkoutPlanDocument]
+        do {
+            remoteDocuments = try await service.plans()
+        } catch {
+            recordFailure("Could not load saved plans from the server. \(error.localizedDescription)")
             return
+        }
+        var remoteByID = remoteDocuments.reduce(into: [UUID: WorkoutPlanDocument]()) { result, document in
+            if document.ownerID == userID && !deletedPlanIDs.contains(document.id) {
+                result[document.id] = document
+            }
         }
         guard repository.currentProfile.id == userID else { return }
         let localOnlyPlanIDs = Set([PersonalWorkoutPlanCatalog.planID])
@@ -303,7 +357,9 @@ final class WorkoutSyncStore: ObservableObject {
             catch { syncFailed = true }
             guard repository.currentProfile.id == userID else { return }
         }
-        if repository.workoutPlans.filter(\.isActive).count > 1 { syncFailed = true }
+        if repository.workoutPlans.filter(\.isActive).count > 1 {
+            recordFailure("More than one workout plan is marked active.")
+        }
         repository.persistWorkoutSnapshotWithoutBlockingUI()
     }
 
@@ -388,6 +444,7 @@ final class WorkoutSyncStore: ObservableObject {
         repository.completedWorkouts.removeAll()
         repository.pendingCompletedWorkoutUploads.removeAll()
         repository.deletedCompletedWorkoutIDs.removeAll()
+        repository.syncedCompletedWorkoutIDs.removeAll()
         repository.clearAccountScopedWorkoutHistory()
 
         let localOnlyPlanIDs = Set([PersonalWorkoutPlanCatalog.planID])
@@ -423,6 +480,7 @@ final class WorkoutSyncStore: ObservableObject {
         } catch {
             guard repository.currentProfile.id == userID else { return }
             planSyncState = .needsAttention
+            planSyncFailureReason = "Could not delete a plan from the server."
         }
         repository.persistWorkoutSnapshot()
     }
@@ -451,6 +509,7 @@ final class WorkoutSyncStore: ObservableObject {
         switch result {
         case let .saved(saved):
             remember(saved)
+            return true
         case let .conflict(server, localCopy):
             guard let serverPayload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: server.payload),
                   let copyPayload = try? decoder.decode(WorkoutPlanSyncPayload.self, from: localCopy.payload),

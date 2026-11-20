@@ -1,9 +1,30 @@
 import Foundation
+import CoreTransferable
+import UniformTypeIdentifiers
 
 protocol WorkoutVideoStoring: AnyObject {
     func save(_ data: Data, fileExtension: String) async throws -> URL
+    func save(from sourceURL: URL, fileExtension: String) async throws -> URL
     func remove(_ url: URL)
     func prune(retaining URLs: Set<URL>, olderThan cutoff: Date)
+}
+
+struct PickedWorkoutVideo: Transferable, Sendable {
+    let temporaryURL: URL
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(importedContentType: .movie) { received in
+            _ = try LiftVideoPolicy.validatedFileSize(of: received.file)
+            try await LiftVideoPolicy.validateDuration(of: received.file)
+            let sourceExtension = received.file.pathExtension.lowercased()
+            let fileExtension = sourceExtension == "mp4" ? "mp4" : "mov"
+            let temporaryURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("picked-workout-video-\(UUID().uuidString.lowercased())")
+                .appendingPathExtension(fileExtension)
+            try FileManager.default.copyItem(at: received.file, to: temporaryURL)
+            return Self(temporaryURL: temporaryURL)
+        }
+    }
 }
 
 final class LocalWorkoutVideoStore: WorkoutVideoStoring {
@@ -21,6 +42,16 @@ final class LocalWorkoutVideoStore: WorkoutVideoStoring {
     func save(_ data: Data, fileExtension: String) async throws -> URL {
         try await Task.detached(priority: .userInitiated) { [self] in
             try saveSynchronously(data, fileExtension: fileExtension)
+        }.value
+    }
+
+    func save(from sourceURL: URL, fileExtension: String) async throws -> URL {
+        try await Task.detached(priority: .userInitiated) { [self] in
+            let root = try rootURL(create: true)
+            let url = root.appendingPathComponent("\(makeID().uuidString).\(fileExtension)")
+            try fileManager.moveItem(at: sourceURL, to: url)
+            try? (url as NSURL).setResourceValue(true, forKey: .isExcludedFromBackupKey)
+            return url
         }.value
     }
 

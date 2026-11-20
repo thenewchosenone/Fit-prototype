@@ -3,7 +3,7 @@ import Supabase
 
 // MARK: - Leaderboard feed service
 
-private struct LeaderboardParameters: Encodable {
+struct LeaderboardParameters: Encodable {
     let exerciseID: String?
     let rankingType: String
     let gymID: UUID?
@@ -14,8 +14,12 @@ private struct LeaderboardParameters: Encodable {
     let sexCategory: String?
     let weightMinKG: Double?
     let weightMaxKG: Double?
-    let verifiedOnly: Bool?
+    let verifiedOnly: Bool
     let timeRange: String
+    let repetitionCount: Int?
+    let cityIDFilter: UUID?
+    let experienceLevelFilter: String?
+    let evidenceFilter: String?
 
     enum CodingKeys: String, CodingKey {
         case exerciseID = "exercise_id"
@@ -30,6 +34,10 @@ private struct LeaderboardParameters: Encodable {
         case weightMaxKG = "weight_max_kg"
         case verifiedOnly = "verified_only"
         case timeRange = "time_range"
+        case repetitionCount = "repetition_count"
+        case cityIDFilter = "city_id_filter"
+        case experienceLevelFilter = "experience_level_filter"
+        case evidenceFilter = "evidence_filter"
     }
 
     func encode(to encoder: Encoder) throws {
@@ -53,8 +61,17 @@ private struct LeaderboardParameters: Encodable {
         else { try container.encodeNil(forKey: .weightMinKG) }
         if let weightMaxKG { try container.encode(weightMaxKG, forKey: .weightMaxKG) }
         else { try container.encodeNil(forKey: .weightMaxKG) }
-        if let verifiedOnly { try container.encode(verifiedOnly, forKey: .verifiedOnly) }
+        try container.encode(verifiedOnly, forKey: .verifiedOnly)
         try container.encode(timeRange, forKey: .timeRange)
+        guard verifiedOnly != nil else { return }
+        if let repetitionCount { try container.encode(repetitionCount, forKey: .repetitionCount) }
+        else { try container.encodeNil(forKey: .repetitionCount) }
+        if let cityIDFilter { try container.encode(cityIDFilter, forKey: .cityIDFilter) }
+        else { try container.encodeNil(forKey: .cityIDFilter) }
+        if let experienceLevelFilter { try container.encode(experienceLevelFilter, forKey: .experienceLevelFilter) }
+        else { try container.encodeNil(forKey: .experienceLevelFilter) }
+        if let evidenceFilter { try container.encode(evidenceFilter, forKey: .evidenceFilter) }
+        else { try container.encodeNil(forKey: .evidenceFilter) }
     }
 }
 
@@ -97,60 +114,57 @@ final class SupabaseLeaderboardService: LeaderboardService {
                 weightMinKG: weightClass?.minKilograms,
                 weightMaxKG: weightClass?.maxKilograms,
                 verifiedOnly: selfReportedOnly ? nil : verifiedOnly,
-                timeRange: filters.timeRange
+                timeRange: filters.timeRange,
+                repetitionCount: filters.repetitionCount,
+                cityIDFilter: filters.cityID,
+                experienceLevelFilter: filters.experienceLevel?.rawValue.lowercased(),
+                evidenceFilter: filters.verificationLevel.map {
+                    $0 == .selfReported ? "self_reported" : "video_backed"
+                }
             )
 
-            let rows: [RankedLiftIDDTO] = try await client
-                .rpc(selfReportedOnly ? "get_self_reported_ranked_lift_ids" : "get_ranked_lift_ids", params: params)
-                .limit(200)
-                .execute()
-                .value
-            let submissions = try await SupabaseLiftService(client: client).submissions(ids: rows.map(\.liftID))
-            let lifts = Dictionary(uniqueKeysWithValues: submissions.map { ($0.id, $0) })
-
-            let profileService = SupabaseProfileService(client: client)
-            var seenUsers = Set<UUID>()
-            let userIDs = rows.filter { lifts[$0.liftID] != nil }.map(\.userID).filter { seenUsers.insert($0).inserted }
-            var cardsByUserID: [UUID: PublicProfileCard] = [:]
-            for start in stride(from: 0, to: userIDs.count, by: 8) {
-                let batch = Array(userIDs[start..<min(start + 8, userIDs.count)])
-                let tasks = batch.map { userID in
-                    Task { try await profileService.profileCard(userID: userID) }
-                }
-                var firstError: Error?
-                for (userID, task) in zip(batch, tasks) {
-                    do {
-                        cardsByUserID[userID] = try await task.value
-                    } catch {
-                        firstError = firstError ?? error
-                    }
-                }
-                if let firstError { throw firstError }
-            }
-
             var entries: [LeaderboardEntry] = []
-            for row in rows {
-                guard let lift = lifts[row.liftID], let card = cardsByUserID[row.userID] else { continue }
-                let profile = SupabaseProfileMapper.leaderboard(
-                    card: card,
-                    bodyweightPounds: lift.bodyweightAtLift,
-                    fallbackGymID: lift.gymID,
-                    bodyweightVisible: row.bodyweightVisible
-                )
-                entries.append(
-                    LeaderboardEntry(
-                        rank: row.rank,
-                        profile: profile,
-                        lift: lift,
-                        rankMovement: row.rankMovement,
-                        score: row.score,
-                        powerliftingBreakdown: nil
+            let pageSize = 200
+            var offset = 0
+            while true {
+                let rows: [RankedLiftIDDTO] = try await client
+                    .rpc(selfReportedOnly ? "get_self_reported_ranked_lift_ids" : "get_ranked_lift_ids", params: params)
+                    .range(from: offset, to: offset + pageSize - 1)
+                    .execute()
+                    .value
+                guard !rows.isEmpty else { break }
+
+                let submissions = try await SupabaseLiftService(client: client).submissions(ids: rows.map(\.liftID))
+                let lifts = Dictionary(uniqueKeysWithValues: submissions.map { ($0.id, $0) })
+                let profileCards = try await SupabaseProfileService(client: client)
+                    .profileCards(userIDs: Array(Set(rows.map(\.userID))))
+                let cardsByID = Dictionary(uniqueKeysWithValues: profileCards.map { ($0.id, $0) })
+
+                for row in rows {
+                    guard let lift = lifts[row.liftID], let card = cardsByID[row.userID] else { continue }
+                    let profile = SupabaseProfileMapper.leaderboard(
+                        card: card,
+                        bodyweightPounds: lift.bodyweightAtLift,
+                        fallbackGymID: lift.gymID,
+                        bodyweightVisible: row.bodyweightVisible
                     )
-                )
+                    entries.append(
+                        LeaderboardEntry(
+                            rank: row.rank,
+                            profile: profile,
+                            lift: lift,
+                            rankMovement: row.rankMovement,
+                            score: row.score,
+                            powerliftingBreakdown: nil
+                        )
+                    )
+                }
+
+                guard rows.count == pageSize else { break }
+                offset += pageSize
             }
             return entries
         }
-        catch let error as LiftRankServiceError { throw error }
         catch { throw SupabaseServiceErrorMapper.map(error) }
     }
 }

@@ -36,7 +36,7 @@ private enum SubmitLiftSelector: String, Identifiable {
         switch self {
         case .exercise: return "Choose Exercise"
         case .gym: return "Choose Gym"
-        case .equipment: return "Choose Equipment"
+        case .equipment: return "Lifting Gear"
         case .visibility: return "Choose Visibility"
         }
     }
@@ -194,6 +194,12 @@ struct SubmitLiftView: View {
                     showingVideoReview = false
                 }
             }
+            .confirmationDialog("Discard lift draft?", isPresented: $confirmingDiscardDraft) {
+                Button("Discard Draft", role: .destructive) { dismiss() }
+                Button("Keep Editing", role: .cancel) {}
+            } message: {
+                Text("Your lift details and selected video will be lost.")
+            }
             .onChange(of: pickerItem) { _, _ in
                 prepareSelectedVideo()
             }
@@ -211,6 +217,7 @@ struct SubmitLiftView: View {
                 if prefill == nil { unit = appState.currentProfile.preferredUnit }
                 selectDefaultGymIfNeeded()
                 resetPlateLoadingFromWeight()
+                if initialDraft == nil { initialDraft = currentDraft }
                 prepareVideoPickerAfterPresentation()
                 initialDraft = draftValues
             }
@@ -240,6 +247,32 @@ struct SubmitLiftView: View {
                 }
             }
         }
+        .interactiveDismissDisabled(isSubmitting || isPreparingVideo || hasUnsavedDraft)
+    }
+
+    private var currentDraft: LiftSubmissionDraft {
+        LiftSubmissionDraft(
+            exerciseID: exercise.id,
+            weight: weight,
+            unit: unit.rawValue,
+            repetitions: repetitions,
+            isActualOneRepMax: isActualOneRepMax,
+            bodyweight: bodyweight,
+            performedAt: performedAt,
+            gymID: gymID,
+            equipment: equipment.rawValue,
+            caption: caption,
+            visibility: visibility.rawValue,
+            requestVerification: requestVerification,
+            confirmsMatchedDumbbells: confirmsMatchedDumbbells,
+            videoPath: selectedVideoURL?.path,
+            plateLoads: plateLoads.map { "\($0.plateWeight):\($0.count)" }
+        )
+    }
+
+    private var hasUnsavedDraft: Bool {
+        guard let initialDraft else { return false }
+        return currentDraft != initialDraft
     }
 
     private var liftDetailsCard: some View {
@@ -339,9 +372,12 @@ struct SubmitLiftView: View {
                 }
                 .accessibilityIdentifier("lift.gym")
                 Divider().overlay(Color.liftSeparator)
-                LiftActionRow(title: "Equipment", subtitle: equipment.rawValue, symbolName: "dumbbell") {
+                LiftActionRow(title: "Lifting gear", subtitle: equipment.rawValue, symbolName: "dumbbell") {
                     activeSelector = .equipment
                 }
+                Text("Raw means no supportive lifting suit or bench shirt. Equipped means you used that supportive gear.")
+                    .font(.caption)
+                    .foregroundStyle(Color.liftMuted)
             }
         }
     }
@@ -505,7 +541,14 @@ struct SubmitLiftView: View {
                 )
             }
         case .equipment:
-            return EquipmentType.allCases.map { LeaderboardOption(id: $0.rawValue, title: $0.rawValue, symbol: "dumbbell") }
+            return EquipmentType.allCases.map {
+                LeaderboardOption(
+                    id: $0.rawValue,
+                    title: $0.rawValue,
+                    subtitle: $0 == .raw ? "No supportive lifting suit or bench shirt" : "Supportive lifting suit or bench shirt used",
+                    symbol: "dumbbell"
+                )
+            }
         case .visibility:
             return LiftVisibility.allCases.map { option in
                 LeaderboardOption(
@@ -606,12 +649,14 @@ struct SubmitLiftView: View {
         videoError = nil
         Task {
             do {
-                guard let data = try await pickerItem.loadTransferable(type: Data.self) else {
+                guard let pickedVideo = try await pickerItem.loadTransferable(type: PickedWorkoutVideo.self) else {
                     throw CocoaError(.fileReadUnknown)
                 }
-                let fileExtension = pickerItem.supportedContentTypes.first?.preferredFilenameExtension ?? "mov"
-                let url = try await appState.persistWorkoutVideo(data, fileExtension: fileExtension)
+                defer { try? FileManager.default.removeItem(at: pickedVideo.temporaryURL) }
+                let fileExtension = pickedVideo.temporaryURL.pathExtension
+                let url = try await appState.persistWorkoutVideo(from: pickedVideo.temporaryURL, fileExtension: fileExtension)
                 do {
+                    _ = try LiftVideoPolicy.validatedFileSize(of: url)
                     try await LiftVideoPolicy.validateDuration(of: url)
                 } catch {
                     try? FileManager.default.removeItem(at: url)
@@ -627,9 +672,14 @@ struct SubmitLiftView: View {
                 await MainActor.run {
                     selectedVideoURL = nil
                     isPreparingVideo = false
-                    videoError = error is LiftVideoPolicyError
-                        ? "Videos must be 30 seconds or shorter."
-                        : "That video could not be prepared. Choose it again."
+                    if let policyError = error as? LiftVideoPolicyError {
+                        videoError = switch policyError {
+                        case .tooLong: "Videos must be 30 seconds or shorter."
+                        case .invalidOrTooLarge: "Videos must be 500 MB or smaller. Choose a smaller video."
+                        }
+                    } else {
+                        videoError = "That video could not be prepared. Choose it again."
+                    }
                     self.pickerItem = nil
                 }
             }
@@ -837,6 +887,24 @@ private struct EditablePlateLoad: Identifiable, Hashable {
     var plateWeight: Double
     var label: String
     var count: Int
+}
+
+private struct LiftSubmissionDraft: Equatable {
+    let exerciseID: String
+    let weight: Double
+    let unit: String
+    let repetitions: Int
+    let isActualOneRepMax: Bool
+    let bodyweight: Double
+    let performedAt: Date
+    let gymID: UUID?
+    let equipment: String
+    let caption: String
+    let visibility: String
+    let requestVerification: Bool
+    let confirmsMatchedDumbbells: Bool
+    let videoPath: String?
+    let plateLoads: [String]
 }
 
 private struct UploadProgressView: View {

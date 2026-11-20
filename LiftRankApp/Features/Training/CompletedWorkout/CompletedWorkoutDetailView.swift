@@ -8,6 +8,8 @@ struct CompletedWorkoutDetailView: View {
     let isPresentedModally: Bool
     @Binding var focusedSetID: UUID?
     @State private var showingDeleteConfirmation = false
+    @State private var showingSaveRoutinePrompt = false
+    @State private var routineName = ""
     @State private var editingWorkout: CompletedWorkout?
     @State private var showingRoutineSaveError = false
 
@@ -117,7 +119,7 @@ struct CompletedWorkoutDetailView: View {
                                 }
                             }
 
-                            if !displayedWorkout.notes.isEmpty {
+                            if !visibleNotes.isEmpty {
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text("Notes")
                                         .font(LiftTypography.cardTitle)
@@ -189,6 +191,15 @@ struct CompletedWorkoutDetailView: View {
                         Button("Close", systemImage: "xmark") { dismiss() }.labelStyle(.iconOnly)
                     }
                 }
+            }
+            .alert("Save as routine?", isPresented: $showingSaveRoutinePrompt) {
+                TextField("Routine name", text: $routineName)
+                Button("Save Routine") {
+                    _ = appState.saveWorkoutAsRoutine(displayedWorkout, name: routineName)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Choose a name for this workout routine.")
             }
             .confirmationDialog("Delete this workout from history?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
                 Button("Delete workout", role: .destructive) {
@@ -279,6 +290,7 @@ struct WorkoutTrainingResultView: View {
 private struct CompletedWorkoutEditView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft: CompletedWorkout
+    private let originalDraft: CompletedWorkout
     @State private var notes: String
     private let original: CompletedWorkout
     @State private var confirmingDiscard = false
@@ -297,7 +309,9 @@ private struct CompletedWorkoutEditView: View {
         }
         original = normalizedWorkout
         _draft = State(initialValue: normalizedWorkout)
+        originalDraft = normalizedWorkout
         _notes = State(initialValue: workout.notes)
+        originalNotes = workout.notes
         self.onSave = onSave
     }
 
@@ -334,7 +348,8 @@ private struct CompletedWorkoutEditView: View {
                         guard canSave else { return }
                         var updated = draft
                         updated.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-                        updated.startedAt = updated.completedAt.addingTimeInterval(-updated.duration)
+                        updated.completedAt = max(updated.completedAt, updated.startedAt)
+                        updated.duration = updated.completedAt.timeIntervalSince(updated.startedAt)
                         updated.sets = normalizedSets(for: updated)
                         updated.exercises = normalizedExercises(for: updated)
                         onSave(updated)
@@ -342,6 +357,12 @@ private struct CompletedWorkoutEditView: View {
                     }
                     .disabled(!canSave)
                 }
+            }
+            .confirmationDialog("Discard workout edits?", isPresented: $confirmingDiscard) {
+                Button("Discard Changes", role: .destructive) { dismiss() }
+                Button("Keep Editing") {}
+            } message: {
+                Text("Your unsaved workout changes will be lost.")
             }
         }
         .interactiveDismissDisabled(hasDraftChanges)
@@ -371,8 +392,13 @@ private struct CompletedWorkoutEditView: View {
             Text("Workout")
                 .font(LiftTypography.cardTitle)
 
+            DatePicker("Started", selection: $draft.startedAt, displayedComponents: [.date, .hourAndMinute])
+                .font(.subheadline.weight(.semibold))
             DatePicker("Completed", selection: $draft.completedAt, displayedComponents: [.date, .hourAndMinute])
                 .font(.subheadline.weight(.semibold))
+            Text("Duration: \(MeasurementFormatting.shortDurationText(max(0, draft.completedAt.timeIntervalSince(draft.startedAt))))")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.liftMuted)
 
             Stepper(draft.effort == 0 ? "Effort: Not recorded" : "Effort \(draft.effort)/5", value: $draft.effort, in: 0...5)
                 .font(.subheadline.weight(.semibold))
@@ -382,6 +408,7 @@ private struct CompletedWorkoutEditView: View {
                 .padding(10)
                 .background(Color.liftCardRaised)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .accessibilityIdentifier("workoutEdit.notes")
         }
         .padding(14)
         .liftSurface()
@@ -558,11 +585,11 @@ private struct CompletedWorkoutEditView: View {
             get: {
                 guard draft.sets.indices.contains(index),
                       let value = draft.sets[index][keyPath: keyPath] else { return "" }
-                return value.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(value))" : "\(value)"
+                return MeasurementFormatting.localizedDecimalText(value)
             },
             set: { text in
                 guard draft.sets.indices.contains(index) else { return }
-                draft.sets[index][keyPath: keyPath] = Double(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                draft.sets[index][keyPath: keyPath] = MeasurementFormatting.parseLocalizedDecimal(text)
             }
         )
     }

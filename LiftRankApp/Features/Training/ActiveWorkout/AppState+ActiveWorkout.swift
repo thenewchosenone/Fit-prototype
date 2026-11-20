@@ -222,8 +222,7 @@ extension AppState {
                 Task {
                     await track(
                         .workoutCompleted,
-                        userID: completingUserID,
-                        properties: ["workout_id": completed.id.uuidString]
+                        userID: completingUserID
                     )
                 }
             }
@@ -245,6 +244,23 @@ extension AppState {
             let ownerID = currentProfile.id
             Task { await enqueueCompletedWorkoutAfterEncoding(workout, ownerID: ownerID) }
         }
+        Haptics.success()
+    }
+
+    func setCompletedWorkoutPublic(_ workout: CompletedWorkout, isPublic: Bool) async throws {
+        var updated = workout
+        updated.isPublic = isPublic
+        let ownerID = currentProfile.id
+        if isAuthenticated && !isDemoMode {
+            let workoutToSave = updated
+            let payload = try await Task.detached(priority: .utility) { try JSONEncoder().encode(workoutToSave) }.value
+            guard currentProfile.id == ownerID else { throw LiftRankServiceError.sessionExpired }
+            try await workoutSyncStore.saveCompletedWorkoutVisibility(CompletedWorkoutSnapshot(
+                id: updated.id, ownerID: ownerID, payload: payload, completedAt: updated.completedAt
+            ))
+            guard currentProfile.id == ownerID else { throw LiftRankServiceError.sessionExpired }
+        }
+        activeWorkoutStore.updateCompletedWorkout(updated)
         Haptics.success()
     }
 
@@ -400,6 +416,10 @@ extension AppState {
 
     func persistWorkoutVideo(_ data: Data, fileExtension: String = "mov") async throws -> URL {
         try await workoutPRSubmissionStore.persistVideo(data, fileExtension: fileExtension)
+    }
+
+    func persistWorkoutVideo(from sourceURL: URL, fileExtension: String = "mov") async throws -> URL {
+        try await workoutPRSubmissionStore.persistVideo(from: sourceURL, fileExtension: fileExtension)
     }
 
 }

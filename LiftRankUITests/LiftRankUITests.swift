@@ -33,6 +33,19 @@ final class LiftRankUITests: XCTestCase {
         app.descendants(matching: .any)["me.profileHeader"]
     }
 
+    @MainActor
+    private func auditAccessibility(_ app: XCUIApplication, screen: String, checks: XCUIAccessibilityAuditType = .all) {
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = screen
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        do {
+            try app.performAccessibilityAudit(for: checks)
+        } catch {
+            XCTFail("\(screen) accessibility audit failed: \(error)")
+        }
+    }
+
     private func launchDemo(arguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTestingDemoMode"] + arguments
@@ -48,7 +61,10 @@ final class LiftRankUITests: XCTestCase {
 
     private func launchCurrentAccount(arguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments += arguments
+        let accountFixture = arguments.contains("-uiTestingRestoredAuthenticatedAccount")
+            ? []
+            : ["-uiTestingAuthenticatedAccount"]
+        app.launchArguments += accountFixture + arguments
         app.launch()
         return app
     }
@@ -478,6 +494,35 @@ final class LiftRankUITests: XCTestCase {
         }
     }
 
+    func testActiveWorkoutRPEAndReorderMenusExposeAccessibleActions() {
+        let app = launchDemo(arguments: ["-uiTestingActiveWorkout", "-uiTestingActiveWorkoutWithExercise"])
+        let resume = app.buttons["home.activeWorkout.resume"]
+        XCTAssertTrue(resume.waitForExistence(timeout: 8))
+        resume.tap()
+
+        let exercise = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Barbell Bench Press")).firstMatch
+        XCTAssertTrue(exercise.waitForExistence(timeout: 5))
+        exercise.tap()
+        XCTAssertTrue(app.navigationBars["Track exercise"].waitForExistence(timeout: 5))
+
+        for value in 6...10 {
+            XCTAssertTrue(app.buttons["RPE \(value)"].waitForExistence(timeout: 5))
+        }
+        app.buttons["RPE 8"].tap()
+        XCTAssertTrue(app.buttons["RPE 8"].exists)
+
+        app.navigationBars.buttons.firstMatch.tap()
+        let workoutOptions = app.buttons["Workout options"]
+        XCTAssertTrue(workoutOptions.waitForExistence(timeout: 5))
+        workoutOptions.tap()
+        app.buttons["Reorder Exercises"].tap()
+        let reorderExercise = app.buttons["Reorder Barbell Bench Press"]
+        XCTAssertTrue(reorderExercise.waitForExistence(timeout: 5))
+        reorderExercise.tap()
+        XCTAssertTrue(app.buttons["Move earlier"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Move later"].exists)
+    }
+
     func testEmptyActiveWorkoutCanEndAndReturnToHome() {
         let app = launchDemo(arguments: ["-uiTestingActiveWorkout"])
         let resume = app.buttons["home.activeWorkout.resume"]
@@ -494,6 +539,40 @@ final class LiftRankUITests: XCTestCase {
 
         XCTAssertTrue(tab("home", in: app).waitForExistence(timeout: 5))
         XCTAssertFalse(finish.exists)
+    }
+
+    func testActiveWorkoutConflictOffersOneOpenActionAndExplicitDiscardOrCancel() {
+        let app = launchDemo(arguments: ["-uiTestingActiveWorkout"])
+        let track = tab("track", in: app)
+        XCTAssertTrue(track.waitForExistence(timeout: 8))
+        track.tap()
+
+        let plans = app.buttons["tracker.segment.plans"]
+        XCTAssertTrue(plans.waitForExistence(timeout: 5))
+        plans.tap()
+        let activePlan = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Active plan")
+        ).firstMatch
+        XCTAssertTrue(activePlan.waitForExistence(timeout: 5))
+        activePlan.tap()
+        let planOptions = app.buttons["Plan detail options"]
+        XCTAssertTrue(planOptions.waitForExistence(timeout: 5))
+        planOptions.tap()
+        app.buttons["Workouts"].tap()
+        let startWorkout = app.buttons.matching(
+            NSPredicate(format: "label == %@ OR label == %@", "Start workout", "Repeat workout")
+        ).firstMatch
+        XCTAssertTrue(startWorkout.waitForExistence(timeout: 5))
+        startWorkout.tap()
+
+        XCTAssertTrue(app.buttons["Open Active Workout"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Discard Active & Start New"].exists)
+        let cancelAction = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label == %@", "Cancel")
+        ).firstMatch
+        XCTAssertTrue(cancelAction.exists, app.debugDescription)
+        XCTAssertFalse(app.buttons["Resume Active Workout"].exists)
+        XCTAssertFalse(app.buttons["Review & Finish Active Workout"].exists)
     }
 
     func testCompletedActiveWorkoutSavesAndDismissesTheWorkoutFlow() {
@@ -673,6 +752,31 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["INCREASE"].exists)
     }
 
+    func testCompletedWorkoutEditRequiresConfirmationBeforeDiscardingDraft() {
+        let app = launchDemo(arguments: ["-uiTestingFocusedWorkoutSet"])
+        let track = tab("track", in: app)
+        XCTAssertTrue(track.waitForExistence(timeout: 8))
+        track.tap()
+        let editWorkout = app.buttons["Edit workout history"]
+        XCTAssertTrue(editWorkout.waitForExistence(timeout: 8))
+        editWorkout.tap()
+
+        let notes = app.descendants(matching: .any)["workoutEdit.notes"]
+        XCTAssertTrue(notes.waitForExistence(timeout: 5))
+        notes.tap()
+        notes.typeText("Draft note")
+
+        app.navigationBars["Edit workout"].buttons["Cancel"].tap()
+        XCTAssertTrue(app.buttons["Keep Editing"].waitForExistence(timeout: 3))
+        app.buttons["Keep Editing"].tap()
+        XCTAssertTrue(notes.waitForExistence(timeout: 3))
+        XCTAssertTrue((notes.value as? String)?.contains("Draft note") == true)
+
+        app.navigationBars["Edit workout"].buttons["Cancel"].tap()
+        app.buttons["Discard Changes"].tap()
+        XCTAssertTrue(app.staticTexts["Barbell Bench Press"].waitForExistence(timeout: 5))
+    }
+
     func testTrackerTodayPrioritizesActiveWorkout() {
         let app = launchDemo(arguments: ["-uiTestingActiveWorkout"])
         let track = tab("track", in: app)
@@ -834,6 +938,87 @@ final class LiftRankUITests: XCTestCase {
         add(completedSetsScreenshot)
     }
 
+    func testAccessibilityDynamicTypeKeepsWorkoutSetInputsReachable() {
+        let app = launchDemo(arguments: [
+            "-uiTestingActiveWorkout",
+            "-uiTestingActiveWorkoutWithExercise",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ])
+        let resume = app.buttons["home.activeWorkout.resume"]
+        XCTAssertTrue(resume.waitForExistence(timeout: 8))
+        resume.tap()
+
+        let exercise = app.staticTexts["Barbell Bench Press"]
+        XCTAssertTrue(exercise.waitForExistence(timeout: 5))
+        exercise.tap()
+
+        let reps = app.textFields["workout.set.1.reps"]
+        for _ in 0..<8 where !reps.exists {
+            app.swipeUp()
+        }
+        let weight = app.textFields["workout.set.1.weight"]
+        let previousValues = app.buttons.matching(NSPredicate(
+            format: "label == %@ OR label BEGINSWITH %@",
+            "No previous set values",
+            "Use previous workout values:"
+        )).firstMatch
+        let rpe6 = app.buttons["RPE 6"]
+        let setOptions = app.buttons.matching(NSPredicate(format: "label == %@", "Show set options")).firstMatch
+        let completeSet = app.buttons.matching(NSPredicate(format: "label == %@", "Complete set")).firstMatch
+
+        XCTAssertTrue(reps.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["PREVIOUS"].exists)
+        XCTAssertTrue(weight.exists)
+        XCTAssertTrue(previousValues.exists)
+        XCTAssertTrue(rpe6.isHittable)
+        XCTAssertGreaterThanOrEqual(rpe6.frame.height, 48)
+        XCTAssertTrue(setOptions.isHittable)
+        XCTAssertGreaterThanOrEqual(setOptions.frame.height, 52)
+        XCTAssertLessThanOrEqual(setOptions.frame.height, 100)
+        XCTAssertTrue(completeSet.exists)
+        XCTAssertTrue(reps.isHittable)
+        XCTAssertTrue(weight.isHittable)
+        XCTAssertGreaterThanOrEqual(reps.frame.height, 52)
+        XCTAssertGreaterThanOrEqual(weight.frame.height, 52)
+        XCTAssertGreaterThanOrEqual(previousValues.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(completeSet.frame.width, 48)
+
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "Accessibility XXXL workout set entry"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    func testFrenchCommaDecimalWeightCompletesAWorkoutSet() {
+        let app = launchDemo(arguments: [
+            "-uiTestingActiveWorkout",
+            "-uiTestingActiveWorkoutWithExercise",
+            "-AppleLanguages", "(fr)",
+            "-AppleLocale", "fr_FR"
+        ])
+        let resume = app.buttons["home.activeWorkout.resume"]
+        XCTAssertTrue(resume.waitForExistence(timeout: 8))
+        resume.tap()
+
+        let exercise = app.staticTexts["Barbell Bench Press"]
+        XCTAssertTrue(exercise.waitForExistence(timeout: 5))
+        exercise.tap()
+
+        let reps = app.textFields["workout.set.1.reps"]
+        let weight = app.textFields["workout.set.1.weight"]
+        XCTAssertTrue(reps.waitForExistence(timeout: 5))
+        reps.tap()
+        reps.typeText("8")
+        app.buttons["workout.setInput.keyboardAction"].tap()
+        weight.typeText("72,5")
+
+        let completeSet = app.buttons.matching(NSPredicate(format: "label == %@", "Complete set")).firstMatch
+        XCTAssertTrue(completeSet.waitForExistence(timeout: 3))
+        completeSet.tap()
+        XCTAssertTrue(app.buttons["Mark set incomplete"].waitForExistence(timeout: 3))
+    }
+
     func testActiveWorkoutCanCreateAndAddCustomExercise() {
         let app = launchDemo(arguments: ["-uiTestingNoActiveWorkout"])
         let track = tab("track", in: app)
@@ -849,6 +1034,13 @@ final class LiftRankUITests: XCTestCase {
         let addExercise = app.buttons["Add exercise"]
         XCTAssertTrue(addExercise.waitForExistence(timeout: 5))
         addExercise.tap()
+
+        let searchExercises = app.textFields["Search exercises"]
+        XCTAssertTrue(searchExercises.waitForExistence(timeout: 5))
+        searchExercises.tap()
+        searchExercises.typeText("zzzz-no-match")
+        XCTAssertTrue(app.staticTexts["No exercises found"].waitForExistence(timeout: 5))
+        app.buttons["Clear search and filters"].tap()
 
         let createCustom = app.buttons["workout.addExercise.createCustom"]
         XCTAssertTrue(createCustom.waitForExistence(timeout: 5))
@@ -875,6 +1067,52 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Continue workout"].exists)
     }
 
+    func testSinglePlanShowsStopAndSwipeToDeleteActions() {
+        let app = launchDemo()
+        let track = tab("track", in: app)
+        XCTAssertTrue(track.waitForExistence(timeout: 8))
+        track.tap()
+        let plans = app.buttons["tracker.segment.plans"]
+        XCTAssertTrue(plans.waitForExistence(timeout: 5))
+        plans.tap()
+
+        let createPlan = app.buttons["Create plan"]
+        if createPlan.waitForExistence(timeout: 2) {
+            createPlan.tap()
+            let planName = app.textFields["planFromHistory.name"]
+            let phaseName = app.textFields["planFromHistory.phaseName"]
+            XCTAssertTrue(planName.waitForExistence(timeout: 5))
+            XCTAssertTrue(phaseName.waitForExistence(timeout: 5))
+            planName.tap()
+            planName.typeText("Simulator Plan")
+            phaseName.tap()
+            phaseName.typeText("Simulator Phase")
+            let create = app.buttons["planFromHistory.continue"]
+            XCTAssertTrue(create.isEnabled)
+            create.tap()
+        }
+
+        XCTAssertTrue(app.staticTexts["My Plans"].waitForExistence(timeout: 5))
+        let planRow = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "tracker.plan.row.")).firstMatch
+        XCTAssertTrue(planRow.waitForExistence(timeout: 5))
+        planRow.tap()
+        let stopProgram = app.buttons["tracker.program.stop"]
+        XCTAssertTrue(stopProgram.waitForExistence(timeout: 5))
+        stopProgram.tap()
+        XCTAssertTrue(stopProgram.waitForNonExistence(timeout: 5))
+
+        planRow.tap()
+        XCTAssertTrue(stopProgram.waitForExistence(timeout: 5))
+        var scrollAttempts = 0
+        while !planRow.isHittable && scrollAttempts < 6 {
+            app.swipeUp()
+            scrollAttempts += 1
+        }
+        planRow.swipeLeft()
+        let delete = app.buttons["Delete"].firstMatch
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+    }
+
     func testTrackerPlansShowsActivePlanAndProgramLibrary() {
         let app = launchDemo()
         let track = tab("track", in: app)
@@ -889,6 +1127,7 @@ final class LiftRankUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Active program")).firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Workout program library")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["tracker.program.stop"].waitForExistence(timeout: 5))
 
         let planView = app.segmentedControls.firstMatch
         XCTAssertTrue(planView.waitForExistence(timeout: 5))
@@ -930,6 +1169,23 @@ final class LiftRankUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(savedNotes.waitForExistence(timeout: 5))
         XCTAssertTrue(savedNotes.label.contains("ZQ"))
+    }
+
+    func testProgramSessionExerciseDisclosureMeetsMinimumTouchTarget() {
+        let app = launchDemo()
+        let track = tab("track", in: app)
+        XCTAssertTrue(track.waitForExistence(timeout: 8))
+        track.tap()
+
+        let plans = app.buttons["tracker.segment.plans"]
+        XCTAssertTrue(plans.waitForExistence(timeout: 5))
+        plans.tap()
+
+        let disclosure = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "exercises,", "sets")
+        ).firstMatch
+        XCTAssertTrue(disclosure.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(disclosure.frame.height, 44)
     }
 
     func testTrackerPlansOpenPerformance() {
@@ -2096,6 +2352,66 @@ final class LiftRankUITests: XCTestCase {
         add(screenshot)
     }
 
+    func testAccessibilityDynamicTypeKeepsTrackPlanNavigationReachable() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-uiTestingDemoMode",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        let track = tab("track", in: app)
+        XCTAssertTrue(track.waitForExistence(timeout: 8))
+        track.tap()
+
+        let plans = app.buttons["tracker.segment.plans"]
+        XCTAssertTrue(plans.waitForExistence(timeout: 5))
+        XCTAssertTrue(plans.isHittable)
+        plans.tap()
+        XCTAssertTrue(app.staticTexts["Program details"].waitForExistence(timeout: 5))
+
+        let repeatWorkout = app.buttons.matching(identifier: "Repeat workout").firstMatch
+        for _ in 0..<6 where !repeatWorkout.isHittable { app.swipeUp() }
+        XCTAssertTrue(repeatWorkout.isHittable)
+        XCTAssertGreaterThan(repeatWorkout.frame.width, app.windows.firstMatch.frame.width * 0.65)
+    }
+
+    func testAccessibilityDynamicTypeOnboardingCanAdvance() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-uiTestingOnboarding",
+            "-uiTestingPrefilledOnboarding",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        app.launch()
+
+        let build = app.buttons["Build My Lift Rivals"]
+        XCTAssertTrue(build.waitForExistence(timeout: 8))
+        XCTAssertTrue(build.isHittable)
+        build.tap()
+
+        XCTAssertTrue(app.staticTexts["What are you training for?"].waitForExistence(timeout: 5))
+        let focus = app.buttons["onboarding.focus.powerlifting"]
+        XCTAssertTrue(focus.waitForExistence(timeout: 5))
+        for _ in 0..<4 where !focus.isHittable { app.swipeUp() }
+        XCTAssertTrue(focus.isHittable)
+        focus.tap()
+
+        let next = app.buttons["onboarding.next"]
+        XCTAssertTrue(next.isEnabled)
+        XCTAssertTrue(next.isHittable)
+        next.tap()
+
+        XCTAssertTrue(app.staticTexts["Build your lifter profile."].waitForExistence(timeout: 5))
+        let username = app.textFields["Username"]
+        for _ in 0..<10 where !username.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(username.isHittable)
+    }
+
     func testPrimaryNavigationTabsRemainResponsive() {
         let app = launchDemo()
         XCTAssertTrue(tab("home", in: app).waitForExistence(timeout: 8))
@@ -2576,6 +2892,9 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertFalse(app.buttons["profile.athleteOptions"].exists)
         XCTAssertFalse(app.buttons["me.header.settings"].exists)
         XCTAssertFalse(app.buttons["Delete account"].exists)
+
+        app.buttons["profile.section.submissions"].tap()
+        XCTAssertTrue(app.staticTexts["Submissions"].waitForExistence(timeout: 5))
     }
 
     func testProfileShowsVerifiedScoreInPreferredWeightUnit() {
@@ -2659,6 +2978,7 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["me.profileHeader"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["me.header.settings"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["me.header.editProfile"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["1 location · 0 joined"].exists)
 
         let total = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Total submitted strength")).firstMatch
         XCTAssertTrue(total.waitForExistence(timeout: 5))
@@ -2849,14 +3169,14 @@ final class LiftRankUITests: XCTestCase {
         }
     }
 
-    func testCurrentAccountShowsSubmittedVideoAndLeaderboardEntry() {
-        let app = launchCurrentAccount()
-        XCTAssertTrue(tab("profile", in: app).waitForExistence(timeout: 8))
-        tab("profile", in: app).tap()
-
-        let publicProfile = app.buttons["me.publicProfile"]
-        XCTAssertTrue(publicProfile.waitForExistence(timeout: 8))
-        publicProfile.tap()
+    func testDemoCompetitionFixtureShowsSubmittedVideoAndLeaderboardEntry() {
+        let app = launchDemo(arguments: ["-uiTestingCompetitionFixture"])
+        let leaderboard = tab("leaderboards", in: app)
+        XCTAssertTrue(leaderboard.waitForExistence(timeout: 8))
+        leaderboard.tap()
+        let athlete = app.buttons["leaderboard.athlete.A0000000-0000-0000-0000-000000000001"]
+        XCTAssertTrue(athlete.waitForExistence(timeout: 5))
+        athlete.tap()
         XCTAssertTrue(app.descendants(matching: .any)["profile.sectionNavigation"].waitForExistence(timeout: 8))
 
         let videosSection = app.buttons["profile.section.prVideos"]
@@ -2875,8 +3195,6 @@ final class LiftRankUITests: XCTestCase {
         ).firstMatch.exists)
 
         app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(tab("leaderboards", in: app).waitForExistence(timeout: 8))
-        tab("leaderboards", in: app).tap()
         XCTAssertTrue(app.staticTexts["Leaderboards"].waitForExistence(timeout: 8))
 
         app.buttons["leaderboard.ranking.absolute"].tap()
@@ -3111,6 +3429,13 @@ final class LiftRankUITests: XCTestCase {
         app.navigationBars["Bodyweight Entry"].buttons["Cancel"].tap()
         XCTAssertTrue(app.navigationBars["Edit Profile"].waitForExistence(timeout: 5))
         app.navigationBars["Edit Profile"].buttons["Cancel"].tap()
+        XCTAssertTrue(app.buttons["Keep Editing"].waitForExistence(timeout: 3))
+        app.buttons["Keep Editing"].tap()
+        XCTAssertTrue(name.waitForExistence(timeout: 3))
+        XCTAssertEqual(name.value as? String, expected)
+        app.navigationBars["Edit Profile"].buttons["Cancel"].tap()
+        app.buttons["Discard Changes"].tap()
+        XCTAssertFalse(app.navigationBars["Edit Profile"].waitForExistence(timeout: 2))
     }
 
     func testProfilePhotoLibraryOpensAtAccessibilitySize() throws {
@@ -3263,6 +3588,13 @@ final class LiftRankUITests: XCTestCase {
 
     func testFindSubstituteOpensRecommendationsAndExerciseDetails() {
         let app = launchDemo()
+        func capture(_ name: String) {
+            let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+
         XCTAssertTrue(tab("track", in: app).waitForExistence(timeout: 8))
         tab("track", in: app).tap()
         app.buttons["Library"].tap()
@@ -3314,18 +3646,68 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(library.waitForExistence(timeout: 5))
         library.tap()
 
+        let exerciseIndex = app.buttons["Exercise index"]
+        XCTAssertTrue(exerciseIndex.waitForExistence(timeout: 5))
+        let firstExercise = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "45-Degree Back Extension Machine")
+        ).firstMatch
+        XCTAssertTrue(firstExercise.waitForExistence(timeout: 5))
+        XCTAssertFalse(exerciseIndex.frame.intersects(firstExercise.frame), "The alphabet index must not cover an exercise row")
+        exerciseIndex.tap()
+        let jumpToB = app.buttons["B"].firstMatch
+        XCTAssertTrue(jumpToB.waitForExistence(timeout: 5))
+        jumpToB.tap()
+        let benchBeforeSearch = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Barbell Bench Press")).firstMatch
+        for _ in 0..<5 where !benchBeforeSearch.isHittable { app.swipeUp() }
+        XCTAssertTrue(benchBeforeSearch.waitForExistence(timeout: 5))
+        XCTAssertTrue(benchBeforeSearch.isHittable)
+
         let search = app.textFields["Search exercises"]
         XCTAssertTrue(search.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Create custom exercise"].exists)
+        let createExercise = app.buttons["Create custom exercise"]
+        XCTAssertTrue(createExercise.waitForExistence(timeout: 5))
+        createExercise.tap()
+        XCTAssertTrue(app.navigationBars["New Exercise"].waitForExistence(timeout: 5))
+        capture("Audit Custom Exercise Form")
+        let exerciseName = app.textFields["Exercise name"]
+        exerciseName.tap()
+        exerciseName.typeText("Audit exercise")
+        XCTAssertEqual(exerciseName.value as? String, "Audit exercise")
+        capture("Audit Custom Exercise Text Entry")
+        app.navigationBars["New Exercise"].buttons["Cancel"].tap()
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        capture("Audit Exercise Library Jump-to-Letter")
         search.tap()
         search.typeText("Barbell Bench Press")
 
         let bench = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Barbell Bench Press")).firstMatch
         XCTAssertTrue(bench.waitForExistence(timeout: 5))
+        capture("Audit Exercise Library Search Results")
         bench.tap()
 
-        for tab in ["About", "History", "Records", "Charts"] {
-            XCTAssertTrue(app.buttons[tab].waitForExistence(timeout: 5), "Missing \(tab) exercise detail tab")
+        let aboutTab = app.buttons["About"]
+        XCTAssertTrue(aboutTab.waitForExistence(timeout: 5), "Missing About exercise detail tab")
+        app.swipeUp()
+        capture("Audit Exercise Detail About")
+        app.swipeDown()
+        for tab in ["History", "Records", "Charts"] {
+            let tabButton = app.buttons[tab]
+            XCTAssertTrue(tabButton.waitForExistence(timeout: 5), "Missing \(tab) exercise detail tab")
+            tabButton.tap()
+            XCTAssertTrue(tabButton.isSelected, "\(tab) exercise detail tab should be selected")
+            app.swipeUp()
+            capture("Audit Exercise Detail \(tab)")
+            if tab == "History" {
+                let historyEntry = app.buttons.matching(
+                    NSPredicate(format: "label CONTAINS %@", "October 12, 2026")
+                ).firstMatch
+                XCTAssertTrue(historyEntry.waitForExistence(timeout: 5))
+                historyEntry.tap()
+                XCTAssertTrue(app.navigationBars["Workout details"].waitForExistence(timeout: 5))
+                capture("Audit Completed Workout Details")
+                app.navigationBars["Workout details"].buttons["Done"].tap()
+            }
+            app.swipeDown()
         }
         app.buttons["Charts"].tap()
         XCTAssertTrue(app.staticTexts["Includes completed working sets from recovery/deload workouts."].waitForExistence(timeout: 5))
@@ -3570,6 +3952,20 @@ final class LiftRankUITests: XCTestCase {
         add(ageScreenshot)
     }
 
+    func testLeaderboardAthleteIdentityWrapsWithoutTruncation() {
+        let app = launchDemo(arguments: ["-uiTestingCompetitionFixture"])
+        let leaderboards = tab("leaderboards", in: app)
+        XCTAssertTrue(leaderboards.waitForExistence(timeout: 8))
+        leaderboards.tap()
+
+        let identity = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS[c] %@", "Crunch Fitness - South Beach")
+        ).firstMatch
+        XCTAssertTrue(identity.waitForExistence(timeout: 8))
+        XCTAssertTrue(identity.label.contains("Crunch Fitness - South Beach"), identity.label)
+        XCTAssertGreaterThanOrEqual(identity.frame.height, 24, "Athlete identity should wrap instead of clipping")
+    }
+
     func testSubmitLiftProducesSubmissionResult() {
         let app = launchDemo()
         XCTAssertTrue(tab("leaderboards", in: app).waitForExistence(timeout: 8))
@@ -3604,6 +4000,34 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Self-reported"].exists)
         XCTAssertTrue(app.staticTexts["This lift is saved, but no playable video is attached."].exists)
         XCTAssertTrue(app.buttons["lift.submissionDone"].exists)
+    }
+
+    func testSubmitLiftRequiresConfirmationBeforeDiscardingDraft() {
+        let app = launchDemo()
+        XCTAssertTrue(tab("leaderboards", in: app).waitForExistence(timeout: 8))
+        tab("leaderboards", in: app).tap()
+        app.buttons["leaderboard.submitLift"].tap()
+        XCTAssertTrue(app.navigationBars["Submit Lift"].waitForExistence(timeout: 5))
+
+        let caption = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label == %@", "Add a caption (optional)")
+        ).firstMatch
+        for _ in 0..<8 where !caption.isHittable { app.swipeUp() }
+        XCTAssertTrue(caption.waitForExistence(timeout: 5))
+        XCTAssertTrue(caption.isHittable)
+        caption.tap()
+        caption.typeText("Keep this draft")
+
+        let close = app.navigationBars["Submit Lift"].buttons["Close"]
+        XCTAssertTrue(close.exists)
+        close.tap()
+        XCTAssertTrue(app.buttons["Discard Draft"].waitForExistence(timeout: 5))
+        app.buttons["Keep Editing"].tap()
+        XCTAssertTrue(app.navigationBars["Submit Lift"].exists)
+
+        close.tap()
+        app.buttons["Discard Draft"].tap()
+        XCTAssertTrue(app.navigationBars["Submit Lift"].waitForNonExistence(timeout: 5))
     }
 
     func testSubmitLiftGymPickerSearchesFullDirectory() {
@@ -3735,7 +4159,10 @@ final class LiftRankUITests: XCTestCase {
     func testHomeShowsUsefulRecentPREmptyState() {
         let app = launchDemo(arguments: ["-uiTestingEmptyRecentPRs"])
         XCTAssertTrue(tab("home", in: app).waitForExistence(timeout: 8))
-        XCTAssertTrue(app.buttons["home.recentPRs.emptyAction"].waitForExistence(timeout: 5))
+        let emptyAction = app.buttons["home.recentPRs.emptyAction"]
+        for _ in 0..<5 where !emptyAction.isHittable { app.swipeUp() }
+        XCTAssertTrue(emptyAction.waitForExistence(timeout: 5))
+        XCTAssertTrue(emptyAction.isHittable)
         XCTAssertTrue(app.staticTexts["Log your first PR"].exists)
     }
 
@@ -4073,6 +4500,31 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Review policies"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts["STEP 4 OF 4"].exists)
         XCTAssertFalse(app.buttons["Accept and Continue"].isEnabled)
+    }
+
+    func testFreshOnboardingUsesRequestedBodyweightAndLocationPrivacyDefaults() {
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTestingOnboarding"]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["Build My Lift Rivals"].waitForExistence(timeout: 8))
+        app.buttons["Build My Lift Rivals"].tap()
+        XCTAssertTrue(app.staticTexts["What are you training for?"].waitForExistence(timeout: 5))
+        app.buttons["onboarding.focus.generalFitness"].tap()
+        app.buttons["Continue"].tap()
+        XCTAssertTrue(app.staticTexts["Build your lifter profile."].waitForExistence(timeout: 5))
+
+        let hideBodyweight = app.switches["Hide exact bodyweight"]
+        let hideCity = app.switches["Hide city"]
+        var attempts = 0
+        while (!hideBodyweight.isHittable || !hideCity.isHittable) && attempts < 8 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(hideBodyweight.waitForExistence(timeout: 5))
+        XCTAssertTrue(hideCity.waitForExistence(timeout: 5))
+        XCTAssertEqual(hideBodyweight.value as? String, "0")
+        XCTAssertEqual(hideCity.value as? String, "1")
     }
 
     func testUnauthenticatedRoutingDoesNotExposeDemoEntryInReleaseContract() {
@@ -4540,6 +4992,73 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Feed"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Editable UI test discussion")).firstMatch.waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Updated UI test discussion"].waitForNonExistence(timeout: 5))
+    }
+
+    func testForumComposerRequiresConfirmationBeforeDiscardingDraft() {
+        let app = launchDemo()
+        tab("forum", in: app).tap()
+        app.buttons["New discussion"].tap()
+
+        let title = app.textFields["Title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText("Training block draft")
+        let body = app.textFields["forum.composer.body"]
+        body.tap()
+        body.typeText("Keep this text unless I confirm discard.")
+
+        let composer = app.navigationBars["New discussion"]
+        composer.buttons["Cancel"].tap()
+        let discardAlert = app.alerts["Discard discussion draft?"]
+        XCTAssertTrue(discardAlert.waitForExistence(timeout: 5))
+        discardAlert.buttons["Keep Editing"].tap()
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        XCTAssertTrue(body.exists)
+        XCTAssertEqual(title.value as? String, "Training block draft")
+        XCTAssertEqual(body.value as? String, "Keep this text unless I confirm discard.")
+
+        composer.buttons["Cancel"].tap()
+        discardAlert.buttons["Discard Draft"].tap()
+        XCTAssertTrue(composer.waitForNonExistence(timeout: 5))
+    }
+
+    func testForumDemoAuthorUsesHumanReadableLabel() {
+        let app = launchDemo()
+        let forum = tab("forum", in: app)
+        XCTAssertTrue(forum.waitForExistence(timeout: 8))
+        forum.tap()
+        XCTAssertTrue(app.staticTexts["Lift Rivals member"].waitForExistence(timeout: 10))
+    }
+
+    func testEmailConfirmationNoticeDoesNotHideSignInOrResendFailures() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-uiTestingAuthentication",
+            "-uiTestingEmailConfirmationRequired",
+            "-uiTestingConfirmationResendFailure"
+        ]
+        app.launch()
+
+        let email = app.textFields["Email"]
+        XCTAssertTrue(email.waitForExistence(timeout: 8))
+        email.tap()
+        email.typeText("pending@example.test")
+        app.segmentedControls.buttons["Create Account"].tap()
+        app.secureTextFields["Password"].tap()
+        app.secureTextFields["Password"].typeText("ValidPassword123")
+        app.buttons["authentication.email.submit"].tap()
+
+        let notice = app.descendants(matching: .any)["authentication.emailConfirmationNotice"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 5))
+        app.secureTextFields["Password"].tap()
+        app.secureTextFields["Password"].typeText("wrong")
+        app.buttons["authentication.email.submit"].tap()
+        XCTAssertTrue(app.staticTexts["Incorrect email or password. Check your details and try again."].waitForExistence(timeout: 5))
+        XCTAssertTrue(notice.exists)
+
+        app.buttons["Send again"].tap()
+        XCTAssertTrue(app.staticTexts["Lift Rivals couldn't reach the server. Check your connection and try again."].waitForExistence(timeout: 5))
+        XCTAssertTrue(notice.exists)
     }
 
 }

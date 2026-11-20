@@ -1,0 +1,102 @@
+name: iOS tests
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  simulator-tests:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install minimum supported iOS Simulator runtime if missing
+        run: |
+          if ! xcrun simctl list runtimes | grep -Fq "iOS 17.0"; then
+            xcodebuild -downloadPlatform iOS -buildVersion 17.0
+          fi
+          xcrun simctl list runtimes | grep -F "iOS 17.0"
+
+      - name: Select oldest and latest available iPhone simulator runtimes
+        id: simulator
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+
+          devices = json.loads(subprocess.check_output(
+              ["xcrun", "simctl", "list", "devices", "available", "-j"], text=True
+          ))["devices"]
+          runtimes = []
+          for runtime, entries in devices.items():
+              match = re.search(r"iOS-(\d+)-(\d+)$", runtime)
+              iphones = sorted(
+                  (device for device in entries
+                   if device.get("isAvailable") and device.get("name", "").startswith("iPhone")),
+                  key=lambda device: (device["name"], device["udid"]),
+              )
+              if match and iphones:
+                  version = (int(match.group(1)), int(match.group(2)))
+                  runtimes.append((version, runtime, iphones[0]["udid"]))
+
+          if not runtimes:
+              raise SystemExit("No available iPhone simulator runtime found")
+
+          runtimes.sort()
+          if runtimes[0][0] > (17, 0):
+              raise SystemExit(
+                  f"iOS 17.0 simulator runtime is required for minimum-OS verification; "
+                  f"oldest available is {runtimes[0][0][0]}.{runtimes[0][0][1]}"
+              )
+
+          selected = [runtimes[0]]
+          if runtimes[-1][0] != runtimes[0][0]:
+              selected.append(runtimes[-1])
+
+          for _, runtime, udid in selected:
+              print(f"Selected {runtime} on iPhone simulator {udid}")
+
+          output = os.environ["GITHUB_OUTPUT"]
+          with open(output, "a", encoding="utf-8") as stream:
+              stream.write("runtimes<<LIFT_RIVALS_RUNTIMES\n")
+              stream.writelines(f"{runtime}\t{udid}\n" for _, runtime, udid in selected)
+              stream.write("LIFT_RIVALS_RUNTIMES\n")
+          PY
+          xcodebuild -version
+
+      - name: Run unit and UI tests
+        env:
+          SELECTED_RUNTIMES: ${{ steps.simulator.outputs.runtimes }}
+        run: |
+          while IFS=$'\t' read -r runtime udid; do
+            [[ -n "$runtime" && -n "$udid" ]] || continue
+            runtime_label="${runtime##*.iOS-}"
+            result_bundle="${RUNNER_TEMP}/LiftRank-iOS-${runtime_label}.xcresult"
+            echo "Testing $runtime on iPhone simulator $udid"
+            xcodebuild \
+              -project LiftRank.xcodeproj \
+              -scheme LiftRank \
+              -configuration Debug \
+              -destination "platform=iOS Simulator,id=$udid" \
+              -parallel-testing-enabled NO \
+              -resultBundlePath "$result_bundle" \
+              CODE_SIGNING_ALLOWED=NO \
+              test
+          done <<< "$SELECTED_RUNTIMES"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-results
+          path: ${{ runner.temp }}/LiftRank-iOS-*.xcresult
+          if-no-files-found: ignore
+          retention-days: 14

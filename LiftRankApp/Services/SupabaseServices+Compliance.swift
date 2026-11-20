@@ -94,8 +94,18 @@ struct SupabaseAccountDeletionService: AccountDeletionService {
     func deleteAccount() async throws {
         do {
             try await client.functions.invoke("delete-account")
-        } catch {
-            throw SupabaseServiceErrorMapper.map(error)
+        } catch let deletionError {
+            do {
+                _ = try await client.auth.user()
+            } catch let authError as AuthError {
+                if case let .api(_, errorCode, _, _) = authError,
+                   errorCode == .userNotFound {
+                    return
+                }
+            } catch {
+                // Preserve the deletion error when the follow-up check is inconclusive.
+            }
+            throw SupabaseServiceErrorMapper.map(deletionError)
         }
     }
 }

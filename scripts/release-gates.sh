@@ -10,6 +10,7 @@ required_scheme_file="$ROOT/LiftRank.xcodeproj/xcshareddata/xcschemes/LiftRank.x
 required_scheme_name="LiftRank"
 services_check_script="$ROOT/scripts/check_publish_readiness_services.sh"
 metadata_check_script="$ROOT/scripts/check_launch_metadata.sh"
+migration_versions_check_script="$ROOT/scripts/check_migration_versions.sh"
 
 evidence_file="$report_dir/release-evidence.md"
 summary_file="$report_dir/summary.txt"
@@ -315,7 +316,16 @@ Working directory: $ROOT
 - Full status: $source_state_file
 EVIDENCE
 
+for gate_group in run_web_frontend run_ios run_backend; do
+  if [ "${!gate_group}" -ne 1 ]; then
+    gate_name="${gate_group#run_}"
+    log "FAIL: release readiness requires the ${gate_name} gate group to be enabled."
+    capture_status fail "required_gate_group.${gate_name}" "required-gate-group-${gate_name}"
+  fi
+done
+
 verify_baseline_scheme
+run_step "backend.migration_versions" "migration-versions" "$migration_versions_check_script"
 
 if [ -x "$services_check_script" ]; then
   run_step "publish_readiness.services_static_preflight" "ios-services-readiness" "$services_check_script"

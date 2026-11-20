@@ -130,8 +130,30 @@ extension HomeView {
     }
 
     @ViewBuilder
+    var savedAccountDataStatus: some View {
+        if appState.isAuthenticated && !appState.isDemoMode && appState.competitionStore.isProductionDataLoading {
+            HStack(spacing: 10) {
+                ProgressView()
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Loading saved lift data")
+                        .font(.subheadline.weight(.bold))
+                    Text("Your account is still being restored.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                }
+                Spacer(minLength: 4)
+            }
+            .padding(12)
+            .homePanelStyle()
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    @ViewBuilder
     var trainingAlerts: some View {
-        let stalledLifts = Array(appState.plateauInsights.prefix(2))
+        let stalledLifts = Array(appState.plateauInsights
+            .filter { RankingCalculator.strengthTierExerciseIDs.contains($0.exerciseID) }
+            .prefix(2))
         let stalledLiftNames = stalledLifts.map { $0.exerciseName }.joined(separator: ", ")
         let recoveringMuscles = Array(
             appState.recoverySummaries()
@@ -409,9 +431,9 @@ extension HomeView {
 
     private var todayScheduledSessionCompleted: Bool {
         guard let scheduled = appState.scheduledWorkout() else { return false }
-        let planned = appState.prescriptions(for: scheduled.session)
-        guard !planned.isEmpty else { return false }
-        return appState.completedPrescriptionCount(for: scheduled.session) >= planned.count
+        return appState.completedWorkouts.contains {
+            $0.sourceSessionID == scheduled.session.id && !$0.completedWorkingSets.isEmpty
+        } || appState.isFullyCompletedPlanSession(scheduled.session)
     }
 
     private var selectedProgramIsCompleteForHome: Bool {
@@ -470,7 +492,7 @@ extension HomeView {
         let isLoading = appState.isLoadingInitialTrainingData && earnedCount == 0
         let needsSync = earnedCount == 0 && appState.workoutSyncStore.historySyncState == .needsAttention
         return Button {
-            showingAwards = true
+            openWeeklyProgress()
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "medal.fill")
@@ -826,6 +848,7 @@ extension HomeView {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
                     header
+                    savedAccountDataStatus
                     workoutStatus
                     if isFirstWorkout {
                         LiftCard {

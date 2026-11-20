@@ -38,8 +38,13 @@ enum RankingFormatting {
         return "\(verifiedLiftCount) verified \(verifiedLiftCount == 1 ? "lift" : "lifts") • \(ratioText(relativeTotal)) total"
     }
 
-    static func ratioText(_ value: Double) -> String {
-        String(format: "%.2fx", value)
+    static func ratioText(_ value: Double, locale: Locale = .current) -> String {
+        MeasurementFormatting.localizedDecimalText(
+            value,
+            locale: locale,
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        ) + "x"
     }
 
     static func weightClassDisplayName(_ weightClass: WeightClass, preferredUnit: UnitSystem) -> String {

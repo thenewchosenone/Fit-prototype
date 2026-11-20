@@ -435,8 +435,8 @@ extension TrainingTrackerView {
                 Text("Recently trained muscles")
                     .font(LiftTypography.cardTitle)
                 Spacer()
-                Text("last 7 days")
-                    .font(.caption2.weight(.semibold))
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
                     .foregroundStyle(Color.liftMuted)
             }
 
@@ -494,20 +494,7 @@ extension TrainingTrackerView {
                 .tint(Color.liftAccentText)
             }
         }
-        .padding(14)
-        .background(Color.liftCard)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.liftOverlay, lineWidth: 1)
-        }
-    }
-
-    private func recoveryAgeText(_ hours: Int) -> String {
-        if hours < 1 { return "trained just now" }
-        if hours < 24 { return "trained \(hours)h ago" }
-        let days = hours / 24
-        return "trained \(days)d ago"
+        .buttonStyle(.plain)
     }
 
     private func strengthGoalOverview(exercise: TrainingExerciseCatalogItem, latestEstimate: ExerciseProgressPoint?) -> some View {
@@ -691,6 +678,7 @@ extension TrainingTrackerView {
                 .filter { $0.date >= start && $0.date <= now && !($0.workoutID.map { recoveryIDs.contains($0) } ?? false) }
         )
         let chartPoints = ExerciseProgressSeries.dailyHighest(from: setPoints)
+        let recordedSessionCount = Set(setPoints.compactMap(\.workoutID)).count
         let estimatedMaxPoints = ExerciseProgressSeries.dailyHighestEstimatedOneRepMax(from: setPoints)
 
         return VStack(alignment: .leading, spacing: 12) {

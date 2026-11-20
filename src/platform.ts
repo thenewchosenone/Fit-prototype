@@ -11,6 +11,13 @@ import type {
   VerificationLevel
 } from "./types";
 
+const gymCatalogStaleAfterMs = 14 * 24 * 60 * 60 * 1000;
+
+export function isGymCatalogStale(generatedAtValue: string, now = Date.now()): boolean {
+  const generatedAt = Date.parse(generatedAtValue);
+  return !Number.isFinite(generatedAt) || now - generatedAt > gymCatalogStaleAfterMs;
+}
+
 export function primaryMuscleForExercise(exercise: Pick<Exercise, "name" | "bodyPart">): string {
   const name = exercise.name.toLowerCase();
   if (exercise.bodyPart === "Arms") {

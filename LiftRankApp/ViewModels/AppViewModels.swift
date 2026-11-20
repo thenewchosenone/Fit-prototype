@@ -9,6 +9,8 @@ import UserNotifications
 @MainActor
 final class AppState: ObservableObject {
     static let maximumJoinedGyms = 3
+    static let emailConfirmationSuccessMessage = "Email confirmed. Sign in with your email and password to continue."
+    static let emailConfirmationSetupMessage = "Your email is confirmed, but we couldn't finish opening your account. Sign in to continue."
     private static let launchLog = OSLog(subsystem: "com.liftrank.app", category: "Launch")
 #if DEBUG
     private static let uiTestGymFixture = Gym(
@@ -44,6 +46,7 @@ final class AppState: ObservableObject {
     private let friendActivityNetworkMonitor = NWPathMonitor()
     private var friendActivityWasConnected: Bool?
     var profilePhotoMutation = 0
+    var profilePhotoDownloadsInFlight: Set<String> = []
     let router: AppRouter
     let sessionStore: SessionStore
     let profileStore: ProfileStore
@@ -474,6 +477,9 @@ final class AppState: ObservableObject {
                     }
                 }
             }
+            if ProcessInfo.processInfo.arguments.contains("-uiTestingEmptyCurrentUserLifts") {
+                repository.lifts.removeAll { $0.userID == repository.currentProfile.id }
+            }
             return
         }
 #endif
@@ -583,7 +589,23 @@ final class AppState: ObservableObject {
     func handleAuthCallback(_ url: URL) async {
         guard url.scheme?.lowercased() == "liftrank",
               url.host?.lowercased() == "auth-callback" else { return }
-        let isRecovery = Self.authCallbackValue(named: "type", in: url) == "recovery"
+        let callbackType = Self.authCallbackValue(named: "type", in: url)?.lowercased()
+        let isRecovery = callbackType == "recovery"
+        let hasCallbackError = ["error", "error_code", "error_description"].contains {
+            Self.authCallbackValue(named: $0, in: url) != nil
+        }
+        let isEmailConfirmation = !isRecovery && (
+            callbackType == "signup" ||
+            Self.authCallbackValue(named: "code", in: url) != nil ||
+            Self.authCallbackValue(named: "access_token", in: url) != nil
+        )
+
+        if isEmailConfirmation, hasCallbackError {
+            accountMessage = "We couldn't confirm your email. The link may have expired; request a new confirmation email and try again."
+            accountStatus = .signedOut
+            return
+        }
+
         await performAccountOperation {
             self.showingPasswordUpdate = false
             self.accountSession = try await self.sessionStore.handleAuthCallback(url)
@@ -742,6 +764,7 @@ final class AppState: ObservableObject {
         guard CommunityContentPolicy.allows(draft.username, draft.displayName, draft.bio) else {
             throw LiftRankServiceError.invalidInput(CommunityContentPolicy.rejectionMessage)
         }
+        let wasAwaitingOnboardingCompletion = accountStatus == .needsOnboarding
         if allowUsernameChange {
             _ = try await profileStore.changeAuthenticatedUsername(
                 draft.username,
@@ -756,12 +779,15 @@ final class AppState: ObservableObject {
         )
         authenticatedPrivacy = profile.privacy
         if profile.onboardingCompleted {
-            await track(.onboardingCompleted)
+            if wasAwaitingOnboardingCompletion { await track(.onboardingCompleted) }
             try await refreshLegalAcceptanceStatus()
         } else {
             accountStatus = .needsOnboarding
         }
         await refreshRemoteSocialState()
+        if wasAwaitingOnboardingCompletion, let userID = accountSession?.userID {
+            schedulePostAuthenticationRefresh(for: userID)
+        }
     }
 
     func fetchStrengthGoalTargets() async throws -> [String: Double]? {
@@ -915,7 +941,10 @@ final class AppState: ObservableObject {
 
     private func synchronizeAuthenticatedBodyweightEntries(for userID: UUID) async {
         do {
-            let entries = try await profileStore.synchronizeBodyweightEntries(repository.bodyweightEntries)
+            let entries = try await profileStore.synchronizeBodyweightEntries(
+                repository.bodyweightEntries,
+                knownSyncedIDs: repository.syncedBodyweightEntryIDs
+            )
             guard accountSession?.userID == userID,
                   repository.currentProfile.id == userID,
                   accountStatus == .authenticated || accountStatus == .guest else {
@@ -924,6 +953,7 @@ final class AppState: ObservableObject {
             if repository.bodyweightEntries != entries {
                 repository.bodyweightEntries = entries
             }
+            repository.syncedBodyweightEntryIDs.formUnion(entries.map(\.id))
             let currentWeight = repository.currentProfile.bodyweightPounds
             let reconciledWeight = ProfileDataAuthority.latestLoggedBodyweight(
                 profilePounds: currentWeight,
@@ -1023,7 +1053,7 @@ final class AppState: ObservableObject {
 
     func refreshProductionLaunchData() async {
         guard isAuthenticated, !isDemoMode else { return }
-        async let competitionRefresh: Void = competitionStore.refreshProductionData()
+        async let competitionRefresh = competitionStore.refreshProductionData()
         async let notificationRefresh: Void = notificationStore.refreshProductionData()
         async let blockRefresh: Void = accountSocialStore.refreshBlocks()
         _ = await (competitionRefresh, notificationRefresh, blockRefresh)
@@ -1171,6 +1201,9 @@ final class AppState: ObservableObject {
     var notifications: [NotificationItem] { notificationStore.notifications }
     var sortedNotifications: [NotificationItem] { notificationStore.sortedNotifications }
     var unreadNotificationCount: Int { notificationStore.unreadCount }
+    var isRefreshingNotifications: Bool { notificationStore.isRefreshing }
+    var hasLoadedNotifications: Bool { notificationStore.hasLoaded }
+    var notificationRefreshError: String? { notificationStore.refreshError }
     var workoutPlans: [WorkoutPlan] { repository.workoutPlans }
     var workoutPhases: [WorkoutPhase] { repository.workoutPhases }
     var workoutWeeks: [WorkoutWeek] { repository.workoutWeeks }
@@ -1317,6 +1350,10 @@ final class AppState: ObservableObject {
 
     func markAllNotificationsRead() {
         notificationStore.markAllRead()
+    }
+
+    func refreshNotifications() async {
+        await notificationStore.refreshProductionData()
     }
 
     func openNotification(_ notification: NotificationItem) {
@@ -1483,7 +1520,18 @@ extension AppState {
     }
 
     var strengthAttentionInsights: [TrainingAttentionInsight] {
-        trainingProgressStore.strengthAttentionInsights(summary: strengthTierSummary)
+        let activePlan = workoutPlans.first(where: { $0.isActive })
+        let weekIDs = Set(workoutWeeks.filter { $0.planID == activePlan?.id }.map(\.id))
+        let sessionIDs = Set(workoutSessions.filter { weekIDs.contains($0.weekID) }.map(\.id))
+        let catalogByID = Dictionary(trainingExerciseLibrary.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let plannedRankingExerciseIDs = Set(workoutPrescriptions.filter { sessionIDs.contains($0.sessionID) }.compactMap { prescription in
+            catalogByID[prescription.exerciseID]?.rankingExerciseID
+        })
+        return trainingProgressStore.strengthAttentionInsights(
+            summary: strengthTierSummary,
+            activePlanExerciseIDs: activePlan == nil ? nil : plannedRankingExerciseIDs,
+            trainingFocus: currentProfile.trainingFocus
+        )
     }
 
     func recoverySummaries(referenceDate: Date = .now) -> [TrainingRecoverySummary] {

@@ -197,7 +197,7 @@ final class ActiveWorkoutStore {
         historyDate: Date? = nil
     ) -> ActiveWorkoutState? {
         guard workout == nil else { return nil }
-        return repository.startWorkout(
+        let started = repository.startWorkout(
             session: session,
             planID: planID,
             gymID: gymID,
@@ -206,6 +206,8 @@ final class ActiveWorkoutStore {
             historyDate: historyDate,
             at: now()
         )
+        scheduleInactivityReminder(for: started)
+        return started
     }
 
     @discardableResult
@@ -217,7 +219,7 @@ final class ActiveWorkoutStore {
         historyDate: Date? = nil
     ) -> ActiveWorkoutState? {
         guard workout == nil else { return nil }
-        return repository.startFreestyleWorkout(
+        let started = repository.startFreestyleWorkout(
             name: name,
             gymID: gymID,
             bodyweight: bodyweight,
@@ -225,6 +227,8 @@ final class ActiveWorkoutStore {
             historyDate: historyDate,
             at: now()
         )
+        scheduleInactivityReminder(for: started)
+        return started
     }
 
     @discardableResult
@@ -235,13 +239,15 @@ final class ActiveWorkoutStore {
         unit: UnitSystem
     ) -> ActiveWorkoutState? {
         guard workout == nil else { return nil }
-        return repository.repeatWorkout(
+        let started = repository.repeatWorkout(
             completedWorkout,
             gymID: gymID,
             bodyweight: bodyweight,
             unit: unit,
             at: now()
         )
+        scheduleInactivityReminder(for: started)
+        return started
     }
 
     func addExercises(_ exercises: [TrainingExerciseCatalogItem]) {
@@ -271,6 +277,12 @@ final class ActiveWorkoutStore {
 
     func updateSet(_ log: WorkoutSetLog) {
         repository.updateWorkoutSetLog(log)
+        if log.isComplete && !log.isWarmup, let workout {
+            SystemWorkoutRestNotificationScheduler.shared.scheduleInactivityReminder(
+                at: now().addingTimeInterval(2 * 60 * 60),
+                workoutName: workout.name
+            )
+        }
     }
 
     func copyLastCompletedSetToEmptySets(in exercise: WorkoutExerciseSnapshot) {
@@ -393,10 +405,12 @@ final class ActiveWorkoutStore {
 
     func pause() {
         repository.pauseActiveWorkout(at: now())
+        SystemWorkoutRestNotificationScheduler.shared.cancelInactivityReminder()
     }
 
     func resume() {
         repository.resumeActiveWorkout(at: now())
+        scheduleInactivityReminder(for: workout)
     }
 
     func updateRestTimer(endsAt: Date?, exerciseID: UUID?) {
@@ -409,6 +423,7 @@ final class ActiveWorkoutStore {
     func discard() {
         repository.discardActiveWorkout()
         restNotificationScheduler.cancel()
+        SystemWorkoutRestNotificationScheduler.shared.cancelInactivityReminder()
         repository.scheduleWorkoutSnapshotPersistence()
     }
 
@@ -522,6 +537,14 @@ final class ActiveWorkoutStore {
         trackingKind(for: set, workout: workout) == .weightReps ? set.volume(in: workout.unit) : 0
     }
 
+    private func scheduleInactivityReminder(for workout: ActiveWorkoutState?) {
+        guard let workout else { return }
+        SystemWorkoutRestNotificationScheduler.shared.scheduleInactivityReminder(
+            at: now().addingTimeInterval(2 * 60 * 60),
+            workoutName: workout.name
+        )
+    }
+
     private func resetAccountScopedDraftIfNeeded() {
         guard cachedUserID != repository.currentProfile.id else { return }
         cachedUserID = repository.currentProfile.id
@@ -533,6 +556,7 @@ final class ActiveWorkoutStore {
         cachedPreviousWorkoutSetLookupSignature = nil
         cachedSetLogIndex = nil
         cachedSetLogIndexSignature = nil
+        SystemWorkoutRestNotificationScheduler.shared.cancelInactivityReminder()
         repository.clearActiveWorkoutDraft()
     }
 

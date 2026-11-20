@@ -8,16 +8,7 @@ struct ExerciseCatalogIcon: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.075, green: 0.082, blue: 0.105),
-                            Color(red: 0.115, green: 0.122, blue: 0.15)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+                .fill(Color.liftCardRaised)
                 .overlay {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(Color.liftOverlay.opacity(0.7), lineWidth: 1)
@@ -99,6 +90,20 @@ struct ExerciseCatalogIcon: View {
         if bodyPart.contains("chest") || bodyPart.contains("shoulder") { return .push }
         if bodyPart.contains("back") || bodyPart.contains("lat") { return .pull }
         return .strength
+    }
+
+    private var iconSymbol: String {
+        switch exercise.movementPattern {
+        case .horizontalPress: "figure.strengthtraining.traditional"
+        case .verticalPress: "figure.stand"
+        case .horizontalPull: "figure.rower"
+        case .verticalPull: "figure.climbing"
+        case .squat, .hinge, .lunge, .calf: "figure.strengthtraining.functional"
+        case .curl, .elbowExtension, .shoulderIsolation: "figure.arms.open"
+        case .core: "figure.core.training"
+        case .carry: "figure.walk"
+        case .other: iconGroup.symbol
+        }
     }
 }
 

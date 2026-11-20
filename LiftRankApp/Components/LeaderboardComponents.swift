@@ -138,9 +138,16 @@ struct LeaderboardTabBar: View {
                         ForEach(types) { type in
                             tabButton(type)
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(selection == type ? .isSelected : [])
+                        .id(type.id)
                     }
                     .padding(.horizontal, 16)
                 }
+                .padding(.horizontal, 16)
+            }
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(Color.liftOverlay).frame(height: 1)
             }
         }
         .overlay(alignment: .bottom) {
@@ -299,7 +306,8 @@ struct CompactLeaderboardRow: View {
                     if entry.lift.resolvedEvidenceStatus == .videoBacked {
                         Image(systemName: "video.fill")
                             .font(.caption2)
-                            .foregroundStyle(Color.liftAccentText)
+                            .foregroundStyle(Color.liftMuted.opacity(0.84))
+                            .lineLimit(1)
                     }
                     if isCurrentUser {
                         Text("YOU")
@@ -317,6 +325,8 @@ struct CompactLeaderboardRow: View {
                         .font(.caption2)
                         .foregroundStyle(Color.liftMuted)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    movementLabel(movement).frame(width: 48, alignment: .trailing)
                 }
                 Text(detailText)
                     .font(.caption2)
@@ -379,6 +389,54 @@ struct CompactLeaderboardRow: View {
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func accessibilityLayout(
+        valueText: String,
+        movement: LeaderboardMovementPresentation
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                Text("\(entry.rank)")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(rankColor)
+                ProfileAvatar(profile: entry.profile, size: 40)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(entry.profile.displayName)
+                            .font(.headline.weight(.semibold))
+                            .fixedSize(horizontal: false, vertical: true)
+                        if entry.lift.verificationStatus != .selfReported {
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.caption)
+                                .foregroundStyle(Color.liftAccentText)
+                        }
+                        if isCurrentUser {
+                            Text("YOU")
+                                .font(.caption.weight(.black))
+                                .foregroundStyle(Color.liftAccentText)
+                        }
+                    }
+                    if showsGym {
+                        Text(entry.profile.hideGym ? "Gym hidden" : entry.profile.primaryGymName)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.liftMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Text(detailText)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.liftMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack {
+                Text(valueText)
+                    .font(.headline.weight(.semibold))
+                Spacer()
+                movementLabel(movement)
             }
         }
     }
@@ -584,6 +642,8 @@ struct LeaderboardOptionSheet: View {
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityLabel(option.title)
+                                .accessibilityValue(option.id == selectedID ? "Selected" : "Not selected")
                                 .accessibilityIdentifier("option.\(option.id)")
                                 .accessibilityAddTraits(option.id == selectedID ? .isSelected : [])
                                 Divider().overlay(Color.liftOverlay).padding(.leading, 56)

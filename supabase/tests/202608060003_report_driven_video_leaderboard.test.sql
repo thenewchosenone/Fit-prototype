@@ -19,6 +19,7 @@ select is(
     join pg_catalog.pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
       and p.proname = 'get_ranked_lift_ids'
+      and p.pronargs = 12
   ),
   '{search_path=pg_catalog}',
   'leaderboard authority has a fixed search path'

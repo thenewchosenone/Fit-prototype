@@ -15,9 +15,11 @@ extension TrainingTrackerView {
         return VStack(alignment: .leading, spacing: 18) {
             if let week = weeks.last {
                 if week.hasHistory {
+                    muscleMapCard(week: week)
                     muscleWorkloadList(week: week, weeks: weeks)
                     muscleVolumeDetails(referenceDate: referenceDate)
                 } else {
+                    muscleMapCard(week: week)
                     VStack(alignment: .leading, spacing: 10) {
                         musclePeriodHeader
                         Text("No working sets logged for this week")
@@ -61,6 +63,50 @@ extension TrainingTrackerView {
         }
     }
 
+    private func muscleMapCard(week: MuscleTrainingWeek) -> some View {
+        let muscles = ExerciseMuscleRegion.allCases.filter { muscle in
+            muscle != .fullBody &&
+                (week.counts[muscle, default: 0] > 0 || week.secondaryCounts[muscle, default: 0] > 0) &&
+                muscle.isBackFacing == (selectedMuscleMapOrientation == .back)
+        }
+        let profile = ExerciseMuscleProfile(
+            primary: muscles.filter { week.counts[$0, default: 0] > 0 },
+            secondary: muscles.filter { week.counts[$0, default: 0] == 0 && week.secondaryCounts[$0, default: 0] > 0 },
+            orientation: selectedMuscleMapOrientation
+        )
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Muscle map")
+                        .font(.headline.weight(.bold))
+                    Text("Highlights muscles from this week’s completed sets.")
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+                }
+                Spacer(minLength: 8)
+                Picker("Muscle map view", selection: $selectedMuscleMapOrientation) {
+                    Text("Front").tag(ExerciseMuscleMapOrientation.front)
+                    Text("Back").tag(ExerciseMuscleMapOrientation.back)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 132)
+            }
+            ExerciseMuscleMap(profile: profile, displayStyle: .hero)
+                .frame(height: 250)
+                .accessibilityLabel("\(selectedMuscleMapOrientation == .front ? "Front" : "Back") muscle map for this week")
+            HStack(spacing: 14) {
+                Label("Primary", systemImage: "circle.fill")
+                    .foregroundStyle(Color.liftAccentText)
+                Label("Secondary", systemImage: "circle.fill")
+                    .foregroundStyle(Color.liftAccentText)
+            }
+            .font(.caption2.weight(.semibold))
+        }
+        .padding(14)
+        .liftSurface(radius: 12)
+    }
+
     private var musclePeriodHeader: some View {
         let layout = dynamicTypeSize >= .xxxLarge
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
@@ -90,7 +136,8 @@ extension TrainingTrackerView {
     private func muscleAttention(referenceDate: Date) -> some View {
         let insights = appState.trainingProgressStore.muscleAttentionInsights(
             referenceDate: referenceDate, includeReferenceWeek: selectedVolumeWeek == .lastWeek,
-            trainingFocus: appState.currentProfile.trainingFocus
+            trainingFocus: appState.currentProfile.trainingFocus,
+            plannedPrimaryMuscles: plannedPrimaryMuscles
         )
         if let first = insights.first {
             DisclosureGroup {
@@ -121,6 +168,18 @@ extension TrainingTrackerView {
             .tint(Color.liftAccentText)
             .frame(minHeight: LiftDesign.minimumTouchTarget)
         }
+    }
+
+    private var plannedPrimaryMuscles: Set<ExerciseMuscleRegion> {
+        guard let plan = appState.workoutPlans.first(where: \.isActive),
+              let week = appState.currentSelectedProgramWeek,
+              week.planID == plan.id else { return [] }
+        let sessionIDs = Set(appState.sessions(for: week).map(\.id))
+        let catalog = Dictionary(appState.trainingExerciseLibrary.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return Set(appState.workoutPrescriptions.filter { sessionIDs.contains($0.sessionID) }.flatMap { prescription in
+            (prescription.muscleProfile ?? catalog[prescription.exerciseID]?.resolvedMuscleProfile)?.primary ??
+                ExerciseMuscleProfileResolver.profile(name: prescription.exerciseName, bodyPart: prescription.bodyPart).primary
+        })
     }
 
     private func muscleWorkloadList(week: MuscleTrainingWeek, weeks: [MuscleTrainingWeek]) -> some View {

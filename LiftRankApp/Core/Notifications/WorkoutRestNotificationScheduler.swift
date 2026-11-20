@@ -91,6 +91,7 @@ final class SystemWorkoutRestNotificationScheduler: WorkoutRestNotificationSched
     @Published private(set) var status: WorkoutRestAlertStatus = .inactive
 
     private let identifier = "liftrank-active-rest-timer"
+    private let inactivityIdentifier = "liftrank-open-workout-reminder"
     private let center: UNUserNotificationCenter
     private let revisionLock = NSLock()
     private var revision = 0

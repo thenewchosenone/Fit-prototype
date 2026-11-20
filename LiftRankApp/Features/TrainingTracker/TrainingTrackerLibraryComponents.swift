@@ -425,6 +425,7 @@ struct ProgramAddExercisePickerView: View {
     @State private var selectedBodyPart = "All"
     @State private var selectedEquipment = "All"
     @State private var selectedExerciseIDs: Set<String> = []
+    @State private var selectedExerciseOrder: [String] = []
     @State private var previewExercise: TrainingExerciseCatalogItem?
 
     private let bodyPartFilters = ["All", "Chest", "Back", "Shoulders", "Arms", "Legs", "Glutes", "Core"]
@@ -452,9 +453,7 @@ struct ProgramAddExercisePickerView: View {
     }
 
     private var selectedExercises: [TrainingExerciseCatalogItem] {
-        appState.trainingExerciseLibrary
-            .filter { selectedExerciseIDs.contains($0.id) }
-            .sorted { $0.name < $1.name }
+        selectedExerciseOrder.compactMap { id in appState.trainingExerciseLibrary.first { $0.id == id } }
     }
 
     var body: some View {
@@ -629,13 +628,13 @@ struct ProgramAddExercisePickerView: View {
             Button {
                 previewExercise = exercise
             } label: {
-                Image(systemName: "info.circle")
+                    Image(systemName: "slider.horizontal.3")
                     .font(.headline)
                     .foregroundStyle(Color.liftMuted)
                     .frame(width: 44, height: 44)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Preview and configure \(exercise.name)")
+                .accessibilityLabel("Configure \(exercise.name)")
 
             Button {
                 toggleSelection(exercise)
@@ -703,8 +702,10 @@ struct ProgramAddExercisePickerView: View {
     private func toggleSelection(_ exercise: TrainingExerciseCatalogItem) {
         if selectedExerciseIDs.contains(exercise.id) {
             selectedExerciseIDs.remove(exercise.id)
+            selectedExerciseOrder.removeAll { $0 == exercise.id }
         } else {
             selectedExerciseIDs.insert(exercise.id)
+            selectedExerciseOrder.append(exercise.id)
         }
         Haptics.light()
     }

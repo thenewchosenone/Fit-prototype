@@ -12,7 +12,17 @@ import { ORANGETHEORY_SOURCE_URL, UFC_GYM_SOURCE_URL, fetchOrangetheoryLocations
 import { catalogId, normalizedAddressKey, slug, stateName } from "./gym-sources/normalize.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const outputPath = resolve(root, "src/gymCatalog.json");
+const catalogPath = resolve(root, "src/gymCatalog.json");
+const metadataPath = resolve(root, "src/gymCatalogMetadata.json");
+const outputArgumentIndex = process.argv.indexOf("--output");
+const outputOverride = outputArgumentIndex >= 0 ? process.argv[outputArgumentIndex + 1] : null;
+if (outputArgumentIndex >= 0 && (!outputOverride || outputOverride.startsWith("--"))) {
+  throw new Error("--output requires a new file path");
+}
+const outputPath = outputOverride ? resolve(outputOverride) : catalogPath;
+if (outputOverride && existsSync(outputPath)) {
+  throw new Error(`Refusing to overwrite existing output: ${outputPath}`);
+}
 const allowLargeChange = process.argv.includes("--allow-large-change");
 const preserveBlockedSource = process.argv.includes("--preserve-blocked-source");
 
@@ -101,7 +111,11 @@ for (const source of sourceDefinitions) {
 validateLocations(collected);
 collected.sort((a, b) => a.state.localeCompare(b.state) || a.city.localeCompare(b.city) || a.brand.localeCompare(b.brand) || a.name.localeCompare(b.name));
 const counts = Object.fromEntries(sources.map((source) => [source.brand, source.count]));
-const catalog = { generatedAt: new Date().toISOString(), sources, counts, gyms: collected };
+const generatedAt = new Date().toISOString();
+const catalog = { generatedAt, sources, counts, gyms: collected };
 await writeFile(outputPath, `${JSON.stringify(catalog, null, 2)}\n`);
+if (!outputOverride) {
+  await writeFile(metadataPath, `${JSON.stringify({ generatedAt }, null, 2)}\n`);
+}
 console.log(`Wrote ${collected.length} open U.S. gyms to ${outputPath}`);
 console.log(counts);

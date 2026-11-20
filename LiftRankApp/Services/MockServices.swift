@@ -52,6 +52,13 @@ final class MockAuthenticationService: AuthenticationService {
         throw LiftRankServiceError.configurationMissing
     }
     func signIn(email: String, password: String) async throws -> AccountSession { throw LiftRankServiceError.invalidCredentials }
+    func resendConfirmation(email: String) async throws {
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-uiTestingConfirmationResendFailure") {
+            throw LiftRankServiceError.networkUnavailable
+        }
+#endif
+    }
     func requestPasswordReset(email: String) async throws {}
     func signInWithApple(identityToken: String, nonce: String) async throws -> AccountSession { throw LiftRankServiceError.invalidCredentials }
     func signInDemo() async throws -> UserProfile {
@@ -68,7 +75,7 @@ final class MockProfileService: ProfileService {
     private var shouldFailNextSettingsSave = ProcessInfo.processInfo.arguments.contains("-uiTestingSettingsSaveFailure")
     init(repository: DemoRepository) { self.repository = repository }
     func currentProfile() async throws -> UserProfile { repository.currentProfile }
-    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry]) async throws -> [BodyweightEntry] { localEntries }
+    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry], knownSyncedIDs: Set<UUID>) async throws -> [BodyweightEntry] { localEntries }
     func saveBodyweightEntry(_ entry: BodyweightEntry) async throws {}
     func deleteBodyweightEntry(id: UUID) async throws {}
     func updateProfile(_ profile: UserProfile) async throws -> UserProfile {
@@ -238,7 +245,8 @@ final class MockLeaderboardService: LeaderboardService {
             lifts: filtered,
             rankingType: filters.rankingType,
             verifiedOnly: verifiedOnly,
-            currentUserID: repository.currentProfile.id
+            currentUserID: repository.currentProfile.id,
+            repetitionCount: filters.repetitionCount
         )
     }
 }
@@ -618,11 +626,21 @@ final class MockForumService: ForumService {
 @MainActor
 final class MockWorkoutSyncService: WorkoutSyncService {
     private var planDocuments: [WorkoutPlanDocument] = []
+    private(set) var deletedPlanIDs: Set<UUID> = []
     private var snapshots: [CompletedWorkoutSnapshot] = []
     var failNextPlanDeletion = false
+    var failDeletedWorkoutPlanIDFetch = false
     func plans() async throws -> [WorkoutPlanDocument] { planDocuments }
+    func deletedWorkoutPlanIDs() async throws -> Set<UUID> {
+        if failDeletedWorkoutPlanIDFetch {
+            failDeletedWorkoutPlanIDFetch = false
+            throw LiftRankServiceError.invalidInput("Simulated tombstone fetch failure")
+        }
+        return deletedPlanIDs
+    }
     func savePlan(_ document: WorkoutPlanDocument, expectedRevision: Int) async throws -> WorkoutSyncResult {
         guard !document.isSeededDemoData else { throw LiftRankServiceError.invalidInput("Demo data cannot be synced.") }
+        guard !deletedPlanIDs.contains(document.id) else { throw LiftRankServiceError.invalidInput("Workout plan has been deleted.") }
         if let current = planDocuments.first(where: { $0.id == document.id }), current.revision != expectedRevision {
             let payload = try JSONDecoder().decode(WorkoutPlanSyncPayload.self, from: document.payload)
             let serverPayload = try JSONDecoder().decode(WorkoutPlanSyncPayload.self, from: current.payload)
@@ -643,6 +661,7 @@ final class MockWorkoutSyncService: WorkoutSyncService {
             failNextPlanDeletion = false
             throw LiftRankServiceError.invalidInput("Simulated plan deletion failure")
         }
+        deletedPlanIDs.insert(id)
         planDocuments.removeAll { $0.id == id }
     }
     func deleteDuplicatePlan(_ document: WorkoutPlanDocument) async throws -> Bool {

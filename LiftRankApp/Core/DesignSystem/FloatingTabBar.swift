@@ -94,4 +94,8 @@ struct FloatingTabBar: View {
             Label(item.title, systemImage: item.icon)
         }
     }
+
+    private func usesCompactTabTitle(_ item: FloatingTabItem) -> Bool {
+        item.tab == .leaderboards && dynamicTypeSize >= .xxxLarge
+    }
 }

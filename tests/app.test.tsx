@@ -158,6 +158,7 @@ describe("Lift Rivals platform UI", () => {
 
     expect(await screen.findByRole("heading", { name: "Gyms" })).toBeVisible();
     expect(await screen.findByLabelText("Brand")).toHaveValue("All");
+    await screen.findByRole("option", { name: "YouFit" });
     await user.selectOptions(screen.getByLabelText("Brand"), "YouFit");
     expect(screen.getByText("YouFit Gyms - Weston")).toBeVisible();
     expect(screen.queryByText("Crunch Fitness - South Beach")).not.toBeInTheDocument();
@@ -311,6 +312,22 @@ describe("Lift Rivals platform UI", () => {
     await user.click(screen.getAllByRole("link", { name: "Profile" })[0]);
     expect(await screen.findByText(/@rjrob23 · Olympic Weightlifting · Advanced/)).toBeVisible();
     expect(screen.getByText("95.0 kg")).toBeVisible();
+  });
+
+  it("loads the complete gym directory from Settings only when requested", async () => {
+    const user = userEvent.setup();
+    const initialState = structuredClone(seedState);
+    initialState.gyms = initialState.gyms.slice(0, 20);
+    renderApp("/settings", initialState);
+
+    expect(await screen.findByRole("heading", { name: "Profile and settings" })).toBeVisible();
+    const gymSelect = screen.getByLabelText("Primary gym") as HTMLSelectElement;
+    const initialOptionCount = gymSelect.options.length;
+    expect(screen.getByRole("button", { name: "Load full gym directory" })).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Load full gym directory" }));
+    await waitFor(() => expect(gymSelect.options.length).toBeGreaterThan(initialOptionCount));
+    expect(screen.queryByRole("button", { name: "Load full gym directory" })).not.toBeInTheDocument();
   });
 
   it("previews profile-photo crop controls without adding the image to tracker state", async () => {

@@ -104,7 +104,20 @@ final class SupabaseSocialService: SocialService {
     func unblock(userID: UUID) async throws { try await rpc("unblock_user", userID) }
     func blocks() async throws -> [UserBlockRecord] {
         do {
-            let rows: [BlockDTO] = try await client.from("user_blocks").select().order("created_at", ascending: false).limit(500).execute().value
+            let pageSize = 500
+            var rows: [BlockDTO] = []
+            var offset = 0
+            while true {
+                let page: [BlockDTO] = try await client.from("user_blocks")
+                    .select()
+                    .order("created_at", ascending: false)
+                    .order("blocked_id")
+                    .range(from: offset, to: offset + pageSize - 1)
+                    .execute().value
+                rows.append(contentsOf: page)
+                guard page.count == pageSize else { break }
+                offset += pageSize
+            }
             return rows.map { .init(blockerID: $0.blockerID, blockedID: $0.blockedID, createdAt: $0.createdAt) }
         } catch { throw SupabaseServiceErrorMapper.map(error) }
     }
@@ -148,7 +161,7 @@ private struct ForumPostDTO: Codable {
     let id: UUID
     let communityID: UUID?
     let gymID: UUID?
-    let authorID: UUID
+    let authorID: UUID?
     let kind: String
     let title: String
     let body: String
@@ -197,7 +210,7 @@ private struct ForumAggregateCountDTO: Codable {
 private struct ForumCommentDTO: Codable {
     let id: UUID
     let postID: UUID
-    let authorID: UUID
+    let authorID: UUID?
     let parentCommentID: UUID?
     let body: String
     let createdAt: Date

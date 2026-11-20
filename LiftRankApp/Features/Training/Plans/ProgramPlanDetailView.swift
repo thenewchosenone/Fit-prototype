@@ -115,6 +115,32 @@ struct ProgramPlanDetailView: View {
             }
             }
 
+            HStack(spacing: 6) {
+                ForEach([(title: "Workouts", value: "Weeks"), (title: "Overview", value: "Overview"), (title: "Notes", value: "Notes")], id: \.value) { item in
+                    Button {
+                        detailTab = item.value
+                    } label: {
+                        Text(item.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(detailTab == item.value ? Color.liftText : Color.liftMuted)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(detailTab == item.value ? Color.liftBlue.opacity(0.2) : Color.clear)
+                            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(4)
+            .background(Color.liftCard)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            Button("Stop program and return to freestyle", systemImage: "stop.circle") {
+                _ = appState.selectWorkoutPlan(nil)
+            }
+            .buttonStyle(.bordered)
+            .disabled(appState.activeWorkout != nil)
+            .accessibilityIdentifier("tracker.program.stop")
+
             if detailTab == "Weeks" {
                 if weeks.isEmpty {
                     emptyWeeksState
@@ -245,6 +271,7 @@ struct ProgramPlanDetailView: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(selectedWeekPosition == 0 ? Color.liftMuted.opacity(0.35) : Color.liftMuted)
@@ -268,7 +295,6 @@ struct ProgramPlanDetailView: View {
                     Text(selectedWeek?.title ?? "Select week")
                         .font(LiftTypography.rowEmphasis)
                         .foregroundStyle(Color.liftText)
-                        .lineLimit(2)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                     if let selectedWeekPosition {
@@ -287,6 +313,7 @@ struct ProgramPlanDetailView: View {
             } label: {
                 Image(systemName: "chevron.right")
                     .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(selectedWeekPosition == weeks.count - 1 ? Color.liftMuted.opacity(0.35) : Color.liftMuted)
@@ -421,7 +448,6 @@ struct ProgramPlanDetailView: View {
                                     .frame(width: 20)
                                 Text(session.name)
                                     .font(.caption)
-                                    .lineLimit(1)
                                 Spacer()
                                 Button {
                                     var ids = appState.selectedPlanQueuedSessions.map(\.id)
@@ -470,18 +496,25 @@ struct ProgramPlanDetailView: View {
                 let completedSessions = plannedSessions.filter { session in
                     presentation.completedSessionIDs.contains(session.id)
                 }
-                let nextSession = appState.selectedPlanQueueEnabled ? nil : plannedSessions.first { session in
-                    !presentation.completedSessionIDs.contains(session.id)
-                }
+                let scheduledSession = appState.scheduledPlanSessions(on: .now)
+                    .first(where: { $0.week.id == selectedWeek.id })?.session
+                let nextScheduledSession = appState.nextScheduledWorkout()
+                    .flatMap { $0.week.id == selectedWeek.id ? $0.session : nil }
+                let nextSession = appState.selectedPlanQueueEnabled ? nil : (
+                    scheduledSession ?? nextScheduledSession
+                )
                 let plannedPlanSessions = appState.selectedPlanWeeks
                     .flatMap(appState.sessions(for:))
                     .filter { !appState.prescriptions(for: $0).isEmpty }
                 let planIsComplete = !plannedPlanSessions.isEmpty && plannedPlanSessions.allSatisfy(sessionIsComplete)
-                let nextIncompleteWeek = appState.selectedPlanWeeks.first { week in
+                let incompleteWeeks = appState.selectedPlanWeeks.filter { week in
                     appState.sessions(for: week).contains {
                         !appState.prescriptions(for: $0).isEmpty && !sessionIsComplete($0)
                     }
                 }
+                let nextIncompleteWeek = incompleteWeeks.first {
+                    $0.id == appState.currentSelectedProgramWeek?.id
+                } ?? incompleteWeeks.first
                 let progression = appState.workoutPlanProgressionSettings.first {
                     $0.planID == appState.selectedWorkoutPlanID
                 }?.method

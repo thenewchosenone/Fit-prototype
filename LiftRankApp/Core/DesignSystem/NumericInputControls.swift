@@ -137,7 +137,7 @@ struct OptionalNumericInputField: View {
         optionalField(keyboard: .decimalPad)
             .onChange(of: text) { _, newValue in
                 let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                value = trimmed.isEmpty ? nil : Double(trimmed)
+                value = MeasurementFormatting.parseLocalizedDecimal(trimmed)
             }
             .onChange(of: value) { _, newValue in
                 if !isFocused {
@@ -169,10 +169,6 @@ struct OptionalNumericInputField: View {
     }
 
     private static func format(_ value: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = 2
-        formatter.minimumFractionDigits = 0
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        MeasurementFormatting.localizedDecimalText(value, maximumFractionDigits: 2)
     }
 }

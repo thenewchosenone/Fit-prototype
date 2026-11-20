@@ -109,7 +109,7 @@ protocol ProgramRepository: AnyObject {
     func resolvedWorkoutPrescriptions(sessionID: UUID, at date: Date) -> [WorkoutExercisePrescription]
 
     func currentProgramWeek(planID: UUID, at date: Date) -> WorkoutWeek?
-    func addWorkoutPlan(_ plan: WorkoutPlan)
+    func addWorkoutPlan(_ plan: WorkoutPlan, phaseName: String, phaseDurationWeeks: Int)
     func updateWorkoutPlan(_ plan: WorkoutPlan)
     @discardableResult
     func updateWorkoutQueue(planID: UUID, enabled: Bool, sessionIDs: [UUID], allowsAnyOrder: Bool) -> Bool
@@ -153,6 +153,12 @@ protocol ProgramRepository: AnyObject {
         trainingMaxKilograms: [String: Double],
         at date: Date
     ) -> Bool
+}
+
+extension ProgramRepository {
+    func addWorkoutPlan(_ plan: WorkoutPlan) {
+        addWorkoutPlan(plan, phaseName: "Base Phase", phaseDurationWeeks: 1)
+    }
 }
 
 @MainActor
@@ -232,6 +238,7 @@ protocol WorkoutSyncRepository: AnyObject {
     var workoutFeedback: [WorkoutFeedback] { get }
     var pendingCompletedWorkoutUploads: [CompletedWorkoutSnapshot] { get set }
     var deletedCompletedWorkoutIDs: Set<UUID> { get set }
+    var syncedCompletedWorkoutIDs: Set<UUID> { get set }
     var completedWorkouts: [CompletedWorkout] { get set }
     var workoutPlans: [WorkoutPlan] { get set }
     var workoutPhases: [WorkoutPhase] { get set }
@@ -242,6 +249,7 @@ protocol WorkoutSyncRepository: AnyObject {
     var workoutPlanSyncRevisions: [UUID: Int] { get set }
     var workoutPlanLastSyncedPayloads: [UUID: Data] { get set }
     var pendingRemoteWorkoutPlanDeletions: Set<UUID> { get set }
+    func deleteWorkoutPlan(_ plan: WorkoutPlan)
     func rebuildWorkoutHistoryDerivedState()
 
     func clearAccountScopedWorkoutHistory()

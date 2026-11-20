@@ -26,7 +26,7 @@ The public pages must include the fitness disclaimer, account deletion method,
 profile and workout data handling, profile-photo storage, visibility controls,
 community content, and support contact.
 
-## App Privacy answers
+## App Privacy answers — provisional; verify before App Store Connect
 
 The current source manifest lists the following user-linked data categories.
 This is a source-level record, not confirmation of actual production collection

@@ -90,14 +90,17 @@ extension AppState {
         _ startingLifts: [OnboardingStartingLift],
         unit: UnitSystem,
         bodyweightPounds: Double,
-        gymID: UUID?
+        gymID: UUID?,
+        visibility: LiftVisibility = .publicLift
     ) async throws {
         guard isAuthenticated, !isDemoMode else { return }
         guard bodyweightPounds > 0 else {
             throw LiftRankServiceError.invalidInput("Enter your current bodyweight before saving starting lifts.")
         }
 
-        await refreshProductionLifts()
+        guard await competitionStore.refreshProductionData(force: true) else {
+            throw LiftRankServiceError.server("Existing starting lifts could not be confirmed. Check your connection and retry before submitting them again.")
+        }
         for startingLift in startingLifts {
             guard let exercise = MockData.exercises.first(where: { $0.id == startingLift.exerciseID }) else {
                 throw LiftRankServiceError.invalidInput("One of the starting lifts is not supported.")
@@ -116,7 +119,7 @@ extension AppState {
                 date: .now,
                 gymID: joinedGyms.contains(where: { $0.id == gymID }) ? gymID : nil,
                 equipment: .raw,
-                visibility: .privateLift,
+                visibility: visibility,
                 videoURL: nil,
                 caption: marker,
                 requestVerification: false

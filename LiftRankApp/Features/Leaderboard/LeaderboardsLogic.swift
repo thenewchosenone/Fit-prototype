@@ -397,7 +397,7 @@ extension LeaderboardsView {
     var rankingScopeDescription: String { "\(scopeLabel) · \(appState.leaderboardFilters.rankingType.rawValue)" }
 
     var repetitionLabel: String {
-        appState.leaderboardFilters.repetitionCount.map { "\($0)" } ?? "All"
+        appState.leaderboardFilters.repetitionCount.map { "\($0)" } ?? "1RM"
     }
 
     func options(for selector: LeaderboardSelector) -> [LeaderboardOption] {
@@ -451,8 +451,7 @@ extension LeaderboardsView {
             }
         case .repetitions:
             return [
-                .init(id: "all", title: "All rep counts", symbol: "number"),
-                .init(id: "1", title: "1 rep", symbol: "1.circle"),
+                .init(id: "all", title: "One-rep max", symbol: "number"),
                 .init(id: "3", title: "3 reps", symbol: "3.circle"),
                 .init(id: "5", title: "5 reps", symbol: "5.circle"),
                 .init(id: "8", title: "8 reps", symbol: "8.circle"),

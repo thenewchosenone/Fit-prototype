@@ -58,14 +58,10 @@ struct ProgramWeekPresentation {
         var completedSetNumbersByPrescriptionID: [UUID: Set<Int>] = [:]
         var attemptsBySessionID: [UUID: [String: [UUID: Set<Int>]]] = [:]
         let sessionIDByPrescriptionID = Dictionary(uniqueKeysWithValues: prescriptions.map { ($0.id, $0.sessionID) })
-        func attemptKey(for log: WorkoutSetLog) -> String {
-            if let workoutID = log.workoutID { return workoutID.uuidString }
-            return String(Calendar.current.startOfDay(for: log.performedAt).timeIntervalSince1970)
-        }
         for log in workoutSetLogs where log.isComplete && !log.isWarmup && plannedPrescriptionIDs.contains(log.prescriptionID) {
             completedSetNumbersByPrescriptionID[log.prescriptionID, default: []].insert(log.setNumber)
-            if let sessionID = sessionIDByPrescriptionID[log.prescriptionID] {
-                attemptsBySessionID[sessionID, default: [:]][attemptKey(for: log), default: [:]][log.prescriptionID, default: []].insert(log.setNumber)
+            if let sessionID = sessionIDByPrescriptionID[log.prescriptionID], let workoutID = log.workoutID {
+                attemptsBySessionID[sessionID, default: [:]][workoutID.uuidString, default: [:]][log.prescriptionID, default: []].insert(log.setNumber)
             }
         }
         for workout in completedWorkouts where workout.sourceSessionID.map(sessionIDs.contains) == true {
@@ -560,32 +556,58 @@ final class ProgramStore {
     func saveWorkoutAsRoutine(_ workout: CompletedWorkout, name: String? = nil) -> WorkoutPlan? {
         let trimmedName = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let routineName = trimmedName.isEmpty ? "\(workout.name) Routine" : trimmedName
-        guard let plan = createPlan(name: routineName),
+        return createPlan(fromWorkouts: [workout], name: routineName)
+    }
+
+    @discardableResult
+    func createPlan(fromWorkouts workouts: [CompletedWorkout], name: String, preserveOrder: Bool = false) -> WorkoutPlan? {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let orderedWorkouts = preserveOrder ? workouts : workouts.sorted { $0.completedAt < $1.completedAt }
+        guard !cleanName.isEmpty,
+              !orderedWorkouts.isEmpty,
+              let plan = createPlan(name: cleanName),
               let week = weeks(planID: plan.id).first,
               let originalSession = sessions(week: week).first else { return nil }
+
         repository.deleteWorkoutSession(originalSession)
-        let session = repository.addWorkoutSession(weekID: week.id, day: workout.dayLabel, name: workout.name)
-        for (index, exercise) in workout.exercises.enumerated() {
-            _ = repository.addWorkoutPrescription(
-                WorkoutExercisePrescription(
-                    id: makeID(),
-                    sessionID: session.id,
-                    exerciseID: exercise.exerciseID,
-                    exerciseName: exercise.exerciseName,
-                    bodyPart: exercise.bodyPart,
-                    equipment: exercise.equipment,
-                    sets: max(1, exercise.targetSets),
-                    reps: exercise.targetReps,
-                    restSeconds: exercise.restSeconds,
-                    order: index,
-                    notes: exercise.notes,
-                    substitutionExerciseIDs: exercise.substitutionExerciseIDs,
-                    muscleProfile: exercise.muscleProfile,
-                    targetRIR: exercise.targetRIR,
-                    trainingMaxPercentage: exercise.trainingMaxPercentage,
-                    targetLoadKilograms: exercise.targetLoadKilograms
+        let duplicateNames = Dictionary(grouping: orderedWorkouts.indices) {
+            orderedWorkouts[$0].name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }
+        for (workoutIndex, workout) in orderedWorkouts.enumerated() {
+            let workoutName = workout.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let repeated = (duplicateNames[workoutName.lowercased()]?.count ?? 0) > 1
+            let sessionName = workoutName.isEmpty
+                ? "Workout \(workoutIndex + 1)"
+                : repeated ? "\(workoutName) \(workoutIndex + 1)" : workoutName
+            let weekday = Calendar.current.weekdaySymbols.first {
+                $0.caseInsensitiveCompare(workout.dayLabel) == .orderedSame
+            } ?? Calendar.current.weekdaySymbols[
+                Calendar.current.component(.weekday, from: workout.completedAt) - 1
+            ]
+            let session = repository.addWorkoutSession(weekID: week.id, day: weekday, name: sessionName)
+
+            for (exerciseIndex, exercise) in workout.exercisesWithCompletedWorkingSets.sorted(by: { $0.order < $1.order }).enumerated() {
+                _ = repository.addWorkoutPrescription(
+                    WorkoutExercisePrescription(
+                        id: makeID(),
+                        sessionID: session.id,
+                        exerciseID: exercise.exerciseID,
+                        exerciseName: exercise.exerciseName,
+                        bodyPart: exercise.bodyPart,
+                        equipment: exercise.equipment,
+                        sets: max(1, exercise.targetSets),
+                        reps: exercise.targetReps,
+                        restSeconds: exercise.restSeconds,
+                        order: exerciseIndex,
+                        notes: exercise.notes,
+                        substitutionExerciseIDs: exercise.substitutionExerciseIDs,
+                        muscleProfile: exercise.muscleProfile,
+                        targetRIR: exercise.targetRIR,
+                        trainingMaxPercentage: exercise.trainingMaxPercentage,
+                        targetLoadKilograms: exercise.targetLoadKilograms
+                    )
                 )
-            )
+            }
         }
         return plan
     }
@@ -647,6 +669,10 @@ final class ProgramStore {
             _ = setQueue(planID: plan.id, enabled: true, sessionIDs: plan.queuedSessionIDs + [session.id], allowsAnyOrder: plan.allowsAnyOrder)
         }
         return session
+    }
+
+    func updateSession(_ session: WorkoutSession) {
+        repository.updateWorkoutSession(session)
     }
 
     @discardableResult
@@ -726,7 +752,7 @@ final class ProgramStore {
     }
 
     func addExercises(_ exercises: [TrainingExerciseCatalogItem], to session: WorkoutSession) {
-        let nextOrder = prescriptions(session: session).count
+        let nextOrder = (prescriptions(session: session).map(\.order).max() ?? -1) + 1
         for (offset, exercise) in exercises.enumerated() {
             _ = repository.addWorkoutPrescription(
                 WorkoutExercisePrescription(
@@ -766,7 +792,7 @@ final class ProgramStore {
                 sets: max(1, sets),
                 reps: cleanReps.isEmpty ? "8-12" : cleanReps,
                 restSeconds: restSeconds,
-                order: prescriptions(session: session).count,
+                order: (prescriptions(session: session).map(\.order).max() ?? -1) + 1,
                 notes: ""
             )
         )
@@ -774,6 +800,15 @@ final class ProgramStore {
 
     func deletePrescription(_ prescription: WorkoutExercisePrescription) {
         repository.deleteWorkoutPrescription(prescription)
+    }
+
+    func updatePrescription(_ prescription: WorkoutExercisePrescription) {
+        repository.updateWorkoutPrescription(prescription)
+    }
+
+    @discardableResult
+    func reorderPrescriptions(sessionID: UUID, orderedIDs: [UUID]) -> Bool {
+        repository.reorderWorkoutPrescriptions(sessionID: sessionID, orderedIDs: orderedIDs)
     }
 
     @discardableResult

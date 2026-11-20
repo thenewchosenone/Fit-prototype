@@ -257,6 +257,67 @@ extension ProfileView {
         return gymVisible || cityVisible
     }
 
+    var publicTraining: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            CompactSectionHeader(title: "Completed workouts")
+            if isLoadingPublicWorkouts {
+                ProgressView("Loading workouts…")
+            } else if let publicWorkoutsError {
+                LiftEmptyState(title: "Couldn't load workouts", message: publicWorkoutsError,
+                               symbolName: "wifi.exclamationmark", compact: true)
+            } else if publicWorkouts.isEmpty {
+                LiftEmptyState(title: "No shared workouts", message: "Workouts kept private don’t appear here.",
+                               symbolName: "dumbbell", compact: true)
+            } else {
+                ForEach(publicWorkouts) { workout in
+                    LiftCard {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(workout.name).font(.headline)
+                            Text(workout.completedAt.formatted(date: .abbreviated, time: .omitted))
+                                .font(.caption).foregroundStyle(Color.liftMuted)
+                            Text("\(MeasurementFormatting.shortDurationText(workout.duration)) · \(workout.setCount) sets · \(workout.exerciseNames.count) exercises")
+                                .font(.subheadline)
+                            Text(workout.exerciseNames.joined(separator: " · "))
+                                .font(.caption).foregroundStyle(Color.liftMuted)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+        }
+        .accessibilityIdentifier("profile.completedWorkouts")
+    }
+
+    func publicOverview(presentation: ProfileLiftPresentation) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            LiftCard {
+                HStack(alignment: .top, spacing: 16) {
+                    strengthMetric("Shared lifts", presentation.lifts.count.formatted())
+                    profileDivider
+                    strengthMetric("Exercises", Set(presentation.lifts.map(\.exerciseID)).count.formatted())
+                }
+            }
+            if let latest = presentation.latestSubmittedLift {
+                VStack(alignment: .leading, spacing: 10) {
+                    CompactSectionHeader(title: "Latest lift")
+                    LiftCard {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(latest.exerciseName)
+                                .font(.headline)
+                            Text(MeasurementFormatting.recordedLiftSetText(weight: latest.weight, unit: latest.unit, repetitions: latest.repetitions))
+                                .font(.title3.weight(.bold))
+                            Text(latest.performedAt.formatted(date: .abbreviated, time: .omitted))
+                                .font(.caption)
+                                .foregroundStyle(Color.liftMuted)
+                            VerificationBadge(evidenceStatus: latest.resolvedEvidenceStatus)
+                        }
+                    }
+                }
+            }
+            summary(presentation: presentation)
+        }
+    }
+
     func summary(presentation: ProfileLiftPresentation) -> some View {
         let totalPounds = presentation.threeLiftTotalPounds
         let profileTotalText = RankingFormatting.threeLiftTotalText(totalPounds: totalPounds, preferredUnit: profile.preferredUnit)
@@ -613,7 +674,7 @@ extension ProfileView {
                                 }
                                 .accessibilityLabel("Submission options")
                                 .accessibilityIdentifier("profile.ownLiftOptions.\(lift.id.uuidString)")
-                            } else {
+                            } else if lift.userID != appState.currentProfile.id {
                                 Menu {
                                     Button("Report lift", role: .destructive) {
                                         appState.selectedReportLift = lift

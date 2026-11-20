@@ -89,6 +89,30 @@ struct LeaderboardFiltersView: View {
                                 }
                             }
 
+                            filterGroup("Evidence and time", symbol: "video.fill") {
+                                optionRow("Evidence") {
+                                    optionButton("All lifts", isActive: !appState.verifiedOnly && appState.leaderboardFilters.verificationLevel == nil) {
+                                        appState.verifiedOnly = false
+                                        appState.leaderboardFilters.verificationLevel = nil
+                                    }
+                                    optionButton("Video-backed", isActive: appState.verifiedOnly) {
+                                        appState.verifiedOnly = true
+                                        appState.leaderboardFilters.verificationLevel = nil
+                                    }
+                                    optionButton("Self-reported", isActive: appState.leaderboardFilters.verificationLevel == .selfReported) {
+                                        appState.verifiedOnly = false
+                                        appState.leaderboardFilters.verificationLevel = .selfReported
+                                    }
+                                }
+                                optionRow("Time range") {
+                                    ForEach(["All time", "This year", "Last 90 days", "This month", "This week"], id: \.self) { range in
+                                        optionButton(range, isActive: appState.leaderboardFilters.timeRange == range) {
+                                            appState.leaderboardFilters.timeRange = range
+                                        }
+                                    }
+                                }
+                            }
+
                             filterGroup("Division", symbol: "person.2.fill") {
                                 optionRow("Sex") {
                                     optionButton("All", isActive: appState.leaderboardFilters.sexCategory == nil) {
@@ -261,31 +285,6 @@ struct LeaderboardFiltersView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         }
 
-                        if !isLocationSearchActive {
-                            filterGroup("Evidence and time", symbol: "video.fill") {
-                                optionRow("Evidence") {
-                                    optionButton("All lifts", isActive: !appState.verifiedOnly && appState.leaderboardFilters.verificationLevel == nil) {
-                                        appState.verifiedOnly = false
-                                        appState.leaderboardFilters.verificationLevel = nil
-                                    }
-                                    optionButton("Video-backed", isActive: appState.verifiedOnly) {
-                                        appState.verifiedOnly = true
-                                        appState.leaderboardFilters.verificationLevel = nil
-                                    }
-                                    optionButton("Self-reported", isActive: appState.leaderboardFilters.verificationLevel == .selfReported) {
-                                        appState.verifiedOnly = false
-                                        appState.leaderboardFilters.verificationLevel = .selfReported
-                                    }
-                                }
-                                optionRow("Time range") {
-                                    ForEach(["All time", "This year", "Last 90 days", "This month", "This week"], id: \.self) { range in
-                                        optionButton(range, isActive: appState.leaderboardFilters.timeRange == range) {
-                                            appState.leaderboardFilters.timeRange = range
-                                        }
-                                    }
-                                }
-                            }
-                        }
                     }
                     .padding()
                 }
@@ -306,9 +305,11 @@ struct LeaderboardFiltersView: View {
                         appState.verifiedOnly = true
                         Haptics.light()
                     }
+                    .accessibilityIdentifier("leaderboard.filters.reset")
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                        .accessibilityIdentifier("leaderboard.filters.done")
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     if locationSearchFocused {
@@ -353,7 +354,7 @@ struct LeaderboardFiltersView: View {
                                 clearLocationFilter()
                             }
                         case "city":
-                            quickFilterButton("My city", symbol: "mappin.and.ellipse") {
+                            quickFilterButton("My City", symbol: "mappin.and.ellipse") {
                                 applyLocation(
                                     cityID: appState.currentProfile.cityID,
                                     city: appState.currentProfile.city,
@@ -550,6 +551,7 @@ struct LeaderboardFiltersView: View {
         .buttonStyle(.plain)
         .accessibilityAddTraits(isActive ? .isSelected : [])
         .accessibilityIdentifier("leaderboard.filters.option.\(identifierComponent(title))")
+        .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 
     private func quickFilterButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
@@ -566,6 +568,8 @@ struct LeaderboardFiltersView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityIdentifier("leaderboard.filters.quick.\(identifierComponent(title))")
     }
 
     private func identifierComponent(_ title: String) -> String {

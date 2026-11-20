@@ -58,7 +58,8 @@ struct OnboardingView: View {
         gyms
             .filter {
                 $0.city.localizedCaseInsensitiveCompare(city) == .orderedSame &&
-                $0.state.localizedCaseInsensitiveCompare(region) == .orderedSame
+                LaunchLocationCatalog.regionName($0.state, countryCode: countryCode)
+                    .localizedCaseInsensitiveCompare(LaunchLocationCatalog.regionName(region, countryCode: countryCode)) == .orderedSame
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
@@ -82,12 +83,6 @@ struct OnboardingView: View {
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 controls
-            }
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") { dismissKeyboard() }
-                }
             }
         }
         .interactiveDismissDisabled()
@@ -281,6 +276,9 @@ struct OnboardingView: View {
                     }
                 }
                 .pickerStyle(.wheel)
+                .frame(height: 190)
+                .clipped()
+                .frame(maxHeight: .infinity, alignment: .top)
                 .navigationTitle("Height")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -516,6 +514,8 @@ struct OnboardingView: View {
                         ForEach(launchCountries) { Text($0.name).tag($0.code) }
                     }
                     .pickerStyle(.wheel)
+                    .frame(height: 190)
+                    .clipped()
                     .onChange(of: selectedCountryCode) { _, _ in
                         selectedRegionName = ""
                         resetCitySelection()
@@ -527,6 +527,8 @@ struct OnboardingView: View {
                         ForEach(selectedCountry?.regions ?? []) { Text($0.name).tag($0.name) }
                     }
                     .pickerStyle(.wheel)
+                    .frame(height: 190)
+                    .clipped()
                     .onChange(of: selectedRegionName) { _, value in
                         resetCitySelection()
                         profile.state = value
@@ -571,6 +573,7 @@ struct OnboardingView: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .navigationTitle(picker == .country ? "Country" : picker == .region ? "State / province" : "City")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -603,7 +606,9 @@ struct OnboardingView: View {
         selectedCity = ""
         selectedCityID = nil
         cityQuery = ""
-        citySuggestions = []
+        citySuggestions = LaunchLocationCatalog.citySuggestions(
+            countryCode: selectedCountryCode, regionName: selectedRegionName, query: "", limit: 8
+        )
         isSearchingCities = false
         profile.city = ""
         normalizeSelectedGym()
@@ -633,9 +638,10 @@ struct OnboardingView: View {
     private func searchCities(matching query: String) {
         citySearchTask?.cancel()
 
-        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let selectedCountry, let selectedRegion, trimmedQuery.count >= 2 else {
-            citySuggestions = []
+            citySuggestions = trimmedQuery.isEmpty ? LaunchLocationCatalog.citySuggestions(
+                countryCode: selectedCountryCode, regionName: selectedRegionName, query: "", limit: 8
+            ) : []
             isSearchingCities = false
             return
         }
@@ -808,7 +814,7 @@ struct OnboardingView: View {
             ("deadlift", deadlift),
             ("press", press)
         ].compactMap { exerciseID, value in
-            OnboardingStartingLift(exerciseID: exerciseID, weight: Double(value))
+            OnboardingStartingLift(exerciseID: exerciseID, weight: MeasurementFormatting.parseLocalizedDecimal(value))
         }
         Task {
             defer { isSavingProfile = false }
@@ -998,63 +1004,72 @@ struct LaunchCountry: Identifiable {
 struct LaunchRegion: Identifiable {
     let name: String
     let cities: [String]
+    var code: String? = nil
 
     var id: String { name }
 }
 
 enum LaunchLocationCatalog {
+    static func regionName(_ value: String, countryCode: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return countries.first { $0.code == countryCode }?.regions.first {
+            $0.name.localizedCaseInsensitiveCompare(trimmed) == .orderedSame ||
+            $0.code?.localizedCaseInsensitiveCompare(trimmed) == .orderedSame
+        }?.name ?? trimmed
+    }
+
     static let countries: [LaunchCountry] = [
         LaunchCountry(code: "US", name: "United States", regionLabel: "State", regions: [
-            LaunchRegion(name: "Alabama", cities: ["Birmingham", "Montgomery", "Mobile"]),
-            LaunchRegion(name: "Alaska", cities: ["Anchorage", "Fairbanks", "Juneau"]),
-            LaunchRegion(name: "Arizona", cities: ["Phoenix", "Tucson", "Mesa"]),
-            LaunchRegion(name: "Arkansas", cities: ["Little Rock", "Fayetteville", "Fort Smith"]),
-            LaunchRegion(name: "California", cities: ["Los Angeles", "San Diego", "San Francisco", "San Jose"]),
-            LaunchRegion(name: "Colorado", cities: ["Denver", "Colorado Springs", "Aurora"]),
-            LaunchRegion(name: "Connecticut", cities: ["Bridgeport", "New Haven", "Hartford"]),
-            LaunchRegion(name: "Delaware", cities: ["Wilmington", "Dover", "Newark"]),
-            LaunchRegion(name: "District of Columbia", cities: ["Washington"]),
-            LaunchRegion(name: "Florida", cities: ["Miami", "Cutler Bay", "Homestead", "Orlando", "Tampa", "Jacksonville"]),
-            LaunchRegion(name: "Georgia", cities: ["Atlanta", "Augusta", "Savannah"]),
-            LaunchRegion(name: "Hawaii", cities: ["Honolulu", "Hilo", "Kailua"]),
-            LaunchRegion(name: "Idaho", cities: ["Boise", "Meridian", "Nampa"]),
-            LaunchRegion(name: "Illinois", cities: ["Chicago", "Aurora", "Naperville"]),
-            LaunchRegion(name: "Indiana", cities: ["Indianapolis", "Fort Wayne", "Evansville"]),
-            LaunchRegion(name: "Iowa", cities: ["Des Moines", "Cedar Rapids", "Davenport"]),
-            LaunchRegion(name: "Kansas", cities: ["Wichita", "Overland Park", "Kansas City"]),
-            LaunchRegion(name: "Kentucky", cities: ["Louisville", "Lexington", "Bowling Green"]),
-            LaunchRegion(name: "Louisiana", cities: ["New Orleans", "Baton Rouge", "Shreveport"]),
-            LaunchRegion(name: "Maine", cities: ["Portland", "Lewiston", "Bangor"]),
-            LaunchRegion(name: "Maryland", cities: ["Baltimore", "Frederick", "Rockville"]),
-            LaunchRegion(name: "Massachusetts", cities: ["Boston", "Worcester", "Springfield"]),
-            LaunchRegion(name: "Michigan", cities: ["Detroit", "Grand Rapids", "Ann Arbor"]),
-            LaunchRegion(name: "Minnesota", cities: ["Minneapolis", "Saint Paul", "Rochester"]),
-            LaunchRegion(name: "Mississippi", cities: ["Jackson", "Gulfport", "Southaven"]),
-            LaunchRegion(name: "Missouri", cities: ["Kansas City", "St. Louis", "Springfield"]),
-            LaunchRegion(name: "Montana", cities: ["Billings", "Missoula", "Bozeman"]),
-            LaunchRegion(name: "Nebraska", cities: ["Omaha", "Lincoln", "Bellevue"]),
-            LaunchRegion(name: "Nevada", cities: ["Las Vegas", "Henderson", "Reno"]),
-            LaunchRegion(name: "New Hampshire", cities: ["Manchester", "Nashua", "Concord"]),
-            LaunchRegion(name: "New Jersey", cities: ["Newark", "Jersey City", "Paterson"]),
-            LaunchRegion(name: "New York", cities: ["New York City", "Buffalo", "Rochester", "Albany"]),
-            LaunchRegion(name: "North Carolina", cities: ["Charlotte", "Raleigh", "Greensboro"]),
-            LaunchRegion(name: "North Dakota", cities: ["Fargo", "Bismarck", "Grand Forks"]),
-            LaunchRegion(name: "Ohio", cities: ["Columbus", "Cleveland", "Cincinnati"]),
-            LaunchRegion(name: "Oklahoma", cities: ["Oklahoma City", "Tulsa", "Norman"]),
-            LaunchRegion(name: "Oregon", cities: ["Portland", "Eugene", "Salem"]),
-            LaunchRegion(name: "Pennsylvania", cities: ["Philadelphia", "Pittsburgh", "Allentown"]),
-            LaunchRegion(name: "Rhode Island", cities: ["Providence", "Warwick", "Cranston"]),
-            LaunchRegion(name: "South Carolina", cities: ["Charleston", "Columbia", "Greenville"]),
-            LaunchRegion(name: "South Dakota", cities: ["Sioux Falls", "Rapid City", "Aberdeen"]),
-            LaunchRegion(name: "Tennessee", cities: ["Nashville", "Memphis", "Knoxville"]),
-            LaunchRegion(name: "Texas", cities: ["Austin", "Dallas", "Houston", "San Antonio"]),
-            LaunchRegion(name: "Utah", cities: ["Salt Lake City", "West Valley City", "Provo"]),
-            LaunchRegion(name: "Vermont", cities: ["Burlington", "South Burlington", "Rutland"]),
-            LaunchRegion(name: "Virginia", cities: ["Virginia Beach", "Richmond", "Norfolk"]),
-            LaunchRegion(name: "Washington", cities: ["Seattle", "Spokane", "Tacoma"]),
-            LaunchRegion(name: "West Virginia", cities: ["Charleston", "Huntington", "Morgantown"]),
-            LaunchRegion(name: "Wisconsin", cities: ["Milwaukee", "Madison", "Green Bay"]),
-            LaunchRegion(name: "Wyoming", cities: ["Cheyenne", "Casper", "Laramie"])
+            LaunchRegion(name: "Alabama", cities: ["Birmingham", "Montgomery", "Mobile"], code: "AL"),
+            LaunchRegion(name: "Alaska", cities: ["Anchorage", "Fairbanks", "Juneau"], code: "AK"),
+            LaunchRegion(name: "Arizona", cities: ["Phoenix", "Tucson", "Mesa"], code: "AZ"),
+            LaunchRegion(name: "Arkansas", cities: ["Little Rock", "Fayetteville", "Fort Smith"], code: "AR"),
+            LaunchRegion(name: "California", cities: ["Los Angeles", "San Diego", "San Francisco", "San Jose"], code: "CA"),
+            LaunchRegion(name: "Colorado", cities: ["Denver", "Colorado Springs", "Aurora"], code: "CO"),
+            LaunchRegion(name: "Connecticut", cities: ["Bridgeport", "New Haven", "Hartford"], code: "CT"),
+            LaunchRegion(name: "Delaware", cities: ["Wilmington", "Dover", "Newark"], code: "DE"),
+            LaunchRegion(name: "District of Columbia", cities: ["Washington"], code: "DC"),
+            LaunchRegion(name: "Florida", cities: ["Miami", "Jacksonville", "Tampa", "Orlando", "Cutler Bay", "Homestead"], code: "FL"),
+            LaunchRegion(name: "Georgia", cities: ["Atlanta", "Augusta", "Savannah"], code: "GA"),
+            LaunchRegion(name: "Hawaii", cities: ["Honolulu", "Hilo", "Kailua"], code: "HI"),
+            LaunchRegion(name: "Idaho", cities: ["Boise", "Meridian", "Nampa"], code: "ID"),
+            LaunchRegion(name: "Illinois", cities: ["Chicago", "Aurora", "Naperville"], code: "IL"),
+            LaunchRegion(name: "Indiana", cities: ["Indianapolis", "Fort Wayne", "Evansville"], code: "IN"),
+            LaunchRegion(name: "Iowa", cities: ["Des Moines", "Cedar Rapids", "Davenport"], code: "IA"),
+            LaunchRegion(name: "Kansas", cities: ["Wichita", "Overland Park", "Kansas City"], code: "KS"),
+            LaunchRegion(name: "Kentucky", cities: ["Louisville", "Lexington", "Bowling Green"], code: "KY"),
+            LaunchRegion(name: "Louisiana", cities: ["New Orleans", "Baton Rouge", "Shreveport"], code: "LA"),
+            LaunchRegion(name: "Maine", cities: ["Portland", "Lewiston", "Bangor"], code: "ME"),
+            LaunchRegion(name: "Maryland", cities: ["Baltimore", "Frederick", "Rockville"], code: "MD"),
+            LaunchRegion(name: "Massachusetts", cities: ["Boston", "Worcester", "Springfield"], code: "MA"),
+            LaunchRegion(name: "Michigan", cities: ["Detroit", "Grand Rapids", "Ann Arbor"], code: "MI"),
+            LaunchRegion(name: "Minnesota", cities: ["Minneapolis", "Saint Paul", "Rochester"], code: "MN"),
+            LaunchRegion(name: "Mississippi", cities: ["Jackson", "Gulfport", "Southaven"], code: "MS"),
+            LaunchRegion(name: "Missouri", cities: ["Kansas City", "St. Louis", "Springfield"], code: "MO"),
+            LaunchRegion(name: "Montana", cities: ["Billings", "Missoula", "Bozeman"], code: "MT"),
+            LaunchRegion(name: "Nebraska", cities: ["Omaha", "Lincoln", "Bellevue"], code: "NE"),
+            LaunchRegion(name: "Nevada", cities: ["Las Vegas", "Henderson", "Reno"], code: "NV"),
+            LaunchRegion(name: "New Hampshire", cities: ["Manchester", "Nashua", "Concord"], code: "NH"),
+            LaunchRegion(name: "New Jersey", cities: ["Newark", "Jersey City", "Paterson"], code: "NJ"),
+            LaunchRegion(name: "New York", cities: ["New York City", "Buffalo", "Rochester", "Albany"], code: "NY"),
+            LaunchRegion(name: "North Carolina", cities: ["Charlotte", "Raleigh", "Greensboro"], code: "NC"),
+            LaunchRegion(name: "North Dakota", cities: ["Fargo", "Bismarck", "Grand Forks"], code: "ND"),
+            LaunchRegion(name: "Ohio", cities: ["Columbus", "Cleveland", "Cincinnati"], code: "OH"),
+            LaunchRegion(name: "Oklahoma", cities: ["Oklahoma City", "Tulsa", "Norman"], code: "OK"),
+            LaunchRegion(name: "Oregon", cities: ["Portland", "Eugene", "Salem"], code: "OR"),
+            LaunchRegion(name: "Pennsylvania", cities: ["Philadelphia", "Pittsburgh", "Allentown"], code: "PA"),
+            LaunchRegion(name: "Rhode Island", cities: ["Providence", "Warwick", "Cranston"], code: "RI"),
+            LaunchRegion(name: "South Carolina", cities: ["Charleston", "Columbia", "Greenville"], code: "SC"),
+            LaunchRegion(name: "South Dakota", cities: ["Sioux Falls", "Rapid City", "Aberdeen"], code: "SD"),
+            LaunchRegion(name: "Tennessee", cities: ["Nashville", "Memphis", "Knoxville"], code: "TN"),
+            LaunchRegion(name: "Texas", cities: ["Austin", "Dallas", "Houston", "San Antonio"], code: "TX"),
+            LaunchRegion(name: "Utah", cities: ["Salt Lake City", "West Valley City", "Provo"], code: "UT"),
+            LaunchRegion(name: "Vermont", cities: ["Burlington", "South Burlington", "Rutland"], code: "VT"),
+            LaunchRegion(name: "Virginia", cities: ["Virginia Beach", "Richmond", "Norfolk"], code: "VA"),
+            LaunchRegion(name: "Washington", cities: ["Seattle", "Spokane", "Tacoma"], code: "WA"),
+            LaunchRegion(name: "West Virginia", cities: ["Charleston", "Huntington", "Morgantown"], code: "WV"),
+            LaunchRegion(name: "Wisconsin", cities: ["Milwaukee", "Madison", "Green Bay"], code: "WI"),
+            LaunchRegion(name: "Wyoming", cities: ["Cheyenne", "Casper", "Laramie"], code: "WY")
         ]),
         LaunchCountry(code: "CA", name: "Canada", regionLabel: "Province", regions: [
             LaunchRegion(name: "Alberta", cities: ["Calgary", "Edmonton"]),
@@ -1100,20 +1115,20 @@ enum LaunchLocationCatalog {
         limit: Int
     ) -> [LocationCitySuggestion] {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedQuery.isEmpty,
-              let country = countries.first(where: { $0.code == countryCode }) else { return [] }
+        guard let country = countries.first(where: { $0.code == countryCode }) else { return [] }
 
         let normalizedQuery = trimmedQuery.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
         let regions = regionName.isEmpty
             ? country.regions
             : country.regions.filter { $0.name == regionName }
-        return regions
+        var matches = regions
             .flatMap { region in region.cities.map { (region: region, city: $0) } }
             .filter { item in
                 let normalizedCity = item.city.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
                 return normalizedCity.hasPrefix(normalizedQuery) || normalizedCity.contains(normalizedQuery)
             }
-            .sorted { lhs, rhs in
+        if !normalizedQuery.isEmpty {
+            matches.sort { lhs, rhs in
                 let normalizedLeft = lhs.city.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
                 let normalizedRight = rhs.city.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
                 let leftStarts = normalizedLeft.hasPrefix(normalizedQuery)
@@ -1121,6 +1136,8 @@ enum LaunchLocationCatalog {
                 if leftStarts != rightStarts { return leftStarts }
                 return lhs.city < rhs.city
             }
+        }
+        return matches
             .prefix(limit)
             .map { item in
                 LocationCitySuggestion(

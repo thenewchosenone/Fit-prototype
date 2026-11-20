@@ -6,6 +6,7 @@ export default defineConfig({
     setupFiles: "./tests/setup.ts",
     css: true,
     testTimeout: 30_000,
+    include: ["tests/**/*.test.{ts,tsx}"],
     exclude: ["e2e/**", "node_modules/**", "dist/**"]
   }
 });

@@ -1,0 +1,38 @@
+name: Refresh gym directory
+
+on:
+  schedule:
+    - cron: "17 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: weekly-gym-directory-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm gyms:update
+      - run: pnpm test
+      - run: pnpm build
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: automation/weekly-gym-directory-refresh
+          delete-branch: true
+          commit-message: "chore: refresh weekly gym directory"
+          title: "chore: refresh weekly gym directory"
+          body: "Automated weekly refresh of the validated official gym catalog. Review source-count and location changes before merging; this workflow never deploys the catalog automatically."

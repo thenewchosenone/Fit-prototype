@@ -4,6 +4,7 @@ struct ProgramSessionCard: View {
     @Environment(\.accessibilityReduceMotion) var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var appState: AppState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedWorkout: CompletedWorkout?
     @State private var editingPrescription: WorkoutExercisePrescription?
     @State private var focusedSetID: UUID?
@@ -45,6 +46,9 @@ struct ProgramSessionCard: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     Spacer()
+                    Button("Edit") { editingSession = session }
+                        .font(.subheadline.weight(.semibold))
+                        .disabled(appState.activeWorkout != nil)
                     Menu {
                         if appState.selectedPlanIsFlexible {
                             Button("Duplicate workout", systemImage: "doc.on.doc") {
@@ -156,6 +160,7 @@ struct ProgramSessionCard: View {
                                 .font(LiftTypography.compactEmphasis)
                                 .foregroundStyle(Color.liftMuted)
                         }
+                        .frame(minHeight: LiftDesign.minimumTouchTarget)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)

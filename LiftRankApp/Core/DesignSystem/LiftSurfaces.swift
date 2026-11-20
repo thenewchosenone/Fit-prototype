@@ -175,7 +175,7 @@ extension LiftEvidenceStatus {
     }
 
     var evidenceMetricValue: String {
-        self == .videoBacked ? "Video-backed" : "Self-reported"
+        self == .videoBacked ? "Video-backed" : "Self reported"
     }
 
     var evidenceMetricSubtitle: String {
@@ -281,6 +281,7 @@ struct CompactSectionHeader: View {
                 Text(title)
                     .font(LiftTypography.sectionTitle)
                     .foregroundStyle(Color.liftTextPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
             if let actionTitle, let action {
@@ -288,6 +289,7 @@ struct CompactSectionHeader: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Color.liftAccentText)
                     .frame(minHeight: LiftDesign.minimumTouchTarget)
+                    .contentShape(Rectangle())
             }
         }
         .accessibilityElement(children: .contain)

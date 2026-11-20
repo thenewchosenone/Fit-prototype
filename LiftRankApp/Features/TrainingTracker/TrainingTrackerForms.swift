@@ -2,6 +2,19 @@ import SwiftUI
 
 struct CreateWorkoutPlanView: View {
     @EnvironmentObject private var appState: AppState
+
+    var body: some View {
+        CreateWorkoutPlanFromHistoryView(
+            workouts: appState.completedWorkouts.filter {
+                $0.source == .freestyle && !$0.exercisesWithCompletedWorkingSets.isEmpty
+            },
+            allowsEmptyPlan: true
+        )
+    }
+}
+
+struct CreateWorkoutPlanFromHistoryView: View {
+    @EnvironmentObject private var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var planName = ""
     @FocusState private var isNameFocused: Bool
@@ -627,6 +640,16 @@ struct BodyweightEntryEditor: View {
                         unit: appState.currentProfile.preferredUnit.shortLabel,
                         placeholder: "Enter weight"
                     )
+                    Text(bodyweightRangeText)
+                        .font(.caption)
+                        .foregroundStyle(Color.liftMuted)
+
+                    if let saveError {
+                        Text(saveError)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.liftRed)
+                            .accessibilityIdentifier("bodyweight.saveError")
+                    }
 
                     VStack(alignment: .leading, spacing: 7) {
                         Text("Notes")
@@ -648,6 +671,7 @@ struct BodyweightEntryEditor: View {
             }
             .navigationTitle(appState.bodyweightEntries.contains(where: { $0.id == draft.id }) ? "Edit bodyweight" : "Log bodyweight")
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled(isSaving)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
@@ -658,15 +682,28 @@ struct BodyweightEntryEditor: View {
                     ToolbarItem(placement: .bottomBar) {
                         Button("Delete Entry", role: .destructive) { showingDeleteConfirmation = true }
                     }
+                    .disabled(isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        onSave(draft)
-                        dismiss()
+                    Button(isSaving ? "Saving…" : "Save") {
+                        Task {
+                            guard !isSaving else { return }
+                            isSaving = true
+                            saveError = nil
+                            defer { isSaving = false }
+                            do {
+                                try await onSave(draft)
+                                dismiss()
+                            } catch {
+                                saveError = (error as? LocalizedError)?.errorDescription
+                                    ?? "Bodyweight couldn't be saved. Check your connection and try again."
+                            }
+                        }
                     }
                     .fontWeight(.bold)
                     .foregroundStyle(Color.liftAccentText)
-                    .disabled((draft.actual ?? 0) <= 0)
+                    .disabled((draft.actual ?? 0) < 40 || (draft.actual ?? 0) > 1500 || isSaving)
+                    .accessibilityIdentifier("bodyweight.save")
                 }
             }
             .confirmationDialog("Delete this bodyweight entry?", isPresented: $showingDeleteConfirmation, titleVisibility: .visible) {
@@ -683,6 +720,14 @@ struct BodyweightEntryEditor: View {
             Button("Discard changes", role: .destructive) { dismiss() }
             Button("Keep editing", role: .cancel) {}
         }
+    }
+
+    private var bodyweightRangeText: String {
+        let unit = appState.currentProfile.preferredUnit
+        guard unit == .kilograms else { return "Enter between 40 and 1500 lb." }
+        let minimum = ceil(MeasurementFormatting.convert(40, from: .pounds, to: unit) * 100) / 100
+        let maximum = floor(MeasurementFormatting.convert(1500, from: .pounds, to: unit) * 100) / 100
+        return "Enter between \(MeasurementFormatting.localizedDecimalText(minimum, maximumFractionDigits: 2)) and \(MeasurementFormatting.localizedDecimalText(maximum, maximumFractionDigits: 2)) kg (40–1500 lb)."
     }
 
     private var displayedBodyweight: Binding<Double?> {

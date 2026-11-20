@@ -110,6 +110,14 @@ extension TrainingTrackerView {
             .sheet(isPresented: $showingCreatePlan) {
                 CreateWorkoutPlanView()
                     .environmentObject(appState)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showingCreatePlanFromHistory) {
+                CreateWorkoutPlanFromHistoryView(workouts: freestyleWorkoutsForPlan)
+                    .environmentObject(appState)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showingProgramImport) {
                 ImportWorkoutPlanView()
@@ -128,6 +136,8 @@ extension TrainingTrackerView {
                     selectedLibraryExercise = exercise
                 }
                 .environmentObject(appState)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
             .sheet(item: $selectedProgramTemplate) { template in
                 WorkoutProgramTemplateDetailView(template: template, onUsePlan: { isProgramLibraryExpanded = false })
@@ -164,11 +174,6 @@ extension TrainingTrackerView {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
-            .sheet(item: $selectedPlateauInsight) { insight in
-                PlateauInsightDetailView(insight: insight)
-                    .environmentObject(appState)
-                    .presentationDetents([.medium, .large])
-            }
             .alert("Rename Plan", isPresented: $showingRenamePlan) {
                 TextField("Plan name", text: $renamePlanName)
                 Button("Save") {
@@ -184,7 +189,7 @@ extension TrainingTrackerView {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Removes the schedule and returns you to freestyle. Saved workout history and submitted lifts remain.")
+                Text("Removes this plan and its schedule. Saved workout history and submitted lifts remain.")
             }
             .onAppear {
                 syncSelectedWeek()
@@ -241,7 +246,7 @@ extension TrainingTrackerView {
                     clearPendingStart()
                     showingActiveWorkout = true
                 }
-                Button("Cancel", role: .cancel) { clearPendingStart() }
+                Button("Cancel") { clearPendingStart() }
             } message: {
                 Text(appState.activeWorkout?.name ?? "Finish or discard your current workout before starting another.")
             }
@@ -471,6 +476,31 @@ extension TrainingTrackerView {
         .accessibilityShowsLargeContentViewer { Text(option.rawValue) }
     }
 
+    private func trackerSegmentButton(_ option: TrackerSegment) -> some View {
+        Button {
+            segment = option
+            appState.requestedTrackerSegment = option.rawValue
+        } label: {
+            VStack(spacing: 8) {
+                Text(option.rawValue)
+                    .font(.subheadline.weight(segment == option ? .bold : .medium))
+                    .foregroundStyle(segment == option ? Color.liftText : Color.liftMuted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
+                Rectangle()
+                    .fill(segment == option ? Color.liftBlue : Color.clear)
+                    .frame(height: 2)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .accessibilityIdentifier("tracker.segment.\(option.rawValue.lowercased())")
+        .accessibilityAddTraits(segment == option ? .isSelected : [])
+    }
+
     private var today: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -529,9 +559,6 @@ extension TrainingTrackerView {
                 .liftSurface(radius: 12)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Browse \(appState.workoutProgramTemplates.count) workout programs")
-            .accessibilityHint("Opens the workout program catalog")
 
             }
 
@@ -562,6 +589,24 @@ extension TrainingTrackerView {
                 showingActiveWorkout = true
             }
             .environmentObject(appState)
+            if let todayWorkout = todayScheduledWorkout {
+                TrackerMessageCard(
+                    title: active.sourceSessionID == todayWorkout.session.id ? "Today’s planned workout" : "Today’s plan",
+                    message: active.sourceSessionID == todayWorkout.session.id
+                        ? "\(todayWorkout.session.name) is already in progress."
+                        : "\(todayWorkout.session.name) is scheduled today. Finish your current workout before starting it."
+                )
+            } else if let nextWorkout = nextScheduledWorkout {
+                TrackerMessageCard(
+                    title: "Next planned workout",
+                    message: "\(nextWorkout.session.name) · \(LiftTimeFormatter.shortDateNoTime(nextWorkout.date)). Finish your current workout first."
+                )
+            } else if appState.selectedWorkoutPlan != nil {
+                TrackerMessageCard(
+                    title: "No plan workout scheduled today",
+                    message: "Your active plan is \(selectedPlanName). Review its schedule in Plans."
+                )
+            }
         } else if appState.selectedWorkoutPlan == nil {
             TrackerMessageCard(
                 title: "Choose a workout plan",
@@ -755,18 +800,6 @@ extension TrainingTrackerView {
         }
     }
 
-    private var visiblePlateauInsights: [PlateauInsight] {
-        let dismissed = Set(dismissedPlateauInsightIDs.split(separator: "|").map(String.init))
-        return appState.plateauInsights.filter { !dismissed.contains($0.id) }
-    }
-
-    private func dismissPlateauInsight(_ insight: PlateauInsight) {
-        var dismissed = Set(dismissedPlateauInsightIDs.split(separator: "|").map(String.init))
-        dismissed.insert(insight.id)
-        dismissedPlateauInsightIDs = dismissed.sorted().joined(separator: "|")
-        Haptics.light()
-    }
-
     private var plans: some View {
         VStack(alignment: .leading, spacing: 12) {
             if appState.activeWorkout != nil {
@@ -818,12 +851,28 @@ extension TrainingTrackerView {
                 Button("Plans couldn’t sync · Retry") {
                     Task { await appState.synchronizeWorkoutPlans() }
                 }
-                .font(.subheadline.weight(.semibold))
             }
             if appState.workoutPlans.filter(\.isActive).count > 1 {
                 Text("More than one program is marked active. Choose the one you want to continue.")
                     .font(.caption).foregroundStyle(Color.liftGold)
             }
+
+            if appState.selectedWorkoutPlan != nil {
+                ProgramPlanDetailView(
+                    selectedWeekID: $selectedWeekID,
+                    detailTab: $planDetailTab,
+                    selectedSessionForAdd: $selectedSessionForAdd,
+                    selectedSessionToRun: $selectedSessionToRun,
+                    selectedProgramTemplate: $selectedProgramTemplate,
+                    renamePlanName: $renamePlanName,
+                    showingRenamePlan: $showingRenamePlan,
+                    planToDeleteID: $planToDeleteID,
+                    showingDeletePlan: $showingDeletePlan
+                )
+                .environmentObject(appState)
+            }
+
+            programLibrary
 
             if appState.workoutPlans.isEmpty {
                 LiftCard {
@@ -995,7 +1044,6 @@ extension TrainingTrackerView {
                                     Text("\(template.category.rawValue) · \(template.level.rawValue)")
                                         .font(.caption)
                                         .foregroundStyle(Color.liftMuted)
-                                        .lineLimit(1)
 
                                     Text(appState.workoutPlanProgressionSettings.contains(where: { settings in
                                         WorkoutProgramCatalog.scheduleVariants(for: template).contains { $0.id == settings.sourceTemplateID }

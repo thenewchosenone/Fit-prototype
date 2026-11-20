@@ -11,6 +11,7 @@ struct WorkoutProgramTemplateDetailView: View {
     @State private var method: WorkoutProgressionMethod
     @State private var startDate = Date.now
     @State private var scheduledWeekdays: [Int]
+    @State private var flexibleSessionOrder = false
     @State private var trainingMaxInputs: [String: String] = [:]
     @State private var originalTrainingMaxInputs: [String: String] = [:]
     @State private var originalTrainingMaxKilograms: [String: Double] = [:]
@@ -101,6 +102,7 @@ struct WorkoutProgramTemplateDetailView: View {
                                         startDate = settings.startedAt
                                         trainingDays = settings.scheduledWeekdays.count
                                         scheduledWeekdays = settings.scheduledWeekdays
+                                        flexibleSessionOrder = existingPlan.queueEnabled
                                         method = settings.method
                                         trainingMaxInputs = settings.trainingMaxKilograms.mapValues {
                                             MeasurementFormatting.convert($0, from: .kilograms, to: appState.currentProfile.preferredUnit).formatted(.number.grouping(.never).precision(.fractionLength(1)))
@@ -109,6 +111,7 @@ struct WorkoutProgramTemplateDetailView: View {
                                         originalTrainingMaxKilograms = settings.trainingMaxKilograms
                                         originalSetup = (trainingDays, method, startDate, scheduledWeekdays, trainingMaxInputs)
                                         editingExisting = true
+                                        showingSetup = true
                                     }
                                     .disabled(appState.activeWorkout != nil)
                                     Button("Set up a new cycle") { startingNewCycle = true }
@@ -133,11 +136,15 @@ struct WorkoutProgramTemplateDetailView: View {
                 .safeAreaInset(edge: .bottom) {
                     Button(editingExisting ? "Save setup changes" : (existingPlan != nil && !startingNewCycle ? (existingPlan?.id == appState.selectedWorkoutPlanID ? "View current plan" : "Use plan") : "Start new 12-week cycle")) {
                         if editingExisting, let existingPlan {
-                            if appState.updateWorkoutProgramSetup(planID: existingPlan.id, startDate: startDate, scheduledWeekdays: scheduledWeekdays, method: method, trainingMaxKilograms: parsedTrainingMaxKilograms) { dismiss() }
+                            if appState.updateWorkoutProgramSetup(planID: existingPlan.id, startDate: startDate, scheduledWeekdays: scheduledWeekdays, method: method, trainingMaxKilograms: parsedTrainingMaxKilograms, flexibleSessionOrder: flexibleSessionOrder) { dismiss() }
                             return
                         }
                         if let existingPlan, !startingNewCycle, !editingExisting {
                             if existingPlan.id == appState.selectedWorkoutPlanID || appState.selectWorkoutPlan(existingPlan.id) { onUsePlan?(); dismiss() }
+                            return
+                        }
+                        if !showingSetup {
+                            showingSetup = true
                             return
                         }
                         guard !didStart else { return }
@@ -149,6 +156,9 @@ struct WorkoutProgramTemplateDetailView: View {
                             method: method,
                             trainingMaxKilograms: parsedTrainingMaxKilograms
                         ) != nil {
+                            if flexibleSessionOrder {
+                                _ = appState.setSelectedPlanQueueEnabled(true)
+                            }
                             dismiss()
                         } else { didStart = false }
                     }
@@ -325,9 +335,9 @@ struct WorkoutProgramTemplateDetailView: View {
                             }
                         }
                     }
-                }
-                if Set(scheduledWeekdays).count != scheduledWeekdays.count {
-                    Text("Choose a different day for each session.").font(.caption).foregroundStyle(Color.liftGold)
+                    if Set(scheduledWeekdays).count != scheduledWeekdays.count {
+                        Text("Choose a different day for each session.").font(.caption).foregroundStyle(Color.liftGold)
+                    }
                 }
                 if method == .percentage { trainingMaxFields }
             }
@@ -689,7 +699,11 @@ struct WorkoutProgramTemplateDetailView: View {
             let displayed = appState.currentProfile.preferredUnit == .pounds
                 ? RankingCalculator.kilogramsToPounds(kilograms)
                 : kilograms
-            trainingMaxInputs[exerciseID] = String(format: "%.1f", displayed)
+            trainingMaxInputs[exerciseID] = MeasurementFormatting.localizedDecimalText(
+                displayed,
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1
+            )
         }
     }
 
@@ -731,13 +745,13 @@ struct WorkoutProgramProgressionEditorView: View {
         _method = State(initialValue: settings.method)
         _inputs = State(initialValue: settings.trainingMaxKilograms.mapValues { kilograms in
             let value = settings.preferredUnit == .pounds ? RankingCalculator.kilogramsToPounds(kilograms) : kilograms
-            return String(format: "%.1f", value)
+            return MeasurementFormatting.localizedDecimalText(value, maximumFractionDigits: 1)
         })
     }
 
     private var parsed: [String: Double] {
         inputs.reduce(into: [:]) { result, pair in
-            if let value = Double(pair.value), value > 0 {
+            if let value = MeasurementFormatting.parseLocalizedDecimal(pair.value), value > 0 {
                 result[pair.key] = settings.preferredUnit == .pounds ? RankingCalculator.poundsToKilograms(value) : value
             }
         }

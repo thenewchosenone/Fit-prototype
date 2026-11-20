@@ -5,6 +5,14 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
     private let client: SupabaseClient
     init(client: SupabaseClient) { self.client = client }
 
+    func publicWorkoutSummaries(for userID: UUID) async throws -> [PublicWorkoutSummary] {
+        do {
+            let rows: [PublicWorkoutSummaryDTO] = try await client.rpc("get_profile_workout_summaries", params: ["target_user_id": userID])
+                .execute().value
+            return rows.map(\.summary)
+        } catch { throw SupabaseServiceErrorMapper.map(error) }
+    }
+
     func plans() async throws -> [WorkoutPlanDocument] {
         do {
             let pageSize = 100
@@ -64,12 +72,7 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
 
     func deletePlan(id: UUID) async throws {
         do {
-            let userID = try await client.auth.session.user.id
-            try await client.from("workout_plan_documents")
-                .delete()
-                .eq("owner_id", value: userID)
-                .eq("id", value: id)
-                .execute()
+            try await client.rpc("delete_own_workout_plan", params: ["target_plan_id": id]).execute()
         }
         catch { throw SupabaseServiceErrorMapper.map(error) }
     }
@@ -120,6 +123,7 @@ final class SupabaseWorkoutSyncService: WorkoutSyncService {
         guard !snapshot.isSeededDemoData else { return }
         do {
             let userID = try await client.auth.session.user.id
+            guard snapshot.ownerID == userID else { throw LiftRankServiceError.sessionExpired }
             let row = CompletedWorkoutSnapshotDTO(snapshot: snapshot, ownerID: userID)
             try await client.from("completed_workout_snapshots").upsert(row, onConflict: "owner_id,id").execute()
         } catch { throw SupabaseServiceErrorMapper.map(error) }
@@ -184,6 +188,32 @@ private struct WorkoutPlanDocumentDTO: Codable {
     var document: WorkoutPlanDocument? {
         guard let data = Data(base64Encoded: payload) else { return nil }
         return WorkoutPlanDocument(id: id, ownerID: ownerID, revision: revision, name: name, payload: data, updatedAt: updatedAt, conflictOfRevision: conflictOfRevision, isConflictCopy: isConflictCopy)
+    }
+}
+
+private struct WorkoutPlanDeletionDTO: Decodable {
+    let planID: UUID
+    enum CodingKeys: String, CodingKey { case planID = "plan_id" }
+}
+
+private struct PublicWorkoutSummaryDTO: Decodable {
+    let id: UUID
+    let name: String
+    let completedAt: Date
+    let duration: Double
+    let setCount: Int
+    let exerciseNames: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, duration
+        case completedAt = "completed_at"
+        case setCount = "set_count"
+        case exerciseNames = "exercise_names"
+    }
+
+    var summary: PublicWorkoutSummary {
+        PublicWorkoutSummary(id: id, name: name, completedAt: completedAt, duration: duration,
+                             setCount: setCount, exerciseNames: exerciseNames)
     }
 }
 

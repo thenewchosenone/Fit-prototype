@@ -23,6 +23,20 @@ private struct LiftReportParameters: Encodable {
     }
 }
 
+private struct LiftSubmissionQueryParameters: Encodable {
+    let targetUserID: UUID?
+    let targetIDs: [UUID]?
+    let pageLimit: Int
+    let pageOffset: Int
+
+    enum CodingKeys: String, CodingKey {
+        case targetUserID = "target_user_id"
+        case targetIDs = "target_ids"
+        case pageLimit = "page_limit"
+        case pageOffset = "page_offset"
+    }
+}
+
 @MainActor
 final class SupabaseLiftService: LiftService {
     private let client: SupabaseClient
@@ -103,17 +117,25 @@ final class SupabaseLiftService: LiftService {
 
     func submit(_ submission: LiftSubmission) async throws -> LiftSubmission {
         do {
-            let row: CompetitiveLiftDTO = try await client
+            try await client
                 .from("lift_submissions")
                 .insert(CompetitiveLiftInsertDTO(submission: submission))
                 .select(CompetitiveLiftDTO.readableColumns)
                 .single()
                 .execute()
-                .value
-            guard let saved = row.submission else {
+            guard let saved = try await submissions(ids: [submission.id]).first,
+                  saved.userID == submission.userID else {
                 throw LiftRankServiceError.server("The lift could not be read after submission.")
             }
             return saved
+        } catch let error as PostgrestError where error.code == "23505" {
+            do {
+                guard let saved = try await submissions(ids: [submission.id]).first,
+                      saved.userID == submission.userID else { throw error }
+                return saved
+            } catch {
+                throw SupabaseServiceErrorMapper.map(error)
+            }
         }
         catch let error as LiftRankServiceError { throw error }
         catch { throw SupabaseServiceErrorMapper.map(error) }

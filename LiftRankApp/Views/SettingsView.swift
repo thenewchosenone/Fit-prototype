@@ -777,6 +777,7 @@ enum SettingsInfoPage: String, Identifiable, Hashable {
     case privacy
     case terms
     case fitnessDisclaimer
+    case openSource
 
     var id: String { rawValue }
 
@@ -786,6 +787,7 @@ enum SettingsInfoPage: String, Identifiable, Hashable {
         case .privacy: return "Privacy notice"
         case .terms: return "Terms of use"
         case .fitnessDisclaimer: return "Fitness disclaimer"
+        case .openSource: return "Open-source licenses"
         }
     }
 
@@ -800,6 +802,7 @@ enum SettingsInfoPage: String, Identifiable, Hashable {
         case .privacy: return documentSections(.privacy)
         case .terms: return documentSections(.terms)
         case .fitnessDisclaimer: return documentSections(.fitnessDisclaimer)
+        case .openSource: return []
         }
     }
 
@@ -816,6 +819,7 @@ struct LegalAcceptanceView: View {
     @EnvironmentObject private var appState: AppState
     @State private var acknowledged: Set<LegalDocumentKind> = []
     @State private var expanded: LegalDocumentKind?
+    @State private var showingProfileEditor = false
 
     private var documents: [LegalDocument] {
         appState.outstandingLegalDocuments.isEmpty ? LegalDocument.current : appState.outstandingLegalDocuments
@@ -829,6 +833,14 @@ struct LegalAcceptanceView: View {
                         .font(.title.weight(.semibold))
                     Text("Review and accept the current policies. You can open each document below before accepting.")
                         .foregroundStyle(Color.liftMuted)
+
+                    Button {
+                        showingProfileEditor = true
+                    } label: {
+                        Label("Edit profile details", systemImage: "chevron.left")
+                    }
+                    .disabled(appState.accountOperationInProgress)
+                    .accessibilityIdentifier("legal.editProfile")
 
                     ForEach(documents) { document in
                         LiftCard {
@@ -947,6 +959,7 @@ struct SettingsInfoView: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                        .padding()
                     }
                 }
                 .padding()

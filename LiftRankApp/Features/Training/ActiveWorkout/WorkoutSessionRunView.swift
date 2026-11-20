@@ -421,28 +421,28 @@ struct WorkoutSessionRunView: View {
     ) -> some View {
         HStack(spacing: 12) {
             if isReorderingExercises {
-                VStack(spacing: 6) {
-                    Button {
+                Menu {
+                    Button("Move earlier") {
                         _ = appState.moveActiveWorkoutExercise(exercise, direction: -1)
                     } label: {
                         Image(systemName: "chevron.up")
                             .font(LiftTypography.compactEmphasis)
                             .frame(width: 28, height: 20)
                     }
-                    .buttonStyle(.plain)
-                    Button {
+                    Button("Move later") {
                         _ = appState.moveActiveWorkoutExercise(exercise, direction: 1)
                     } label: {
                         Image(systemName: "chevron.down")
                             .font(LiftTypography.compactEmphasis)
                             .frame(width: 28, height: 20)
                     }
-                    .buttonStyle(.plain)
+                } label: {
                     Image(systemName: "line.3.horizontal")
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(Color.liftMuted)
                 }
-                .foregroundStyle(Color.liftAccentText)
+                .accessibilityLabel("Reorder \(exercise.exerciseName)")
+                .accessibilityHint("Choose to move this exercise earlier or later in the workout.")
             }
             VStack(alignment: .leading, spacing: 5) {
                 Text(exercise.exerciseName)

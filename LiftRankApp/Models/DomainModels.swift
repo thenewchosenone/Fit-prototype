@@ -125,7 +125,7 @@ enum LiftEvidenceStatus: String, Codable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .selfReported: "Self-reported"
+        case .selfReported: "Self reported"
         case .videoBacked: "Video-backed"
         }
     }

@@ -27,6 +27,7 @@ struct LiftPrimaryButtonStyle: ButtonStyle {
 
 struct SecondaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
+    @ScaledMetric(relativeTo: .body) private var fontSize: CGFloat = 16
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label

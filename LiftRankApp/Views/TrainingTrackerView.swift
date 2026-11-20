@@ -25,6 +25,8 @@ struct TrainingTrackerView: View {
     @State var showingCreatePlan = false
     @State var showingProgramImport = false
     @State var showingDeletePlan = false
+    @State var planToDeleteID: UUID?
+    @State var revealedPlanID: UUID?
     @State var showingRenamePlan = false
     @State var renamePlanName = ""
     @State var planDetailTab = "Weeks"
@@ -64,12 +66,12 @@ struct TrainingTrackerView: View {
     @State var selectedBodyweightEntry: BodyweightEntry?
     @State var showAllMuscleVolumeRows = false
     @State var muscleWorkloadFilter: MuscleWorkloadFilter = .logged
+    @State var selectedMuscleMapOrientation: ExerciseMuscleMapOrientation = .front
     @State var selectedProgressMuscle: ExerciseMuscleRegion?
     @State var selectedProgressMuscleDate = Date.now
     @State var didOpenProgress = false
     @State var selectedExerciseWeightTrendDate: Date?
     @State var selectedExerciseStrengthTrendDate: Date?
-    @State var selectedPlateauInsight: PlateauInsight?
     @State var selectedVolumeWeek: VolumeWeekSelection = .thisWeek
     @State var activityHeatmapPeriod = 90
     @State var activityHeatmapMeasure = "Time"

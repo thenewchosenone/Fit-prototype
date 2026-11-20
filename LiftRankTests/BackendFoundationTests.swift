@@ -70,7 +70,14 @@ private final class GatedSessionLegalAcceptanceService: LegalAcceptanceService {
 @MainActor
 private final class TestAccountDeletionService: AccountDeletionService {
     private(set) var deleteCount = 0
-    func deleteAccount() async throws { deleteCount += 1 }
+    var failNextDeletion = false
+    func deleteAccount() async throws {
+        deleteCount += 1
+        if failNextDeletion {
+            failNextDeletion = false
+            throw LiftRankServiceError.networkUnavailable
+        }
+    }
 }
 
 @MainActor
@@ -125,9 +132,57 @@ private final class TestAnalyticsCaptureService: AnalyticsService {
 
 @MainActor
 final class BackendFoundationTests: XCTestCase {
+    func testLeaderboardRPCAlwaysEncodesExactRepetitionArgument() throws {
+        func payload(
+            repetitionCount: Int?,
+            cityIDFilter: UUID? = nil,
+            experienceLevelFilter: String? = nil,
+            evidenceFilter: String? = nil
+        ) throws -> [String: Any] {
+            let parameters = LeaderboardParameters(
+                exerciseID: "barbell_bench_press",
+                rankingType: "Absolute",
+                gymID: nil,
+                city: nil,
+                region: nil,
+                country: nil,
+                ageBand: nil,
+                sexCategory: nil,
+                weightMinKG: nil,
+                weightMaxKG: nil,
+                verifiedOnly: false,
+                timeRange: "All time",
+                repetitionCount: repetitionCount,
+                cityIDFilter: cityIDFilter,
+                experienceLevelFilter: experienceLevelFilter,
+                evidenceFilter: evidenceFilter
+            )
+            let data = try JSONEncoder().encode(parameters)
+            return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        }
+
+        XCTAssertEqual(try payload(repetitionCount: 5)["repetition_count"] as? Int, 5)
+        XCTAssertTrue(try payload(repetitionCount: nil)["repetition_count"] is NSNull)
+        XCTAssertTrue(try payload(repetitionCount: nil)["city_id_filter"] is NSNull)
+        XCTAssertTrue(try payload(repetitionCount: nil)["experience_level_filter"] is NSNull)
+        XCTAssertTrue(try payload(repetitionCount: nil)["evidence_filter"] is NSNull)
+
+        let cityID = try XCTUnwrap(UUID(uuidString: "99000000-0000-4000-8000-000000000301"))
+        let filtered = try payload(
+            repetitionCount: nil,
+            cityIDFilter: cityID,
+            experienceLevelFilter: "advanced",
+            evidenceFilter: "self_reported"
+        )
+        XCTAssertEqual(filtered["city_id_filter"] as? String, cityID.uuidString.lowercased())
+        XCTAssertEqual(filtered["experience_level_filter"] as? String, "advanced")
+        XCTAssertEqual(filtered["evidence_filter"] as? String, "self_reported")
+    }
+
     func testBundledCitySearchSupportsRepresentativeCountriesAndRegions() async throws {
         let service = BundledLocationService()
         let cases = [
+            (country: "US", region: "Florida", query: "", expectedCity: "Miami"),
             (country: "US", region: "Florida", query: "mi", expectedCity: "Miami"),
             (country: "US", region: "Florida", query: "cut", expectedCity: "Cutler Bay"),
             (country: "US", region: "Florida", query: "hom", expectedCity: "Homestead"),
@@ -184,6 +239,32 @@ final class BackendFoundationTests: XCTestCase {
         XCTAssertFalse(LiftVideoPolicy.allows(duration: .infinity))
     }
 
+    func testLiftVideoFileSizePolicyMatchesStorageBucketLimit() {
+        XCTAssertTrue(LiftVideoPolicy.allows(fileSizeBytes: LiftVideoPolicy.maximumFileSizeBytes))
+        XCTAssertFalse(LiftVideoPolicy.allows(fileSizeBytes: LiftVideoPolicy.maximumFileSizeBytes + 1))
+        XCTAssertFalse(LiftVideoPolicy.allows(fileSizeBytes: 0))
+        XCTAssertFalse(LiftVideoPolicy.allows(fileSizeBytes: -1))
+    }
+
+    func testWorkoutVideoStorePersistsFileBackedPickerResult() async throws {
+        let fileManager = FileManager.default
+        let sourceURL = fileManager.temporaryDirectory
+            .appendingPathComponent("picked-video-\(UUID().uuidString).mov")
+        let contents = Data([0x01, 0x02, 0x03])
+        try contents.write(to: sourceURL)
+        var persistedURL: URL?
+        defer {
+            try? fileManager.removeItem(at: sourceURL)
+            if let persistedURL { try? fileManager.removeItem(at: persistedURL) }
+        }
+
+        persistedURL = try await LocalWorkoutVideoStore().save(from: sourceURL, fileExtension: "mov")
+
+        XCTAssertEqual(try Data(contentsOf: try XCTUnwrap(persistedURL)), contents)
+        XCTAssertNotEqual(persistedURL, sourceURL)
+        XCTAssertFalse(fileManager.fileExists(atPath: sourceURL.path))
+    }
+
     func testProfileThumbnailLoadsFromDiskWithoutRenderPathIO() async throws {
         let userID = UUID()
         let store = LocalProfilePhotoStore.shared
@@ -220,6 +301,21 @@ final class BackendFoundationTests: XCTestCase {
         ]
 
         XCTAssertNotNil(SupabaseConfiguration.load(environment: environment))
+    }
+
+    func testHostedConfigurationAcceptsPublishableKeyAndRejectsSecretKey() throws {
+        var environment = [
+            "LIFTRANK_SUPABASE_URL": "https://example.supabase.co",
+            "LIFTRANK_BACKEND_ENVIRONMENT": "production"
+        ]
+        environment["LIFTRANK_SUPABASE_ANON_KEY"] = "sb_publishable_test-key"
+        let publishable = try XCTUnwrap(SupabaseConfiguration.load(environment: environment))
+        XCTAssertEqual(publishable.publicKey, "sb_publishable_test-key")
+
+        environment["LIFTRANK_SUPABASE_ANON_KEY"] = "sb_secret_test-key"
+        XCTAssertNil(SupabaseConfiguration.load(environment: environment))
+        environment["LIFTRANK_SUPABASE_ANON_KEY"] = "not-a-publishable-key"
+        XCTAssertNil(SupabaseConfiguration.load(environment: environment))
     }
 
 
@@ -288,6 +384,12 @@ final class BackendFoundationTests: XCTestCase {
         ))
 
         await appState.signIn(email: "avatar@example.test", password: "password")
+
+        // Avatar caching is intentionally deferred so it cannot hold up sign-in.
+        for _ in 0..<200 {
+            if LocalProfilePhotoStore.shared.thumbnail(for: avatarPath) != nil { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
 
         XCTAssertEqual(service.downloadedAvatarPaths, [avatarPath])
         XCTAssertNotNil(LocalProfilePhotoStore.shared.thumbnail(for: avatarPath))
@@ -372,7 +474,7 @@ final class BackendFoundationTests: XCTestCase {
                 .withTintColor(.systemGreen, renderingMode: .alwaysOriginal)
         )
 
-        await appState.saveProfilePhoto(image)
+        try await appState.saveProfilePhoto(image)
         for _ in 0..<120 where appState.currentProfile.avatarPath != serverAvatarPath {
             try await Task.sleep(nanoseconds: 25_000_000)
         }
@@ -524,12 +626,18 @@ final class BackendFoundationTests: XCTestCase {
         await appState.signIn(email: "avatar-race@example.test", password: "password")
         let image = try XCTUnwrap(UIImage(systemName: "person.crop.circle.fill"))
 
-        await appState.saveProfilePhoto(image)
+        let upload = Task { try await appState.saveProfilePhoto(image) }
         for _ in 0..<20 where !service.avatarUploadStarted {
             try await Task.sleep(nanoseconds: 25_000_000)
         }
         appState.removeProfilePhoto()
         service.releaseAvatarUpload()
+        do {
+            try await upload.value
+            XCTFail("A superseded photo upload should fail")
+        } catch {
+            XCTAssertEqual(error as? LiftRankServiceError, .sessionExpired)
+        }
         for _ in 0..<20 where service.updateProfileCount < 1 {
             try await Task.sleep(nanoseconds: 25_000_000)
         }
@@ -557,12 +665,18 @@ final class BackendFoundationTests: XCTestCase {
         await appState.signIn(email: "avatar-account-race@example.test", password: "password")
         let image = try XCTUnwrap(UIImage(systemName: "person.crop.circle.fill"))
 
-        await appState.saveProfilePhoto(image)
+        let upload = Task { try await appState.saveProfilePhoto(image) }
         for _ in 0..<20 where !service.avatarUploadStarted {
             try await Task.sleep(nanoseconds: 25_000_000)
         }
         repository.currentProfile.id = UUID()
         service.releaseAvatarUpload()
+        do {
+            try await upload.value
+            XCTFail("A superseded photo upload should fail")
+        } catch {
+            XCTAssertEqual(error as? LiftRankServiceError, .sessionExpired)
+        }
         try await Task.sleep(nanoseconds: 100_000_000)
 
         XCTAssertEqual(service.updateProfileCount, 0)
@@ -741,6 +855,23 @@ final class BackendFoundationTests: XCTestCase {
         }
         XCTAssertEqual(routedPostID, postID)
         XCTAssertNil(routedCommentID)
+    }
+
+    func testForumModelsRepresentAuthorsRemovedByAccountDeletion() {
+        let post = ForumPost(
+            id: UUID(), communityID: UUID(), gymID: nil, authorID: nil,
+            kind: "Discussion", title: "Retained", body: "Post body", tag: nil,
+            liftID: nil, isPinned: false, isLocked: false, createdAt: .now
+        )
+        let comment = ForumComment(
+            id: UUID(), postID: post.id, authorID: nil, parentCommentID: nil,
+            body: "Retained comment", createdAt: .now
+        )
+
+        XCTAssertNil(post.authorID)
+        XCTAssertNil(comment.authorID)
+        XCTAssertEqual(post.body, "Post body")
+        XCTAssertEqual(comment.body, "Retained comment")
     }
 
     func testForumReplyNotificationCarriesExactCommentTarget() throws {
@@ -1491,8 +1622,9 @@ final class BackendFoundationTests: XCTestCase {
         ))
         await appState.signIn(email: session.email ?? "bodyweight@example.test", password: "password")
 
-        appState.updateBodyweight(BodyweightEntry(
-            id: UUID(),
+        let entryID = UUID()
+        try await appState.updateBodyweight(BodyweightEntry(
+            id: entryID,
             week: 1,
             targetDate: Date(timeIntervalSince1970: 1_800_000_000),
             actual: 211,
@@ -1593,17 +1725,34 @@ final class BackendFoundationTests: XCTestCase {
         let entry = BodyweightEntry(
             id: UUID(), week: 1, targetDate: .now, actual: 212, notes: "Should not drift"
         )
-        appState.updateBodyweight(entry)
-
-        let deadline = Date().addingTimeInterval(1)
-        while appState.accountMessage == nil && Date() < deadline {
-            try await Task.sleep(nanoseconds: 20_000_000)
+        do {
+            try await appState.updateBodyweight(entry)
+            XCTFail("Expected the failed save to be returned to the editor")
+        } catch LiftRankServiceError.server("Bodyweight check-in unavailable") {
+            // The caller keeps the draft open and renders this error inline.
         }
 
         XCTAssertEqual(appState.currentProfile.bodyweightPounds, 205)
         XCTAssertFalse(appState.bodyweightEntries.contains(where: { $0.id == entry.id }))
         XCTAssertEqual(service.profile.bodyweightPounds, 205)
-        XCTAssertNotNil(appState.accountMessage)
+    }
+
+    func testBodyweightOutsideServerAcceptedRangeIsRejectedBeforeMutation() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let appState = AppState(repository: repository, serviceContainer: AppServiceContainer.make(repository: repository))
+
+        for weight in [39.9, 1500.1] {
+            do {
+                try await appState.updateBodyweight(BodyweightEntry(
+                    id: UUID(), week: 1, targetDate: .now, actual: weight, notes: "Invalid weight"
+                ))
+                XCTFail("Expected \(weight) lb to be rejected")
+            } catch LiftRankServiceError.invalidInput("Bodyweight must be between 40 and 1500 pounds.") {
+                // The server's accepted range is enforced before local state changes.
+            }
+        }
+
+        XCTAssertTrue(appState.bodyweightEntries.isEmpty)
     }
 
     func testBodyweightHistoryDoesNotOverrideCurrentProfileWeight() {
@@ -1639,6 +1788,49 @@ final class BackendFoundationTests: XCTestCase {
         )
     }
 
+    func testBodyweightSyncPrefersServerEditsAndDoesNotResurrectKnownRemoteDeletions() {
+        let userID = UUID()
+        let serverEditedID = UUID()
+        let remotelyDeletedID = UUID()
+        let newLocalID = UUID()
+        let localRecords = [
+            BodyweightRecordDTO(id: serverEditedID, userID: userID, weight: 210, recordedAt: Date(timeIntervalSince1970: 1), notes: "stale"),
+            BodyweightRecordDTO(id: remotelyDeletedID, userID: userID, weight: 190, recordedAt: Date(timeIntervalSince1970: 2), notes: "deleted remotely"),
+            BodyweightRecordDTO(id: newLocalID, userID: userID, weight: 180, recordedAt: Date(timeIntervalSince1970: 3), notes: "new offline record"),
+        ]
+        let remoteRecords = [
+            BodyweightRecordDTO(id: serverEditedID, userID: userID, weight: 205, recordedAt: Date(timeIntervalSince1970: 1), notes: "server edit"),
+        ]
+        let merge = BodyweightSyncMerge(
+            localRecords: localRecords,
+            remoteRecords: remoteRecords,
+            knownSyncedIDs: [serverEditedID, remotelyDeletedID]
+        )
+
+        XCTAssertEqual(merge.recordsToUpload.map(\.id), [newLocalID])
+        XCTAssertEqual(merge.recordsToDisplay.first(where: { $0.id == serverEditedID })?.weight, 205)
+        XCTAssertFalse(merge.recordsToDisplay.contains { $0.id == remotelyDeletedID })
+        XCTAssertTrue(merge.recordsToDisplay.contains { $0.id == newLocalID })
+    }
+
+    func testLegacyBodyweightSyncUploadsLocalRecordMissingFromServer() {
+        let localRecord = BodyweightRecordDTO(
+            id: UUID(), userID: UUID(), weight: 185,
+            recordedAt: Date(timeIntervalSince1970: 10), notes: "legacy offline entry"
+        )
+
+        let merge = BodyweightSyncMerge(
+            localRecords: [localRecord],
+            remoteRecords: [],
+            knownSyncedIDs: []
+        )
+
+        XCTAssertEqual(merge.recordsToUpload.map(\.id), [localRecord.id])
+        XCTAssertEqual(merge.recordsToDisplay.map(\.id), [localRecord.id])
+        XCTAssertEqual(merge.recordsToDisplay.first?.weight, localRecord.weight)
+        XCTAssertEqual(merge.recordsToDisplay.first?.notes, localRecord.notes)
+    }
+
     func testBodyweightUploadDoesNotRestoreSignedOutProfile() async throws {
         let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
         let userID = UUID()
@@ -1665,14 +1857,22 @@ final class BackendFoundationTests: XCTestCase {
         await appState.signIn(email: session.email ?? "bodyweight-race@example.test", password: "password")
         service.holdBodyweightSave = true
 
-        appState.updateBodyweight(BodyweightEntry(
+        let updateTask = Task {
+            try await appState.updateBodyweight(BodyweightEntry(
             id: UUID(), week: 1, targetDate: .now, actual: 210, notes: "Pending"
-        ))
+            ))
+        }
         while !service.bodyweightSaveStarted {
             await Task.yield()
         }
         await appState.signOutAccount()
         service.releaseBodyweightSave()
+        do {
+            try await updateTask.value
+            XCTFail("Expected the account change to cancel the stale profile update")
+        } catch LiftRankServiceError.sessionExpired {
+            // The previous account's result must not be committed locally.
+        }
         try await Task.sleep(nanoseconds: 20_000_000)
 
         XCTAssertEqual(service.updateProfileCount, 0)
@@ -1715,7 +1915,7 @@ final class BackendFoundationTests: XCTestCase {
         await appState.signIn(email: session.email ?? "bodyweight-kg@example.test", password: "password")
 
         let poundsFromKilogramInput = MeasurementFormatting.convert(100, from: .kilograms, to: .pounds)
-        appState.updateBodyweight(BodyweightEntry(
+        try await appState.updateBodyweight(BodyweightEntry(
             id: UUID(),
             week: 1,
             targetDate: Date(timeIntervalSince1970: 1_800_000_000),
@@ -2167,14 +2367,14 @@ final class BackendFoundationTests: XCTestCase {
         let staging = try XCTUnwrap(SupabaseConfiguration.load(environment: [
             "LIFTRANK_BACKEND_ENVIRONMENT": "staging",
             "LIFTRANK_SUPABASE_URL": "https://example.supabase.co",
-            "LIFTRANK_SUPABASE_ANON_KEY": "public-key"
+            "LIFTRANK_SUPABASE_ANON_KEY": "sb_publishable_staging-key"
         ]))
         XCTAssertEqual(staging.environment, .staging)
 
         XCTAssertNil(SupabaseConfiguration.load(environment: [
             "LIFTRANK_BACKEND_ENVIRONMENT": "local",
             "LIFTRANK_SUPABASE_URL": "https://example.supabase.co",
-            "LIFTRANK_SUPABASE_ANON_KEY": "public-key"
+            "LIFTRANK_SUPABASE_ANON_KEY": "sb_publishable_local-key"
         ]))
     }
 
@@ -2397,7 +2597,7 @@ final class BackendFoundationTests: XCTestCase {
         )
     }
 
-    func testOnboardingStartingLiftsSavePrivateSelfReportedRecordsAndRetryWithoutDuplicates() async throws {
+    func testOnboardingStartingLiftsSavePublicSelfReportedRecordsAndRetryWithoutDuplicates() async throws {
         let state = makeState(session: session, onboardingCompleted: false, includesLiftService: true)
         await state.restoreAccount()
         let startingLifts = [
@@ -2426,7 +2626,7 @@ final class BackendFoundationTests: XCTestCase {
             Set(saved.map(\.exerciseID)),
             Set(["barbell-bench-press", "back-squat", "conventional-deadlift", "standing-barbell-overhead-press"])
         )
-        XCTAssertTrue(saved.allSatisfy { $0.visibility == .privateLift })
+        XCTAssertTrue(saved.allSatisfy { $0.visibility == .publicLift })
         XCTAssertTrue(saved.allSatisfy { $0.verificationStatus == .selfReported })
         XCTAssertTrue(saved.allSatisfy { $0.evidenceStatus == .selfReported })
         XCTAssertTrue(saved.allSatisfy { $0.moderationStatus == .clear })
@@ -2777,6 +2977,28 @@ final class BackendFoundationTests: XCTestCase {
         repository.currentProfile.id = UUID()
         await store.refreshBlocks()
 
+        XCTAssertFalse(store.isBlocked(blockedID))
+    }
+
+    @MainActor
+    func testAccountSocialStoreUpdatesBlockCacheWhenPostMutationRefreshFails() async throws {
+        let repository = DemoRepository()
+        let socialService = MockSocialService(repository: repository)
+        let store = AccountSocialStore(
+            repository: repository,
+            profileStore: ProfileStore(repository: repository),
+            gymService: MockGymService(repository: repository),
+            gymMembershipService: MockGymMembershipService(repository: repository),
+            profileService: MockProfileService(repository: repository),
+            socialService: socialService
+        )
+        let blockedID = UUID()
+        socialService.shouldFailBlocksFetch = true
+
+        try await store.setBlocked(blockedID, blocked: true)
+        XCTAssertTrue(store.isBlocked(blockedID))
+
+        try await store.setBlocked(blockedID, blocked: false)
         XCTAssertFalse(store.isBlocked(blockedID))
     }
 
@@ -3431,6 +3653,24 @@ final class BackendFoundationTests: XCTestCase {
     }
 
     @MainActor
+    func testWorkoutSyncRemovesAStaleOfflinePlanWhenTheServerHasATombstone() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let service = MockWorkoutSyncService()
+        let plan = WorkoutPlan(id: UUID(), name: "Deleted on website", createdAt: .now)
+        try await service.deletePlan(id: plan.id)
+        repository.workoutPlans = [plan]
+
+        await WorkoutSyncStore(repository: repository, service: service).synchronizeWorkoutPlans()
+
+        let remainingPlans = try await service.plans()
+        let deletedIDs = try await service.deletedWorkoutPlanIDs()
+        XCTAssertFalse(repository.workoutPlans.contains { $0.id == plan.id })
+        XCTAssertFalse(repository.pendingRemoteWorkoutPlanDeletions.contains(plan.id))
+        XCTAssertFalse(remainingPlans.contains { $0.id == plan.id })
+        XCTAssertTrue(deletedIDs.contains(plan.id))
+    }
+
+    @MainActor
     func testWorkoutSyncStoreOwnsCompletedUploadQueueAndIdempotentRetry() async throws {
         let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
         let service = MockWorkoutSyncService()
@@ -3668,6 +3908,130 @@ final class BackendFoundationTests: XCTestCase {
     }
 
     @MainActor
+    func testWorkoutVisibilityDefaultsAndLegacyHistoryStayDistinct() throws {
+        let workout = CompletedWorkout(
+            id: UUID(), source: .freestyle, sourceSessionID: nil, sourcePlanID: nil,
+            name: "Workout", dayLabel: "Monday", startedAt: .now.addingTimeInterval(-600),
+            completedAt: .now, duration: 600, effort: 3, notes: "Private note", gymID: nil,
+            bodyweight: 190, unit: .pounds, exercises: [], sets: [], linkedSubmissionIDs: []
+        )
+        XCTAssertEqual(workout.isPublic, true)
+        var legacy = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(workout)) as? [String: Any])
+        legacy.removeValue(forKey: "isPublic")
+        let restored = try JSONDecoder().decode(CompletedWorkout.self, from: JSONSerialization.data(withJSONObject: legacy))
+        XCTAssertNil(restored.isPublic)
+        let summary = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(PublicWorkoutSummary(workout: workout))) as? [String: Any])
+        XCTAssertNil(summary["notes"])
+        XCTAssertNil(summary["bodyweight"])
+        XCTAssertNil(summary["gymID"])
+    }
+
+    @MainActor
+    func testWorkoutVisibilitySaveUploadsAndPreservesPrivateDecision() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let service = MockWorkoutSyncService()
+        let store = WorkoutSyncStore(repository: repository, service: service)
+        let workout = CompletedWorkout(
+            id: UUID(), source: .freestyle, sourceSessionID: nil, sourcePlanID: nil,
+            name: "Workout", dayLabel: "Monday", startedAt: .now.addingTimeInterval(-600),
+            completedAt: .now, duration: 600, effort: 3, notes: "Private", gymID: nil,
+            bodyweight: nil, unit: .pounds, exercises: [], sets: [], linkedSubmissionIDs: [], isPublic: false
+        )
+        try await store.saveCompletedWorkoutVisibility(CompletedWorkoutSnapshot(
+            id: workout.id, ownerID: repository.currentProfile.id,
+            payload: try JSONEncoder().encode(workout), completedAt: workout.completedAt
+        ))
+        XCTAssertEqual(repository.completedWorkouts.first?.isPublic, false)
+        XCTAssertTrue(store.pendingCompletedWorkoutUploads.isEmpty)
+    }
+
+    @MainActor
+    func testWorkoutVisibilityWaitsForOlderUploadBeforeSavingPrivateDecision() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let service = GatedCompletedWorkoutUploadService()
+        let store = WorkoutSyncStore(repository: repository, service: service)
+        let workoutID = UUID()
+        let original = CompletedWorkoutSnapshot(id: workoutID, ownerID: repository.currentProfile.id,
+                                                payload: Data("old public snapshot".utf8), completedAt: .now)
+        store.enqueueCompletedWorkout(original)
+        let firstSync = Task { await store.synchronizeCompletedWorkoutHistory() }
+        while !service.requestStarted { await Task.yield() }
+        var privateSnapshot = original
+        privateSnapshot.payload = Data("new private snapshot".utf8)
+        let decision = privateSnapshot
+        let privacySave = Task { try await store.saveCompletedWorkoutVisibility(decision) }
+        service.requestStarted = false
+        service.release()
+        await firstSync.value
+        while !service.requestStarted { await Task.yield() }
+        service.release()
+        try await privacySave.value
+        let remote = try await service.completedWorkouts(since: nil)
+        XCTAssertEqual(remote.first?.payload, decision.payload)
+        XCTAssertTrue(store.pendingCompletedWorkoutUploads.isEmpty)
+    }
+
+    @MainActor
+    func testWorkoutSyncRemovesOnlyPreviouslySyncedWorkoutsMissingRemotely() async throws {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let service = MockWorkoutSyncService()
+        let store = WorkoutSyncStore(repository: repository, service: service)
+        func workout(_ name: String) -> CompletedWorkout {
+            CompletedWorkout(
+                id: UUID(), source: .freestyle, sourceSessionID: nil, sourcePlanID: nil,
+                name: name, dayLabel: "Monday", startedAt: .now.addingTimeInterval(-600),
+                completedAt: .now, duration: 600, effort: 3, notes: "", gymID: nil,
+                bodyweight: nil, unit: .pounds, exercises: [], sets: [], linkedSubmissionIDs: []
+            )
+        }
+        let remotelySynced = workout("Synced workout")
+        let localOnly = workout("Local-only workout")
+        repository.completedWorkouts = [remotelySynced, localOnly]
+        try await service.uploadCompletedWorkout(CompletedWorkoutSnapshot(
+            id: remotelySynced.id,
+            ownerID: repository.currentProfile.id,
+            payload: try JSONEncoder().encode(remotelySynced),
+            completedAt: remotelySynced.completedAt
+        ))
+
+        await store.synchronizeCompletedWorkoutHistory()
+        XCTAssertEqual(repository.syncedCompletedWorkoutIDs, [remotelySynced.id])
+
+        try await service.deleteCompletedWorkout(id: remotelySynced.id)
+        await store.synchronizeCompletedWorkoutHistory()
+
+        XCTAssertFalse(repository.completedWorkouts.contains { $0.id == remotelySynced.id })
+        XCTAssertTrue(repository.completedWorkouts.contains { $0.id == localOnly.id })
+        XCTAssertTrue(repository.syncedCompletedWorkoutIDs.isEmpty)
+    }
+
+    @MainActor
+    func testSyncedWorkoutIDsPersistAcrossRepositoryRestoration() {
+        let persistence = InMemoryWorkoutPersistenceStore()
+        let repository = DemoRepository(workoutPersistenceStore: persistence)
+        let syncedIDs: Set<UUID> = [UUID(), UUID()]
+        repository.syncedCompletedWorkoutIDs = syncedIDs
+        repository.persistWorkoutSnapshot()
+
+        let restoredRepository = DemoRepository(workoutPersistenceStore: persistence)
+
+        XCTAssertEqual(restoredRepository.syncedCompletedWorkoutIDs, syncedIDs)
+    }
+
+    @MainActor
+    func testSyncedBodyweightIDsPersistAcrossRepositoryRestoration() {
+        let persistence = InMemoryWorkoutPersistenceStore()
+        let repository = DemoRepository(workoutPersistenceStore: persistence)
+        let syncedIDs: Set<UUID> = [UUID(), UUID()]
+        repository.syncedBodyweightEntryIDs = syncedIDs
+        repository.persistWorkoutSnapshot()
+
+        let restoredRepository = DemoRepository(workoutPersistenceStore: persistence)
+
+        XCTAssertEqual(restoredRepository.syncedBodyweightEntryIDs, syncedIDs)
+    }
+
+    @MainActor
     func testWorkoutSyncStoreClearsHistoryAndQueuesForANewAccount() async throws {
         let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
         let service = MockWorkoutSyncService()
@@ -3747,6 +4111,253 @@ final class BackendFoundationTests: XCTestCase {
 
         let remainingSnapshots = try await service.completedWorkouts(since: nil)
         XCTAssertEqual(remainingSnapshots.map(\.id), [snapshot.id])
+    }
+
+    func testSupabaseWorkoutUploadRejectsSnapshotForDifferentAuthenticatedUser() async throws {
+        let authenticatedUserID = UUID()
+        let client = try makeLocalSupabaseClient(authenticatedUserID: authenticatedUserID)
+        let service = SupabaseWorkoutSyncService(client: client)
+        let requestState = WorkoutSyncMockURLProtocol.state
+        requestState.reset()
+
+        let mismatched = CompletedWorkoutSnapshot(
+            id: UUID(), ownerID: UUID(), payload: Data("private workout".utf8), completedAt: .now
+        )
+        do {
+            try await service.uploadCompletedWorkout(mismatched)
+            XCTFail("An upload owned by another account should be rejected.")
+        } catch let error as LiftRankServiceError {
+            XCTAssertEqual(error, .sessionExpired)
+        }
+        XCTAssertTrue(requestState.requests.isEmpty, "Mismatched ownership must fail before any REST request.")
+
+        let matching = CompletedWorkoutSnapshot(
+            id: UUID(), ownerID: authenticatedUserID, payload: Data("private workout".utf8), completedAt: .now
+        )
+        try await service.uploadCompletedWorkout(matching)
+        XCTAssertEqual(requestState.requests.count, 1)
+        XCTAssertEqual(requestState.requests.first?.url?.path, "/rest/v1/completed_workout_snapshots")
+    }
+
+    func testSupabaseCompletedWorkoutHistoryFetchesStablePages() async throws {
+        let ownerID = UUID()
+        let client = try makeLocalSupabaseClient(authenticatedUserID: ownerID)
+        let requestState = WorkoutSyncMockURLProtocol.state
+        requestState.reset()
+        func response(count: Int, start: Int) throws -> Data {
+            let rows = (start..<(start + count)).map { index in
+                [
+                    "id": UUID().uuidString,
+                    "owner_id": ownerID.uuidString,
+                    "payload": Data("workout-\(index)".utf8).base64EncodedString(),
+                    "completed_at": "2026-01-01T00:00:00Z"
+                ]
+            }
+            return try JSONSerialization.data(withJSONObject: rows)
+        }
+        requestState.enqueueResponses([try response(count: 200, start: 0), try response(count: 1, start: 200)])
+
+        let snapshots = try await SupabaseWorkoutSyncService(client: client).completedWorkouts(since: nil)
+
+        XCTAssertEqual(snapshots.count, 201)
+        XCTAssertEqual(requestState.requests.count, 2)
+        XCTAssertEqual(queryValue("offset", from: requestState.requests[0]), "0")
+        XCTAssertEqual(queryValue("limit", from: requestState.requests[0]), "200")
+        XCTAssertEqual(queryValue("offset", from: requestState.requests[1]), "200")
+        XCTAssertEqual(queryValue("limit", from: requestState.requests[1]), "200")
+        XCTAssertTrue(requestState.requests[0].url?.query?.contains("completed_at.asc") == true)
+        XCTAssertTrue(requestState.requests[0].url?.query?.contains("id.asc") == true)
+    }
+
+    func testPublicWorkoutSummaryServiceMapsRestrictedRPCResponse() async throws {
+        let userID = UUID()
+        let workoutID = UUID()
+        let client = try makeLocalSupabaseClient(authenticatedUserID: userID)
+        let state = WorkoutSyncMockURLProtocol.state
+        state.reset()
+        state.enqueueResponses([try JSONSerialization.data(withJSONObject: [[
+            "id": workoutID.uuidString, "name": "Full Body B", "completed_at": "2026-10-24T12:00:00Z",
+            "duration": 600, "set_count": 16, "exercise_names": ["Bench press", "Row"]
+        ]])])
+        let summaries = try await SupabaseWorkoutSyncService(client: client).publicWorkoutSummaries(for: userID)
+        let summary = try XCTUnwrap(summaries.first)
+        XCTAssertEqual(summary.id, workoutID)
+        XCTAssertEqual(summary.name, "Full Body B")
+        XCTAssertEqual(summary.setCount, 16)
+        XCTAssertEqual(summary.exerciseNames, ["Bench press", "Row"])
+        XCTAssertEqual(state.requests.first?.url?.path, "/rest/v1/rpc/get_profile_workout_summaries")
+    }
+
+    func testSupabaseBlockListFetchesBeyondOnePage() async throws {
+        let client = try makeLocalSupabaseClient(authenticatedUserID: UUID())
+        let requestState = WorkoutSyncMockURLProtocol.state
+        requestState.reset()
+        requestState.enqueueResponses([
+            try makeBlockListResponse(count: 500, startingAt: 0),
+            try makeBlockListResponse(count: 1, startingAt: 500)
+        ])
+
+        let blocks = try await SupabaseSocialService(client: client).blocks()
+
+        XCTAssertEqual(blocks.count, 501)
+        XCTAssertEqual(requestState.requests.count, 2)
+        XCTAssertEqual(queryValue("offset", from: requestState.requests[0]), "0")
+        XCTAssertEqual(queryValue("limit", from: requestState.requests[0]), "500")
+        XCTAssertEqual(queryValue("offset", from: requestState.requests[1]), "500")
+        XCTAssertEqual(queryValue("limit", from: requestState.requests[1]), "500")
+    }
+
+    func testSupabaseForumThreadFetchesCommentsAcrossStablePages() async throws {
+        let client = try makeLocalSupabaseClient(authenticatedUserID: UUID())
+        let requestState = WorkoutSyncMockURLProtocol.state
+        requestState.reset()
+        let postID = UUID()
+        let authorID = UUID()
+        requestState.enqueueResponses([
+            try makeForumPostResponse(postID: postID, authorID: authorID),
+            try makeForumCommentsResponse(count: 500, postID: postID, authorID: authorID, start: 0),
+            try makeForumCommentsResponse(count: 1, postID: postID, authorID: authorID, start: 500)
+        ])
+
+        let fetchedThread = try await SupabaseForumService(client: client).thread(postID: postID)
+        let thread = try XCTUnwrap(fetchedThread)
+
+        XCTAssertEqual(thread.comments.count, 501)
+        let commentRequests = requestState.requests.filter { $0.url?.path == "/rest/v1/forum_comments" }
+        XCTAssertEqual(commentRequests.count, 2)
+        XCTAssertEqual(queryValue("offset", from: commentRequests[0]), "0")
+        XCTAssertEqual(queryValue("limit", from: commentRequests[0]), "500")
+        XCTAssertEqual(queryValue("offset", from: commentRequests[1]), "500")
+        XCTAssertEqual(queryValue("limit", from: commentRequests[1]), "500")
+        XCTAssertTrue(commentRequests[0].url?.query?.contains("created_at.asc") == true)
+        XCTAssertTrue(commentRequests[0].url?.query?.contains("id.asc") == true)
+    }
+
+    func testSupabaseLeaderboardFetchesRankedRowsBeyondFirstPage() async throws {
+        let client = try makeLocalSupabaseClient(authenticatedUserID: UUID())
+        let requestState = WorkoutSyncMockURLProtocol.state
+        requestState.reset()
+        requestState.enqueueResponses([
+            try makeRankedLiftResponse(count: 200, startingAt: 0), Data("[]".utf8), Data("[]".utf8),
+            try makeRankedLiftResponse(count: 1, startingAt: 200), Data("[]".utf8), Data("[]".utf8),
+            Data("[]".utf8)
+        ])
+
+        let entries = try await SupabaseLeaderboardService(client: client).entries(
+            filters: LeaderboardFilters(), verifiedOnly: false
+        )
+
+        let rankingRequests = requestState.requests.filter { $0.url?.path == "/rest/v1/rpc/get_ranked_lift_ids" }
+        XCTAssertTrue(entries.isEmpty, "The fixture omits hydrated profiles and lifts.")
+        XCTAssertEqual(rankingRequests.count, 2)
+        XCTAssertEqual(queryValue("offset", from: rankingRequests[0]), "0")
+        XCTAssertEqual(queryValue("limit", from: rankingRequests[0]), "200")
+        XCTAssertEqual(queryValue("offset", from: rankingRequests[1]), "200")
+        XCTAssertEqual(queryValue("limit", from: rankingRequests[1]), "200")
+    }
+
+    private func queryValue(_ name: String, from request: URLRequest) -> String? {
+        guard let url = request.url,
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
+        return components.queryItems?.first(where: { $0.name == name })?.value
+    }
+
+    private func makeRankedLiftResponse(count: Int, startingAt: Int) throws -> Data {
+        let rows = (startingAt..<(startingAt + count)).map { index in
+            [
+                "rank": index + 1,
+                "lift_id": UUID().uuidString,
+                "user_id": UUID().uuidString,
+                "rank_movement": 0,
+                "score": Double(count - index),
+                "bodyweight_visible": true
+            ] as [String: Any]
+        }
+        return try JSONSerialization.data(withJSONObject: rows)
+    }
+
+    private func makeBlockListResponse(count: Int, startingAt: Int) throws -> Data {
+        let dateFormatter = ISO8601DateFormatter()
+        let rows = (startingAt..<(startingAt + count)).map { index in
+            [
+                "blocker_id": UUID().uuidString,
+                "blocked_id": UUID().uuidString,
+                "created_at": dateFormatter.string(from: Date(timeIntervalSince1970: TimeInterval(index)))
+            ]
+        }
+        return try JSONSerialization.data(withJSONObject: rows)
+    }
+
+    private func makeForumPostResponse(postID: UUID, authorID: UUID) throws -> Data {
+        try JSONSerialization.data(withJSONObject: [
+            "id": postID.uuidString,
+            "community_id": NSNull(),
+            "gym_id": UUID().uuidString,
+            "author_id": authorID.uuidString,
+            "kind": "Discussion",
+            "title": "Large thread",
+            "body": "Thread body",
+            "tag": NSNull(),
+            "lift_id": NSNull(),
+            "is_pinned": false,
+            "is_locked": false,
+            "created_at": "2026-01-01T00:00:00Z",
+            "forum_post_votes": [],
+            "forum_comments": [["count": 501]]
+        ])
+    }
+
+    private func makeForumCommentsResponse(count: Int, postID: UUID, authorID: UUID, start: Int) throws -> Data {
+        let rows = (start..<(start + count)).map { index in
+            [
+                "id": UUID().uuidString,
+                "post_id": postID.uuidString,
+                "author_id": authorID.uuidString,
+                "parent_comment_id": NSNull(),
+                "body": "Comment \(index)",
+                "created_at": "2026-01-01T00:00:00Z",
+                "forum_comment_votes": []
+            ] as [String: Any]
+        }
+        return try JSONSerialization.data(withJSONObject: rows)
+    }
+
+    private func makeLocalSupabaseClient(authenticatedUserID: UUID) throws -> SupabaseClient {
+        let now = Date.now
+        let user = User(
+            id: authenticatedUserID,
+            appMetadata: [:],
+            userMetadata: [:],
+            aud: "authenticated",
+            createdAt: now,
+            updatedAt: now
+        )
+        let session = Session(
+            accessToken: "local-test-token",
+            tokenType: "bearer",
+            expiresIn: 3600,
+            expiresAt: now.addingTimeInterval(3600).timeIntervalSince1970,
+            refreshToken: "local-test-refresh-token",
+            user: user
+        )
+        let storage = WorkoutSyncMockAuthStorage()
+        try storage.store(key: "workout-sync-test-session", value: JSONEncoder().encode(session))
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [WorkoutSyncMockURLProtocol.self]
+        let options = SupabaseClientOptions(
+            auth: .init(
+                storage: storage,
+                storageKey: "workout-sync-test-session",
+                autoRefreshToken: false,
+                emitLocalSessionAsInitialSession: true
+            ),
+            global: .init(session: URLSession(configuration: configuration))
+        )
+        return SupabaseClient(
+            supabaseURL: URL(string: "https://workout-sync.test")!,
+            supabaseKey: "local-anon-key",
+            options: options
+        )
     }
 
     @MainActor
@@ -3843,6 +4454,26 @@ final class BackendFoundationTests: XCTestCase {
         await store.synchronizeWorkoutPlans()
 
         XCTAssertFalse(repository.workoutPlans.contains { $0.id == plan.id })
+    }
+
+    @MainActor
+    func testWorkoutPlanTombstoneFetchFailureNeedsAttention() async {
+        let repository = DemoRepository(workoutPersistenceStore: InMemoryWorkoutPersistenceStore())
+        let service = MockWorkoutSyncService()
+        let plan = WorkoutPlan(id: UUID(), name: "Locally saved plan", createdAt: .now)
+        repository.addWorkoutPlan(plan)
+        service.failDeletedWorkoutPlanIDFetch = true
+        let store = WorkoutSyncStore(repository: repository, service: service)
+
+        await store.synchronizeWorkoutPlans()
+
+        XCTAssertEqual(store.planSyncState, .needsAttention)
+        XCTAssertTrue(repository.workoutPlans.contains { $0.id == plan.id })
+
+        await store.synchronizeWorkoutPlans()
+
+        XCTAssertEqual(store.planSyncState, .synced)
+        XCTAssertTrue(repository.workoutPlans.contains { $0.id == plan.id })
     }
 
     @MainActor
@@ -4262,13 +4893,15 @@ final class BackendFoundationTests: XCTestCase {
         session: AccountSession?,
         onboardingCompleted: Bool,
         hasCurrentLegalAcceptance: Bool = true,
-        includesLiftService: Bool = false
+        includesLiftService: Bool = false,
+        analytics: (any AnalyticsService)? = nil
     ) -> AppState {
         makeState(
             authentication: TestAuthenticationService(session: session),
             onboardingCompleted: onboardingCompleted,
             hasCurrentLegalAcceptance: hasCurrentLegalAcceptance,
-            includesLiftService: includesLiftService
+            includesLiftService: includesLiftService,
+            analytics: analytics
         )
     }
 
@@ -4295,6 +4928,7 @@ final class BackendFoundationTests: XCTestCase {
             gymMemberships: MockGymMembershipService(repository: repository),
             exercises: MockExerciseCatalogService(),
             lifts: includesLiftService ? MockLiftService(repository: repository) : nil,
+            analytics: analytics,
             legalAcceptances: TestLegalAcceptanceService(userID: session.userID, accepted: hasCurrentLegalAcceptance)
         ))
     }
@@ -4549,6 +5183,103 @@ private final class GatedCompletedWorkoutSyncService: WorkoutSyncService {
 
     func uploadCompletedWorkout(_ snapshot: CompletedWorkoutSnapshot) async throws {}
     func deleteCompletedWorkout(id: UUID) async throws {}
+}
+
+private final class WorkoutSyncMockAuthStorage: AuthLocalStorage, @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [String: Data] = [:]
+
+    func store(key: String, value: Data) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        values[key] = value
+    }
+
+    func retrieve(key: String) throws -> Data? {
+        lock.lock()
+        defer { lock.unlock() }
+        return values[key]
+    }
+
+    func remove(key: String) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        values.removeValue(forKey: key)
+    }
+}
+
+private final class WorkoutSyncMockURLProtocol: URLProtocol, @unchecked Sendable {
+    final class State: @unchecked Sendable {
+        private let lock = NSLock()
+        private var storedRequests: [URLRequest] = []
+
+        var requests: [URLRequest] {
+            lock.lock()
+            defer { lock.unlock() }
+            return storedRequests
+        }
+
+        func append(_ request: URLRequest) {
+            lock.lock()
+            defer { lock.unlock() }
+            storedRequests.append(request)
+        }
+
+        fileprivate struct Response: @unchecked Sendable {
+            let statusCode: Int
+            let body: Data
+        }
+
+        private var responses: [Response] = []
+
+        func enqueueResponses(_ responses: [Data]) {
+            lock.lock()
+            defer { lock.unlock() }
+            self.responses = responses.map { Response(statusCode: 200, body: $0) }
+        }
+
+        func enqueueHTTPResponses(_ responses: [(Int, Data)]) {
+            lock.lock()
+            defer { lock.unlock() }
+            self.responses = responses.map { Response(statusCode: $0.0, body: $0.1) }
+        }
+
+        fileprivate func nextResponse() -> Response {
+            lock.lock()
+            defer { lock.unlock() }
+            guard !responses.isEmpty else { return Response(statusCode: 200, body: Data("[]".utf8)) }
+            return responses.removeFirst()
+        }
+
+        func reset() {
+            lock.lock()
+            defer { lock.unlock() }
+            storedRequests.removeAll()
+            responses.removeAll()
+        }
+    }
+
+    static let state = State()
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        Self.state.append(request)
+        let nextResponse = Self.state.nextResponse()
+        let response = HTTPURLResponse(
+            url: request.url!, statusCode: nextResponse.statusCode, httpVersion: "HTTP/1.1",
+            headerFields: [
+                "Content-Type": "application/json",
+                "X-Supabase-Api-Version": "2024-01-01"
+            ]
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: nextResponse.body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }
 
 @MainActor
@@ -4917,7 +5648,7 @@ private final class TestProfileService: ProfileService {
     func removeProfileAvatar(avatarPath: String?) async throws {
         removedAvatarPaths.append(avatarPath)
     }
-    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry]) async throws -> [BodyweightEntry] {
+    func synchronizeBodyweightEntries(_ localEntries: [BodyweightEntry], knownSyncedIDs: Set<UUID>) async throws -> [BodyweightEntry] {
         if let bodyweightSyncError { throw bodyweightSyncError }
         return localEntries
     }

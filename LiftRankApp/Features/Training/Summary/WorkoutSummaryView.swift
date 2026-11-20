@@ -84,11 +84,14 @@ struct WorkoutSummaryView: View {
         let plannedSets = prescriptions.reduce(0) { $0 + $1.sets }
         guard plannedSets > 0 else { return nil }
         let isComplete = prescriptions.allSatisfy { prescription in
-            guard let exercise = activeWorkout.exercises.first(where: { $0.sourcePrescriptionID == prescription.id }) else {
+            let exercises = activeWorkout.exercises.filter { $0.sourcePrescriptionID == prescription.id }
+            guard !exercises.isEmpty else {
                 return false
             }
-            let progress = appState.activeWorkoutExerciseProgress(for: exercise)
-            return progress.completedWorkingSets >= prescription.sets
+            let completedSets = exercises.reduce(0) { total, exercise in
+                total + appState.activeWorkoutExerciseProgress(for: exercise).completedWorkingSets
+            }
+            return completedSets >= prescription.sets
         }
         return (plannedSets, isComplete)
     }
@@ -177,7 +180,7 @@ struct WorkoutSummaryView: View {
                 if item.suffix == " kg Lifted Volume" {
                     status = "\(formattedAchievementVolume(item.current)) / \(formattedAchievementVolume(target))"
                 } else if item.unit == "hrs" {
-                    status = "\(String(format: "%.1f", item.current)) / \(Int(target)) hrs"
+                    status = "\(MeasurementFormatting.localizedDecimalText(item.current, minimumFractionDigits: 1, maximumFractionDigits: 1)) / \(Int(target)) hrs"
                 } else {
                     status = "\(Int(item.current)) / \(Int(target)) \(item.unit)"
                 }
@@ -280,6 +283,17 @@ struct WorkoutSummaryView: View {
 
                         exerciseReviewSection
                         if !prCandidates.isEmpty { prSubmissionSection }
+
+                        if !hasSavedWorkout {
+                            LiftCard {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Toggle("Keep workout private", isOn: $keepWorkoutPrivate)
+                                        .accessibilityIdentifier("workout.summary.keepPrivate")
+                                    Text("Your public profile shows a workout summary. Notes, bodyweight, and gym details stay private.")
+                                        .font(.caption).foregroundStyle(Color.liftMuted)
+                                }
+                            }
+                        }
 
                         if let previous = previousComparableWorkout {
                             comparisonSection(previous)
@@ -393,6 +407,7 @@ struct WorkoutSummaryView: View {
                     .frame(width: 72, height: 72)
                     .background(Color.liftGreen)
                     .clipShape(Circle())
+                    .symbolEffect(.bounce, value: hasSavedWorkout)
                 Text("Workout saved")
                     .font(LiftTypography.sectionTitle)
                 Text(summary.workoutName)
@@ -431,6 +446,7 @@ struct WorkoutSummaryView: View {
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Color.liftGold)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .symbolEffect(.bounce, value: highlight)
                     }
                 }
                 .padding(14)
@@ -835,11 +851,11 @@ struct WorkoutSummaryView: View {
     private func displayAchievementTitle(_ title: String) -> String {
         let suffix = " kg Lifted Volume"
         guard title.hasSuffix(suffix),
-              let kilograms = Double(title.dropLast(suffix.count).replacingOccurrences(of: ",", with: "")) else {
+              let kilograms = MeasurementFormatting.parseGroupedInteger(String(title.dropLast(suffix.count))) else {
             return title
         }
         let formattedVolume = MeasurementFormatting.formatDisplayedWeight(
-            kilograms,
+            Double(kilograms),
             unit: appState.currentProfile.preferredUnit
         ) { value in
             Int(value.rounded()).formatted()
@@ -852,10 +868,14 @@ struct WorkoutSummaryView: View {
         videoError = nil
         Task {
             do {
-                guard let data = try await item.loadTransferable(type: Data.self) else {
+                guard let pickedVideo = try await item.loadTransferable(type: PickedWorkoutVideo.self) else {
                     throw CocoaError(.fileReadUnknown)
                 }
-                let url = try await appState.persistWorkoutVideo(data)
+                defer { try? FileManager.default.removeItem(at: pickedVideo.temporaryURL) }
+                let url = try await appState.persistWorkoutVideo(
+                    from: pickedVideo.temporaryURL,
+                    fileExtension: pickedVideo.temporaryURL.pathExtension
+                )
                 await MainActor.run {
                     videoURLsBySetID[candidate.setID] = url
                     loadingVideoSetIDs.remove(candidate.setID)
@@ -863,7 +883,14 @@ struct WorkoutSummaryView: View {
             } catch {
                 await MainActor.run {
                     loadingVideoSetIDs.remove(candidate.setID)
-                    videoError = "That video could not be prepared. Choose it again before saving."
+                    if let policyError = error as? LiftVideoPolicyError {
+                        videoError = switch policyError {
+                        case .tooLong: "Videos must be 30 seconds or shorter."
+                        case .invalidOrTooLarge: "Videos must be 500 MB or smaller. Choose a smaller video."
+                        }
+                    } else {
+                        videoError = "That video could not be prepared. Choose it again before saving."
+                    }
                 }
             }
         }

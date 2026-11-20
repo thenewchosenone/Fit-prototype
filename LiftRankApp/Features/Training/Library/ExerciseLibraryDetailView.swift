@@ -285,7 +285,7 @@ struct ExerciseLibraryDetailView: View {
                                     Text("\(entry.sets.count) working \(entry.sets.count == 1 ? "set" : "sets") • \(entry.workout.name)")
                                         .font(.caption)
                                         .foregroundStyle(Color.liftMuted)
-                                        .lineLimit(1)
+                                        .lineLimit(2)
                                 }
                                 Spacer()
                                 VStack(alignment: .trailing, spacing: 3) {
