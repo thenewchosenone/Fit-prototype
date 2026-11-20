@@ -144,6 +144,13 @@ extension TrainingTrackerView {
                     .environmentObject(appState)
                     .presentationDetents([.large])
             }
+            .sheet(isPresented: $showingScheduleEditor) {
+                if let settings = selectedProgramSettings,
+                   let template = WorkoutProgramCatalog.template(id: settings.sourceTemplateID) {
+                    WorkoutProgramTemplateDetailView(template: template, editingPlanID: settings.planID)
+                        .environmentObject(appState)
+                }
+            }
             .sheet(isPresented: $showingProgressionEditor) {
                 if let settings = selectedProgramSettings,
                    let template = WorkoutProgramCatalog.template(id: settings.sourceTemplateID) {
@@ -418,7 +425,7 @@ extension TrainingTrackerView {
             } label: {
                 trackerOptionsButtonLabel
             }
-            .accessibilityLabel("Plan options")
+            .accessibilityLabel("Plan settings")
             .simultaneousGesture(TapGesture().onEnded { isLibrarySearchFocused = false })
         } else if segment == .today {
             Button {
@@ -571,14 +578,6 @@ extension TrainingTrackerView {
                 .buttonStyle(LiftSecondaryButtonStyle())
             }
 
-            if let insight = visiblePlateauInsights.first {
-                PlateauAlertCard(insight: insight) {
-                    selectedPlateauInsight = insight
-                } dismiss: {
-                    dismissPlateauInsight(insight)
-                }
-            }
-
         }
     }
 
@@ -687,7 +686,13 @@ extension TrainingTrackerView {
                 }
             }
         } else if let todayWorkout = todayScheduledWorkout,
-                  !isWorkoutSessionComplete(todayWorkout.session) {
+                  todayWorkout.session.outcome == .skipped {
+            TrackerMessageCard(title: "Workout skipped", message: "This session is marked skipped. You can review or change its status in Plans.")
+        } else if let todayWorkout = todayScheduledWorkout,
+                  todayWorkout.session.outcome == .rest {
+            TrackerMessageCard(title: "Rest day", message: "This session is marked as a rest day.")
+        } else if let todayWorkout = todayScheduledWorkout,
+                  !appState.isCompletedPlanSession(todayWorkout.session) {
             TodayWorkoutLaunchCard(
                 planName: selectedPlanName,
                 week: todayWorkout.week,
@@ -1066,7 +1071,7 @@ extension TrainingTrackerView {
                                         .clipShape(Capsule())
                                     Image(systemName: "chevron.right")
                                         .font(.caption2.weight(.bold))
-                                        .foregroundStyle(Color.liftMuted)
+                                        .foregroundStyle(Color.liftAccentText)
                                 }
                             }
                             .padding(12)

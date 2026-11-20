@@ -106,7 +106,7 @@ extension LeaderboardsView {
                                         }
                                         Image(systemName: "chevron.right")
                                             .font(LiftTypography.compactEmphasis)
-                                            .foregroundStyle(Color.liftMuted)
+                                            .foregroundStyle(Color.liftAccentText)
                                     }
                                     .padding(14)
                                     .liftSurface(radius: 16)

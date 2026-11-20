@@ -27,12 +27,22 @@ struct ProgramSessionCard: View {
 
     var body: some View {
         LiftCard {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(appState.selectedPlanIsFlexible ? session.name : "\(session.day) · \(session.name)")
                             .font(.headline)
                             .fixedSize(horizontal: false, vertical: true)
+                        Menu {
+                            ForEach(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], id: \.self) { day in
+                                Button(day) { appState.changeWorkoutDay(session, to: day) }
+                            }
+                        } label: {
+                            Label("Change day", systemImage: "calendar")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .disabled(appState.activeWorkout != nil)
+                        .accessibilityHint("Changes this workout in the selected week. Saved workout history is preserved.")
                         Text(statusText)
                             .font(.caption)
                             .foregroundStyle(Color.liftMuted)
@@ -87,7 +97,7 @@ struct ProgramSessionCard: View {
                     } label: {
                         Image(systemName: "ellipsis.circle.fill")
                             .font(.title2)
-                            .foregroundStyle(Color.liftMuted)
+                            .foregroundStyle(Color.liftAccentText)
                             .frame(width: 44, height: 44)
                     }
                     .accessibilityLabel(appState.selectedPlanIsFlexible ? "Options for \(session.name)" : "Options for \(session.name), \(session.day)")
@@ -158,7 +168,7 @@ struct ProgramSessionCard: View {
                                 .foregroundStyle(Color.liftAccentText)
                             Image(systemName: showsExercises ? "chevron.up" : "chevron.down")
                                 .font(LiftTypography.compactEmphasis)
-                                .foregroundStyle(Color.liftMuted)
+                                .foregroundStyle(Color.liftAccentText)
                         }
                         .frame(minHeight: LiftDesign.minimumTouchTarget)
                         .contentShape(Rectangle())

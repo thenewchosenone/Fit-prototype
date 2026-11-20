@@ -79,7 +79,7 @@ struct SettingsView: View {
                                         if section == .units { Text(preferredUnit.shortLabel).foregroundStyle(Color.liftMuted) }
                                         if section == .appearance { Text(appearance).foregroundStyle(Color.liftMuted) }
                                         Spacer()
-                                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.liftMuted)
+                                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.liftAccentText)
                                     }
                                     .contentShape(Rectangle())
                                 }

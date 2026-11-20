@@ -416,7 +416,7 @@ struct WorkoutSetLogRow: View {
                 .frame(width: LiftDesign.minimumTouchTarget)
                 .font(.caption.weight(.semibold))
                 .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                .foregroundStyle(Color.liftMuted)
+                .foregroundStyle(Color.liftAccentText)
                 .frame(minHeight: LiftDesign.minimumTouchTarget)
                 .contentShape(Rectangle())
         }

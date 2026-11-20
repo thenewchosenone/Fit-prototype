@@ -4486,6 +4486,8 @@ final class LiftRankUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Add optional profile details"].exists)
         XCTAssertTrue(app.buttons["onboarding.photo"].exists)
         XCTAssertTrue(app.textFields["Bio (optional)"].exists)
+        XCTAssertEqual(app.switches["Hide exact bodyweight"].value as? String, "1")
+        XCTAssertEqual(app.switches["Hide city"].value as? String, "1")
 
         app.buttons["Continue"].tap()
         add(XCTAttachment(screenshot: app.screenshot()))

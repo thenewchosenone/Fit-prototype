@@ -98,7 +98,7 @@ struct NativeIconButton: View {
     let symbolName: String
     let accessibilityLabel: String
     var badge: Int? = nil
-    var tint = Color.liftText
+    var tint = Color.liftAccentText
     let action: () -> Void
 
     var body: some View {
@@ -177,7 +177,7 @@ struct LiftActionRow: View {
                 }
                 Image(systemName: "chevron.right")
                     .font(LiftTypography.compactEmphasis)
-                    .foregroundStyle(Color.liftTextSecondary)
+                    .foregroundStyle(Color.liftAccentText)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)

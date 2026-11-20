@@ -439,7 +439,7 @@ struct WorkoutSessionRunView: View {
                 } label: {
                     Image(systemName: "line.3.horizontal")
                         .font(.caption2.weight(.bold))
-                        .foregroundStyle(Color.liftMuted)
+                        .foregroundStyle(Color.liftAccentText)
                 }
                 .accessibilityLabel("Reorder \(exercise.exerciseName)")
                 .accessibilityHint("Choose to move this exercise earlier or later in the workout.")

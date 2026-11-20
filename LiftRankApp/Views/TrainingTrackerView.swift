@@ -42,6 +42,7 @@ struct TrainingTrackerView: View {
     @State var programLibraryDays = 0
     @State var programLibraryEquipment = "All"
     @State var showingProgressionEditor = false
+    @State var showingScheduleEditor = false
     @State var selectedCompletedWorkout: CompletedWorkout?
     @State var focusedWorkoutSetID: UUID?
     @State var didOpenUITestFocusedWorkoutSet = false

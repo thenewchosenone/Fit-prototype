@@ -248,7 +248,7 @@ struct OnboardingView: View {
                     Spacer()
                     Image(systemName: "chevron.up.chevron.down")
                         .font(LiftTypography.compactEmphasis)
-                        .foregroundStyle(Color.liftMuted)
+                        .foregroundStyle(Color.liftAccentText)
                 }
             }
             .padding(15)
@@ -401,7 +401,7 @@ struct OnboardingView: View {
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
-                            .foregroundStyle(Color.liftMuted)
+                            .foregroundStyle(Color.liftAccentText)
                     }
                     .padding(16)
                     .background(Color.liftCard)
@@ -484,7 +484,7 @@ struct OnboardingView: View {
                     .multilineTextAlignment(.trailing)
                 Image(systemName: "chevron.up.chevron.down")
                     .font(LiftTypography.compactEmphasis)
-                    .foregroundStyle(Color.liftMuted)
+                    .foregroundStyle(Color.liftAccentText)
             }
             .padding(15)
             .background(Color.liftCard)

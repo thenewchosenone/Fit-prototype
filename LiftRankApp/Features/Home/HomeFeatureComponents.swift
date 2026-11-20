@@ -219,7 +219,7 @@ extension HomeView {
                     Spacer(minLength: 4)
                     Image(systemName: "chevron.right")
                         .font(LiftTypography.compactEmphasis)
-                        .foregroundStyle(Color.liftMuted)
+                        .foregroundStyle(Color.liftAccentText)
                 }
                 .padding(12)
                 .contentShape(Rectangle())
@@ -559,7 +559,7 @@ extension HomeView {
                             .foregroundStyle(Color.liftMuted)
                         Image(systemName: "chevron.right")
                             .font(LiftTypography.compactEmphasis)
-                            .foregroundStyle(Color.liftMuted)
+                            .foregroundStyle(Color.liftAccentText)
                     }
                     Text(workout.name.range(of: #"^Workout \d+$"#, options: .regularExpression) != nil
                          ? appState.workoutSessions.first { $0.id == workout.sourceSessionID }?.name ?? workout.name
@@ -673,7 +673,7 @@ extension HomeView {
 
                                 Image(systemName: "chevron.right")
                                     .font(LiftTypography.compactEmphasis)
-                                    .foregroundStyle(Color.liftMuted)
+                                    .foregroundStyle(Color.liftAccentText)
                             }
                             .padding(.vertical, 11)
                             .contentShape(Rectangle())

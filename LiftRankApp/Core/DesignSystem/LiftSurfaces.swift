@@ -446,7 +446,7 @@ struct LiftSheetHeader: View {
                 Button(action: close) {
                     Image(systemName: "xmark")
                         .font(.title3)
-                        .foregroundStyle(Color.liftTextSecondary)
+                        .foregroundStyle(Color.liftAccentText)
                         .frame(width: 44, height: 44)
                         .background(Color.liftCard)
                         .clipShape(Circle())

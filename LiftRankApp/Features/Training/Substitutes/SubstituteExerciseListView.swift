@@ -52,7 +52,7 @@ struct SubstituteExerciseListView: View {
                                             Spacer(minLength: 8)
                                             Image(systemName: "chevron.right")
                                                 .font(LiftTypography.compactEmphasis)
-                                                .foregroundStyle(Color.liftMuted)
+                                                .foregroundStyle(Color.liftAccentText)
                                         }
                                     }
                                 }

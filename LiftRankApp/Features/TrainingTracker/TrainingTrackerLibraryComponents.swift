@@ -427,6 +427,14 @@ struct ProgramAddExercisePickerView: View {
     @State private var selectedExerciseIDs: Set<String> = []
     @State private var selectedExerciseOrder: [String] = []
     @State private var previewExercise: TrainingExerciseCatalogItem?
+    @State private var replacementCandidate: TrainingExerciseCatalogItem?
+    @State private var showingReplaceConfirmation = false
+    let replacingPrescription: WorkoutExercisePrescription?
+
+    init(session: WorkoutSession, replacingPrescription: WorkoutExercisePrescription? = nil) {
+        self.session = session
+        self.replacingPrescription = replacingPrescription
+    }
 
     private let bodyPartFilters = ["All", "Chest", "Back", "Shoulders", "Arms", "Legs", "Glutes", "Core"]
 
@@ -472,6 +480,12 @@ struct ProgramAddExercisePickerView: View {
 
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 9) {
+                            if let replacingPrescription {
+                                Text("Replacing \(replacingPrescription.exerciseName) · sets, reps, and rest stay the same")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.liftMuted)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
                             HStack {
                                 Text("\(filteredExercises.count) exercises")
                                     .font(LiftTypography.compactEmphasis)
@@ -500,25 +514,29 @@ struct ProgramAddExercisePickerView: View {
                     .scrollIndicators(.hidden)
                 }
                 .safeAreaInset(edge: .bottom) {
-                    bottomActionBar
+                    if replacingPrescription == nil {
+                        bottomActionBar
+                    }
                 }
             }
-            .navigationTitle("Add Exercises")
+            .navigationTitle(replacingPrescription == nil ? "Add Exercises" : "Replace Exercise")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    NavigationLink {
-                        CreateCustomExerciseView(session: session) {
-                            dismiss()
+                if replacingPrescription == nil {
+                    ToolbarItem(placement: .confirmationAction) {
+                        NavigationLink {
+                            CreateCustomExerciseView(session: session) {
+                                dismiss()
+                            }
+                            .environmentObject(appState)
+                        } label: {
+                            Image(systemName: "plus")
                         }
-                        .environmentObject(appState)
-                    } label: {
-                        Image(systemName: "plus")
+                        .accessibilityLabel("Create custom exercise")
                     }
-                    .accessibilityLabel("Create custom exercise")
                 }
             }
             .navigationDestination(item: $previewExercise) { exercise in
@@ -527,13 +545,32 @@ struct ProgramAddExercisePickerView: View {
                 }
                 .environmentObject(appState)
             }
+            .confirmationDialog(
+                "Replace this exercise throughout the plan?",
+                isPresented: $showingReplaceConfirmation,
+                titleVisibility: .visible
+            ) {
+                if let replacementCandidate, let replacingPrescription {
+                    Button("Replace with \(replacementCandidate.name)") {
+                        let updatedCount = appState.replacePlannedExercise(
+                            replacingPrescription,
+                            in: session,
+                            with: replacementCandidate
+                        )
+                        if updatedCount > 0 { dismiss() }
+                    }
+                }
+                Button("Cancel", role: .cancel) { replacementCandidate = nil }
+            } message: {
+                Text("This replaces \(replacingPrescription?.exerciseName ?? "the exercise") in unstarted sessions across this plan. Sets, reps, and rest are kept. Saved and started workouts stay unchanged.")
+            }
         }
     }
 
     private var searchField: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(Color.liftMuted)
+                .foregroundStyle(Color.liftAccentText)
             TextField("Search exercises", text: $searchText)
                 .textFieldStyle(.plain)
                 .submitLabel(.search)
@@ -544,7 +581,7 @@ struct ProgramAddExercisePickerView: View {
                     searchText = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(Color.liftMuted)
+                        .foregroundStyle(Color.liftAccentText)
                 }
                 .buttonStyle(.plain)
             }
@@ -619,7 +656,9 @@ struct ProgramAddExercisePickerView: View {
                 Text("\(exercise.bodyPart) • \(exercise.equipment)")
                     .font(.caption)
                     .foregroundStyle(Color.liftMuted)
-                Text("\(exercise.defaultSets) sets × \(exercise.defaultReps)")
+                Text(replacingPrescription.map {
+                    "Keeps \($0.sets) sets × \($0.reps)"
+                } ?? "\(exercise.defaultSets) sets × \(exercise.defaultReps)")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Color.liftAccentText)
             }
@@ -637,16 +676,32 @@ struct ProgramAddExercisePickerView: View {
                 .accessibilityLabel("Configure \(exercise.name)")
 
             Button {
-                toggleSelection(exercise)
+                if replacingPrescription == nil {
+                    toggleSelection(exercise)
+                } else {
+                    replacementCandidate = exercise
+                    showingReplaceConfirmation = true
+                }
             } label: {
-                Image(systemName: isExisting || isSelected ? "checkmark.circle.fill" : "plus.circle")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(isExisting ? Color.liftGreen : isSelected ? Color.liftAccentText : Color.liftMuted)
-                    .frame(width: 44, height: 44)
+                if replacingPrescription == nil {
+                    Image(systemName: isExisting || isSelected ? "checkmark.circle.fill" : "plus.circle")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(isExisting ? Color.liftGreen : isSelected ? Color.liftAccentText : Color.liftMuted)
+                        .frame(width: 44, height: 44)
+                } else {
+                    Label("Replace", systemImage: "arrow.left.arrow.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(isExisting ? Color.liftMuted : Color.liftAccentText)
+                        .frame(minHeight: 44)
+                }
             }
             .buttonStyle(.plain)
             .disabled(isExisting)
-            .accessibilityLabel(isExisting ? "Already in workout" : isSelected ? "Remove \(exercise.name) from selection" : "Select \(exercise.name)")
+            .accessibilityLabel(isExisting
+                ? "Already in workout"
+                : replacingPrescription == nil
+                    ? (isSelected ? "Remove \(exercise.name) from selection" : "Select \(exercise.name)")
+                    : "Replace with \(exercise.name)")
         }
         .padding(11)
         .background(isSelected ? Color.liftBlue.opacity(0.09) : Color.liftCard)

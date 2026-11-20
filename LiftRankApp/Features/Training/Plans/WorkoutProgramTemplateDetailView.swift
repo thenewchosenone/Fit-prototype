@@ -31,6 +31,8 @@ struct WorkoutProgramTemplateDetailView: View {
     init(template: WorkoutProgramTemplate, onUsePlan: (() -> Void)? = nil) {
         self.onUsePlan = onUsePlan
         self.sourceTemplate = template
+        self.editingPlanID = editingPlanID
+        _editingExisting = State(initialValue: editingPlanID != nil)
         _trainingDays = State(initialValue: template.daysPerWeek)
         _method = State(initialValue: template.defaultProgression)
         _scheduledWeekdays = State(initialValue: template.sessions.map(\.dayIndex))
@@ -68,7 +70,8 @@ struct WorkoutProgramTemplateDetailView: View {
     }
 
     private var existingPlan: WorkoutPlan? {
-        appState.workoutPlans.filter { plan in
+        if let editingPlanID { return appState.workoutPlans.first { $0.id == editingPlanID } }
+        return appState.workoutPlans.filter { plan in
             appState.workoutPlanProgressionSettings.contains { settings in
                 settings.planID == plan.id && scheduleVariants.contains { $0.id == settings.sourceTemplateID }
             }
@@ -198,6 +201,16 @@ struct WorkoutProgramTemplateDetailView: View {
                     trainingDays = settings.scheduledWeekdays.count
                     scheduledWeekdays = settings.scheduledWeekdays
                     method = settings.method
+                }
+                if let editingPlanID,
+                   let settings = appState.workoutPlanProgressionSettings.first(where: { $0.planID == editingPlanID }) {
+                    startDate = settings.startedAt
+                    trainingDays = settings.scheduledWeekdays.count
+                    scheduledWeekdays = settings.scheduledWeekdays
+                    method = settings.method
+                    trainingMaxInputs = settings.trainingMaxKilograms.mapValues {
+                        MeasurementFormatting.convert($0, from: .kilograms, to: appState.currentProfile.preferredUnit).formatted(.number.grouping(.never).precision(.fractionLength(1)))
+                    }
                 }
                 seedTrainingMaxesIfNeeded()
                 if originalSetup == nil { originalSetup = (trainingDays, method, startDate, scheduledWeekdays, trainingMaxInputs) }

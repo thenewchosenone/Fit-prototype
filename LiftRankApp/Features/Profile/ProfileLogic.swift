@@ -670,7 +670,7 @@ extension ProfileView {
                                     }
                                 } label: {
                                     Image(systemName: "ellipsis.circle")
-                                        .foregroundStyle(Color.liftMuted)
+                                        .foregroundStyle(Color.liftAccentText)
                                 }
                                 .accessibilityLabel("Submission options")
                                 .accessibilityIdentifier("profile.ownLiftOptions.\(lift.id.uuidString)")
@@ -682,7 +682,7 @@ extension ProfileView {
                                     .accessibilityIdentifier("profile.reportLift")
                                 } label: {
                                     Image(systemName: "ellipsis.circle")
-                                        .foregroundStyle(Color.liftMuted)
+                                        .foregroundStyle(Color.liftAccentText)
                                 }
                                 .accessibilityLabel("Lift options")
                                 .accessibilityIdentifier("profile.liftOptions.\(lift.id.uuidString)")
@@ -865,7 +865,7 @@ extension ProfileView {
                                         if event.workout != nil {
                                             Image(systemName: "chevron.right")
                                                 .font(LiftTypography.compactEmphasis)
-                                                .foregroundStyle(Color.liftMuted)
+                                                .foregroundStyle(Color.liftAccentText)
                                         }
                                     }
                                     .padding(.horizontal, 14)

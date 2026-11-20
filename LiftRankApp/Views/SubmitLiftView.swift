@@ -965,7 +965,7 @@ struct LiftSubmissionResultView: View {
                     value: MeasurementFormatting.formatBodyweight(lift.estimatedOneRepMax, preferredUnit: appState.currentProfile.preferredUnit),
                     subtitle: lift.isActualOneRepMax ? "Actual one-rep max" : "Estimated one-rep max",
                     symbolName: "chart.line.uptrend.xyaxis",
-                    tint: .liftGreen
+                    tint: .liftAccentText
                 )
                 .accessibilityIdentifier("lift.submissionMax")
 
@@ -974,7 +974,7 @@ struct LiftSubmissionResultView: View {
                     value: lift.resolvedEvidenceStatus.evidenceMetricValue,
                     subtitle: lift.resolvedEvidenceStatus.evidenceMetricSubtitle,
                     symbolName: lift.resolvedEvidenceStatus.evidenceMetricSymbol,
-                    tint: lift.resolvedEvidenceStatus.evidenceMetricTint
+                    tint: .liftAccentText
                 )
                 .accessibilityIdentifier("lift.submissionEvidence")
 

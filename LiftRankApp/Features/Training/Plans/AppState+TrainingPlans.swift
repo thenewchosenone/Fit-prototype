@@ -756,6 +756,15 @@ extension AppState {
         return true
     }
 
+    func changeWorkoutDay(_ session: WorkoutSession, to day: String) {
+        guard activeWorkout == nil,
+              Calendar.current.weekdaySymbols.contains(day),
+              let index = repository.workoutSessions.firstIndex(where: { $0.id == session.id }) else { return }
+        repository.workoutSessions[index].day = day
+        repository.persistWorkoutSnapshotWithoutBlockingUI()
+        Task { await synchronizeWorkoutPlans() }
+    }
+
     func renameSelectedWorkoutPlan(to name: String) {
         guard activeWorkout == nil else { return }
         guard programStore.renamePlan(id: selectedWorkoutPlanID, to: name) else {
