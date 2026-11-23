@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-10-20T03:02:01.735Z",
+  "generatedAt": "2026-11-23T21:28:35.053Z",
   "sources": [
     {
       "brand": "Crunch Fitness",
       "url": "https://www.crunch.com/load-clubs",
-      "count": 548
+      "count": 556
     },
     {
       "brand": "24 Hour Fitness",
       "url": "https://api.24hourfitness.com/clubs",
-      "count": 237
+      "count": 235
     },
     {
       "brand": "LA Fitness",
@@ -19,17 +19,17 @@
     {
       "brand": "Esporta Fitness",
       "url": "https://www.lafitness.com/Pages/GetClubLocations.aspx/GetClubLocation",
-      "count": 51
+      "count": 50
     },
     {
       "brand": "EOS Fitness",
       "url": "https://api-be7615e9.joinnow.eosfitness.com/v2/clubs/filters",
-      "count": 182
+      "count": 187
     },
     {
       "brand": "VASA Fitness",
       "url": "https://vasafitness.com/wp-json/wp/v2/vasa_locations",
-      "count": 76
+      "count": 79
     },
     {
       "brand": "YouFit",
@@ -39,7 +39,7 @@
     {
       "brand": "Anytime Fitness",
       "url": "https://react.anytimefitness.com/api/locations/?country=usa",
-      "count": 2273
+      "count": 2264
     },
     {
       "brand": "Gold's Gym",
@@ -54,7 +54,7 @@
     {
       "brand": "Workout Anytime",
       "url": "https://workoutanytime.com/locations/",
-      "count": 190
+      "count": 191
     },
     {
       "brand": "Onelife Fitness",
@@ -69,7 +69,7 @@
     {
       "brand": "Orangetheory",
       "url": "https://api.orangetheory.com/all-studios?pageSize=400",
-      "count": 1173
+      "count": 1169
     },
     {
       "brand": "UFC GYM",
@@ -78,20 +78,20 @@
     }
   ],
   "counts": {
-    "Crunch Fitness": 548,
-    "24 Hour Fitness": 237,
+    "Crunch Fitness": 556,
+    "24 Hour Fitness": 235,
     "LA Fitness": 504,
-    "Esporta Fitness": 51,
-    "EOS Fitness": 182,
-    "VASA Fitness": 76,
+    "Esporta Fitness": 50,
+    "EOS Fitness": 187,
+    "VASA Fitness": 79,
     "YouFit": 49,
-    "Anytime Fitness": 2273,
+    "Anytime Fitness": 2264,
     "Gold's Gym": 174,
     "Life Time": 203,
-    "Workout Anytime": 190,
+    "Workout Anytime": 191,
     "Onelife Fitness": 69,
     "The Edge Fitness Clubs": 44,
-    "Orangetheory": 1173,
+    "Orangetheory": 1169,
     "UFC GYM": 55
   },
   "gyms": [
@@ -206,7 +206,7 @@
     {
       "brand": "Onelife Fitness",
       "name": "Onelife Fitness - Lee Branch",
-      "address": "801 Doug Baker Blvd. Suite 105",
+      "address": "801 Doug Baker Blvd.",
       "city": "Birmingham",
       "state": "Alabama",
       "postalCode": "35242",
@@ -634,18 +634,6 @@
       "officialUrl": "https://workoutanytime.com/muscle-shoals",
       "status": "Open",
       "id": "gym-workout-anytime-8239"
-    },
-    {
-      "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Opelika",
-      "address": "2701 Frederick Rd",
-      "city": "Opelika",
-      "state": "Alabama",
-      "postalCode": "36801",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-d0a415dc-4600-46a5-adcc-ce24f5f08930"
     },
     {
       "brand": "Workout Anytime",
@@ -1393,6 +1381,18 @@
     },
     {
       "brand": "Anytime Fitness",
+      "name": "Anytime Fitness - Kingman",
+      "address": "3900 Stockton Hill Rd, Ste M1",
+      "city": "Kingman",
+      "state": "Arizona",
+      "postalCode": "86409",
+      "countryCode": "US",
+      "officialUrl": "https://www.anytimefitness.com/locations",
+      "status": "Open",
+      "id": "gym-anytime-fitness-2dc29dd2-6e1f-48d5-ad0c-7dc0af6fd9e6"
+    },
+    {
+      "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Lake Havasu City",
       "address": "62 S Lk Havasu Ave",
       "city": "Lake Havasu City",
@@ -1834,6 +1834,18 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-d8732a01-51bc-4b27-a5cd-fcc31acdd53b"
+    },
+    {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Arcadia",
+      "address": "4533 E. Thomas Road",
+      "city": "Phoenix",
+      "state": "Arizona",
+      "postalCode": "85018",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/arcadia",
+      "status": "Open",
+      "id": "gym-arcadia"
     },
     {
       "brand": "EOS Fitness",
@@ -3362,7 +3374,7 @@
     {
       "brand": "UFC GYM",
       "name": "UFC GYM - Anaheim Gardenwalk",
-      "address": "400 Disney Way #94",
+      "address": "321 W Katella Ave #94",
       "city": "Anaheim",
       "state": "California",
       "postalCode": "92802",
@@ -5340,18 +5352,6 @@
       "id": "gym-orangetheory-52a9c976-188b-48c5-b88b-430b3d88b07f"
     },
     {
-      "brand": "24 Hour Fitness",
-      "name": "24 Hour Fitness - Glendale",
-      "address": "450 North Brand Blvd",
-      "city": "Glendale",
-      "state": "California",
-      "postalCode": "91203",
-      "countryCode": "US",
-      "officialUrl": "https://www.24hourfitness.com/Website/Club/00219",
-      "status": "Open",
-      "id": "gym-24-hour-fitness-00219"
-    },
-    {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Glendale",
       "address": "300 E Colorado St",
@@ -5398,6 +5398,18 @@
       "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1024&Glendale-California+GYM",
       "status": "Open",
       "id": "gym-la-fitness-1024"
+    },
+    {
+      "brand": "LA Fitness",
+      "name": "GLENDALE - NORTH BRAND",
+      "address": "450 NORTH BRAND BLVD",
+      "city": "GLENDALE",
+      "state": "California",
+      "postalCode": "91203",
+      "countryCode": "US",
+      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1584&Glendale-California+GYM",
+      "status": "Open",
+      "id": "gym-la-fitness-1584"
     },
     {
       "brand": "24 Hour Fitness",
@@ -5578,6 +5590,18 @@
       "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=920&Hawthorne-California+GYM",
       "status": "Open",
       "id": "gym-la-fitness-920"
+    },
+    {
+      "brand": "24 Hour Fitness",
+      "name": "24 Hour Fitness - Hayward Amador",
+      "address": "24727 Amador Street",
+      "city": "Hayward",
+      "state": "California",
+      "postalCode": "94544",
+      "countryCode": "US",
+      "officialUrl": "https://www.24hourfitness.com/Website/Club/00536",
+      "status": "Open",
+      "id": "gym-24-hour-fitness-00536"
     },
     {
       "brand": "24 Hour Fitness",
@@ -5998,6 +6022,18 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-fee55c77-152a-4b7b-86fa-9e79ae1f7270"
+    },
+    {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Jurupa Valley",
+      "address": "8032 Limonite Ave",
+      "city": "Jurupa Valley",
+      "state": "California",
+      "postalCode": "92509",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/jurupa-valley",
+      "status": "Open",
+      "id": "gym-jurupa-valley"
     },
     {
       "brand": "EOS Fitness",
@@ -7404,18 +7440,6 @@
       "id": "gym-la-fitness-1380"
     },
     {
-      "brand": "24 Hour Fitness",
-      "name": "24 Hour Fitness - Northridge",
-      "address": "19350 Nordhoff Street Unit D",
-      "city": "Northridge",
-      "state": "California",
-      "postalCode": "91324",
-      "countryCode": "US",
-      "officialUrl": "https://www.24hourfitness.com/Website/Club/00866",
-      "status": "Open",
-      "id": "gym-24-hour-fitness-00866"
-    },
-    {
       "brand": "Crunch Fitness",
       "name": "Crunch Fitness - Northridge",
       "address": "10155 Reseda Blvd",
@@ -7462,6 +7486,18 @@
       "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1223&Northridge-California+GYM",
       "status": "Open",
       "id": "gym-la-fitness-1223"
+    },
+    {
+      "brand": "LA Fitness",
+      "name": "NORTHRIDGE - NORDHOFF ST",
+      "address": "19350 NORDHOFF STREET UNIT D",
+      "city": "NORTHRIDGE",
+      "state": "California",
+      "postalCode": "19350",
+      "countryCode": "US",
+      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1585&Northridge-California+GYM",
+      "status": "Open",
+      "id": "gym-la-fitness-1585"
     },
     {
       "brand": "Crunch Fitness",
@@ -8316,6 +8352,18 @@
       "id": "gym-esporta-fitness-773"
     },
     {
+      "brand": "EOS Fitness",
+      "name": "EOS Fitness - Rancho Santa Margarita: Avenida de las Flores/Santa Margarita Pkwy",
+      "address": "30501 Avenida de las Flores",
+      "city": "Rancho Santa Marg",
+      "state": "California",
+      "postalCode": "92688",
+      "countryCode": "US",
+      "officialUrl": "https://www.eosfitness.com/gym/rancho-santa-margarita-avenida-de-las-flores-santa-margarita-pkwy",
+      "status": "Open",
+      "id": "gym-eos-fitness-f31598f8-2ade-43a9-9dc4-37934629b17f"
+    },
+    {
       "brand": "24 Hour Fitness",
       "name": "24 Hour Fitness - Rancho Santa Margarita",
       "address": "22331 El Paseo",
@@ -8506,18 +8554,6 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-00ee12ca-cc0d-4472-9300-8dc3d2a46eeb"
-    },
-    {
-      "brand": "Crunch Fitness",
-      "name": "Crunch Fitness - North Riverside",
-      "address": "7960 Limonite Ave",
-      "city": "Riverside",
-      "state": "California",
-      "postalCode": "92509",
-      "countryCode": "US",
-      "officialUrl": "https://www.crunch.com/locations/north-riverside",
-      "status": "Open",
-      "id": "gym-north-riverside"
     },
     {
       "brand": "EOS Fitness",
@@ -9613,30 +9649,6 @@
     },
     {
       "brand": "24 Hour Fitness",
-      "name": "24 Hour Fitness - San Jose",
-      "address": "1610 Crane Court",
-      "city": "San Jose",
-      "state": "California",
-      "postalCode": "95112",
-      "countryCode": "US",
-      "officialUrl": "https://www.24hourfitness.com/Website/Club/00811",
-      "status": "Open",
-      "id": "gym-24-hour-fitness-00811"
-    },
-    {
-      "brand": "24 Hour Fitness",
-      "name": "24 Hour Fitness - Santa Teresa (San Jose)",
-      "address": "6223 Santa Teresa Blvd",
-      "city": "San Jose",
-      "state": "California",
-      "postalCode": "95119",
-      "countryCode": "US",
-      "officialUrl": "https://www.24hourfitness.com/Website/Club/00497",
-      "status": "Open",
-      "id": "gym-24-hour-fitness-00497"
-    },
-    {
-      "brand": "24 Hour Fitness",
       "name": "24 Hour Fitness - Willow Glen",
       "address": "2306 Almaden Rd Suite 140",
       "city": "San Jose",
@@ -9746,7 +9758,7 @@
     {
       "brand": "UFC GYM",
       "name": "UFC GYM - Oakridge Mall",
-      "address": "5540 Winfield Ave #1000",
+      "address": "5540 Winfield Blvd #1000",
       "city": "San Jose",
       "state": "California",
       "postalCode": "95123",
@@ -11712,6 +11724,18 @@
       "id": "gym-orangetheory-ac866235-7598-49b0-98ad-43b1d0d44894"
     },
     {
+      "brand": "Life Time",
+      "name": "Life Time - Castle Pines",
+      "address": "7373 Canyon Forge Drive",
+      "city": "Castle Pines",
+      "state": "Colorado",
+      "postalCode": "80108",
+      "countryCode": "US",
+      "officialUrl": "https://www.lifetime.life/locations/co/castle-pines.html",
+      "status": "Open",
+      "id": "gym-life-time-336"
+    },
+    {
       "brand": "24 Hour Fitness",
       "name": "24 Hour Fitness - Castle Rock",
       "address": "5745 New Abbey Lane",
@@ -11770,6 +11794,18 @@
       "officialUrl": "https://www.lifetime.life/locations/co/centennial-tennis.html",
       "status": "Open",
       "id": "gym-life-time-231"
+    },
+    {
+      "brand": "VASA Fitness",
+      "name": "VASA Fitness - Centennial (Arapahoe)",
+      "address": "5050 E Arapahoe Rd",
+      "city": "Centennial",
+      "state": "Colorado",
+      "postalCode": "80122",
+      "countryCode": "US",
+      "officialUrl": "https://vasafitness.com/locations/co/centennial-arapahoe/",
+      "status": "Open",
+      "id": "gym-vasa-fitness-458931"
     },
     {
       "brand": "VASA Fitness",
@@ -14053,18 +14089,6 @@
     },
     {
       "brand": "Orangetheory",
-      "name": "Orangetheory - Navy Yard, DC",
-      "address": "82 I St SE",
-      "city": "Washington",
-      "state": "District of Columbia",
-      "postalCode": "20003",
-      "countryCode": "US",
-      "officialUrl": "https://www.orangetheory.com/en-us/locations/washington-dc-0694",
-      "status": "Open",
-      "id": "gym-orangetheory-3b36306d-4181-489c-898b-d61e0d21666a"
-    },
-    {
-      "brand": "Orangetheory",
       "name": "Orangetheory - Tenleytown, DC",
       "address": "4600 Wisconsin Ave NW #101",
       "city": "Washington",
@@ -14494,6 +14518,30 @@
       "officialUrl": "https://www.crunch.com/locations/lakewood-ranch",
       "status": "Open",
       "id": "gym-lakewood-ranch"
+    },
+    {
+      "brand": "EOS Fitness",
+      "name": "EOS Fitness - Bradenton: 14th St W/Cortez Rd W",
+      "address": "1005 Cortez Rd W.",
+      "city": "Bradenton",
+      "state": "Florida",
+      "postalCode": "34207",
+      "countryCode": "US",
+      "officialUrl": "https://www.eosfitness.com/gym/bradenton-florida-14th-st-w-cortez-rd-w",
+      "status": "Open",
+      "id": "gym-eos-fitness-6a5caddc-3a7f-4161-9001-77cccb29fab3"
+    },
+    {
+      "brand": "EOS Fitness",
+      "name": "EOS Fitness - Bradenton: 59th St W/Cortez Rd W",
+      "address": "5584 Cortez Rd. W",
+      "city": "Bradenton",
+      "state": "Florida",
+      "postalCode": "34210",
+      "countryCode": "US",
+      "officialUrl": "https://www.eosfitness.com/gym/bradenton-florida-59th-st-w-cortez-rd-w",
+      "status": "Open",
+      "id": "gym-eos-fitness-395b18b6-2134-4900-b0b5-c28f1dc4a2c6"
     },
     {
       "brand": "Orangetheory",
@@ -15780,18 +15828,6 @@
       "id": "gym-youfit-1812579"
     },
     {
-      "brand": "Esporta Fitness",
-      "name": "Esporta Fitness - HIALEAH-PALMETTO EXPY",
-      "address": "1901 WEST 39TH STREET",
-      "city": "HIALEAH",
-      "state": "Florida",
-      "postalCode": "33012",
-      "countryCode": "US",
-      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=714&Hialeah-Florida+GYM",
-      "status": "Open",
-      "id": "gym-esporta-fitness-714"
-    },
-    {
       "brand": "LA Fitness",
       "name": "HIALEAH/W 49TH ST",
       "address": "630 W 49TH STREET",
@@ -16368,6 +16404,18 @@
       "id": "gym-lakeland"
     },
     {
+      "brand": "Orangetheory",
+      "name": "Orangetheory - Lakeland, FL",
+      "address": "1065 S. Florida Ave",
+      "city": "Lakeland",
+      "state": "Florida",
+      "postalCode": "33803",
+      "countryCode": "US",
+      "officialUrl": "https://www.orangetheory.com/en-us/locations/lakeland-florida-1670",
+      "status": "Open",
+      "id": "gym-orangetheory-7fec6b91-5c26-40bc-aa49-c2676b25d3dd"
+    },
+    {
       "brand": "LA Fitness",
       "name": "LAKELAND-LAKELAND PARK CENTER",
       "address": "833 LAKELAND PARK CENTER DRIVE",
@@ -16549,7 +16597,7 @@
     },
     {
       "brand": "EOS Fitness",
-      "name": "EOS Fitness - Longwood: E State Rd 434/S US Hwy 17-92",
+      "name": "EOS Fitness - Longwood: E SR 434/S US Hwy 17-92",
       "address": "200 S US HWY 17 92",
       "city": "Longwood",
       "state": "Florida",
@@ -16630,18 +16678,6 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-7ed40fbe-8ed5-4197-8d89-48e0cc9e29ee"
-    },
-    {
-      "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Melbourne, FL (1270 North Wickham Road)",
-      "address": "1270 N Wickham Rd",
-      "city": "Melbourne",
-      "state": "Florida",
-      "postalCode": "32935",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-60786819-cfce-4c4c-8ebe-a1af82f0ef21"
     },
     {
       "brand": "Crunch Fitness",
@@ -16774,18 +16810,6 @@
       "officialUrl": "https://www.orangetheory.com/en-us/locations/miami-florida-0026",
       "status": "Open",
       "id": "gym-orangetheory-0f839148-1ac2-4aaa-8875-9dc147022605"
-    },
-    {
-      "brand": "Orangetheory",
-      "name": "Orangetheory - Miami-Bird Rd, FL",
-      "address": "7396 SW 40th St",
-      "city": "Miami",
-      "state": "Florida",
-      "postalCode": "33155",
-      "countryCode": "US",
-      "officialUrl": "https://www.orangetheory.com/en-us/locations/miami-florida-0090",
-      "status": "Open",
-      "id": "gym-orangetheory-57395fb8-65fd-4d50-acdb-97df0060042c"
     },
     {
       "brand": "Orangetheory",
@@ -17590,6 +17614,18 @@
       "officialUrl": "https://workoutanytime.com/okeechobee",
       "status": "Open",
       "id": "gym-workout-anytime-79323"
+    },
+    {
+      "brand": "EOS Fitness",
+      "name": "EOS Fitness - Oldsmar: Tampa Rd/Curlew Rd",
+      "address": "3136 Tampa Rd",
+      "city": "Oldsmar",
+      "state": "Florida",
+      "postalCode": "34677",
+      "countryCode": "US",
+      "officialUrl": "https://www.eosfitness.com/gym/oldsmar-florida-tampa-rd-curlew-rd",
+      "status": "Open",
+      "id": "gym-eos-fitness-6756e09b-752a-42df-a2d9-17f828412709"
     },
     {
       "brand": "Orangetheory",
@@ -18745,7 +18781,7 @@
     },
     {
       "brand": "EOS Fitness",
-      "name": "EOS Fitness - Riverview: US-301 & Bloomingdale Ave",
+      "name": "EOS Fitness - Riverview: US-301/Bloomingdale Ave",
       "address": "5891 S Gornto Lake Rd",
       "city": "Riverview",
       "state": "Florida",
@@ -19054,6 +19090,18 @@
       "officialUrl": "https://www.crunch.com/locations/tyrone",
       "status": "Open",
       "id": "gym-tyrone"
+    },
+    {
+      "brand": "EOS Fitness",
+      "name": "EOS Fitness - St Petersburg: 28th St S/54th Ave S",
+      "address": "2830 54th ave S",
+      "city": "St. Petersburg",
+      "state": "Florida",
+      "postalCode": "33712",
+      "countryCode": "US",
+      "officialUrl": "https://www.eosfitness.com/gym/st-petersburg-28th-st-s-54th-ave-s",
+      "status": "Open",
+      "id": "gym-eos-fitness-adeb16b2-d2d6-4553-bdd3-57a2797f7a6e"
     },
     {
       "brand": "Orangetheory",
@@ -19513,7 +19561,7 @@
     },
     {
       "brand": "Orangetheory",
-      "name": "Orangetheory - Tampa Water Steet, FL",
+      "name": "Orangetheory - Tampa Water Street, FL",
       "address": "1061 E Cumberland Ave",
       "city": "Tampa",
       "state": "Florida",
@@ -19894,18 +19942,6 @@
       "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=1111&West+Melbourne-Florida+GYM",
       "status": "Open",
       "id": "gym-la-fitness-1111"
-    },
-    {
-      "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - West Palm Beach",
-      "address": "6901 Okeechobee Blvd",
-      "city": "West Palm Beach",
-      "state": "Florida",
-      "postalCode": "33411",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-6048b6ef-14b9-4dc9-9292-2ed081361d36"
     },
     {
       "brand": "YouFit",
@@ -22069,6 +22105,18 @@
     },
     {
       "brand": "Workout Anytime",
+      "name": "Workout Anytime - Stonecrest",
+      "address": "8130 Mall Parkway",
+      "city": "Lithonia",
+      "state": "Georgia",
+      "postalCode": "30038",
+      "countryCode": "US",
+      "officialUrl": "https://workoutanytime.com/stonecrest",
+      "status": "Open",
+      "id": "gym-workout-anytime-281545"
+    },
+    {
+      "brand": "Workout Anytime",
       "name": "Workout Anytime - Locust Grove",
       "address": "2694 Hwy 155",
       "city": "Locust Grove",
@@ -22776,6 +22824,18 @@
       "id": "gym-orangetheory-57bc8ef7-1982-4b72-8016-951c0f7809cf"
     },
     {
+      "brand": "Anytime Fitness",
+      "name": "Anytime Fitness - Senoia",
+      "address": "122 Rock House Rd",
+      "city": "Senoia",
+      "state": "Georgia",
+      "postalCode": "30276",
+      "countryCode": "US",
+      "officialUrl": "https://www.anytimefitness.com/locations",
+      "status": "Open",
+      "id": "gym-anytime-fitness-f7d35471-2034-46fc-8647-1d82b63f0896"
+    },
+    {
       "brand": "Orangetheory",
       "name": "Orangetheory - Smyrna, GA",
       "address": "4495 W Village Way",
@@ -23222,7 +23282,7 @@
     {
       "brand": "UFC GYM",
       "name": "UFC GYM - Kailua",
-      "address": "573 Kailua Rd",
+      "address": "573 Kailua Rd #200",
       "city": "Kailua",
       "state": "Hawaii",
       "postalCode": "96734",
@@ -23326,6 +23386,18 @@
       "officialUrl": "https://www.ufcgym.com/locations/mililani",
       "status": "Open",
       "id": "gym-ufc-gym-10029"
+    },
+    {
+      "brand": "24 Hour Fitness",
+      "name": "24 Hour Fitness - Pearl City",
+      "address": "1000 Kamehameha Hwy",
+      "city": "Pearl City",
+      "state": "Hawaii",
+      "postalCode": "96782",
+      "countryCode": "US",
+      "officialUrl": "https://www.24hourfitness.com/Website/Club/00496",
+      "status": "Open",
+      "id": "gym-24-hour-fitness-00496"
     },
     {
       "brand": "Anytime Fitness",
@@ -23494,6 +23566,18 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-e1bf0459-c639-41b9-9d69-da66e352108b"
+    },
+    {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Coeur d'Alene",
+      "address": "101 E Appleway Ave",
+      "city": "Coeur d'Alene",
+      "state": "Idaho",
+      "postalCode": "83815",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/coeurdalene",
+      "status": "Open",
+      "id": "gym-coeur-d-alene"
     },
     {
       "brand": "Anytime Fitness",
@@ -24000,18 +24084,6 @@
       "id": "gym-life-time-53"
     },
     {
-      "brand": "Life Time",
-      "name": "Life Time - Burr Ridge Sport and Racquet",
-      "address": "6901 S. Madison Street",
-      "city": "Burr Ridge",
-      "state": "Illinois",
-      "postalCode": "60527",
-      "countryCode": "US",
-      "officialUrl": "https://www.lifetime.life/locations/il/burr-ridge-sport-and-racquet.html",
-      "status": "Open",
-      "id": "gym-life-time-375"
-    },
-    {
       "brand": "Orangetheory",
       "name": "Orangetheory - Carol Stream-Wheaton North, IL",
       "address": "547 S Schmale Rd",
@@ -24350,7 +24422,7 @@
     {
       "brand": "UFC GYM",
       "name": "UFC GYM - Wrigleyville",
-      "address": "3519 N Clark St Ste 201",
+      "address": "3519 N Clark St Ste C201",
       "city": "Chicago",
       "state": "Illinois",
       "postalCode": "60657",
@@ -25606,6 +25678,18 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-8a8acebc-1655-4886-92b5-e5147b85cc54"
+    },
+    {
+      "brand": "VASA Fitness",
+      "name": "VASA Fitness - Oak Forest",
+      "address": "5556 159th St",
+      "city": "Oak Forest",
+      "state": "Illinois",
+      "postalCode": "60452",
+      "countryCode": "US",
+      "officialUrl": "https://vasafitness.com/locations/il/oak-forest/",
+      "status": "Open",
+      "id": "gym-vasa-fitness-463024"
     },
     {
       "brand": "LA Fitness",
@@ -27434,7 +27518,7 @@
     {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Indianapolis (Lake Plaza Dr)",
-      "address": "6935 Lake Plaza Dr",
+      "address": "6935 Lake Plaza Dr, Unit C3",
       "city": "Indianapolis",
       "state": "Indiana",
       "postalCode": "46220",
@@ -28918,6 +29002,18 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-3caeeb78-e07c-468d-8523-26ac9d1b439d"
+    },
+    {
+      "brand": "VASA Fitness",
+      "name": "VASA Fitness - Waterloo",
+      "address": "4000 University Ave, Suite 2",
+      "city": "Waterloo",
+      "state": "Iowa",
+      "postalCode": "50701",
+      "countryCode": "US",
+      "officialUrl": "https://vasafitness.com/locations/ia/waterloo/",
+      "status": "Open",
+      "id": "gym-vasa-fitness-463249"
     },
     {
       "brand": "Anytime Fitness",
@@ -34224,6 +34320,18 @@
       "id": "gym-anytime-fitness-e36387f0-c164-4b37-96af-e5ab70673a1b"
     },
     {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Grand Blanc",
+      "address": "12720 S. Saginaw St, Suite B",
+      "city": "Grand Blanc",
+      "state": "Michigan",
+      "postalCode": "48439",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/grand-blanc",
+      "status": "Open",
+      "id": "gym-grand-blanc"
+    },
+    {
       "brand": "Orangetheory",
       "name": "Orangetheory - Grand Blanc, MI",
       "address": "12821 S Saginaw St Suite D-3",
@@ -34522,6 +34630,18 @@
       "officialUrl": "https://www.crunch.com/locations/livonia",
       "status": "Open",
       "id": "gym-livonia"
+    },
+    {
+      "brand": "VASA Fitness",
+      "name": "VASA Fitness - Livonia (Plymouth Rd)",
+      "address": "30070 Plymouth Road",
+      "city": "Livonia",
+      "state": "Michigan",
+      "postalCode": "48150",
+      "countryCode": "US",
+      "officialUrl": "https://vasafitness.com/locations/mi/livonia-plymouth-rd/",
+      "status": "Open",
+      "id": "gym-vasa-fitness-463021"
     },
     {
       "brand": "LA Fitness",
@@ -35554,18 +35674,6 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-64bfecde-87d0-4448-8c28-c24cfaa3c805"
-    },
-    {
-      "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Becker",
-      "address": "14030 Bank St, Ste 4",
-      "city": "Becker",
-      "state": "Minnesota",
-      "postalCode": "55308",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-beb54bfc-af24-4236-855c-27afc66878e9"
     },
     {
       "brand": "Anytime Fitness",
@@ -37476,6 +37584,18 @@
       "id": "gym-anytime-fitness-b80f5fab-21e7-4c52-a206-6f37dd159df0"
     },
     {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - St. Paul Highland Park",
+      "address": "2152 Ford Parkway",
+      "city": "St. Paul",
+      "state": "Minnesota",
+      "postalCode": "55116",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/stpaulhighlands",
+      "status": "Open",
+      "id": "gym-st-paul-highland-park"
+    },
+    {
       "brand": "Orangetheory",
       "name": "Orangetheory - Grand Ave-St.Paul",
       "address": "850 Grand Ave",
@@ -37906,18 +38026,6 @@
       "officialUrl": "https://www.orangetheory.com/en-us/locations/hattiesburg-mississippi-0995",
       "status": "Open",
       "id": "gym-orangetheory-cef3d369-da77-4011-b570-1bec25f9a530"
-    },
-    {
-      "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Jackson",
-      "address": "4924 I-55 N, Ste 107",
-      "city": "Jackson",
-      "state": "Mississippi",
-      "postalCode": "39211",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-a0c5dd3f-5f6a-42fb-b2ef-4c442bdae114"
     },
     {
       "brand": "Crunch Fitness",
@@ -39142,18 +39250,6 @@
       "officialUrl": "https://www.orangetheory.com/en-us/locations/downtown-omaha-nebraska-1043",
       "status": "Open",
       "id": "gym-orangetheory-13760cfb-9194-4cce-a2dd-89ab14b3fb32"
-    },
-    {
-      "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Elkhorn",
-      "address": "20231 Manderson St",
-      "city": "Elkhorn",
-      "state": "Nebraska",
-      "postalCode": "68022",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-7f8f5d0a-ce0e-4e60-81dd-d23cb63a7fed"
     },
     {
       "brand": "Anytime Fitness",
@@ -43474,18 +43570,6 @@
       "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=603&Lindenhurst-New+York+GYM",
       "status": "Open",
       "id": "gym-la-fitness-603"
-    },
-    {
-      "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Liverpool",
-      "address": "7165 Buckley Rd",
-      "city": "Liverpool",
-      "state": "New York",
-      "postalCode": "13088",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-160ee1a7-ac07-4cab-bf67-b44e0adc69d2"
     },
     {
       "brand": "Orangetheory",
@@ -48685,18 +48769,6 @@
     },
     {
       "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Hugo",
-      "address": "1800 E Jackson St",
-      "city": "Hugo",
-      "state": "Oklahoma",
-      "postalCode": "74743",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-20eada7d-bd92-4c9b-a1cd-f43fe962967b"
-    },
-    {
-      "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Lawton (E Gore Blvd)",
       "address": "2304 E Gore Blvd, Ste 1",
       "city": "Lawton",
@@ -50460,18 +50532,6 @@
       "id": "gym-orangetheory-e19e1984-544e-45b6-b247-96663392f223"
     },
     {
-      "brand": "Crunch Fitness",
-      "name": "Crunch Fitness - Fairless Hills",
-      "address": "110 Commerce Blvd",
-      "city": "Fairless Hills",
-      "state": "Pennsylvania",
-      "postalCode": "19030",
-      "countryCode": "US",
-      "officialUrl": "https://www.crunch.com/locations/fairless-hills",
-      "status": "Open",
-      "id": "gym-fairless-hills"
-    },
-    {
       "brand": "Life Time",
       "name": "Life Time - Fort Washington",
       "address": "375 Commerce Dr",
@@ -51060,18 +51120,6 @@
       "id": "gym-anytime-fitness-2fc93693-178a-4f48-9d55-d3a82d6341a4"
     },
     {
-      "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Philadelphia (Fairmount)",
-      "address": "1640 Fairmount Ave, Suite 3",
-      "city": "Philadelphia",
-      "state": "Pennsylvania",
-      "postalCode": "19130",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-ec7654f2-3209-471c-acae-df9fb8c7c249"
-    },
-    {
       "brand": "Crunch Fitness",
       "name": "Crunch Fitness - Roosevelt",
       "address": "9173 Roosevelt Blvd",
@@ -51214,18 +51262,6 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-dddef62c-7f73-4e5a-94cf-8b681b5f2922"
-    },
-    {
-      "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Robinson Township",
-      "address": "5470 Campbells Run Rd",
-      "city": "Pittsburgh",
-      "state": "Pennsylvania",
-      "postalCode": "15205",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-0725e09d-fb93-481e-8e0c-95b9f9ba1a3e"
     },
     {
       "brand": "Crunch Fitness",
@@ -52426,18 +52462,6 @@
       "officialUrl": "https://www.onelifefitness.com/gyms/sandhills",
       "status": "Open",
       "id": "gym-onelife-fitness-178207769628"
-    },
-    {
-      "brand": "Orangetheory",
-      "name": "Orangetheory - Downtown Columbia, SC",
-      "address": "940 Harden St",
-      "city": "Columbia",
-      "state": "South Carolina",
-      "postalCode": "29205",
-      "countryCode": "US",
-      "officialUrl": "https://www.orangetheory.com/en-us/locations/columbia-south-carolina-1525",
-      "status": "Open",
-      "id": "gym-orangetheory-d180603d-a93d-47b3-a601-fcb14532ccc9"
     },
     {
       "brand": "Anytime Fitness",
@@ -53914,6 +53938,18 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-57a73564-d912-47fc-90a7-8b243ed4cdbf"
+    },
+    {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Cool Springs",
+      "address": "1735 Galleria Blvd.",
+      "city": "Franklin",
+      "state": "Tennessee",
+      "postalCode": "37067",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/coolsprings",
+      "status": "Open",
+      "id": "gym-cool-springs"
     },
     {
       "brand": "Life Time",
@@ -55501,6 +55537,18 @@
     },
     {
       "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - North Austin",
+      "address": "8716 Research Blvd, Suite 100",
+      "city": "Austin",
+      "state": "Texas",
+      "postalCode": "78758",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/northatx",
+      "status": "Open",
+      "id": "gym-north-austin"
+    },
+    {
+      "brand": "Crunch Fitness",
       "name": "Crunch Fitness - South Austin",
       "address": "4625 W William Cannon Drive",
       "city": "Austin",
@@ -55726,18 +55774,6 @@
       "officialUrl": "https://www.orangetheory.com/en-us/locations/austin-texas-0947",
       "status": "Open",
       "id": "gym-orangetheory-4e1b23a3-8829-4542-89b4-69d8f4a8c01b"
-    },
-    {
-      "brand": "Orangetheory",
-      "name": "Orangetheory - Domain, TX",
-      "address": "3100 Esperanza Crossing #118",
-      "city": "Austin",
-      "state": "Texas",
-      "postalCode": "78758",
-      "countryCode": "US",
-      "officialUrl": "https://www.orangetheory.com/en-us/locations/austin-texas-0817",
-      "status": "Open",
-      "id": "gym-orangetheory-77761521-3a82-4e69-a8d6-681f65778cac"
     },
     {
       "brand": "Orangetheory",
@@ -57037,18 +57073,6 @@
     },
     {
       "brand": "LA Fitness",
-      "name": "DALLAS UPTOWN (Signature)",
-      "address": "2690 N HASKELL AVE",
-      "city": "DALLAS",
-      "state": "Texas",
-      "postalCode": "75204",
-      "countryCode": "US",
-      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=697&Dallas-Texas+GYM",
-      "status": "Open",
-      "id": "gym-la-fitness-697"
-    },
-    {
-      "brand": "LA Fitness",
       "name": "DALLAS-MOCKINGBIRD LN @ LEMMON",
       "address": "4540 WEST MOCKINGBIRD LANE",
       "city": "DALLAS",
@@ -58044,6 +58068,18 @@
       "id": "gym-anytime-fitness-4967bc3f-44c5-4b34-b7ad-225083619912"
     },
     {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Georgetown",
+      "address": "205 Jesse Cocke Dr",
+      "city": "Georgetown",
+      "state": "Texas",
+      "postalCode": "78628",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/georgetown",
+      "status": "Open",
+      "id": "gym-georgetown"
+    },
+    {
       "brand": "Orangetheory",
       "name": "Orangetheory - Bar W, TX",
       "address": "19380 Ronald Reagan Blvd #400",
@@ -58837,18 +58873,6 @@
     },
     {
       "brand": "LA Fitness",
-      "name": "HOUSTON 290 @ HOLLISTER",
-      "address": "13350 NORTHWEST FREEWAY",
-      "city": "HOUSTON",
-      "state": "Texas",
-      "postalCode": "13350",
-      "countryCode": "US",
-      "officialUrl": "https://www.lafitness.com/Pages/clubhome.aspx?clubid=704&Houston-Texas+GYM",
-      "status": "Open",
-      "id": "gym-la-fitness-704"
-    },
-    {
-      "brand": "LA Fitness",
       "name": "HOUSTON GREENWAY (Signature)",
       "address": "3838 RICHMOND AVE",
       "city": "HOUSTON",
@@ -59618,7 +59642,7 @@
     {
       "brand": "Anytime Fitness",
       "name": "Anytime Fitness - Lewisville",
-      "address": "1490 Valley Rdg Blvd",
+      "address": "1490 Valley Rdg Blvd, Ste 115",
       "city": "Lewisville",
       "state": "Texas",
       "postalCode": "75077",
@@ -59941,7 +59965,7 @@
     },
     {
       "brand": "Orangetheory",
-      "name": "Orangetheory - Mission",
+      "name": "Orangetheory - Mission, TX",
       "address": "2700 W Expy 83 Suite 465",
       "city": "McAllen",
       "state": "Texas",
@@ -60046,18 +60070,6 @@
       "officialUrl": "https://www.crunch.com/locations/mesquite",
       "status": "Open",
       "id": "gym-mesquite"
-    },
-    {
-      "brand": "Orangetheory",
-      "name": "Orangetheory - Mesquite, TX",
-      "address": "1765 N Town E Blvd #141",
-      "city": "Mesquite",
-      "state": "Texas",
-      "postalCode": "75150",
-      "countryCode": "US",
-      "officialUrl": "https://www.orangetheory.com/en-us/locations/mesquite-texas-0212",
-      "status": "Open",
-      "id": "gym-orangetheory-15ee6b67-bee1-497d-a4b2-ce8f4b33445a"
     },
     {
       "brand": "Anytime Fitness",
@@ -60241,7 +60253,7 @@
     },
     {
       "brand": "EOS Fitness",
-      "name": "EOS Fitness - Murphy: N Murphy Rd / E FM 544",
+      "name": "EOS Fitness - Murphy: N Murphy Rd/E FM 544",
       "address": "229 E FM 544",
       "city": "Murphy",
       "state": "Texas",
@@ -60322,6 +60334,18 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-e867a082-a5a7-47d8-aa2f-936ea1f7e26b"
+    },
+    {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - New Braunfels",
+      "address": "651 N. Business I-35",
+      "city": "New Braunfels",
+      "state": "Texas",
+      "postalCode": "78130",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/new-braunfels",
+      "status": "Open",
+      "id": "gym-new-braunfels"
     },
     {
       "brand": "Orangetheory",
@@ -62866,18 +62890,6 @@
       "officialUrl": "https://www.orangetheory.com/en-us/locations/bountiful-utah-0393",
       "status": "Open",
       "id": "gym-orangetheory-04c40bb9-b14e-47b2-803e-341c8cb3210f"
-    },
-    {
-      "brand": "VASA Fitness",
-      "name": "VASA Fitness - Bountiful",
-      "address": "250 W 1500 S",
-      "city": "Bountiful",
-      "state": "Utah",
-      "postalCode": "84010",
-      "countryCode": "US",
-      "officialUrl": "https://vasafitness.com/locations/ut/bountiful/",
-      "status": "Open",
-      "id": "gym-vasa-fitness-304"
     },
     {
       "brand": "VASA Fitness",
@@ -67908,18 +67920,6 @@
       "id": "gym-anytime-fitness-b64a5687-95ec-45ba-b995-754b6bbd5f3d"
     },
     {
-      "brand": "Anytime Fitness",
-      "name": "Anytime Fitness - Union Gap",
-      "address": "2529 Main St",
-      "city": "Union Gap",
-      "state": "Washington",
-      "postalCode": "98903",
-      "countryCode": "US",
-      "officialUrl": "https://www.anytimefitness.com/locations",
-      "status": "Open",
-      "id": "gym-anytime-fitness-2f23da06-05cb-4ae8-b7a4-96455a15c128"
-    },
-    {
       "brand": "24 Hour Fitness",
       "name": "24 Hour Fitness - Columbia Tech Center",
       "address": "800 SE Tech Center Drive",
@@ -68938,6 +68938,18 @@
       "officialUrl": "https://www.anytimefitness.com/locations",
       "status": "Open",
       "id": "gym-anytime-fitness-29c1a2eb-c953-47db-9c13-eb18ba00bba6"
+    },
+    {
+      "brand": "Crunch Fitness",
+      "name": "Crunch Fitness - Kenosha",
+      "address": "7014-B Greenbay Rd",
+      "city": "Kenosha",
+      "state": "Wisconsin",
+      "postalCode": "53142",
+      "countryCode": "US",
+      "officialUrl": "https://www.crunch.com/locations/kenosha",
+      "status": "Open",
+      "id": "gym-kenosha"
     },
     {
       "brand": "Anytime Fitness",
